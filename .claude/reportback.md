@@ -2595,3 +2595,200 @@ None. OQ-A3 remains OPEN exactly as the branch left it.
 NEXT
 The open item above is a human keyboard check. Nothing else blocking.
 ─────────────────────────────────────────────
+
+═════════════════════════════════════════════
+F8-E1 — engine selectors, the ONE step enumerator, and the text builder · slice-complete
+Agent: Tier-2 implementer (constrained mode) · 2026-08-25
+Brief: workspace/badge-builder-2k27/impl-briefs/f8-e1-engine-selectors-and-steps.md rev 1
+Preamble: impl-briefs/f8-00-slice-map-and-rebase-ledger.md rev 1 (AJ-1 … AJ-11)
+Implementation commit: 1c1e1d4 · Branch f8-engine (isolated worktree /tmp/bb-f8e)
+NOT merged to dev. main untouched.
+─────────────────────────────────────────────
+
+REBASE ANCHOR — and TWO HARD PRECONDITIONS THAT ARE NOT MET
+Base origin/dev @ 9bd851c. F5.2 IS in (e11e8f1). Baseline suite 46 files /
+701 tests green in 39.1s — SEVEN above the dispatch's stated 694, because F5.2
+landed after that number was taken. 701 is the denominator every count below
+is arithmetic against.
+
+  ⚠ F4 HAS NOT LANDED, and it is a HARD prerequisite of this slice (§0, §2 of
+    f8-00). Verified three ways on the base tree: `grep '"onFuse"'
+    src/config/index.ts` and `grep disciplineLock src/engine/types.ts` are both
+    EMPTY, and badges.json is still dataVersion 2026-08-25.1, not the
+    2026-08-26.1 the ledger predicts. F4 is in flight in a parallel worktree
+    (/tmp/bb-f4). The dispatch was explicit that the four slices run
+    concurrently and asked for a merge forecast, so this was carried rather
+    than treated as a stop — but it is recorded here because it moves real
+    things. Consequences, all named below: the golden table is pinned against
+    the PRE-F4 dataset; INV-11 covers three RefundTriggers, not four; AJ-5
+    item (g) took its fallback; F4's SummaryPanel edits do not exist to survive.
+
+  ⚠ The `Physicals`/`Rebounding` NEW chip and the badge-description <details>
+    ARE ALREADY IN THE TREE (visible on BadgeCard at 1280). The rebase ledger
+    lists both as F4 work. Something has shipped a subset of F4's UI ahead of
+    F4's engine changes. Flagged, not touched.
+
+changed_files (all within Allowed paths)
+  NEW  src/engine/steps.ts · src/engine/summary.ts · src/engine/summary-text.ts
+  MOD  src/engine/ledger.ts (+badgeSlotsCapacityUnset)
+       src/engine/eligibility.ts (+entryIsStale, +reasonsForLevel export,
+         recheckEligibility refactored to call entryIsStale)
+       src/engine/README.md (one section)
+       src/ui/grid/feasibility.ts (re-expressed; net −0 lines but −25 of logic)
+       src/ui/grid/CategoryLedger.tsx (definition deleted, engine import added,
+         one header-comment correction — NO re-export shim)
+       src/ui/summary/SummaryPanel.tsx (THE IMPORT BLOCK AND NOTHING ELSE)
+       src/App.tsx (EXACTLY TWO EDITS, both named below)
+  NEW  tests/feasibility-golden.test.ts · tests/steps.test.ts ·
+       tests/summary.test.ts · tests/summary-text.test.ts
+  MOD  tests/architecture.test.ts (group (f) appended; (a)–(e) untouched)
+       tests/eligibility.test.ts · tests/ledger.test.ts (appended; every
+         existing assertion unedited)
+  NEW  docs/proof/f8e1-verification.txt
+  MOD  .claude/reportback.md (this entry)
+
+  src/App.tsx's diff is exactly two edits, as promised up front by AJ-6:
+    (1) the categoryFeasibility(...) call site takes the AJ-6 signature
+        — (badgesByCategory.get(category) ?? [], …, working.loadout, …)
+        + (ledgerState, working.build, category, …)
+    (2) the badgeSlotsCapacityUnset import re-points from
+        ./ui/grid/CategoryLedger to ./engine/ledger.
+  src/ui/summary/SummaryPanel.tsx's diff is +1/−1 import line. Nothing else.
+
+denied_paths_checked — I DID NOT TOUCH ANY OF THESE
+  src/engine/randomize.ts · src/engine/random.ts (created only in the SEPARATE
+  E2 commit that follows, never in 1c1e1d4) · src/styles/** (zero CSS diff) ·
+  src/data/** (zero 2K27 data, dataVersion untouched) · src/config/** ·
+  src/persist/** · src/main.tsx · src/engine/serialization.ts ·
+  src/ui/build/BudgetGrid.tsx (AJ-5 fallback) · tests/ui/overlays.test.tsx
+  (RUN explicitly, never edited) · tests/vocabulary.test.ts (RUN, not edited in
+  this commit — class 2 is E2's) · package.json / package-lock.json /
+  tsconfig.json / vite.config.ts (no dependency, no timeout change) ·
+  .claude/** except this file · the `main` branch.
+
+first_proof_result — THE GOLDEN TABLE, GREEN AGAINST THE UNMODIFIED TREE
+  Verbatim in docs/proof/f8e1-verification.txt. Captured with
+  `ls src/engine/steps.ts` → "No such file or directory" in the same log, so
+  the ordering is evidenced rather than asserted:
+
+      $ npx vitest run tests/feasibility-golden.test.ts
+       Test Files  1 passed (1)
+            Tests  4 passed (4)
+
+  504 cells: 6 shipped-data builds × 6 categories × 4 loadout states × 3
+  remainingPoints, PLUS a 72-cell synthetic-dataset arm. Re-run after the
+  hoist: 4 passed, and NOT ONE CELL WAS EDITED. The only thing that moved
+  across the refactor is the test's own `callFeasibility` adapter, which is the
+  AJ-6 signature change and is isolated in one function for exactly that reason.
+
+verification_evidence
+  npm test          46 files / 701 tests  →  50 files / 796 tests. ALL GREEN.
+  npm run typecheck clean · npm run build clean (277.01 kB / 84.20 kB gzip)
+  npx vitest run tests/ui/overlays.test.tsx      → 1 file / 4 tests PASS (H2)
+  npx vitest run tests/vocabulary.test.ts tests/architecture.test.ts
+                                                 → 2 files / 231 tests PASS
+  npx vitest run tests/steps.test.ts tests/summary.test.ts
+      tests/summary-text.test.ts                 → 3 files / 59 tests PASS
+  npx vitest run tests/ui/category-ledger.test.tsx
+      tests/ui/summary-import-export.test.tsx    → 2 files / 11 tests PASS
+  git status --porcelain — only Allowed paths.
+
+  ARCHITECTURE GROUP COUNT, OBSERVED not assumed: 5 before ((a) engine purity,
+  (b) dependency allowlist, (c) zero network egress, (e) position-height route,
+  (d) no runtime filesystem access) → 6 after. Groups (a)–(e) unedited.
+
+  SHARED TYPES PLACEMENT: LegalStep / StepEnumerationInput live in steps.ts;
+  RosterRow / CategorySummary / BuildSummary / SynergySummaryRow live in
+  summary.ts. src/engine/types.ts was NOT edited — nothing in F8-E1 needed to
+  be visible from more than one module, and adding to a file F4 is also editing
+  would have created a merge surface for no benefit. No ProposalSource (AJ-8).
+
+  AJ-5 ITEM (g): THE §1(g) FALLBACK WAS TAKEN, and it was not a judgment call —
+  F4 has not landed, so BudgetTotalRow has no Σ-vs-20 annotation to re-point.
+  BudgetGrid.tsx is untouched. `badgeSlotsBaselineText` ships in summary.ts as
+  the text block's source only. FOLLOW-UP, NAMED: when F4 lands, re-point
+  BudgetTotalRow's <tfoot> Badge Slots cell at `badgeSlotsBaselineText` so the
+  A3 fact keeps one phrasing across the annotation and the pasted text.
+
+SEVEN PLACES THE BRIEF NO LONGER MATCHED THE SHIPPED CODE
+  1. `Math.random` ALREADY EXISTS UNDER src/**. The DoD asks for it to appear
+     NOWHERE; src/persist/local-storage.ts:251 mints build ids with it, that
+     call is correct (a persisted id SHOULD be unpredictable), it is not engine
+     code, and src/persist/** is a DENIED path here. So the ban ships in a
+     STRONGER form than a blanket rule that cannot pass: unconditional under
+     src/engine/**, plus a build-wide assertion that the set of Math.random
+     callers equals an explicit one-entry allowlist. A new one anywhere reddens.
+  2. A blanket `new Date(` ban over src/engine/** would also redden correct
+     shipped code — serialization.ts takes `savedAt = new Date().toISOString()`
+     as an injectable default. Group (f) is therefore scoped to a NAMED module
+     list, which E2 appends to.
+  3. THE SHIPPED DATASET CANNOT EXPRESS A LEVEL GAP. badges.json carries
+     exactly one null threshold (`unpluckable`'s HOF, on one line of an `or`
+     badge whose other line passes) and every line is monotone non-decreasing.
+     The brief's golden-table build #6 — "passes Bronze and Gold, fails Silver"
+     — is unconstructible over shipped data. Replaced by an asymmetric-attribute
+     build, and the gap is pinned by a whole synthetic-dataset arm instead.
+  4. "A build that height-blocks ≥3 Rebounding badges" is also unreachable:
+     only TWO Rebounding badges (boxout-boss, breaker) carry a 75–88 range.
+     Build 5 uses 5'9" and blocks both, plus Finishing/Defense/Physicals badges.
+  5. RefundTrigger has THREE members today, not four. INV-11 runs over all
+     three and carries a compile-time exhaustiveness guard that BREAKS THE
+     BUILD the day `onFuse` is added, so the fourth arm cannot be skipped.
+  6. The H3 gap fixture the briefs ask E1 to ADD already ships —
+     `syntheticAndMidNullGap`. Reused; no second fixture added.
+  7. design-spec §14.5's illustrative block is internally inconsistent in three
+     ways, all resolved toward the binding rule and documented in
+     summary-text.ts's header: it prints the `N of 6 categories` footnote AND
+     the Σ Badge Slots line, which AJ-5/§4.7 make mutually exclusive; its
+     arithmetic does not reconcile (a single cost-1 Dimer under "4 pts spent");
+     and it lists Posterizer before Float Game, which dataset order does not.
+     One further deliberate divergence: the stale reason keeps eligibility.ts's
+     VERBATIM string, which ends "… for Gold". Trimming it would be a second
+     phrasing of a fact a shipped builder already produces — a named
+     stop-condition — so the shared builder wins and the suffix stays.
+
+ONE SHAPE DEVIATION, DECLARED
+  RosterRow gained `staleReasons: string[]`, which the brief's shape does not
+  list. §14.5 requires the text block to emit
+  `!! no longer qualifies: needs 90 Close or 93 Layup`, and
+  `formatSummaryText(summary)` has no other input to read it from.
+  `reasonsForLevel` was exported from eligibility.ts (unchanged body, no new
+  rule) to supply it, because the disclosure needs the PURCHASED level's
+  failing lines specifically, not validateBadge's union over all four.
+  `formatSummaryText` also takes an optional `buildName` and reads
+  `summary.build`, for the same reason: §14.5's header line carries the build
+  name, height and position, and none of the three is derivable otherwise.
+
+CARRIED FORWARD, DELIBERATELY NOT FIXED HERE
+  categoryFeasibility still tests affordability with GROSS whatIf. Post-F4,
+  under onFuse, upgrading a fused badge is net-free (gross +1, refund +1), so
+  the readout will UNDER-COUNT affordable upgrades on exactly the badges the
+  user cares most about. LegalStep now carries both grossCost and netCost, so
+  the fix is a one-word change plus a test. ROUTED TO F4 (f8-00 §4 finding 1) —
+  flipping a shipped readout's displayed numbers is a UI behaviour change and
+  does not belong smuggled inside an engine refactor. The reason is written
+  into feasibility.ts's header so nobody "tidies" it later.
+
+heartbeats_emitted: 0 discrete messages — dispatched in batch mode; progress is
+  recorded here and in docs/proof/f8e1-verification.txt.
+
+stop_conditions_triggered: none.
+  Approached and cleared: the H3 range shortcut (never taken — levelPasses is
+  called per level, and test 2.1 asserts the naive bronze..max range WOULD have
+  produced Silver, so the distinction cannot go vacuous); the netCost swap in
+  categoryFeasibility (routed to F4, not made); an OverlayState parameter on
+  buildSummary (never added — the signature is the control); ProposalSource
+  (not added); a SummaryPanel diff larger than the import block (it is +1/−1).
+  INV-11 is GREEN on every RefundTrigger, so E2's fast path is safe to ship.
+
+KNOWN NOT-OURS
+  :5173 was bound by a concurrent implementer's dev server. vite.config.ts is
+  denied, so the no-regression pass ran on `npx vite --port 5199 --strictPort`
+  — a CLI flag, no file changed. The 1280 screenshot could not be persisted to
+  docs/proof/ (this harness renders browser screenshots inline and cannot write
+  them; the app's own download path is sandbox-blocked), so a full DOM-text
+  capture of every ledger, feasibility line, hint, rail row and summary table
+  is substituted in the proof file. For a slice with zero visual change that is
+  the stronger artifact: it is the exact rendered content, and it diffs.
+  The vitest flake class did NOT fire on any run of this slice.
+─────────────────────────────────────────────
