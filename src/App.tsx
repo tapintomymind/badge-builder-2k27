@@ -30,7 +30,7 @@ import {
   serializeSavedBuild,
 } from "./engine/serialization";
 import type { ClearedSynergyRef } from "./engine/serialization";
-import { createDefaultSynergySlots, defaultOverlay } from "./engine/synergy";
+import { applyRatifiedMagnitudes, createDefaultSynergySlots, defaultOverlay } from "./engine/synergy";
 import type { SynergyState } from "./engine/synergy";
 import { categoryLedgerAt } from "./engine/synergy-ledger";
 import type { CategoryLedgerReadout, SynergyLedgerState } from "./engine/synergy-ledger";
@@ -179,16 +179,43 @@ function freshWorkingState(): WorkingState {
   };
 }
 
-function fromSaved(saved: SavedBuild, sourceId: string | null): WorkingState {
+/**
+ * [F4/A2] `fromSaved` returns a PAIR, not a bare WorkingState.
+ *
+ * Synergy Slot 7's magnitude is re-derived from ratified data at LOAD
+ * (`applyRatifiedMagnitudes`), overriding whatever the file says — a data
+ * refresh, not an auto-migration (H8). That override is DISCLOSED, so the
+ * report has to reach the UI, and it has to reach it from ALL THREE reload
+ * routes: boot restore, named-build load, and import.
+ *
+ * The pair shape is deliberate. The old signature returned a bare
+ * WorkingState and two of the three call sites read
+ * `applyWorking(fromSaved(...))` — a second return value would have been
+ * silently DISCARDED at both, wiring the disclosure at boot only. The
+ * destructure forces every call site to acknowledge it.
+ *
+ * THE ONE NORMALIZATION POINT for all three persisted-reload routes.
+ */
+interface FromSavedResult {
+  working: WorkingState;
+  /** Did this load override a persisted magnitude with ratified data? */
+  ratifiedMagnitudeNormalized: boolean;
+}
+
+function fromSaved(saved: SavedBuild, sourceId: string | null): FromSavedResult {
+  const ratified = applyRatifiedMagnitudes(saved.synergy);
   return {
-    name: saved.name,
-    sourceId,
-    dataVersion: saved.dataVersion,
-    build: saved.build,
-    budgets: saved.budgets,
-    loadout: saved.loadout,
-    synergy: saved.synergy,
-    config: saved.config,
+    working: {
+      name: saved.name,
+      sourceId,
+      dataVersion: saved.dataVersion,
+      build: saved.build,
+      budgets: saved.budgets,
+      loadout: saved.loadout,
+      synergy: ratified.synergySlots,
+      config: saved.config,
+    },
+    ratifiedMagnitudeNormalized: ratified.normalizedSynergySlotIds.length > 0,
   };
 }
 
@@ -319,8 +346,13 @@ export default function App() {
   const [quarantined, setQuarantined] = useState(
     () => boot.kind === "unreadable" || readAutosaveQuarantine() !== null,
   );
-  const [working, setWorkingState] = useState<WorkingState>(() =>
-    boot.kind === "ok" ? fromSaved(boot.value.saved, null) : freshWorkingState(),
+  /** [F4/A2] Boot restore is disclosure route 1 of 3. Computed ONCE, beside
+   * the working state it produced. */
+  const [bootRestore] = useState(() =>
+    boot.kind === "ok" ? fromSaved(boot.value.saved, null) : null,
+  );
+  const [working, setWorkingState] = useState<WorkingState>(
+    () => bootRestore?.working ?? freshWorkingState(),
   );
   /** Write-through mirror of `working`: updated SYNCHRONOUSLY by every
    * mutation, so the pagehide/visibilitychange flush can persist the very
@@ -384,6 +416,13 @@ export default function App() {
    * pre-F2 remove path wrote exactly this state). */
   const [clearedSynergyRefs, setClearedSynergyRefs] = useState<readonly ClearedSynergyRef[]>(
     boot.kind === "ok" ? boot.value.clearedSynergyRefs : [],
+  );
+  /** [F4/A2] Did the load that produced `working` override a persisted
+   * Synergy Slot magnitude with ratified data? Held BESIDE `droppedEntries`
+   * and `clearedSynergyRefs`, reset on every disclosure ROUTE transition
+   * exactly as those two are. Drives the plain-text note in SynergyPanel. */
+  const [ratifiedMagnitudeNormalized, setRatifiedMagnitudeNormalized] = useState(
+    () => bootRestore?.ratifiedMagnitudeNormalized ?? false,
   );
   /** Bumped on every disclosure ROUTE transition (load / import confirm) —
    * keys the DriftBanner so its internal re-check output can never linger
@@ -665,7 +704,8 @@ export default function App() {
         );
         if (!proceed) return;
       }
-      applyWorking(fromSaved(report.saved, id));
+      const restored = fromSaved(report.saved, id);
+      applyWorking(restored.working);
       markClean();
       // F2.2 A3: a LOADED build is a state worth persisting even though
       // markClean() just made it non-dirty — the exact trap a dirty-keyed
@@ -677,6 +717,10 @@ export default function App() {
       // it does not belong to.
       setDroppedEntries(report.droppedEntries);
       setClearedSynergyRefs(report.clearedSynergyRefs);
+      // [F4/A2] Disclosure route 2 of 3. REPLACED, never OR-ed, exactly like
+      // the two reports above — a leftover flag must never describe a build
+      // it does not belong to.
+      setRatifiedMagnitudeNormalized(restored.ratifiedMagnitudeNormalized);
       setDisclosureEpoch((epoch) => epoch + 1);
       // The clamp notice belongs to an edit gesture, not to the new build.
       setClampNotice(null);
@@ -816,7 +860,10 @@ export default function App() {
         );
         if (!proceed) return;
       }
-      applyWorking(fromSaved(saved, null));
+      const imported = fromSaved(saved, null);
+      applyWorking(imported.working);
+      // [F4/A2] Disclosure route 3 of 3.
+      setRatifiedMagnitudeNormalized(imported.ratifiedMagnitudeNormalized);
       armPersistence();
       // An import is unsaved-as-named work: guard it like any other edit.
       dirtyRef.current = true;
@@ -1185,6 +1232,7 @@ export default function App() {
               loadout={working.loadout}
               dataset={shippedDataset}
               overlay={overlay}
+              ratifiedMagnitudeNormalized={ratifiedMagnitudeNormalized}
               onSynergySlotsChange={setSynergySlots}
             />
           </Section>

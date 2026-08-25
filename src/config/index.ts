@@ -25,20 +25,31 @@ export class NotYetPublishedError extends Error {
 }
 
 /**
- * Seed Open item #1: the refund trigger condition is unconfirmed (the
- * category destination IS confirmed). Default is exactly the seed's stated
- * default: refund on reaching Legend by any means. The alternatives are
- * pre-wired so the day 2K publishes, this is a one-line change.
+ * Seed Open item #1 is RESOLVED (F4, 2026-08-26). The official 2K MyPlayer
+ * Builder page states that placing a badge in a Fuse position "entirely frees
+ * up the Badge Tokens" spent on it, and the user ratified it the same day —
+ * so the trigger is the FUSE ROLE, not a level. The three Legend/HOF variants
+ * remain fully selectable alternates; they are simply no longer the default.
+ *
+ * Refund AMOUNT and DESTINATION are unchanged: the badge's total-to-own cost
+ * at its purchased level, back to that badge's own category pool.
  */
-export const DEFAULT_REFUND_TRIGGER: RefundTrigger = "legendByAnyMeans";
+export const DEFAULT_REFUND_TRIGGER: RefundTrigger = "onFuse";
 
 /**
- * Seed Open item #2: which two synergy slots carry +2 is TBD. null until the
- * user designates exactly two in the Synergy panel (M4). All 8 synergy slots
- * default to magnitude 1 until then — picking two numbers here would be
- * inventing 2K27 data. When 2K publishes: set `[n, m]`, done (M5).
+ * Dead seam, retyped for shape only. Designates Synergy Slots the user picked
+ * as +2 BEYOND the ratified set (Synergy Slot 7 — see
+ * `RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS` in src/engine/synergy.ts).
+ *
+ * NOTHING WRITES THIS TODAY — the designator continues to write magnitudes
+ * onto the slots (`SynergyPanel` `handleMagnitudeChange`), never config.
+ * Retained because a deserialized `AppConfig` may legally carry it (pre-F4
+ * files carry `[3,6]`) and the superset validator must keep accepting it.
+ *
+ * Seed Open item #2 is HALF-resolved: Synergy Slot 7 IS a +2; WHICH further
+ * Synergy Slot carries the second is still unpublished and is never guessed.
  */
-export const plusTwoSlotIds: readonly [SynergySlotId, SynergySlotId] | null = null;
+export const plusTwoSlotIds: readonly SynergySlotId[] | null = null;
 
 /**
  * Seed Open item #3: the attribute → per-category (equipSlots, points)

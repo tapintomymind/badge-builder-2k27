@@ -22,7 +22,9 @@
  * over-capacity badge would derive a HARD block from a SOFT violation).
  */
 
+import { badgeById, shippedDataset } from "./dataset";
 import type {
+  BadgeDataset,
   LoadoutEntry,
   OverlayState,
   SynergyRole,
@@ -30,7 +32,7 @@ import type {
   SynergySlot,
   SynergySlotId,
 } from "./types";
-import type { Level, PurchasableLevel } from "./vocabulary";
+import type { Category, Level, PurchasableLevel } from "./vocabulary";
 import { LEVELS, levelIndex } from "./vocabulary";
 
 /** All 8 synergy slot ids, in order. */
@@ -41,33 +43,110 @@ export function permanenceForSynergySlot(synergySlotId: SynergySlotId): "tempora
   return synergySlotId <= 4 ? "temporary" : "permanent";
 }
 
+/** Build Specialization Level 10 → a permanent +2 Badge Synergy. Synergy
+ * Slot 7 IS that unlock (seed: Synergy system). RATIFIED DATA, not a
+ * preference: official 2K MyPlayer Builder page + user ratification
+ * 2026-08-26. The SECOND +2 is still unpublished — user-designated, never
+ * guessed.
+ *
+ * Placement: this is KNOWN slot data, so it sits beside
+ * permanenceForSynergySlot (the identical class — sealed, known, per-slot).
+ * src/config/ is the UNPUBLISHED seam; filing confirmed data there would
+ * make both meanings unreadable. */
+export const RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS = [7] as const satisfies readonly SynergySlotId[];
+
+/** Is this Synergy Slot's +2 RATIFIED data (rather than a user preference)?
+ * THE engine predicate for "not user-removable". `src/ui/**` READS this; it
+ * never re-computes the membership (seed: Working agreements — every rule
+ * lives in the engine). */
+export function isRatifiedPlusTwo(synergySlotId: SynergySlotId): boolean {
+  return (RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS as readonly SynergySlotId[]).includes(synergySlotId);
+}
+
 /**
- * Per-slot magnitude from the `plusTwoSlotIds` config seam (OQ-A1).
- * null designation (the shipped default) ⇒ every synergy slot is +1.
- * Once the user designates two, this equals the seed's 6×(+1) / 2×(+2) at
- * full unlock — the unpublished fact SUPPLIED, never guessed.
+ * Per-slot magnitude: 2 iff the Synergy Slot is in the RATIFIED set (slot 7)
+ * or in the user's `plusTwoSlotIds` designation seam (OQ-A1), else 1.
+ *
+ * DERIVES FAITHFULLY — it never silently drops a designated id, even when
+ * ratified ∪ designated exceeds MAX_PLUS_TWO_SYNERGY_SLOTS. A silent drop
+ * would be an auto-mutation of a user designation, which is exactly what the
+ * LOAD path refuses (H8); making the fresh path drop while the load path
+ * discloses would put the two paths in disagreement, which is worse than
+ * either alone. The cap is owned, once, by
+ * `validateLoadout`'s tooManyPlusTwoSynergySlots.
  */
 export function magnitudeForSynergySlot(
   synergySlotId: SynergySlotId,
-  plusTwoSlotIds: readonly [SynergySlotId, SynergySlotId] | null,
+  userDesignated: readonly SynergySlotId[] | null,
 ): 1 | 2 {
-  if (plusTwoSlotIds === null) return 1;
-  return plusTwoSlotIds.includes(synergySlotId) ? 2 : 1;
+  if (isRatifiedPlusTwo(synergySlotId)) return 2;
+  if (userDesignated === null) return 1;
+  return userDesignated.includes(synergySlotId) ? 2 : 1;
 }
 
-/** The 8 default synergy slots: locked, unassigned, magnitudes per the
- * designation seam (all 1 while `plusTwoSlotIds` is null — the default). */
+/** The 8 default synergy slots: locked, unassigned, interchangeable
+ * (disciplineLock null on all eight — Synergy Slot 7's lock is USER-selected,
+ * because the planner cannot know which Build Specialization track the player
+ * completed), magnitudes per magnitudeForSynergySlot (so Synergy Slot 7 ships
+ * +2 even at the default `userDesignated: null`). */
 export function createDefaultSynergySlots(
-  plusTwoSlotIds: readonly [SynergySlotId, SynergySlotId] | null = null,
+  userDesignated: readonly SynergySlotId[] | null = null,
 ): SynergySlot[] {
   return SYNERGY_SLOT_IDS.map((synergySlotId) => ({
     id: synergySlotId,
     unlocked: false,
     permanence: permanenceForSynergySlot(synergySlotId),
-    magnitude: magnitudeForSynergySlot(synergySlotId, plusTwoSlotIds),
+    magnitude: magnitudeForSynergySlot(synergySlotId, userDesignated),
+    disciplineLock: null,
     fuseBadgeId: null,
     reactionBadgeId: null,
   }));
+}
+
+/** The result of re-deriving ratified magnitudes over a LOADED Synergy Slot
+ * array. (The field is `synergySlots`, not the brief's literal `slots`: the
+ * H1 vocabulary lint bans the bare token in identifiers, and the fix for a
+ * reddened lint is always the code.) */
+export interface RatifiedMagnitudeReport {
+  readonly synergySlots: SynergySlot[];
+  /** Synergy Slot ids whose persisted magnitude was overridden by ratified
+   * data at load. Empty = nothing changed = the disclosure does NOT render. */
+  readonly normalizedSynergySlotIds: readonly SynergySlotId[];
+}
+
+/**
+ * P4 — the read-time projection: a ratified Synergy Slot's magnitude is
+ * re-derived from RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS at LOAD, overriding
+ * whatever the file says, and the override is REPORTED so the UI can
+ * disclose it.
+ *
+ * This is a DATA REFRESH, not an auto-migration (H8): the user never chose
+ * +1 for Synergy Slot 7 — the app defaulted it there while the data was
+ * unknown. Correcting it when the data lands is the same class as a threshold
+ * moving in badges.json, and H8's answer to that is DISCLOSE.
+ *
+ * MAPS OVER THE SLOTS ACTUALLY PRESENT. A saved build may legally carry fewer
+ * than 8 (validateSynergyShape does not require all 8 ids); a missing slot 7
+ * is NOT synthesized, and the report lists nothing for it. Rebuilding the
+ * array to "fix" the gap would be the auto-migration this ruling exists to
+ * avoid.
+ *
+ * It lives HERE, not in the deserializer: normalization is on the RULES side
+ * of the shape/rules line. Putting it in the deserializer is how the two ends
+ * of a round trip start disagreeing.
+ */
+export function applyRatifiedMagnitudes(
+  synergySlots: readonly SynergySlot[],
+): RatifiedMagnitudeReport {
+  const normalizedSynergySlotIds: SynergySlotId[] = [];
+  const normalized = synergySlots.map((synergySlot) => {
+    if (!isRatifiedPlusTwo(synergySlot.id) || synergySlot.magnitude === 2) {
+      return { ...synergySlot };
+    }
+    normalizedSynergySlotIds.push(synergySlot.id);
+    return { ...synergySlot, magnitude: 2 as const };
+  });
+  return { synergySlots: normalized, normalizedSynergySlotIds };
 }
 
 /** The state the synergy engine reads. A plain value — never mutated here. */
@@ -209,7 +288,26 @@ export type SynergyAssignmentError =
   /** H5 invariant: no badge holds two synergy roles — at most one, ever. */
   | { kind: "badgeAlreadyHoldsSynergyRole"; badgeId: string; existingRole: SynergyRole }
   /** H4 invariant: the same badge cannot be both fuse and reaction in one synergy slot. */
-  | { kind: "sameBadgeBothRolesInOneSynergySlot"; synergySlotId: SynergySlotId; badgeId: string };
+  | { kind: "sameBadgeBothRolesInOneSynergySlot"; synergySlotId: SynergySlotId; badgeId: string }
+  /**
+   * F4 RATIFIED invariant: a discipline-locked Synergy Slot (Build
+   * Specialization) holds only badges of its own discipline.
+   * `[official 2K MyPlayer Builder page; user ratification 2026-08-26;
+   *   reconciliation row 11, §D.2]`
+   *
+   * BOTH role positions are checked — fuse and reaction count as two
+   * separately-locked positions. CITATION STRENGTH: that is the
+   * reconciliation's ENDORSED READING (§B's positions-vs-pairs identity plus
+   * §D.2's "each"), NOT page text — §D.3 flags "each" as ambiguous. An
+   * adopted inference and an invented fact never get the same citation here.
+   */
+  | {
+      kind: "badgeCategoryViolatesDisciplineLock";
+      synergySlotId: SynergySlotId;
+      badgeId: string;
+      badgeCategory: Category;
+      disciplineLock: Category;
+    };
 
 export type SynergyAssignmentResult =
   | { ok: true; synergySlots: SynergySlot[] }
@@ -247,6 +345,7 @@ export function assignSynergy(
   synergySlotId: SynergySlotId,
   roleKind: SynergyRoleKind,
   badgeId: string,
+  dataset: BadgeDataset = shippedDataset,
 ): SynergyAssignmentResult {
   const synergySlot = synergySlotById(state.synergySlots, synergySlotId);
   if (synergySlot === undefined) {
@@ -271,6 +370,24 @@ export function assignSynergy(
     }
     // Re-assigning the badge to the exact position it already holds is an
     // idempotent success, not a "second role".
+  }
+  // F4 discipline lock — checked LAST, and only when the lock is set. An
+  // unresolvable badge id is not this function's error to raise: validateLoadout
+  // throws UnknownBadgeError loudly for that (H6 class).
+  if (synergySlot.disciplineLock !== null) {
+    const badge = badgeById(dataset, badgeId);
+    if (badge !== undefined && badge.category !== synergySlot.disciplineLock) {
+      return {
+        ok: false,
+        error: {
+          kind: "badgeCategoryViolatesDisciplineLock",
+          synergySlotId,
+          badgeId,
+          badgeCategory: badge.category,
+          disciplineLock: synergySlot.disciplineLock,
+        },
+      };
+    }
   }
   return {
     ok: true,

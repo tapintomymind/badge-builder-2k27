@@ -55,10 +55,15 @@ describe("panel shape and the PlusTwoDesignator (first control)", () => {
     expect(panel).not.toBeNull();
     // The designator banner is the panel's FIRST child — impossible to miss.
     expect(panel?.firstElementChild?.className).toContain("banner--warning");
+    // [F4] Re-cut to the REMAINING budget: Synergy Slot 7's +2 is ratified
+    // data (Build Specialization Level 10), so exactly ONE designation is
+    // left to the user.
     expect(
-      screen.getByText(/2 of these 8 are \+2 — 2K hasn't published which\. Designate them here\./),
+      screen.getByText(
+        /1 more Synergy Slot can be \+2 — 2K hasn't published which\. Designate it here\./,
+      ),
     ).toBeTruthy();
-    expect(screen.getByText("+2 designated: 0 of 2")).toBeTruthy();
+    expect(screen.getByText("+2 designated: 0 of 1")).toBeTruthy();
     expect(synergyRows()).toHaveLength(8);
     // Permanence chips: 1–4 Temporary, 5–8 Permanent (seed table).
     expect(within(row(1)).getByText("Temporary")).toBeTruthy();
@@ -67,16 +72,16 @@ describe("panel shape and the PlusTwoDesignator (first control)", () => {
     expect(within(row(8)).getByText("Permanent")).toBeTruthy();
   });
 
-  it("caps designation at 2: the third +2 radio is disabled WITH a reason", () => {
+  it("caps designation at 2: with the RATIFIED Synergy Slot 7 counted, ONE user designation fills the cap", () => {
     seedPurchasedRig();
     render(<App />);
+    // [F4] Synergy Slot 7's +2 is ratified and already counted, so a single
+    // user designation reaches MAX_PLUS_TWO_SYNERGY_SLOTS.
     fireEvent.click(within(row(5)).getByRole("radio", { name: "+2" }));
-    expect(screen.getByText("+2 designated: 1 of 2")).toBeTruthy();
-    fireEvent.click(within(row(6)).getByRole("radio", { name: "+2" }));
-    expect(screen.getByText("+2 designated: 2 of 2")).toBeTruthy();
+    expect(screen.getByText("+2 designated: 1 of 1")).toBeTruthy();
 
-    // Row 7's +2 is now disabled — with the reason wired via aria-describedby.
-    const blocked = within(row(7)).getByRole("radio", { name: "+2" }) as HTMLInputElement;
+    // Row 6's +2 is now disabled — with the reason wired via aria-describedby.
+    const blocked = within(row(6)).getByRole("radio", { name: "+2" }) as HTMLInputElement;
     expect(blocked.disabled).toBe(true);
     const reasonId = blocked.getAttribute("aria-describedby");
     expect(reasonId).not.toBeNull();
@@ -86,10 +91,10 @@ describe("panel shape and the PlusTwoDesignator (first control)", () => {
     // A designated row's own +2 stays enabled (so it can be cleared).
     const designated = within(row(5)).getByRole("radio", { name: "+2" }) as HTMLInputElement;
     expect(designated.disabled).toBe(false);
-    // Clearing one re-opens the cap.
+    // Clearing it re-opens the cap.
     fireEvent.click(within(row(5)).getByRole("radio", { name: "+1" }));
-    expect(screen.getByText("+2 designated: 1 of 2")).toBeTruthy();
-    expect((within(row(7)).getByRole("radio", { name: "+2" }) as HTMLInputElement).disabled).toBe(
+    expect(screen.getByText("+2 designated: 0 of 1")).toBeTruthy();
+    expect((within(row(6)).getByRole("radio", { name: "+2" }) as HTMLInputElement).disabled).toBe(
       false,
     );
   });

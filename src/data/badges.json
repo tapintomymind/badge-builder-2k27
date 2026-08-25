@@ -1,7 +1,7 @@
 {
-  "dataVersion": "2026-08-25.1",
-  "source": "Official 2K material + NBA2KLab, as transcribed in the sealed project seed 2026-08-25",
-  "asOf": "2026-08-25",
+  "dataVersion": "2026-08-26.1",
+  "source": "Official 2K material + NBA2KLab, as transcribed in the sealed project seed 2026-08-25; badge descriptions + NEW flags from the official 2K MyPlayer Builder page, accessed 2026-08-26",
+  "asOf": "2026-08-26",
   "gameVersion": null,
   "confidence": "pre-release",
   "levels": [
@@ -37,6 +37,8 @@
       "name": "Aerial Wizard",
       "tier": "C",
       "category": "Finishing",
+      "description": "Alley-oop and putback finishing",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -68,6 +70,8 @@
       "name": "Float Game",
       "tier": "A",
       "category": "Finishing",
+      "description": "Floater finishing",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -99,6 +103,8 @@
       "name": "Ghost Stepper",
       "tier": "C",
       "category": "Finishing",
+      "description": "Step-through layups more effective",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -130,6 +136,8 @@
       "name": "Hook Specialist",
       "tier": "C",
       "category": "Finishing",
+      "description": "Post hook accuracy",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -161,6 +169,8 @@
       "name": "Layup Mixmaster",
       "tier": "A",
       "category": "Finishing",
+      "description": "Acrobatic/fancy layup conversions",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 84,
@@ -183,6 +193,8 @@
       "name": "Paint Prodigy",
       "tier": "C",
       "category": "Finishing",
+      "description": "Quick, effective paint scoring",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 75,
         "heightMaxInches": 88,
@@ -205,6 +217,8 @@
       "name": "Physical Finisher",
       "tier": "B",
       "category": "Finishing",
+      "description": "Contact layup conversions",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -236,6 +250,8 @@
       "name": "Post Powerhouse",
       "tier": "C",
       "category": "Finishing",
+      "description": "Backdowns and drop steps stronger",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 77,
         "heightMaxInches": 88,
@@ -267,6 +283,8 @@
       "name": "Post Spin Catalyst",
       "tier": "C",
       "category": "Finishing",
+      "description": "Post spins, reduced strip chance",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 73,
         "heightMaxInches": 88,
@@ -289,6 +307,8 @@
       "name": "Posterizer",
       "tier": "A",
       "category": "Finishing",
+      "description": "Dunking on defenders",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -320,6 +340,8 @@
       "name": "Rise Up",
       "tier": "C",
       "category": "Finishing",
+      "description": "Standing dunks in the paint",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 77,
         "heightMaxInches": 88,
@@ -351,6 +373,8 @@
       "name": "Arc Cadence",
       "tier": "A",
       "category": "Shooting",
+      "description": "Moving/pull-up three-pointers improved",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 83,
@@ -373,6 +397,8 @@
       "name": "Deadeye",
       "tier": "A",
       "category": "Shooting",
+      "description": "Reduces contest penalty on jump shots",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -404,6 +430,8 @@
       "name": "Limitless Range",
       "tier": "A",
       "category": "Shooting",
+      "description": "Extends effective three-point range",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -426,6 +454,8 @@
       "name": "Mini Marksman",
       "tier": "C",
       "category": "Shooting",
+      "description": "Helps shorter shooters over tall defenders",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 76,
@@ -457,6 +487,8 @@
       "name": "Post Fade Phenom",
       "tier": "B",
       "category": "Shooting",
+      "description": "Post fades and hop shots more accurate",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -488,6 +520,8 @@
       "name": "Quick Trigger",
       "tier": "A",
       "category": "Shooting",
+      "description": "No-dip jump shots more successful",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -519,6 +553,8 @@
       "name": "Set and Fire",
       "tier": "B",
       "category": "Shooting",
+      "description": "Stand-still (feet-set) three-pointers boosted",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -541,6 +577,8 @@
       "name": "Smooth Operator",
       "tier": "A",
       "category": "Shooting",
+      "description": "Moving/pull-up mid-range improved",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -563,6 +601,8 @@
       "name": "Static Middy",
       "tier": "A",
       "category": "Shooting",
+      "description": "Stand-still mid-range accuracy boosted",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -585,6 +625,8 @@
       "name": "Ankle Assassin",
       "tier": "A",
       "category": "Playmaking",
+      "description": "Breakdowns/crossovers more effective",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 82,
@@ -607,6 +649,8 @@
       "name": "Bail Out",
       "tier": "A",
       "category": "Playmaking",
+      "description": "Pass accuracy out of shots/double teams",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -629,6 +673,8 @@
       "name": "Break Starter",
       "tier": "C",
       "category": "Playmaking",
+      "description": "Deep outlet passes after rebounds",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -651,6 +697,8 @@
       "name": "Dimer",
       "tier": "C",
       "category": "Playmaking",
+      "description": "Boosts teammate shot % off assists",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -673,6 +721,8 @@
       "name": "Handles for Days",
       "tier": "B",
       "category": "Playmaking",
+      "description": "Less energy drain from dribble chains",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 84,
@@ -695,6 +745,8 @@
       "name": "Lightning Launch",
       "tier": "A",
       "category": "Playmaking",
+      "description": "Faster perimeter attack launches",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 83,
@@ -717,6 +769,8 @@
       "name": "Pace",
       "tier": "B",
       "category": "Playmaking",
+      "description": "Faster sprint speed with ball",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 82,
@@ -739,6 +793,8 @@
       "name": "Strong Handle",
       "tier": "B",
       "category": "Playmaking",
+      "description": "Resists dribble interference from contact",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 83,
@@ -770,6 +826,8 @@
       "name": "Unpluckable",
       "tier": "A",
       "category": "Playmaking",
+      "description": "Resists steal attempts",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -801,6 +859,8 @@
       "name": "Versatile Visionary",
       "tier": "B",
       "category": "Playmaking",
+      "description": "Threads tight passes and alley-oops",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -823,6 +883,8 @@
       "name": "Ankle Braces",
       "tier": "B",
       "category": "Defense",
+      "description": "Less susceptible to ankle-breakers",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 81,
@@ -854,6 +916,8 @@
       "name": "Challenger",
       "tier": "A",
       "category": "Defense",
+      "description": "Well-timed perimeter contests",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 83,
@@ -876,6 +940,8 @@
       "name": "Glove",
       "tier": "B",
       "category": "Defense",
+      "description": "Steals from handlers and layups",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 84,
@@ -898,6 +964,8 @@
       "name": "High-Flying Denier",
       "tier": "C",
       "category": "Defense",
+      "description": "Chase-down block speed and leap",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 75,
         "heightMaxInches": 88,
@@ -929,6 +997,8 @@
       "name": "Immovable Enforcer",
       "tier": "C",
       "category": "Defense",
+      "description": "Defensive strength vs drivers/finishers",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -960,6 +1030,8 @@
       "name": "Interceptor",
       "tier": "B",
       "category": "Defense",
+      "description": "Pass tips and interceptions",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -982,6 +1054,8 @@
       "name": "Off-Ball Pest",
       "tier": "B",
       "category": "Defense",
+      "description": "Harder to screen/pass around off-ball",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -1013,6 +1087,8 @@
       "name": "Paint Patroller",
       "tier": "A",
       "category": "Defense",
+      "description": "Rim blocks and interior contests",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 77,
         "heightMaxInches": 88,
@@ -1044,6 +1120,8 @@
       "name": "Pick Dodger",
       "tier": "A",
       "category": "Defense",
+      "description": "Navigates through/around screens",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 82,
@@ -1075,6 +1153,8 @@
       "name": "Post Lockdown",
       "tier": "C",
       "category": "Defense",
+      "description": "Post defense, more strip chance",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 77,
         "heightMaxInches": 88,
@@ -1106,6 +1186,8 @@
       "name": "Seatbelt",
       "tier": "A",
       "category": "Defense",
+      "description": "Body-up defense, disrupts drives",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 81,
@@ -1137,6 +1219,8 @@
       "name": "Wall Up",
       "tier": "A",
       "category": "Defense",
+      "description": "Hands-up paint contests more effective",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 77,
         "heightMaxInches": 88,
@@ -1168,6 +1252,8 @@
       "name": "Boxout Boss",
       "tier": "B",
       "category": "Rebounding",
+      "description": "Better boxouts (as the boxer)",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 75,
         "heightMaxInches": 88,
@@ -1199,6 +1285,8 @@
       "name": "Breaker",
       "tier": "A",
       "category": "Rebounding",
+      "description": "Breaks opponent boxouts",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 75,
         "heightMaxInches": 88,
@@ -1230,6 +1318,8 @@
       "name": "Crasher",
       "tier": "A",
       "category": "Rebounding",
+      "description": "Offensive rebound tracking/grabbing",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -1261,6 +1351,8 @@
       "name": "Possession Closer",
       "tier": "A",
       "category": "Rebounding",
+      "description": "Defensive rebound grabbing",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -1292,6 +1384,8 @@
       "name": "Sync Snatcher",
       "tier": "C",
       "category": "Rebounding",
+      "description": "Timing-based vertical/rebound boost",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -1323,6 +1417,8 @@
       "name": "Brick Wall",
       "tier": "C",
       "category": "Physicals",
+      "description": "Screen effectiveness and impact",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 77,
         "heightMaxInches": 88,
@@ -1345,6 +1441,8 @@
       "name": "Bruiser",
       "tier": "B",
       "category": "Physicals",
+      "description": "Drains opponent energy via contact",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -1367,6 +1465,8 @@
       "name": "Flash",
       "tier": "A",
       "category": "Physicals",
+      "description": "Faster off-ball movement in transition",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -1398,6 +1498,8 @@
       "name": "Pogo Stick",
       "tier": "C",
       "category": "Physicals",
+      "description": "Quick consecutive jumps",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,
@@ -1420,6 +1522,8 @@
       "name": "Slippery Off-Ball",
       "tier": "B",
       "category": "Physicals",
+      "description": "Navigates traffic off screens",
+      "isNew": false,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 81,
@@ -1451,6 +1555,8 @@
       "name": "Work Horse",
       "tier": "B",
       "category": "Physicals",
+      "description": "Loose-ball speed and hustle",
+      "isNew": true,
       "requirements": {
         "heightMinInches": 69,
         "heightMaxInches": 88,

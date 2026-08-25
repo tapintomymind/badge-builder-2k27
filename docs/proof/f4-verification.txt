@@ -1,0 +1,96 @@
+F4.1 — official-2K-page data adoption · verification
+Branch: f4-official-data   Worktree: /tmp/bb-f4 (isolated; main checkout untouched)
+Date: 2026-08-25
+
+=== npm run generate:badges ===
+
+generate-badges: wrote 53 badges to /private/tmp/bb-f4/src/data/badges.json (dataVersion 2026-08-26.1)
+
+=== git diff --stat src/data/badges.json ===
+ src/data/badges.json | 112 +++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 109 insertions(+), 3 deletions(-)
+
+=== dataset provenance ===
+dataVersion: 2026-08-26.1
+asOf: 2026-08-26
+gameVersion: null
+confidence: pre-release
+badges: 53
+isNew: 19
+per-category NEW: {"Finishing":2,"Shooting":5,"Playmaking":1,"Defense":3,"Rebounding":5,"Physicals":3}
+source: Official 2K material + NBA2KLab, as transcribed in the sealed project seed 2026-08-25; badge descriptions + NEW flags from the official 2K MyPlayer Builder page, accessed 2026-08-26
+
+=== npx tsc --noEmit ===
+(no output above = clean)
+
+=== npm run build ===
+computing gzip size...
+dist/index.html                   0.40 kB │ gzip:  0.28 kB
+dist/assets/index-CnroFwIN.css   36.71 kB │ gzip:  7.04 kB
+dist/assets/index-ByeTv4A0.js   282.84 kB │ gzip: 85.90 kB
+
+✓ built in 89ms
+
+=== tests/architecture.test.ts group count (observed, not assumed) ===
+20:describe("architecture: engine purity (a)", () => {
+45:describe("architecture: runtime dependency allowlist (b)", () => {
+58:describe("architecture: zero network egress (c)", () => {
+71:describe("architecture: position-height access route (e)", () => {
+98:describe("architecture: no runtime filesystem access (d)", () => {
+
+=== browser proof (http://localhost:5199 — 5173 was held by the concurrent F5.2 dev server) ===
+(a) description disclosure toggles open on pointer click ....... details.open false -> true
+(b) the badge's purchase level did NOT change .................. status "Not purchased", 0 checked pips,
+                                                                  data-purchased-level absent  [SHIP GATE 6.2]
+(c) NEW chip renders on NEW-flagged badges ..................... Ghost Stepper, Post Spin Catalyst,
+                                                                  Arc Cadence, Quick Trigger, Set and Fire,
+                                                                  Smooth Operator, Static Middy, Pace
+(d) clamp mechanism, measured with long text ................... collapsed clientHeight 54px (3 x 18px),
+                                                                  scrollHeight 144px -> truncated;
+                                                                  [open] clientHeight 144px -> fully revealed.
+                                                                  The empty-body <details> DOES reveal:
+                                                                  the pre-authorized fallback was NOT needed.
+(e) computed tokens on .badge-card__desc-text .................. font-size 12px (--text-xs),
+                                                                  color rgb(201,209,217) (--fg-secondary),
+                                                                  line-height 18px, -webkit-line-clamp 3.
+                                                                  Only F4's own rule matches the selector.
+(f) with the 53 shipped descriptions, 0 of 53 truncate at 1280 -- the clamp is a correct, inert safety net.
+(g) Enter/Space on <summary> ................................... NOT PROVEN under this automation harness.
+                                                                  A BARE CONTROL <details> injected into the
+                                                                  same page fails identically, so this is a
+                                                                  harness limitation (same class as the jsdom
+                                                                  gap in R14), not evidence about F4's code.
+(h) onFuse ledger, live ........................................ Tier-A Gold fused in PERMANENT Synergy Slot 5:
+                                                                  "FINISHING Badge Points 6 / 16, left 16,
+                                                                   Badge Slots 1 / 3, refunded 6"
+                                                                  == the brief's 9.4 contracted row exactly.
+(i) Synergy Slot 7, live ....................................... "+2 - Build Specialization, confirmed
+                                                                  2026-08-26" chip; +1 option disabled with
+                                                                  the aria-describedby reason; the Build
+                                                                  Specialization discipline selector; the
+                                                                  "Locked to Finishing" chip.
+(j) BudgetTotalRow, all four states harvested from the live DOM:
+      4.3.3.5.2.3  -> "20 / 20 default"
+      5.4.3.6.2.3  -> "23 / 20 default - 3 bonus Badge Slots?"
+      3.3.3.3.3.3  -> "18 / 20 default"
+      3.2.0.4.2.2  -> "13"  (Playmaking unset; NO annotation node in the DOM at all)
+(k) BuildPanel's compact digest at 390 ......................... "6'6\" . 96 pts . 18" - bare, NO annotation.
+                                                                  BuildPanel.tsx is a denied path and stayed so.
+
+=== screenshots ===
+-rw-r--r--@  1 tapandesai  wheel   96775 Aug 25 15:31 f4-budget-total-20-default-1280.png
+-rw-r--r--@  1 tapandesai  wheel  119663 Aug 25 15:27 f4-cards-390.png
+-rw-r--r--@  1 tapandesai  wheel  352170 Aug 25 15:26 f4-description-disclosure-1280.png
+-rw-r--r--@  1 tapandesai  wheel  355003 Aug 25 15:27 f4-onfuse-ledger-1280.png
+-rw-r--r--@  1 tapandesai  wheel  834790 Aug 25 15:27 f4-slot7-lock-1280.png
+-rw-r--r--@  1 tapandesai  wheel    5385 Aug 25 15:32 f4-verification.txt
+
+=== npm test (full suite, final) ===
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+
+ Test Files  52 passed (52)
+      Tests  849 passed (849)
+   Start at  15:32:55
+   Duration  36.96s (transform 4.47s, setup 2.57s, import 8.18s, tests 174.66s, environment 15.21s)
+

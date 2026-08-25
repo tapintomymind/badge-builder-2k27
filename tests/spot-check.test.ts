@@ -22,7 +22,18 @@ import type { RawBadge, RawBadgeDataset } from "../src/engine/types";
 const dataset = JSON.parse(datasetText) as RawBadgeDataset;
 
 /** Hand-transcribed from seed.md — NOT generated. See file header. */
-const EXPECTED: RawBadge[] = [
+type RequirementsBearingBadge = Omit<RawBadge, "description" | "isNew">;
+
+/** [F4] Strip the DISPLAY-ONLY fields before comparing. This control's job is
+ * the THRESHOLD transcription (H7); doubling its hand-typed surface with 13
+ * more strings would DILUTE it, and the descriptions have their own,
+ * separately-transcribed control (tests/enrichment-spot-check.test.ts). */
+function requirementsBearing(badge: RawBadge): RequirementsBearingBadge {
+  const { description: _description, isNew: _isNew, ...rest } = badge;
+  return rest;
+}
+
+const EXPECTED: RequirementsBearingBadge[] = [
   {
     // seed: "Aerial Wizard [C] 5'9–7'4 — Dr Dunk 60/70/80/94 OR St Dunk 60/70/80/93"
     id: "aerial-wizard",
@@ -232,7 +243,7 @@ describe("13-badge verbatim spot-check against hand-transcribed seed literals (H
     it(`${expected.name}: full parsed record matches the hand transcription`, () => {
       const actual = dataset.badges.find((badge) => badge.id === expected.id);
       expect(actual, `badge ${expected.id} missing from badges.json`).toBeDefined();
-      expect(actual).toEqual(expected);
+      expect(requirementsBearing(actual as RawBadge)).toEqual(expected);
     });
   }
 

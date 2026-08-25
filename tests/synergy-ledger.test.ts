@@ -315,3 +315,99 @@ describe("M2 item 13 — replay: the ledger is a pure function of the END state 
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// F4 group 9 — `onFuse`, the RATIFIED refund trigger and the new default.
+// `[official 2K MyPlayer Builder page: fusing "entirely frees up the Badge
+//   Tokens"; user ratification 2026-08-26]`
+//
+// The refund becomes ROLE-KEYED, not level-keyed. Amount and destination are
+// UNCHANGED: total-to-own cost at the purchased level, to the badge's own
+// category pool.
+// ---------------------------------------------------------------------------
+
+describe("F4 group 9 — onFuse refund arithmetic", () => {
+  function onFuseReadout(
+    synergySlots: SynergySlot[],
+    purchasedLevel: PurchasableLevel,
+    basis: "current" | "postSeasonReset" = "current",
+  ) {
+    const state: SynergyLedgerState = {
+      loadout: [{ badgeId: "deadeye", purchasedLevel }],
+      budgets: makeBudgets(16, 3),
+      synergySlots,
+      refundTrigger: "onFuse",
+    };
+    return categoryLedgerAt(state, basis, "Shooting");
+  }
+
+  it("9.1 UNIVERSALITY — every fused badge refunds its FULL spent cost, at every level and both magnitudes", () => {
+    // deadeye is Tier A: bronze 3, silver 5, gold 6, hof 7.
+    // Explicitly including the pairs the OLD default excluded.
+    const fusePlusOne = synergySlotsWith({ 6: { unlocked: true, fuseBadgeId: "deadeye" } });
+    const fusePlusTwo = synergySlotsWith({
+      6: { unlocked: true, magnitude: 2, fuseBadgeId: "deadeye" },
+    });
+    expect(onFuseReadout(fusePlusOne, "gold").refunded).toBe(6); // gold +1 → HOF: 6
+    expect(onFuseReadout(fusePlusOne, "bronze").refunded).toBe(3); // bronze +1: 3
+    expect(onFuseReadout(fusePlusTwo, "silver").refunded).toBe(5); // silver +2: 5
+    expect(onFuseReadout(fusePlusOne, "hof").refunded).toBe(7);
+    expect(onFuseReadout(fusePlusTwo, "hof").refunded).toBe(7);
+  });
+
+  it("9.2 ROLE, NOT LEVEL — an unfused badge never refunds at ANY effective level", () => {
+    const noRole = synergySlotsWith({ 6: { unlocked: true } });
+    for (const level of ["bronze", "silver", "gold", "hof"] as const) {
+      expect(onFuseReadout(noRole, level).refunded, level).toBe(0);
+    }
+    // ...and a Gold badge fused +2 refunds because it is FUSED, not because
+    // it reached Legend: the same fuse at Bronze refunds too (9.1).
+    const fusePlusTwo = synergySlotsWith({
+      6: { unlocked: true, magnitude: 2, fuseBadgeId: "deadeye" },
+    });
+    expect(onFuseReadout(fusePlusTwo, "gold").refunded).toBe(6);
+  });
+
+  it("9.3 REACTION EXCLUSION — a badge holding only a reaction role refunds 0 in BOTH bases", () => {
+    const reactionOnly = synergySlotsWith({
+      6: { unlocked: true, reactionBadgeId: "deadeye" },
+    });
+    expect(onFuseReadout(reactionOnly, "gold", "current").refunded).toBe(0);
+    expect(onFuseReadout(reactionOnly, "gold", "postSeasonReset").refunded).toBe(0);
+  });
+
+  it("9.4 THE H2 INTERACTION — a temporary-slot fuse loses its refund under postSeasonReset; a permanent-slot fuse does not", () => {
+    // Tier A gold = 6 tokens; category pool 16; deadeye is the sole Shooting badge.
+    const temporary = synergySlotsWith({ 2: { unlocked: true, fuseBadgeId: "deadeye" } });
+    const permanent = synergySlotsWith({ 5: { unlocked: true, fuseBadgeId: "deadeye" } });
+
+    const tempCurrent = onFuseReadout(temporary, "gold", "current");
+    expect(tempCurrent).toMatchObject({ spent: 6, refunded: 6, remainingPoints: 16 });
+    const tempReset = onFuseReadout(temporary, "gold", "postSeasonReset");
+    expect(tempReset).toMatchObject({ spent: 6, refunded: 0, remainingPoints: 10 });
+
+    const permCurrent = onFuseReadout(permanent, "gold", "current");
+    expect(permCurrent).toMatchObject({ spent: 6, refunded: 6, remainingPoints: 16 });
+    const permReset = onFuseReadout(permanent, "gold", "postSeasonReset");
+    expect(permReset).toMatchObject({ spent: 6, refunded: 6, remainingPoints: 16 });
+  });
+
+  it("9.5 NO ACCUMULATOR — fuse → unfuse → re-fuse yields the same numbers as fusing once", () => {
+    const fused = synergySlotsWith({ 6: { unlocked: true, fuseBadgeId: "deadeye" } });
+    const once = onFuseReadout(fused, "gold");
+    // The ledger is a pure function of the END state; there is no path memory
+    // anywhere in the codebase, and re-deriving from the same end state proves it.
+    const unfused = synergySlotsWith({ 6: { unlocked: true } });
+    expect(onFuseReadout(unfused, "gold").refunded).toBe(0);
+    expect(onFuseReadout(fused, "gold")).toEqual(once);
+  });
+
+  it("9.7 H2 CHANNEL GUARD — the refund still reads the CANONICAL activity predicate, so a LOCKED fuse slot refunds nothing", () => {
+    // synergySlotActive is `unlocked && !(seasonReset && temporary)`. Reusing
+    // it — never hand-negating it — is what makes it structurally impossible
+    // for the refund to disagree with the boost math.
+    const lockedFuse = synergySlotsWith({ 6: { unlocked: false, fuseBadgeId: "deadeye" } });
+    expect(onFuseReadout(lockedFuse, "gold").refunded).toBe(0);
+    expect(onFuseReadout(lockedFuse, "gold", "postSeasonReset").refunded).toBe(0);
+  });
+});

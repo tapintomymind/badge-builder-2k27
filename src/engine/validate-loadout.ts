@@ -47,11 +47,43 @@ export type HardViolation =
   | { kind: "badgeHoldsMultipleSynergyRoles"; badgeId: string; occurrences: SynergyRoleOccurrence[] }
   | { kind: "sameBadgeBothRolesInOneSynergySlot"; synergySlotId: SynergySlotId; badgeId: string }
   /** The sealed 2-of-8 cap (seed: "2 different +2 slots"): more than TWO
-   * synergy slots carrying magnitude 2 is a state the game cannot express. */
+   * synergy slots carrying magnitude 2 is a state the game cannot express.
+   *
+   * [F4/A1] THIS IS THE SOLE ENFORCEMENT SURFACE FOR THE +2 CAP. The
+   * SavedBuild deserializer used to push a duplicate problem for it and no
+   * longer does — see the back-reference comment at the now-cap-free
+   * `validateSynergyShape` site in src/engine/serialization.ts. The
+   * deserializer validates SHAPE; validateLoadout validates RULES. A state
+   * F4 is ruled to DISCLOSE (Synergy Slot 7's ratified +2 landing on a build
+   * that already designates two others) must never be a state the
+   * deserializer REFUSES — that turns a disclosable state into an unloadable
+   * file, which is the H8 failure mode and a reproduced data-loss chain. */
   | {
       kind: "tooManyPlusTwoSynergySlots";
       plusTwoSynergySlotIds: SynergySlotId[];
       maxAllowed: number;
+    }
+  /**
+   * F4 RATIFIED invariant (official 2K MyPlayer Builder page + user
+   * ratification 2026-08-26; reconciliation row 11, §D.2): a
+   * discipline-locked Synergy Slot (Build Specialization) holds only badges
+   * of its own discipline. One violation per offending POSITION — fuse and
+   * reaction are two separately-locked positions (the reconciliation's
+   * ENDORSED READING of §D.2's "each", not page text; §D.3 flags the token
+   * as ambiguous).
+   *
+   * NEVER AUTO-CLEARED. The reachable route is: assign while the lock is
+   * null, then set the lock. That is a legitimate user gesture, and H8
+   * forbids silently re-validating a plan away — so this is REPORTED and
+   * DISCLOSED, never resolved.
+   */
+  | {
+      kind: "badgeCategoryViolatesDisciplineLock";
+      synergySlotId: SynergySlotId;
+      role: SynergyRoleKind;
+      badgeId: string;
+      badgeCategory: Category;
+      disciplineLock: Category;
     };
 
 /** SOFT — budget class (H4): warn in red, never block. */
@@ -137,10 +169,12 @@ export function validateLoadout(
     }
   }
 
-  // The sealed +2 cap (seed: "2 different +2 slots"). The SynergyPanel's
-  // designator refuses to create a third +2, so this — like every other HARD
-  // violation — can only arrive via externally constructed or deserialized
-  // state; the single enforcement surface still names it.
+  // The sealed +2 cap (seed: "2 different +2 slots"). [F4/A1] THIS IS THE
+  // SOLE CAP OWNER — src/engine/serialization.ts's validateSynergyShape
+  // deliberately does NOT push a problem for it (see the comment there).
+  // Reachable now without any external editing: F4's ratified Synergy Slot 7
+  // +2 landing on a pre-F4 build that already designated two others. That is
+  // a state to DISCLOSE, not one to refuse at the JSON boundary.
   const designatedPlusTwo = plusTwoSynergySlotIds(state.synergySlots);
   if (designatedPlusTwo.length > MAX_PLUS_TWO_SYNERGY_SLOTS) {
     errors.push({
@@ -148,6 +182,32 @@ export function validateLoadout(
       plusTwoSynergySlotIds: designatedPlusTwo,
       maxAllowed: MAX_PLUS_TWO_SYNERGY_SLOTS,
     });
+  }
+
+  // --- HARD: the F4 discipline lock, one violation per offending POSITION. ---
+  for (const synergySlot of state.synergySlots) {
+    const lock = synergySlot.disciplineLock;
+    if (lock === null) continue;
+    for (const [role, occupantId] of [
+      ["fuse", synergySlot.fuseBadgeId],
+      ["reaction", synergySlot.reactionBadgeId],
+    ] as const) {
+      if (occupantId === null) continue;
+      // The loud guard above already proved every LOADOUT id is known; a
+      // synergy reference to a non-loadout badge is its own violation
+      // (synergyTargetNotPurchased), so an unresolvable id is skipped here
+      // rather than double-reported.
+      const badge = badgeById(dataset, occupantId);
+      if (badge === undefined || badge.category === lock) continue;
+      errors.push({
+        kind: "badgeCategoryViolatesDisciplineLock",
+        synergySlotId: synergySlot.id,
+        role,
+        badgeId: occupantId,
+        badgeCategory: badge.category,
+        disciplineLock: lock,
+      });
+    }
   }
 
   // --- SOFT: budget class, computed from the COMMITTED ("current") basis. ---
