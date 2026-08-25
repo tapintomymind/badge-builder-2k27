@@ -1431,6 +1431,71 @@ are ours, not 2K's, and only they can say whether the approximation reads right.
 ─────────────────────────────────────────────
 
 ─────────────────────────────────────────────
+2026-08-25 — F8 complete: full attribute display names, split from the dataset's parse keys
+Type: slice-complete
+Actor: Claude Code (cloud session, branch claude/right-sidebar-width-62di4r off dev)
+Slice: F8 (one commit, joins the open F7 PR #2)
+
+WHAT
+User: "For each attribute, don't shorten it. I want it full like standing dunk."
+
+The UI showed "Dr Dunk" / "SWB" / "Per Def" because ATTR_LABELS was doing TWO
+jobs at once: it was the user-facing display map AND the independent
+transcription of the short strings in src/data/badges.source.txt that
+tests/alias-bijection.test.ts pins against the generator's ATTR_ALIASES. The
+display name was therefore structurally welded to the dataset's PARSE KEY —
+prettifying it would have broken generation, which is why it had never moved.
+
+Split the two jobs:
+- ATTR_SOURCE_LABELS (new name, values UNCHANGED) — the parse keys. Still
+  bijective with ATTR_ALIASES; alias-bijection.test.ts now pins this map, so the
+  H7 ship gate is intact and still guards exactly what it was built to guard.
+- ATTR_LABELS (same name, new full values) — display only. Every existing
+  consumer (AttributeGrid sliders, engine eligibility copy, App's live-region
+  announcements) picks up the full names with ZERO call-site changes.
+
+Expansions are the source abbreviation un-abbreviated and nothing more, each one
+fixed by the canonical Attr key: Dr→Driving, St→Standing, Ctrl→Control,
+Acc→Accuracy, Hdl→Handle, Int→Interior, Per→Perimeter, Off→Offensive,
+Reb→Rebound, SWB→Speed With Ball, Spd/Aglty/Str/Vert→their words, 3Pt→Three-Point.
+
+VERIFICATION
+Browser-measured at 1280 (the tightest rail) and 1440: longest label is
+"Defensive Rebound" at 106px in a 224px box — every one of the 20 stays on a
+single line, no wrap, no rail or document overflow. This mattered: the left rail
+sits at its 224px I9 floor after F6, so longer labels were a real risk.
+docs/proof/f8-full-attribute-labels-1440.png.
+npm test: 647 tests, 645 pass. npm run build + typecheck: clean.
+
+SCOPE / PLAN IMPACT
+Judgment calls recorded:
+(1) "Close" and "Mid" are LEFT ALONE. They are whole words in the seed, not
+    abbreviations. 2K's marketing names are "Close Shot" and "Mid-Range Shot",
+    but adding words that appear in neither the source text nor the Attr key is
+    inventing copy rather than un-abbreviating it. Flagged to the user as theirs
+    to overrule — it is the one place the answer is a preference, not a
+    derivation.
+(2) tests/eligibility.test.ts asserted the rendered string /needs 91 Aglty for
+    HOF/. That is DISPLAY copy, so it moved to "Agility" — the expected casualty
+    of the split, and the only assertion that changed meaning.
+(3) New guards in tests/vocabulary.test.ts (4 assertions): no display label may
+    be one of the 15 known abbreviations, the source labels still match the
+    dataset text character-for-character, and the two maps must genuinely differ
+    in 15 of 20 entries — so a future "helpful" re-merge or a shortening-to-fit
+    fails loudly instead of silently regressing the UI to "Dr Dunk".
+
+PRE-EXISTING FAILURES — NOT THIS SLICE'S
+tests/ui/f2-builds-persistence.test.tsx, same 2 5s-timeout failures as F6/F7.
+
+NEXT
+docs/vocabulary.md §57 still describes the short labels as "the source text's
+short labels" — that sentence is now MORE accurate than before, not less, so it
+is left as-is. If the user wants 2K's marketing names ("Close Shot", "Mid-Range
+Shot", "Offensive Rebounding"), that is a one-map edit in ATTR_LABELS with the
+guards already in place.
+─────────────────────────────────────────────
+
+─────────────────────────────────────────────
 2026-08-25 — F2.2 persistence data-integrity slice complete: unreadable saved data is preserved and disclosed, never overwritten
 Type: milestone-complete
 Actor: Tier 2 implementer (Claude Opus 5) — constrained mode, Tier 1 dispatch

@@ -110,12 +110,23 @@ export const ATTR_GROUP_OF: Record<Attr, AttrGroup> = {
 };
 
 /**
- * Display labels for attributes — the seed's own short labels, transcribed
- * independently of the generator's ATTR_ALIASES map (scripts/). A test
- * asserts the two maps are mutual inverses, so a transcription slip in either
- * fails loudly instead of shipping.
+ * SOURCE labels — the seed's own short strings, exactly as they appear in
+ * src/data/badges.source.txt ("Dr Dunk", "SWB", "3Pt"). Transcribed
+ * independently of the generator's ATTR_ALIASES map (scripts/); a test
+ * asserts the two are mutual inverses, so a transcription slip in either
+ * fails loudly instead of shipping a self-consistent, systematically WRONG
+ * dataset.
+ *
+ * THESE ARE PARSE KEYS, NOT DISPLAY TEXT. They may not be prettified,
+ * expanded or re-cased: the generator matches them against the checked-in
+ * source text character-for-character. For anything a user reads, use
+ * ATTR_LABELS below.
+ *
+ * (Until F8 this map was ATTR_LABELS and did both jobs at once, which is why
+ * the UI showed "Dr Dunk" — the display name was structurally pinned to the
+ * dataset's parse key.)
  */
-export const ATTR_LABELS: Record<Attr, string> = {
+export const ATTR_SOURCE_LABELS: Record<Attr, string> = {
   close: "Close",
   layup: "Layup",
   drivingDunk: "Dr Dunk",
@@ -136,6 +147,46 @@ export const ATTR_LABELS: Record<Attr, string> = {
   agility: "Aglty",
   strength: "Str",
   vertical: "Vert",
+};
+
+/**
+ * DISPLAY labels — what a user reads, everywhere. Slider labels, the
+ * engine's eligibility copy ("needs 94 Driving Dunk for HOF"), and the
+ * live-region announcements all resolve through here.
+ *
+ * Every entry is the ABBREVIATION IN THE SOURCE LABEL EXPANDED, and nothing
+ * more: Dr→Driving, St→Standing, Ctrl→Control, Acc→Accuracy, Hdl→Handle,
+ * Int→Interior, Per→Perimeter, Off→Offensive, Reb→Rebound, SWB→Speed With
+ * Ball, Spd/Aglty/Str/Vert→their words. The expansions are fixed by the
+ * canonical Attr keys above (`drivingDunk`, `perimeterDef`, …), so none of
+ * them is a guess about what 2K calls anything.
+ *
+ * `Close` and `Mid` are left ALONE deliberately. They are whole words in the
+ * seed, not abbreviations — expanding them to 2K's marketing names ("Close
+ * Shot", "Mid-Range Shot") would add words the source and the Attr key do
+ * not contain, which is inventing copy rather than un-abbreviating it.
+ */
+export const ATTR_LABELS: Record<Attr, string> = {
+  close: "Close",
+  layup: "Layup",
+  drivingDunk: "Driving Dunk",
+  standingDunk: "Standing Dunk",
+  postControl: "Post Control",
+  mid: "Mid",
+  threePt: "Three-Point",
+  passAcc: "Pass Accuracy",
+  ballHandle: "Ball Handle",
+  speedWithBall: "Speed With Ball",
+  interiorDef: "Interior Defense",
+  perimeterDef: "Perimeter Defense",
+  steal: "Steal",
+  block: "Block",
+  offReb: "Offensive Rebound",
+  defReb: "Defensive Rebound",
+  speed: "Speed",
+  agility: "Agility",
+  strength: "Strength",
+  vertical: "Vertical",
 };
 
 /** User-visible level names. */

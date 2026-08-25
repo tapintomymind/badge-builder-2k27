@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 import { ATTR_ALIASES } from "../scripts/generate-badges.ts";
-import { ATTRS, ATTR_LABELS } from "../src/engine/vocabulary";
+import { ATTRS, ATTR_SOURCE_LABELS } from "../src/engine/vocabulary";
 
 const SOURCE_LABELS = [
   "3Pt",
@@ -54,11 +54,16 @@ describe("alias-map bijection onto the 20-value Attr union (H7 ship gate)", () =
     expect(values.size).toBe(ATTRS.length);
   });
 
-  it("is the exact inverse of the engine's independently-transcribed ATTR_LABELS (two transcriptions, one truth)", () => {
-    // ATTR_ALIASES (scripts/) and ATTR_LABELS (src/engine/) were transcribed
-    // separately from the seed. If they disagree, one of them is wrong.
+  it("is the exact inverse of the engine's independently-transcribed ATTR_SOURCE_LABELS (two transcriptions, one truth)", () => {
+    // ATTR_ALIASES (scripts/) and ATTR_SOURCE_LABELS (src/engine/) were
+    // transcribed separately from the seed. If they disagree, one is wrong.
+    //
+    // F8 note: this pins the SOURCE labels, which are parse keys. The
+    // user-facing ATTR_LABELS is a separate map and is deliberately NOT
+    // constrained here — display copy must be free to read like English
+    // without dragging the dataset's parser along with it.
     for (const [label, attr] of aliasEntries) {
-      expect(ATTR_LABELS[attr], `label "${label}" → attr "${attr}"`).toBe(label);
+      expect(ATTR_SOURCE_LABELS[attr], `label "${label}" → attr "${attr}"`).toBe(label);
     }
   });
 });

@@ -17,6 +17,7 @@
 
 import { describe, expect, it } from "vitest";
 import { srcSources, stripComments } from "./helpers/test-utils";
+import { ATTRS, ATTR_LABELS, ATTR_SOURCE_LABELS } from "../src/engine/vocabulary";
 
 /** Bare slot-word identifiers and copy. Word boundaries mean equipSlots /
  * synergySlots / SynergySlotId / plusTwoSlotIds (interior, prefixed
@@ -59,5 +60,43 @@ describe("H1 vocabulary lint: bare `slot` banned in src/**", () => {
     expect(BANNED.test("type X = SynergySlotId;")).toBe(false);
     expect(BANNED.test('copy = "Badge Slots 2/3"')).toBe(false);
     expect(BANNED.test('copy = "Synergy Slot 5 · Permanent · +2"')).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------- F8: label split -- */
+
+describe("F8 — display labels are free of the dataset's parse keys", () => {
+  it("every attribute has both a source label and a display label", () => {
+    for (const attr of ATTRS) {
+      expect(ATTR_SOURCE_LABELS[attr], `source label for ${attr}`).toBeTruthy();
+      expect(ATTR_LABELS[attr], `display label for ${attr}`).toBeTruthy();
+    }
+  });
+
+  it("no display label is still an abbreviation", () => {
+    // The point of the split. If someone re-points ATTR_LABELS back at the
+    // source strings — or "helpfully" shortens one to fit a rail — the UI
+    // silently regresses to "Dr Dunk" and nothing else would notice.
+    const ABBREVIATIONS = [
+      "Dr Dunk", "St Dunk", "Post Ctrl", "Pass Acc", "Ball Hdl", "SWB",
+      "Int Def", "Per Def", "Off Reb", "Def Reb", "Spd", "Aglty", "Str",
+      "Vert", "3Pt",
+    ];
+    for (const attr of ATTRS) {
+      expect(ABBREVIATIONS, `${attr} display label`).not.toContain(ATTR_LABELS[attr]);
+    }
+  });
+
+  it("the source labels still match the dataset's own text character-for-character", () => {
+    // These are parse keys. Prettifying one silently breaks generation, and
+    // the generator would then fail on text it used to read.
+    expect(ATTR_SOURCE_LABELS.drivingDunk).toBe("Dr Dunk");
+    expect(ATTR_SOURCE_LABELS.speedWithBall).toBe("SWB");
+    expect(ATTR_SOURCE_LABELS.threePt).toBe("3Pt");
+  });
+
+  it("the two maps genuinely differ — the split is real, not cosmetic", () => {
+    const differing = ATTRS.filter((attr) => ATTR_LABELS[attr] !== ATTR_SOURCE_LABELS[attr]);
+    expect(differing.length).toBe(15); // all but Close, Layup, Mid, Steal, Block
   });
 });
