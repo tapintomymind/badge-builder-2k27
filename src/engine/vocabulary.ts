@@ -13,6 +13,15 @@ export const LEVELS = ["bronze", "silver", "gold", "hof", "legend"] as const;
 export type Level = (typeof LEVELS)[number];
 
 /**
+ * The five positions — CANONICAL here as of F3 (hoisted from the UI): the
+ * engine now consumes positions (position → height range, scope.md §0.1 A2),
+ * so a UI-owned vocabulary would be backwards. Position still gates NO
+ * badges — no badge's eligibility consults it.
+ */
+export const POSITIONS = ["PG", "SG", "SF", "PF", "C"] as const;
+export type Position = (typeof POSITIONS)[number];
+
+/**
  * The 4 purchasable levels (H6). `Exclude<Level, "legend">` makes the
  * compiler the first guard against Legend indexing into 4-entry cost arrays.
  */

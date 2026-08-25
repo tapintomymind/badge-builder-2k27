@@ -1669,3 +1669,163 @@ ul {
   display: flex;
   gap: var(--space-2);
 }
+
+/* --- F3: attribute sliders + position height range --- */
+/* Appended as ONE delimited block (impl-brief §0.3): F2 touched many
+ * earlier sections of this file — F3 never interleaves. */
+
+/* AttributeSlider (design-spec §3.1): native range + mandatory paired
+ * numeric. Track 6px --bg-inset inside a --border-strong boundary
+ * (state-bearing, 3.77:1); fill --accent via the --val gradient; thumb
+ * --fg-primary with a 2px --bg-canvas ring. No motion — a transition on a
+ * dragged control fights the drag. */
+.attr-slider {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.attr-slider__label {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--fg-secondary);
+  font-weight: 500;
+  margin-bottom: var(--space-1);
+}
+
+.attr-slider__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.attr-slider__row input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+  margin: 0;
+  background: transparent;
+  touch-action: pan-y; /* a vertical scroll started on a slider still scrolls */
+}
+
+.attr-slider__row input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: var(--radius-pill, 999px);
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(
+    to right,
+    var(--accent) 0 calc(var(--val) * 1%),
+    var(--bg-inset) calc(var(--val) * 1%) 100%
+  );
+}
+
+.attr-slider__row input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: var(--radius-pill, 999px);
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(
+    to right,
+    var(--accent) 0 calc(var(--val) * 1%),
+    var(--bg-inset) calc(var(--val) * 1%) 100%
+  );
+}
+
+.attr-slider__row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -8px; /* centre a 20px thumb on the 6px track */
+  border: 0;
+  border-radius: 50%;
+  background: var(--fg-primary);
+  box-shadow: 0 0 0 2px var(--bg-canvas);
+}
+
+.attr-slider__row input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fg-primary);
+  box-shadow: 0 0 0 2px var(--bg-canvas);
+}
+
+.attr-slider__row input[type="range"]:focus-visible {
+  outline: 2px solid transparent; /* forced-colors companion (§2.5) */
+}
+
+.attr-slider__row input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: var(--ring-focus);
+}
+
+.attr-slider__row input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow: var(--ring-focus);
+}
+
+/* Pending (uncommitted drag) — the one-token honesty signal (§3.1): the
+ * numeric echo renders in --accent until the value commits. */
+.attr-slider__num--pending .number-field input {
+  color: var(--accent);
+}
+
+/* Cell sizing — §3.3 rev 3 re-cut, supersedes the rev-2 104px floor: a
+ * track + a numeric field need 224px side by side. min(224px, 100%) lets
+ * the 216px L rail keep a single full-width column. */
+.attr-group__fields--sliders {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(224px, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+/* Container-driven arrangement: numeric stacks below the track,
+ * right-aligned, when the cell is narrower than 224px (the L rail). */
+@container (max-width: 223px) {
+  .attr-slider__row {
+    flex-wrap: wrap;
+  }
+  .attr-slider__row input[type="range"] {
+    flex-basis: 100%;
+  }
+  .attr-slider__num {
+    margin-left: auto;
+  }
+}
+
+/* S (<768) — §5.3 touch floors: the input is 44px tall with the 6px track
+ * centred; the 28px thumb carries transparent padding out to 44×44. */
+@media (max-width: 767px) {
+  .attr-slider__row input[type="range"] {
+    height: 44px;
+  }
+  .attr-slider__row input[type="range"]::-webkit-slider-runnable-track {
+    margin-top: 0;
+  }
+  .attr-slider__row input[type="range"]::-webkit-slider-thumb {
+    width: 44px;
+    height: 44px;
+    margin-top: -20px;
+    border: 8px solid transparent;
+    background-clip: padding-box;
+    box-shadow: none;
+  }
+  .attr-slider__row input[type="range"]::-moz-range-thumb {
+    width: 44px;
+    height: 44px;
+    border: 8px solid transparent;
+    background-clip: padding-box;
+    box-shadow: none;
+  }
+}
+
+/* Physique re-cut (§3.3 rev 3): Position and Height are one causal group —
+ * the separating rule is gone (component change); the clamp notice is the
+ * warning-flavoured Hint: ⚠ in --warning, sentence in --fg-secondary. */
+.height-field__notice {
+  color: var(--fg-secondary);
+}
+
+.height-field__notice-mark {
+  color: var(--warning);
+}

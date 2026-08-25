@@ -34,6 +34,7 @@ import { createDefaultSynergySlots, defaultOverlay } from "./engine/synergy";
 import type { SynergyState } from "./engine/synergy";
 import { categoryLedgerAt } from "./engine/synergy-ledger";
 import type { CategoryLedgerReadout, SynergyLedgerState } from "./engine/synergy-ledger";
+import { positionHeightRange, validateBuild } from "./engine/validate-build";
 import { validateLoadout } from "./engine/validate-loadout";
 import type {
   AppConfig,
@@ -45,8 +46,15 @@ import type {
   SavedBuild,
   SynergySlot,
 } from "./engine/types";
-import type { Attr, Category, PurchasableLevel } from "./engine/vocabulary";
-import { ATTRS, CATEGORIES, PURCHASABLE_LEVELS, levelIndex } from "./engine/vocabulary";
+import type { Attr, Category, Position, PurchasableLevel } from "./engine/vocabulary";
+import {
+  ATTRS,
+  ATTR_LABELS,
+  CATEGORIES,
+  PURCHASABLE_LEVELS,
+  formatHeightInches,
+  levelIndex,
+} from "./engine/vocabulary";
 import {
   listNamedBuilds,
   newBuildId,
@@ -60,7 +68,7 @@ import {
 } from "./persist/local-storage";
 import type { NamedBuildSummary } from "./persist/local-storage";
 import { BuildPanel } from "./ui/build/BuildPanel";
-import type { Position } from "./ui/build/BuildPanel";
+import type { HeightClampNotice } from "./ui/build/BuildPanel";
 import { BuildManagerDialog, BuildSwitcher } from "./ui/builds/BuildManager";
 import { BadgeCard } from "./ui/grid/BadgeCard";
 import { BadgeGridSection } from "./ui/grid/BadgeGridSection";
@@ -91,19 +99,42 @@ import {
 } from "./ui/summary/SummaryPanel";
 import type { ImportDialogState } from "./ui/summary/SummaryPanel";
 
-/** The dataset's own height coverage — the clamp range is DERIVED, never
- * authored here. */
-const HEIGHT_RANGE = {
-  minInches: Math.min(...shippedDataset.badges.map((b) => b.requirements.heightMinInches)),
-  maxInches: Math.max(...shippedDataset.badges.map((b) => b.requirements.heightMaxInches)),
-};
+/** The dataset's own height coverage — the "Any"-position range, DERIVED by
+ * the engine (positionHeightRange with no position), never authored here. */
+const ANY_HEIGHT_RANGE = positionHeightRange();
 
 /** Zero-state height: the midpoint of the dataset's range, floored — 6'6"
  * (78 in) for the shipped 69–88 dataset, exactly the design-spec §5.4 ruled
  * default. A UI default, not a claim about 2K. */
 const DEFAULT_HEIGHT_INCHES = Math.floor(
-  (HEIGHT_RANGE.minInches + HEIGHT_RANGE.maxInches) / 2,
+  (ANY_HEIGHT_RANGE.minInches + ANY_HEIGHT_RANGE.maxInches) / 2,
 );
+
+/**
+ * Purchased entries that no longer qualify at their PURCHASED level — the
+ * predicate BadgeCard's stale/blocked treatments render, counted over ENGINE
+ * outputs only (validateBadge + levelPasses; no rule re-implemented here).
+ * Drives the §6 build-change announcements and the clamp notice's stale
+ * sentence.
+ */
+function stalePurchaseCount(loadout: readonly LoadoutEntry[], build: Build): number {
+  let count = 0;
+  for (const entry of loadout) {
+    const badge = shippedDataset.badges.find((candidate) => candidate.id === entry.badgeId);
+    if (badge === undefined) continue;
+    const eligibility = validateBadge(badge, build);
+    if (!eligibility.allowed || !levelPasses(badge.requirements, build, entry.purchasedLevel)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+/** `N purchased badge(s) no longer qualify/qualifies.` — shared by the clamp
+ * notice and both build-change announcements so the copy cannot drift. */
+function staleSentence(count: number): string {
+  return `${count} purchased ${count === 1 ? "badge no longer qualifies" : "badges no longer qualify"}.`;
+}
 
 interface WorkingState {
   name: string;
@@ -276,6 +307,13 @@ export default function App() {
    * keys the DriftBanner so its internal re-check output can never linger
    * stale across a build switch. */
   const [disclosureEpoch, setDisclosureEpoch] = useState(0);
+  /** Clamp-on-position-switch disclosure (§3.3 rev 3): persistent, holds
+   * until the user next changes height or position. */
+  const [clampNotice, setClampNotice] = useState<HeightClampNotice | null>(null);
+  /** The §6 build-change live region (role="status"): position clamps and
+   * attribute commits that CHANGED the stale-purchase count — never one
+   * announcement per drag frame or per keyboard step. */
+  const [buildAnnouncement, setBuildAnnouncement] = useState("");
 
   /** EVERY working-state mutation flows through here (write-through ref). */
   const applyWorking = useCallback(
@@ -428,6 +466,68 @@ export default function App() {
     [applyEdit],
   );
 
+  // ---- physique (F3): position bounds the height range. The ENGINE owns
+  // the rule (positionHeightRange / validateBuild); this handler clamps at
+  // the point of change and DISCLOSES — visible persistent notice + the §6
+  // build-change announcement. Nearest bound, never a reset; the switch
+  // always succeeds (non-blocking). ----
+  const handlePositionChange = useCallback(
+    (position: Position | undefined) => {
+      const prev = workingRef.current;
+      if (prev.build.position === position) return;
+      const range = positionHeightRange(position);
+      const clampedHeight = Math.min(
+        range.maxInches,
+        Math.max(range.minInches, prev.build.heightInches),
+      );
+      const clamped = clampedHeight !== prev.build.heightInches;
+      const nextBuild: Build = { ...prev.build, position, heightInches: clampedHeight };
+      applyEdit((current) => ({ ...current, build: nextBuild }));
+      if (!clamped) {
+        // The notice holds only until the next height or position change.
+        setClampNotice(null);
+        return;
+      }
+      const staleBefore = stalePurchaseCount(prev.loadout, prev.build);
+      const staleAfter = stalePurchaseCount(prev.loadout, nextBuild);
+      const staleChanged = staleAfter !== staleBefore;
+      setClampNotice({
+        fromInches: prev.build.heightInches,
+        toInches: clampedHeight,
+        staleCount: staleChanged && staleAfter > 0 ? staleAfter : null,
+      });
+      setBuildAnnouncement(
+        `Position set to ${position ?? "Any"}. Height adjusted to ` +
+          `${formatHeightInches(clampedHeight)}.` +
+          (staleChanged && staleAfter > 0 ? ` ${staleSentence(staleAfter)}` : ""),
+      );
+    },
+    [applyEdit],
+  );
+
+  const handleAttributeCommit = useCallback(
+    (attr: Attr, value: number) => {
+      const prev = workingRef.current;
+      if (prev.build.attributes[attr] === value) return;
+      const nextBuild: Build = {
+        ...prev.build,
+        attributes: { ...prev.build.attributes, [attr]: value },
+      };
+      applyEdit((current) => ({ ...current, build: nextBuild }));
+      // §6: attribute commits announce ONLY when they change the
+      // stale-purchase count — stepping 40 → 50 stays silent.
+      const staleBefore = stalePurchaseCount(prev.loadout, prev.build);
+      const staleAfter = stalePurchaseCount(prev.loadout, nextBuild);
+      if (staleAfter !== staleBefore) {
+        setBuildAnnouncement(
+          `${ATTR_LABELS[attr]} set to ${value}. ` +
+            (staleAfter > 0 ? staleSentence(staleAfter) : "All purchased badges qualify."),
+        );
+      }
+    },
+    [applyEdit],
+  );
+
   // ---- named builds ----
   const refreshNamedBuilds = useCallback(() => {
     setNamedBuilds(listNamedBuilds());
@@ -467,6 +567,8 @@ export default function App() {
       setDroppedEntries(report.droppedEntries);
       setClearedSynergyRefs(report.clearedSynergyRefs);
       setDisclosureEpoch((epoch) => epoch + 1);
+      // The clamp notice belongs to an edit gesture, not to the new build.
+      setClampNotice(null);
       setManagerOpen(false);
     },
     [applyWorking, markClean],
@@ -578,6 +680,7 @@ export default function App() {
         importState?.kind === "confirm" ? importState.clearedSynergyRefs : [],
       );
       setDisclosureEpoch((epoch) => epoch + 1);
+      setClampNotice(null);
       setImportState(null);
     },
     [applyWorking, importState],
@@ -667,6 +770,16 @@ export default function App() {
   ) as Record<Category, CategoryFeasibility>;
 
   const validation = validateLoadout(ledgerState);
+
+  // F3: the position-derived height range (engine accessor — the only route
+  // to the table) and the HARD-DISCLOSED build validation. Position unset ⇒
+  // the dataset's own range ⇒ pre-F3 behavior, unchanged.
+  const heightRange = positionHeightRange(working.build.position);
+  const buildValidation = validateBuild(working.build);
+  const buildViolationReasons = buildValidation.violations.map(
+    (violation) => violation.reason,
+  );
+
   const clearAllFilters = () => {
     setFilters(defaultFilterState());
   };
@@ -736,41 +849,35 @@ export default function App() {
         ) : null}
       </div>
 
+      {/* §6 live region 2 — build-change result (rev 3 contract): position
+        * clamps and attribute commits that changed the stale-purchase count.
+        * Fires once per COMMIT, never per drag frame. */}
+      <p className="sr-only" role="status">
+        {buildAnnouncement}
+      </p>
+
       <div className="layout">
         <aside className="rail-left" aria-label="Build">
           <BuildPanel
             build={working.build}
             budgets={budgets}
-            heightRange={HEIGHT_RANGE}
+            heightRange={heightRange}
+            buildViolationReasons={buildViolationReasons}
+            clampNotice={clampNotice}
             onHeightCommit={(heightInches) => {
               // Fields commit on EVERY blur — a no-change commit is a no-op
               // (returning prev), so tabbing through never marks dirty.
+              const changed = workingRef.current.build.heightInches !== heightInches;
               applyEdit((prev) =>
                 prev.build.heightInches === heightInches
                   ? prev
                   : { ...prev, build: { ...prev.build, heightInches } },
               );
+              // A height change ends the clamp notice's hold (§3.3 rev 3).
+              if (changed) setClampNotice(null);
             }}
-            onPositionChange={(position: Position) => {
-              applyEdit((prev) =>
-                prev.build.position === position
-                  ? prev
-                  : { ...prev, build: { ...prev.build, position } },
-              );
-            }}
-            onAttributeCommit={(attr: Attr, value: number) => {
-              applyEdit((prev) =>
-                prev.build.attributes[attr] === value
-                  ? prev
-                  : {
-                      ...prev,
-                      build: {
-                        ...prev.build,
-                        attributes: { ...prev.build.attributes, [attr]: value },
-                      },
-                    },
-              );
-            }}
+            onPositionChange={handlePositionChange}
+            onAttributeCommit={handleAttributeCommit}
             onBudgetCommit={(category, field, value) => {
               applyEdit((prev) =>
                 prev.budgets[category][field] === value

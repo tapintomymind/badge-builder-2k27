@@ -1,12 +1,15 @@
 /**
- * BuildPanel (design-spec §3.3) — three Sections, visually separated,
- * because two of them gate badges and one (Position) does not.
+ * BuildPanel (design-spec §3.3) — three Sections. As of rev 3 (F3) the
+ * Physique section leads with Position, because Position now CONSTRAINS the
+ * height range (scope.md §0.1 A2): you pick a position, which sets the range
+ * you may pick a height within. Position still gates NO badges — the hint
+ * says exactly that, and the rev-1 "cosmetic" treatments (muted palette,
+ * Cosmetic chip, separating rule) are withdrawn: a live control styled to
+ * look inert is a worse lie than a plain one.
  *
- * PhysiqueSection's Position control is deliberately inert-looking: muted
- * palette, a Cosmetic chip, a permanent hint, and it is the ONLY Build-panel
- * control whose change produces ZERO downstream re-render — no card, pip, or
- * ledger number moves. That silence is intentional (seed: position is
- * display metadata only; it gates nothing).
+ * The height range itself comes from the ENGINE (positionHeightRange, via
+ * App.tsx) — this file never reads src/data/position-heights and holds no
+ * copy of the table.
  *
  * Below the L breakpoint (<1280px — §5.2 rev 2: BOTH rails dissolve at M,
  * so M and S share one structure) the whole panel collapses into one
@@ -14,18 +17,21 @@
  *
  * AUTO-COLLAPSE (§5.3, design-review P0-2) — a LATCH, not a computation:
  * default-open at zero state; collapses automatically EXACTLY ONCE the
- * first time the build has non-zero values (evaluated on commit — fields
- * commit on blur, so this never fires mid-keystroke — or on the next
- * mount); the user's open/closed choice is persisted thereafter and never
- * overridden again.
+ * first time the build has non-zero values; the user's open/closed choice is
+ * persisted thereafter and never overridden again. The latch reads COMMITTED
+ * values only, and — rev 3 — it never fires while the triggering control
+ * still holds focus: a slider RELEASE is a commit but NOT a blur (focus
+ * stays on the thumb), so the panel must not snap shut when the user lets
+ * go of a slider. Firing is deferred to that slider's blur (or the next
+ * mount). NumberField commits on blur, so its path is unchanged.
  */
 
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { Budget, Build } from "../../engine/types";
-import type { Attr, Category } from "../../engine/vocabulary";
-import { CATEGORIES, formatHeightInches } from "../../engine/vocabulary";
+import type { Attr, Category, Position } from "../../engine/vocabulary";
+import { CATEGORIES, POSITIONS, formatHeightInches } from "../../engine/vocabulary";
 import { readUiSectionOpen, writeUiSectionOpen } from "../../persist/local-storage";
-import { Chip } from "../primitives/Chip";
+import { Banner } from "../primitives/Banner";
 import { HeightField } from "../primitives/HeightField";
 import { Hint } from "../primitives/Hint";
 import { Section } from "../primitives/Section";
@@ -38,16 +44,33 @@ import { BudgetGrid } from "./BudgetGrid";
 const BUILD_PANEL_SECTION_KEY = "section-build-panel";
 const BUILD_PANEL_AUTO_COLLAPSED_KEY = "section-build-panel.auto-collapsed";
 
-const POSITIONS = ["PG", "SG", "SF", "PF", "C"] as const;
-export type Position = (typeof POSITIONS)[number];
+/** "Any" = the EXISTING optional Build.position left unset — the dataset's
+ * own full range, and the zero-state default (§5.4 rev 3). */
+const POSITION_OPTIONS = ["Any", ...POSITIONS] as const;
+type PositionOption = (typeof POSITION_OPTIONS)[number];
+
+/** The clamp-on-position-switch disclosure (§3.3 rev 3): persistent, never a
+ * toast — holds until the user next changes height or position. */
+export interface HeightClampNotice {
+  fromInches: number;
+  toInches: number;
+  /** Stale-purchase count when the clamp changed it (cause and consequence
+   * in one sentence, at the site of the action); null = no stale sentence. */
+  staleCount: number | null;
+}
 
 export interface BuildPanelProps {
   build: Build;
   budgets: Record<Category, Budget>;
-  /** Dataset-derived height clamp range (inches). */
+  /** Position-derived height clamp range (inches) — from the engine's
+   * positionHeightRange(), the only route to the table. */
   heightRange: { minInches: number; maxInches: number };
+  /** Engine validateBuild() reasons — HARD-DISCLOSED as a warning Banner
+   * local to the control that caused them. */
+  buildViolationReasons: readonly string[];
+  clampNotice: HeightClampNotice | null;
   onHeightCommit: (heightInches: number) => void;
-  onPositionChange: (position: Position) => void;
+  onPositionChange: (position: Position | undefined) => void;
   onAttributeCommit: (attr: Attr, value: number) => void;
   onBudgetCommit: (category: Category, field: keyof Budget, value: number) => void;
 }
@@ -55,33 +78,66 @@ export interface BuildPanelProps {
 export function PhysiqueSection({
   build,
   heightRange,
+  buildViolationReasons,
+  clampNotice,
   onHeightCommit,
   onPositionChange,
-}: Pick<BuildPanelProps, "build" | "heightRange" | "onHeightCommit" | "onPositionChange">) {
+}: Pick<
+  BuildPanelProps,
+  | "build"
+  | "heightRange"
+  | "buildViolationReasons"
+  | "clampNotice"
+  | "onHeightCommit"
+  | "onPositionChange"
+>) {
   const positionHintId = useId();
+  const positionLabel: PositionOption = build.position ?? "Any";
+  const rangeText = `${formatHeightInches(heightRange.minInches)}–${formatHeightInches(heightRange.maxInches)}`;
+  const noticeText =
+    clampNotice === null
+      ? null
+      : `Height adjusted ${formatHeightInches(clampNotice.fromInches)} → ` +
+        `${formatHeightInches(clampNotice.toInches)} to fit ${positionLabel}'s ` +
+        `range (${rangeText}).` +
+        (clampNotice.staleCount === null
+          ? ""
+          : ` ${clampNotice.staleCount} purchased ${
+              clampNotice.staleCount === 1
+                ? "badge no longer qualifies"
+                : "badges no longer qualify"
+            }.`);
   return (
     <Section title="Physique" storageKey="section-physique">
+      <SegmentedControl
+        legend="Position"
+        options={POSITION_OPTIONS}
+        value={positionLabel}
+        onChange={(option) => {
+          onPositionChange(option === "Any" ? undefined : option);
+        }}
+        describedBy={positionHintId}
+      />
+      <Hint id={positionHintId}>
+        {`Sets the available height range (${positionLabel}: ${rangeText}). ` +
+          "No badge has a position requirement; badges gate on height and " +
+          "attributes only."}
+      </Hint>
       <HeightField
         heightInches={build.heightInches}
         minInches={heightRange.minInches}
         maxInches={heightRange.maxInches}
+        rangeHint={
+          build.position !== undefined
+            ? `${build.position}: ${rangeText}`
+            : `${rangeText}, the range this dataset covers.`
+        }
+        notice={noticeText}
         onCommit={onHeightCommit}
       />
-      <hr className="physique__rule" />
-      <div className="physique__position-row">
-        <SegmentedControl
-          legend="Position"
-          options={POSITIONS}
-          value={build.position ?? null}
-          onChange={onPositionChange}
-          muted
-          describedBy={positionHintId}
-        />
-        <Chip variant="muted">Cosmetic</Chip>
-      </div>
-      <Hint id={positionHintId}>
-        Cosmetic. Position gates no badges — this dataset has no position restrictions.
-      </Hint>
+      {buildViolationReasons.length > 0 ? (
+        <Banner variant="warning">{buildViolationReasons.join(" ")}</Banner>
+      ) : null}
     </Section>
   );
 }
@@ -94,6 +150,7 @@ export function BuildPanel(props: BuildPanelProps) {
   const [autoCollapsed, setAutoCollapsed] = useState<boolean>(
     () => readUiSectionOpen(BUILD_PANEL_AUTO_COLLAPSED_KEY) === true,
   );
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   const totalPoints = CATEGORIES.reduce((sum, category) => sum + budgets[category].points, 0);
   const totalEquipSlots = CATEGORIES.reduce(
@@ -106,19 +163,45 @@ export function BuildPanel(props: BuildPanelProps) {
     totalEquipSlots > 0 ||
     Object.values(build.attributes).some((value) => value > 0);
 
-  // The one-shot latch (§5.3): first zero → non-zero transition (or first
-  // mount with values) writes open=false ONCE and latches. `hasValues` only
-  // moves on commit (fields commit on blur), so this never fires
-  // mid-keystroke. Once latched, the user's own toggle is never overridden.
-  useEffect(() => {
-    if (!isCompact || !hasValues || autoCollapsed) return;
+  const latchArmed = isCompact && hasValues && !autoCollapsed;
+
+  const fireLatch = useCallback(() => {
     writeUiSectionOpen(BUILD_PANEL_SECTION_KEY, false);
     writeUiSectionOpen(BUILD_PANEL_AUTO_COLLAPSED_KEY, true);
     setAutoCollapsed(true);
-  }, [isCompact, hasValues, autoCollapsed]);
+  }, []);
+
+  // The one-shot latch (§5.3): first zero → non-zero transition (or first
+  // mount with values) writes open=false ONCE and latches. `hasValues` only
+  // moves on COMMIT, so this never fires mid-drag or mid-keystroke. Rev 3
+  // guard: a slider commits on release with focus still on the thumb — the
+  // latch must not collapse the panel under it, so firing defers to that
+  // slider's blur (the onBlur below re-checks). Once latched, the user's own
+  // toggle is never overridden.
+  useEffect(() => {
+    if (!latchArmed) return;
+    const active = document.activeElement;
+    const sliderHoldsFocus =
+      active instanceof HTMLInputElement &&
+      active.type === "range" &&
+      panelRef.current !== null &&
+      panelRef.current.contains(active);
+    if (sliderHoldsFocus) return; // fire on that slider's blur instead
+    fireLatch();
+  }, [latchArmed, fireLatch]);
 
   const sections = (
-    <div className="build-panel">
+    <div
+      className="build-panel"
+      ref={panelRef}
+      onBlur={(event) => {
+        if (!latchArmed) return;
+        const target = event.target;
+        if (target instanceof HTMLInputElement && target.type === "range") {
+          fireLatch();
+        }
+      }}
+    >
       <PhysiqueSection {...props} />
       <Section title="Attributes" storageKey="section-attributes">
         <AttributeGrid attributes={build.attributes} onCommit={onAttributeCommit} />

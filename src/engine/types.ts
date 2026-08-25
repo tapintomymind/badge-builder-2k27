@@ -11,11 +11,14 @@
 
 import type { Attr, Category, Level, PurchasableLevel, Tier } from "./vocabulary";
 
-/** The user's build — input to eligibility. Position is cosmetic only. */
+/** The user's build — input to eligibility. */
 export interface Build {
   /** 69 (5'9") … 88 (7'4"). */
   heightInches: number;
-  /** Display metadata only — gates nothing. */
+  /** Bounds the build's height range (user-supplied position→height table,
+   * validate-build.ts / scope.md §0.1 A2) and still gates NO badges — no
+   * badge's eligibility consults position. Unset = "Any": the dataset's own
+   * full height range applies. */
   position?: "PG" | "SG" | "SF" | "PF" | "C";
   /** 0–99 per attribute. */
   attributes: Record<Attr, number>;

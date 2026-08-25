@@ -1,8 +1,17 @@
 /**
- * HeightField (design-spec §3.1) — ft/in inside one fieldset with a live
- * read-only inches echo, because every requirement in the dataset is
- * expressed in inches. Clamped on blur to the dataset's height range
- * (computed FROM the dataset — never a number invented here).
+ * HeightField (design-spec §3.1; range position-derived as of rev 3/F3) —
+ * ft/in inside one fieldset with a live read-only inches echo, because every
+ * requirement in the dataset is expressed in inches. Clamped on blur to the
+ * range passed in — pre-F3 the dataset's own coverage, post-F3 the currently
+ * selected position's range (both come from the caller; no number is ever
+ * invented here). The ft/in sub-field min/max stay coarse — the true bound
+ * is enforced in the blur clamp, per §4.2's clamp-on-blur-never-on-keystroke
+ * rule.
+ *
+ * `notice` is the clamp-on-position-switch disclosure (§3.3 rev 3):
+ * persistent, never a toast, rendered directly beneath the fields and wired
+ * into both inputs' aria-describedby. A value the app changed on the user's
+ * behalf may not scroll away unread.
  */
 
 import { useId } from "react";
@@ -12,16 +21,30 @@ import { Hint } from "./Hint";
 
 export interface HeightFieldProps {
   heightInches: number;
-  /** Dataset-derived clamp range, inclusive. */
+  /** Caller-derived clamp range, inclusive. */
   minInches: number;
   maxInches: number;
+  /** The live-bound hint (e.g. `SF: 6'4"–6'10"`). Falls back to the
+   * dataset-range copy when omitted. */
+  rangeHint?: string;
+  /** Persistent clamp disclosure — rendered beneath the fields when set. */
+  notice?: string | null;
   onCommit: (heightInches: number) => void;
 }
 
-export function HeightField({ heightInches, minInches, maxInches, onCommit }: HeightFieldProps) {
+export function HeightField({
+  heightInches,
+  minInches,
+  maxInches,
+  rangeHint,
+  notice,
+  onCommit,
+}: HeightFieldProps) {
   const hintId = useId();
+  const noticeId = useId();
   const feet = Math.floor(heightInches / 12);
   const inches = heightInches % 12;
+  const describedBy = notice != null ? `${hintId} ${noticeId}` : hintId;
 
   function commitTotal(totalInches: number) {
     onCommit(Math.min(maxInches, Math.max(minInches, totalInches)));
@@ -36,7 +59,7 @@ export function HeightField({ heightInches, minInches, maxInches, onCommit }: He
           value={feet}
           min={Math.floor(minInches / 12)}
           max={Math.floor(maxInches / 12)}
-          describedBy={hintId}
+          describedBy={describedBy}
           onCommit={(nextFeet) => {
             commitTotal(nextFeet * 12 + inches);
           }}
@@ -46,7 +69,7 @@ export function HeightField({ heightInches, minInches, maxInches, onCommit }: He
           value={inches}
           min={0}
           max={11}
-          describedBy={hintId}
+          describedBy={describedBy}
           onCommit={(nextInches) => {
             commitTotal(feet * 12 + nextInches);
           }}
@@ -56,8 +79,17 @@ export function HeightField({ heightInches, minInches, maxInches, onCommit }: He
         </span>
       </div>
       <Hint id={hintId}>
-        {`Clamped to ${formatHeightInches(minInches)}–${formatHeightInches(maxInches)}, the range this dataset covers.`}
+        {rangeHint ??
+          `Clamped to ${formatHeightInches(minInches)}–${formatHeightInches(maxInches)}, the range this dataset covers.`}
       </Hint>
+      {notice != null ? (
+        <p id={noticeId} className="hint height-field__notice">
+          <span className="height-field__notice-mark" aria-hidden="true">
+            ⚠{" "}
+          </span>
+          {notice}
+        </p>
+      ) : null}
     </fieldset>
   );
 }

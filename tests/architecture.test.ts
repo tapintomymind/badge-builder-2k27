@@ -68,6 +68,33 @@ describe("architecture: zero network egress (c)", () => {
   }
 });
 
+describe("architecture: position-height access route (e)", () => {
+  // scope.md §0.1 A2 / impl-brief F3: the engine's positionHeightRange() is
+  // the ONLY route by which the UI may learn a height range. No file outside
+  // src/engine/ (src/data/ itself excepted) may import the data module — a
+  // component holding a copy of the table is a rule in the view layer.
+  const nonEngineFiles = srcFiles.filter(
+    (file) => !file.startsWith("/src/engine/") && !file.startsWith("/src/data/"),
+  );
+
+  it("scans the UI layer", () => {
+    expect(nonEngineFiles.length).toBeGreaterThan(10);
+  });
+
+  for (const file of nonEngineFiles) {
+    it(`${file} does not import src/data/position-heights`, () => {
+      const code = stripComments(srcSources[file] as string);
+      for (const specifier of importSpecifiersOf(code)) {
+        expect(
+          specifier.includes("position-heights"),
+          `${file} imports "${specifier}" — the UI must learn height ranges ` +
+            "ONLY through the engine's positionHeightRange() accessor",
+        ).toBe(false);
+      }
+    });
+  }
+});
+
 describe("architecture: no runtime filesystem access (d)", () => {
   // scripts/generate-badges-cli.ts is the ONE build-time fs consumer in the
   // repo, and it is exempt by location. Nothing under src/ may touch fs.

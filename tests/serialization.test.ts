@@ -14,6 +14,7 @@ import {
   deserializeSavedBuildWithReport,
   serializeSavedBuild,
 } from "../src/engine/serialization";
+import { validateBuild } from "../src/engine/validate-build";
 import type { Budget, RawBadgeDataset, SavedBuild, SynergySlot } from "../src/engine/types";
 import type { Category } from "../src/engine/vocabulary";
 import { CATEGORIES } from "../src/engine/vocabulary";
@@ -497,5 +498,42 @@ describe("deserializeSavedBuildWithReport — stranded synergy refs heal into cl
     >;
     expect(synergySlot5["futureField"]).toBe("opaque");
     expect(synergySlot5["fuseBadgeId"]).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F3 (scope.md §0.1 A2): an out-of-range height is a validateBuild VIOLATION,
+// never malformed input. MalformedSavedBuildError stays for SHAPE violations
+// only. This pin exists because F1 made the deserializer strict and the next
+// reader's instinct will be to add the range check there — do not.
+// ---------------------------------------------------------------------------
+
+describe("F3: the deserializer does NOT reject an out-of-range height", () => {
+  it("a 7'0\" PG round-trips and surfaces as a validateBuild violation", () => {
+    const saved = makeSaved();
+    const outOfRange: SavedBuild = {
+      ...saved,
+      build: { ...saved.build, position: "PG", heightInches: 84 },
+    };
+    // Round-trips successfully — no MalformedSavedBuildError, no mutation.
+    const roundTripped = deserializeSavedBuild(serializeSavedBuild(outOfRange));
+    expect(roundTripped.build.position).toBe("PG");
+    expect(roundTripped.build.heightInches).toBe(84);
+    // The engine's HARD-DISCLOSED surface is where it lands instead.
+    const validation = validateBuild(roundTripped.build);
+    expect(validation.violations).toHaveLength(1);
+    expect(validation.violations[0]?.kind).toBe("heightOutsidePositionRange");
+    expect(validation.violations[0]?.reason).toBe(
+      `7'0" is outside the PG range 5'9"–6'7"`,
+    );
+  });
+
+  it("junk in position is still junk (shape stays validated)", () => {
+    const saved = makeSaved();
+    const envelope = JSON.parse(serializeSavedBuild(saved)) as Record<string, unknown>;
+    (envelope["build"] as Record<string, unknown>)["position"] = "GOALIE";
+    expect(() => deserializeSavedBuild(JSON.stringify(envelope))).toThrowError(
+      MalformedSavedBuildError,
+    );
   });
 });
