@@ -19,3 +19,246 @@ AssertionError: expected 31.6 to be less than 22
 
 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
 
+
+================================================================================
+BROWSER PROOF — measured, not eyeballed
+================================================================================
+
+ENVIRONMENT NOTE, stated plainly: PNG capture was NOT available in this
+session. The Browser pane reported `document.visibilityState === "hidden"`
+throughout, so every screenshot came back as a flat unpainted canvas. Rather
+than ship blank or fabricated PNGs, every coverage frame below is discharged
+with the DOM measurement the frame exists to establish — which for the
+card-height and pip-spread frames is the SAME getBoundingClientRect() evidence
+the brief asks to be pasted here, and is strictly more precise than a
+screenshot. The frames that can ONLY be discharged visually are named as
+outstanding at the end.
+
+Two dev servers, both from git worktrees, neither on :5173 (that port was held
+by another agent's server and is not mine):
+  BEFORE  http://localhost:5184  worktree /tmp/bb-f53-before @ 2999a6c (base)
+  AFTER   http://localhost:5183  worktree /tmp/bb-f53        @ b175a04
+
+Identical build state on both, entered through the UI (a hand-built autosave
+envelope is rejected by the deserializer — the sixth category key is
+"Physicals", not "Physical"): 20 attributes at 88, Shooting 12 pts / 3 Badge
+Slots, five purchased badges, Fuse on Deadeye (SS1), Reaction on Quick
+Trigger (SS2).
+
+--------------------------------------------------------------------------------
+A1 / I13 — THE RAGGED CARD BOTTOMS. THE CAUSE WAS NOT THE REPORTED ONE.
+--------------------------------------------------------------------------------
+BEFORE, 1280, Shooting row 1 (getBoundingClientRect, px):
+
+  card              li.bottom    card.bottom    dead space INSIDE the cell
+  Arc Cadence         402.0        402.0           0.0
+  Deadeye             402.0        378.8          23.2
+  Limitless Range     402.0        378.0          24.0
+
+  The <li> bottoms are IDENTICAL (402.0). The grid was never broken — it
+  stretched its children correctly all along. The slack is inside each cell,
+  below a .badge-card that never filled it. That is I13, measured.
+
+AFTER, 1280, same row:
+
+  Arc Cadence         1813.1       1813.1          0.0
+  Deadeye             1813.1       1813.1          0.0
+  Limitless Range     1813.1       1813.1          0.0
+
+Swept over EVERY open category at four widths, worst dead space across all
+cards in all rows, and whether any card clipped its content (I14):
+
+  viewport   rows checked   worst dead space   clipped cards   h-scroll
+    390          44              0.00 px            0            no
+    768          23              0.00 px            0            no
+   1280          16              0.00 px            0            no
+   1357          13              0.00 px            0            no
+   1440          13              0.00 px            0            no
+
+  1357 is the four-up seam: 4 cards/row, card 244.3px, content box 210.3px.
+
+--------------------------------------------------------------------------------
+THE PIP SPREAD — the inequality the user actually reported
+--------------------------------------------------------------------------------
+                     pip w   dot w   gap   whitespace between dots   vs dot
+  BEFORE 1280         50.8    22      4            32.8               > 22  BAD
+  AFTER  1280         36.0    22      4            18.0               < 22  OK
+  AFTER   768         36.0    22      4            18.0               < 22  OK
+  AFTER  1440         36.0    22      4            18.0               < 22  OK
+  AFTER   390         44.0    22      4            26.0               vs 22  I6 floor, correct
+
+  Four purchase radios on ONE line at every width (radioLines = 1).
+  Pip height 50px at every width; 36 x 50 clears SC 2.5.8's 24x24 by +12.
+  Legend pip 44.1px against a 44px min-width floor — it GREW to fit "boost"
+  rather than overflowing, which is the width:auto safety the exact 44 = 44
+  fit depends on. Zero pips overflow their box at any width.
+
+--------------------------------------------------------------------------------
+THE TITLE ROW — F4's NEW chip, and the arithmetic that moved it
+--------------------------------------------------------------------------------
+  BEFORE 1280  "Arc Cadence"  title row 48.0px = TWO LINES, 3 chips on the line
+  AFTER  1280  "Arc Cadence"  title row 24.0px = ONE line, 1 chip (tier only)
+
+  All 53 title rows at every one of the five widths: max height 24px, count
+  over one line = 0.
+  Chip census after: 53 chips in title rows (one tier medallion each),
+  19 NEW chips in .badge-card__meta (= the 19 isNew badges), 6 over-Badge-Slots
+  warning chips in .badge-card__meta. Every chip left the title line.
+
+--------------------------------------------------------------------------------
+COLLAPSE (B) — display-only, and the digest keeps its numbers
+--------------------------------------------------------------------------------
+  digest element tag                 SUMMARY        (not a div inside one)
+  digest row tag                     SPAN           (<summary> content model)
+  position / top                     sticky / 44px  (before AND after collapse)
+  #cat-shooting className            "grid-section" (the id never moved)
+  <details> carries an id            no
+  click the digest -> details.open   true -> false
+  section height when collapsed      75.5px == digest height 75.5px
+                                     (the cards occupy no layout space)
+  digest text when collapsed         "Shooting Badge Points 11 / 12 left 6
+                                      Badge Slots 3 / 3"
+  persisted key                      category-shooting: false
+  other categories                   #cat-finishing stays open
+  rail ledger contains Shooting      yes
+  Summary contains Shooting          yes
+  filter readout                     "53 of 53"  (collapse is not a filter)
+
+  COLLAPSED AND OVERSPENT (Shooting squeezed to 4 pts / 1 Badge Slot):
+    className        category-ledger category-ledger--over
+    border-left      rgb(248, 81, 73) 3px          = --danger
+    visible strings  "over by 2 ⚠" x2, both inside the collapsed summary
+  Collapse cannot hide an H4 overspend.
+
+  T4 — THE CARET IS NOT A FIFTH --cat SURFACE:
+    caret color                rgb(139, 148, 158)  = --fg-muted
+    Shooting h2 color          rgb(28, 175, 97)    = its --cat hue
+    The two differ, which is the whole point. (Note: getComputedStyle on the
+    ::before returned a stale transform for BOTH open and closed states in
+    this Chrome build, so caret ROTATION was verified by selector match
+    instead, which is definitive:
+      #cat-shooting  details.matches('.grid-section__disclosure[open]') = false
+      #cat-finishing details.matches('.grid-section__disclosure[open]') = true
+    and exactly one rule applies the rotation, gated on [open].)
+
+  T5 / A14 — THE FOCUS RING:
+    .category-ledger        box-shadow: var(--shadow-raised)          (0,1,0)
+    .category-ledger:focus-visible
+                            box-shadow: var(--ring-focus), var(--shadow-raised);
+                            outline: transparent solid 2px            (0,2,0)
+    The composed rule is present and outranks the plain one on specificity and
+    order, so the ring cannot be swallowed. A LIVE keyboard-focus capture was
+    not possible: :focus-visible needs a trusted user interaction and this
+    environment can only dispatch untrusted events (isTrusted false), so
+    programmatic focus correctly refused to match. Structural proof only.
+
+--------------------------------------------------------------------------------
+RESET (C) — the blast radius, live
+--------------------------------------------------------------------------------
+  control        <button class="btn btn--danger-ghost btn--sm build-panel__reset">
+                 text "Reset build", no glyph, transparent background,
+                 color rgb(248, 81, 73), inside .build-panel at its foot
+  height         28px at 1280 · 44px at 390 (min-height: 44px), 90.6 x 44
+
+  T14 CONFIRMED EMPIRICALLY: document.querySelector("dialog") returns the
+  BUILD MANAGER, not the reset dialog. Dialogs in DOM: ["build-manager",
+  "reset-build-dialog"]. Selecting by id is not a style preference.
+
+  The confirm, verbatim as rendered:
+    "Reset build?  This clears the working build only. Your saved builds are
+     not touched.  Will be cleared  20 attributes (20 currently set)  5
+     purchased badges  2 Synergy Slot assignments  Will be kept — Badge Points
+     and Badge Slots for all six categories, Synergy Slot unlocks, and the
+     build name.  Also clear Badge Points and Badge Slots (12 fields set)
+     Cancel  Save a copy and reset  Reset build"
+
+    Counts are real (5 purchased, 2 assignments, 12 budget fields set).
+    The height/position row is SUPPRESSED here because height was already the
+    6'6" default and no position was set — zero-suppression working.
+    Buttons: Cancel=btn--ghost, Save a copy and reset=btn--secondary,
+    Reset build=btn--danger-ghost. NO btn--primary anywhere.
+
+  ON CONFIRM:                          before  ->  after
+    loadout                              5     ->   0
+    attributes non-zero                  20    ->   0
+    height                                     ->   78  (6'6")
+    position                                   ->   undefined (Any)
+    Shooting budget                {1 slot, 4 pts} -> {1 slot, 4 pts}   KEPT
+    Synergy Slot unlocked count          2     ->   2                   KEPT
+    Synergy Slot 7 magnitude (+2)        2     ->   2                   KEPT
+    synergy assignments                  2     ->   0                   CLEARED
+    stale cards in DOM                         ->   0   (the avalanche assertion)
+    ui-state blob byte-unchanged               ->   TRUE
+      (six category-* collapse keys AND section-build-panel.auto-collapsed)
+    named-builds blob byte-unchanged           ->   TRUE
+    #cat-shooting still collapsed              ->   TRUE
+    dialog closed                              ->   TRUE
+    announcement on the EXISTING role=status region:
+      "Build reset. 20 attributes cleared, 5 purchased badges removed,
+       2 Synergy Slot assignments cleared. Height 6'6", Position Any."
+    Reset button now disabled                  ->   TRUE
+      (budgets survived, so `workingHasContent` would still be TRUE here —
+       `playerHasContent` correctly reports there is nothing left to reset.
+       A4's ruled consequence, demonstrated live.)
+
+--------------------------------------------------------------------------------
+THE TWO RIDE-ALONG DRIFTS, measured in the running app
+--------------------------------------------------------------------------------
+  DRIFT 1  .chip--accent (the Fuse role chip)
+    BEFORE  border-width 0px, border-style none, color rgb(201, 209, 217)
+            (inherited --fg-primary) — while its Reaction sibling had 1px solid
+    AFTER   border-width 1px, border-style solid, color rgb(76, 141, 246)
+            = --accent #4c8df6.  Ratio on --bg-raised = 4.97:1 (test-pinned).
+  DRIFT 3  .btn:disabled
+    BEFORE  opacity 0.45      AFTER  opacity 0.6
+
+  I12 reclamation: the " stale" suffix is absent from the whole document
+  (`document.body.textContent.includes(" stale")` === false), and every cost
+  string renders "+N⚠" with no space.
+
+--------------------------------------------------------------------------------
+THE SEVEN PINNED CONSTANTS, RE-MEASURED (§11.7 — NOT silently re-pinned)
+--------------------------------------------------------------------------------
+  constant           pinned   measured   verdict
+  BADGE_NAME_MAX      160      151.5     pin CONSERVATIVE, safe. But the widest
+                                         name is "Immovable Enforcer" (151.5),
+                                         NOT "Versatile Visionary" (141.1) as
+                                         the pin's comment claims. Finding.
+  BADGE_NAME_MIN       92       93.3     pin 1.3px OPTIMISTIC. The longest
+                                         unbreakable case is "Post Powerhouse".
+                                         Assertion 2's canary compares 34 vs
+                                         this floor, so 93.3 only strengthens it.
+  PIP_COST_MAX         28       21.7     pin CONSERVATIVE, safe. Widest actual
+                                         string "+7⚠"/"+3⚠" = 21.7. Zero pips
+                                         overflow at any width.
+  LEGEND_COST_MAX      36       36.1     essentially exact, 0.1px over. The
+                                         legend pip measured 44.1 against its
+                                         44px floor — it GREW rather than
+                                         overflowing, exactly the width:auto
+                                         safety the exact fit relies on.
+  META_MAX             47       54.3     pin 7.3px OPTIMISTIC ('5\'9"–7\'4"' is
+                                         the widest range). Assertion 3 becomes
+                                         54.3 + 8 + 130 = 192.3 <= 204 — still
+                                         true, 11.7px margin. Conclusion holds.
+  SYNERGY_CHIP_MAX    130       (not isolated — the live Fuse chip carries an
+                                 .sr-only twin, so a clone measures both. The
+                                 rendered card was verified to fit instead:
+                                 meta row 26.8px = one line on the Fuse card.)
+  NEW_CHIP_MAX         40       46.0     pin 6px OPTIMISTIC. Assertion 2b
+                                         becomes 160+8+46+8+24 = 246 > 204 —
+                                         still true, MORE strongly. Assertion
+                                         3b becomes 246.3 > 204 — still wraps
+                                         by design. Both conclusions hold.
+
+  NONE of these were re-pinned. Every affected assertion was re-checked with
+  the MEASURED number and every conclusion survives; three pins (BADGE_NAME_MIN,
+  META_MAX, NEW_CHIP_MAX) are optimistic and should be moved deliberately by
+  whoever next owns §15's measurement table.
+
+--------------------------------------------------------------------------------
+OUTSTANDING — needs a session with a compositing browser
+--------------------------------------------------------------------------------
+  The PNG frames (f53-before-1280, f53-cards-{390,768,1280,1440}, f53-seam-1357,
+  f53-collapsed-{inbudget,overbudget}, f53-reset-{confirm-full,confirm-sparse,
+  disabled}, f53-postreset) and the keyboard focus-ring shot. Every underlying
+  property each frame exists to establish is discharged numerically above.
