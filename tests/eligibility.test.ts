@@ -5,7 +5,20 @@
 
 import { describe, expect, it } from "vitest";
 import { badgeById, loadBadge, shippedDataset } from "../src/engine/dataset";
-import { maxPurchasableLevel, validateBadge } from "../src/engine/eligibility";
+import {
+  entryIsStale,
+  maxPurchasableLevel,
+  recheckEligibility,
+  validateBadge,
+} from "../src/engine/eligibility";
+import type {
+  Badge,
+  BadgeDataset,
+  Build,
+  LoadoutEntry,
+  SavedBuild,
+} from "../src/engine/types";
+import { CATEGORIES } from "../src/engine/vocabulary";
 import {
   syntheticAndMidNullGap,
   syntheticAndTrailingNull,
@@ -106,5 +119,93 @@ describe("eligibility against the real dataset", () => {
     const glove = badgeById(shippedDataset, "glove");
     const eligibility = validateBadge(glove!, makeBuild(78, 0, { steal: 99 }));
     expect(eligibility).toEqual({ allowed: true, maxPurchasableLevel: "hof", reasons: [] });
+  });
+});
+
+/* ------------------------------------------------------- F8-E1: INV-20 -- */
+
+describe("INV-20 — entryIsStale IS recheckEligibility's predicate, not a second copy", () => {
+  /** Every purchased entry the drift report would flag, by badge id. */
+  function driftIds(saved: SavedBuild, dataset: BadgeDataset): string[] {
+    return recheckEligibility(saved, dataset)
+      .filter((drift) => !drift.droppedFromDataset)
+      .map((drift) => drift.badgeId)
+      .sort();
+  }
+
+  /** The same set, computed independently through the extracted predicate. */
+  function predicateIds(saved: SavedBuild, dataset: BadgeDataset): string[] {
+    return saved.loadout
+      .flatMap((entry) => {
+        const badge = badgeById(dataset, entry.badgeId);
+        if (badge === undefined) return []; // the droppedFromDataset branch is NOT this predicate's
+        return entryIsStale(badge, saved.build, entry.purchasedLevel) ? [entry.badgeId] : [];
+      })
+      .sort();
+  }
+
+  function savedWith(build: Build, loadout: LoadoutEntry[]): SavedBuild {
+    return {
+      schemaVersion: 1,
+      dataVersion: shippedDataset.dataVersion,
+      savedAt: "2026-08-26T00:00:00.000Z",
+      name: "inv-20",
+      build,
+      budgets: Object.fromEntries(
+        CATEGORIES.map((category) => [category, { equipSlots: 3, points: 20 }]),
+      ) as SavedBuild["budgets"],
+      loadout,
+      synergy: [],
+      config: { refundTrigger: "legendByAnyMeans", plusTwoSlotIds: null, budgetStrategy: "manual" },
+    };
+  }
+
+  const loadout: LoadoutEntry[] = [
+    { badgeId: "limitless-range", purchasedLevel: "hof" }, // needs 99 3Pt — stale on a weak build
+    { badgeId: "posterizer", purchasedLevel: "bronze" },
+    { badgeId: "paint-prodigy", purchasedLevel: "gold" }, // 75–88 — height-blocked at 5'9"
+    { badgeId: "dimer", purchasedLevel: "silver" },
+  ];
+
+  const scenarios: { name: string; build: Build }[] = [
+    { name: "a maxed build (nothing drifts)", build: makeBuild(78, 99) },
+    { name: "a weak build (attribute drift)", build: makeBuild(78, 55) },
+    { name: "a short build (height drift)", build: makeBuild(69, 99) },
+    { name: "short AND weak (both classes at once)", build: makeBuild(69, 40) },
+  ];
+
+  for (const scenario of scenarios) {
+    it(`the two agree exactly for ${scenario.name}`, () => {
+      const saved = savedWith(scenario.build, loadout);
+      expect(driftIds(saved, shippedDataset)).toEqual(predicateIds(saved, shippedDataset));
+    });
+  }
+
+  it("the fixtures are LIVE — some scenario actually drifts, so the equality is not vacuous", () => {
+    const drifted = scenarios.flatMap((scenario) =>
+      driftIds(savedWith(scenario.build, loadout), shippedDataset),
+    );
+    expect(drifted.length).toBeGreaterThan(0);
+  });
+
+  it("the droppedFromDataset branch is still recheckEligibility's own — the predicate never sees it", () => {
+    const saved = savedWith(makeBuild(78, 99), [
+      { badgeId: "no-such-badge", purchasedLevel: "gold" },
+    ]);
+    const drift = recheckEligibility(saved, shippedDataset);
+    expect(drift.length).toBe(1);
+    expect(drift[0]?.droppedFromDataset).toBe(true);
+    expect(badgeById(shippedDataset, "no-such-badge")).toBeUndefined();
+  });
+
+  it("entryIsStale reads the two stale classes the way the drift report does", () => {
+    const badge = badgeById(shippedDataset, "paint-prodigy") as Badge;
+    // height-blocked (75–88) at 5'9", regardless of attributes
+    expect(entryIsStale(badge, makeBuild(69, 99), "bronze")).toBe(true);
+    // in range and qualified
+    expect(entryIsStale(badge, makeBuild(78, 99), "hof")).toBe(false);
+    // in range, but purchased above the level the build supports
+    expect(entryIsStale(badge, makeBuild(78, 61), "gold")).toBe(true);
+    expect(entryIsStale(badge, makeBuild(78, 61), "bronze")).toBe(false);
   });
 });

@@ -23,7 +23,10 @@
  * instead ONE neutral per-category hint ("Badge Slots capacity not set")
  * renders in the lede. A genuinely-entered 0 is indistinguishable and
  * acceptable for this planner. `overByBadgeSlots` encodes the rule, so all
- * four consuming surfaces stay uniform.
+ * four consuming surfaces stay uniform. The PREDICATE itself was hoisted to
+ * `src/engine/ledger.ts` in F8-E1 (a function that knows what a capacity
+ * number MEANS is a rule, and the engine cannot import from src/ui/); this
+ * file imports it and deliberately re-exports NOTHING.
  *
  * H2 (M4): the PRIMARY rows always render the "current"-basis readout the
  * App computed — `projection` is a SEPARATE postSeasonReset readout that is
@@ -34,6 +37,7 @@
  * this component contains zero arithmetic beyond formatting.
  */
 
+import { badgeSlotsCapacityUnset } from "../../engine/ledger";
 import type { CategoryLedgerReadout } from "../../engine/synergy-ledger";
 import type { Budget } from "../../engine/types";
 import type { Category } from "../../engine/vocabulary";
@@ -52,11 +56,6 @@ export function projectionDiffers(
     primary.remainingPoints !== projection.remainingPoints ||
     primary.equipSlotsUsed !== projection.equipSlotsUsed
   );
-}
-
-/** Is this category's Badge Slots capacity unset (the ruled 0 = unset)? */
-export function badgeSlotsCapacityUnset(budget: Budget): boolean {
-  return budget.equipSlots === 0;
 }
 
 /** The canonical Badge Points over-by string, or null when within budget.

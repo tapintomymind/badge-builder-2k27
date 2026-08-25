@@ -32,3 +32,28 @@ unit tests rather than browser assertions.
   migration seam. The localStorage adapter is `src/persist/` (M3), not here.
 - `__fixtures__/` — synthetic badges pinning the semantics the shipped
   dataset cannot exercise. Ids are isolation-tested against badges.json.
+
+## F8-E1 additions — the ONE enumerator, and the summary selectors
+
+- `steps.ts` — **`legalSteps` is the single enumerator of "what moves exist
+  from here."** `src/ui/grid/feasibility.ts` already WAS this function; it is
+  now expressed as counts over it, with a golden table
+  (`tests/feasibility-golden.test.ts`) proving the re-expression moved zero
+  numbers. **Anything that needs to know what a build could buy next calls
+  `legalSteps`. A second enumerator anywhere is drift, and the drift is
+  user-visible**: the grid saying "3 upgrades still affordable" immediately
+  before a roll says "nothing fits". Legality is evaluated PER LEVEL (H3) —
+  a range is never derived from `maxPurchasableLevel`, because gaps are legal.
+- `summary.ts` — `buildSummary` / `synergyProjections` /
+  `badgeSlotsBaselineText`. Pure projections over committed state. **The
+  signature takes no `OverlayState` and never will** (H2), the same structural
+  control as `categoryLedgerAt`'s `LedgerBasis`. Overlay-dependent values live
+  only in `synergyProjections`, whose field is named `activatesTo`.
+- `summary-text.ts` — `formatSummaryText`, design-spec §14.5's copy-as-text
+  block. Prose lives in the engine here because a string encoding tier costs,
+  effective levels, refund consequences and unset-capacity semantics IS a rule;
+  the builder consumes an already-computed `BuildSummary` and re-derives
+  nothing. The payoff is that panel↔text equality is asserted, not hoped.
+- `ledger.ts` gained `badgeSlotsCapacityUnset` and `eligibility.ts` gained
+  `entryIsStale` — both hoisted out of components, both now with exactly one
+  definition. No re-export shim was left behind in either UI module.

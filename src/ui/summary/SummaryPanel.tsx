@@ -22,6 +22,7 @@
 
 import { useEffect, useRef } from "react";
 import { badgeById } from "../../engine/dataset";
+import { badgeSlotsCapacityUnset } from "../../engine/ledger";
 import type { ClearedSynergyRef } from "../../engine/serialization";
 import { defaultOverlay, effectiveLevel, synergyRoleFor } from "../../engine/synergy";
 import type { CategoryLedgerReadout } from "../../engine/synergy-ledger";
@@ -35,7 +36,6 @@ import type {
 } from "../../engine/types";
 import type { Category, Level } from "../../engine/vocabulary";
 import { CATEGORIES, LEVELS, LEVEL_LABELS } from "../../engine/vocabulary";
-import { badgeSlotsCapacityUnset } from "../grid/CategoryLedger";
 import { Banner } from "../primitives/Banner";
 import { Button } from "../primitives/Button";
 import { Chip } from "../primitives/Chip";

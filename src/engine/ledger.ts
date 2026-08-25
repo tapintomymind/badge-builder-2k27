@@ -135,6 +135,29 @@ export function equipSlotsUsed(
   return entriesInCategory(state, category, dataset).length;
 }
 
+/**
+ * Is this category's Badge Slots capacity UNSET? (the ratified "0 = capacity
+ * not set" ruling, design-spec §4.7).
+ *
+ * HOISTED OUT OF `src/ui/grid/CategoryLedger.tsx` in F8-E1. A function that
+ * knows what a capacity number MEANS is a rule, whatever it is named, and
+ * rules live in the engine [seed: Working agreements #1]. The concrete
+ * consequence: `src/engine/` cannot import from `src/ui/`, so while this lived
+ * in a component the roll engine literally could not honour the ruling.
+ *
+ * 0 means "not entered", never "zero capacity": no overflow warning fires
+ * anywhere, one neutral per-category hint renders instead, and a generator
+ * declines to roll the category rather than treating it as full. A genuinely
+ * entered 0 is indistinguishable and acceptable for this planner.
+ *
+ * NO RE-EXPORT SHIM was left behind in CategoryLedger.tsx — a UI module
+ * re-exporting an engine function is the same layering inversion the hoist
+ * exists to remove. All three importers were updated instead.
+ */
+export function badgeSlotsCapacityUnset(budget: Budget): boolean {
+  return budget.equipSlots === 0;
+}
+
 /** Convenience: the four per-category readouts in one call. */
 export function categoryLedger(
   state: LedgerState,
