@@ -978,3 +978,130 @@ Nothing is blocked on this. The queue is unchanged: F3 → F4 → PMM docs delta
 real 2K27 build, fuse/reaction pair assigned, numbers reconciled against the game) as the project's
 actual DoD. M5 stays data-blocked.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-26 — F3 complete: attribute sliders + position→height constraints, 610 tests green (92 new)
+Type: slice-complete
+Actor: Tier-2 implementer (constrained mode, Tier-1 dispatched) / Claude Fable 5
+Slice: F3.1
+
+WHAT
+F3.1 shipped per `impl-briefs/f3-sliders-position-heights.md`. All five §0.2 dispatch
+preconditions verified before the first edit: branch `dev`; F1 pair (17d939c+f8b4f8c) and F2
+pair (731fe92+b670db8, plus F2.1 830d64c+5fe123b) merged; `npm test` green on the dev tip
+(35 files / 518 tests); `git status --porcelain` empty; design-spec.md rev 3 §3.1
+`AttributeSlider` present AND ruling commit semantics (preview on `input`, commit on `change`,
+120ms held-key coalescing, Shift+Arrow=10, paired numeric mandatory).
+
+- `src/data/position-heights.ts` — hand-authored, the ten user-supplied bounds verbatim
+  (PG 69–79 · SG 72–80 · SF 76–82 · PF 77–84 · C 79–88), H8-mirroring provenance on its own
+  version line (`positionDataVersion: 2026-08-26.1`, `gameVersion: null`, `confidence:
+  "user-supplied"`, verbatim note `user-supplied 2026-08-26, PG min confirmed same date`).
+- `src/engine/validate-build.ts` — `positionHeightRange()` (unset ⇒ dataset-derived 69–88;
+  the ONLY route the UI may learn a range) + `validateBuild()` (HARD-DISCLOSED
+  `heightOutsidePositionRange`, reasons[]-idiom string via `formatHeightInches`, never
+  mutates). `POSITIONS` hoisted to `src/engine/vocabulary.ts` as canonical; `Build.position`
+  docstring corrected in `types.ts` (type unchanged).
+- `src/ui/primitives/AttributeSlider.tsx` — native `<input type="range">` + mandatory paired
+  `NumberField` (`aria-label "{Attr}, exact value"`). Preview tier component-local; commit on
+  native `change` (pointer release immediate; keyboard coalesced 120ms trailing); blur flushes
+  pending (tail-edit flush still works); pending value renders in `--accent`; `--val` gradient
+  fill; `touch-action: pan-y`; aria-valuetext. NO slider package — deps stay exactly
+  {react, react-dom}.
+- `AttributeGrid` swapped to 20 sliders (vocabulary-driven grouping unchanged);
+  `PhysiqueSection` re-cut per rev 3: Position FIRST with an `Any` segment (= existing
+  optional `Build.position` unset — no engine type change), Cosmetic chip REMOVED, muted
+  palette reverted, new hint copy with the live range, `--border-subtle` rule REMOVED (rev 3
+  withdrew it — Position/Height are one causal group; the brief's "keep" default yielded to
+  the latest spec revision as instructed).
+- `src/App.tsx` wiring: `positionHeightRange(position)` → `HeightField` min/max; clamp to the
+  NEAREST bound on position switch with the persistent visible notice ("Height adjusted 7'4" →
+  6'7" to fit PG's range (5'9"–6'7").", stale count inline when the clamp changed it);
+  `validateBuild` violations render as a `warning` Banner INSIDE PhysiqueSection; §6
+  build-change live region (sr-only role=status) announces position clamps and attribute
+  commits that CHANGED the stale-purchase count — once per commit, never per drag frame.
+- F2's auto-collapse latch PRESERVED, not rewritten: it still reads committed values (arming
+  therefore keys on the slider's commit); one added guard defers FIRING while a slider inside
+  the panel holds focus, releasing on that slider's blur — implementing design-spec §5.3 rev 3
+  "the latch never fires on a slider release" / §3.1 "fires on blur or next mount". No second
+  latch. NumberField paths behave exactly as F2 shipped them.
+- `src/styles/app.css`: ONE appended delimited block (`/* --- F3: attribute sliders +
+  position height range --- */`); diff contains zero deletions. F2's `.number-field` touch
+  rules untouched (the paired numeric + 12 budget fields still use them).
+
+EVIDENCE
+Commit a2e37f4 on `dev` (`main` untouched). `npm test`: 610 passed / 39 files (92 new).
+`npm run build`: tsc --noEmit clean + vite build clean. Pre-change failure proof: with src/
+stashed to the F2.1 tip the F3 pins fail (10 failures/import errors) — recorded in
+docs/proof/f3-verification.txt. Browser proof (headless Chrome via CDP against
+http://localhost:5173): select C → hint reads `C: 6'7"–7'4"`; set 7'4"; switch PG → height
+reads 6'7" (ft=6 in=7) with the visible clamp notice. Screenshots:
+docs/proof/f3-position-clamp-1280.png · f3-sliders-1280.png · f3-sliders-390.png (first
+slider measures 234×44px at 390 — ≥44px floor; thumb extends to 44×44 via transparent
+border). Facts + gate output in docs/proof/f3-verification.txt.
+
+CONSTRAINED-MODE REPORTBACK (§7.1)
+changed_files:
+  src/data/position-heights.ts · src/engine/validate-build.ts · src/engine/vocabulary.ts ·
+  src/engine/types.ts · src/ui/primitives/AttributeSlider.tsx ·
+  src/ui/primitives/HeightField.tsx · src/ui/build/AttributeGrid.tsx ·
+  src/ui/build/BuildPanel.tsx · src/App.tsx · src/styles/app.css ·
+  tests/{position-heights,validate-build}.test.ts ·
+  tests/ui/{attribute-slider,position-height-clamp}.test.tsx ·
+  tests/{architecture,serialization}.test.ts ·
+  docs/proof/{f3-position-clamp-1280.png,f3-sliders-1280.png,f3-sliders-390.png,
+  f3-verification.txt} — all within Allowed paths. NumberField.tsx, Chip.tsx, tokens.css
+  needed no edit (spec required no new chip variant or token).
+denied_paths_checked:
+  I did not touch src/engine/eligibility.ts (position gates NO badges — untouched),
+  src/engine/serialization.ts (no persisted-shape change; only its TEST file extended),
+  src/ui/shell/**, src/ui/grid/** (stale-purchase state TESTED, not edited), src/ui/builds/**,
+  src/ui/synergy/**, src/ui/summary/**, src/persist/**, src/data/badges.json,
+  badges.source.txt, scripts/**, package.json, package-lock.json, tsconfig.json, any
+  *.config.*, any .env*, or the main branch. `git status --porcelain` before commit listed
+  only the changed_files above.
+first_proof_result:
+  http://localhost:5173 opened (headless Chrome/CDP; the repo's .claude/launch.json route is
+  a denied path in this brief, so the dev server ran via background npm run dev): C selected →
+  range hint `C: 6'7"–7'4"`; PG switch → height clamps to 6'7" with the notice visible.
+  Screenshot docs/proof/f3-position-clamp-1280.png.
+verification_evidence:
+  Test Files 39 passed (39) · Tests 610 passed (610) · tsc --noEmit exit 0 · vite build ✓
+  (272.72 kB) · git status --porcelain empty after commit · app.css diff append-only ·
+  docs/proof/f3-verification.txt.
+heartbeats_emitted: batch-mode (live 5-minute heartbeats waived for this autonomous run)
+stop_conditions_triggered: none
+
+SCOPE / PLAN IMPACT
+None to scope.md / tech-strategy.md / H-rulings. Judgment calls inside Tier-2 latitude,
+recorded for audit:
+(1) Latch timing: the brief's §0.3 wording ("re-point at the slider's commit event") and
+    design-spec rev 3 ("never fires on a slider release; blur or next mount") diverge for the
+    pointer-release case. The spec is the ruled design authority read at dispatch time, and
+    scope §0.1 A1 itself cites the never-while-focus-held rule — implemented as: arm on
+    committed values, fire immediately unless a panel slider holds focus, else fire on its
+    blur. F2's NumberField behavior is bit-identical.
+(2) The brief's test-3 parenthetical names a `No longer qualifies` chip; the shipped M4/F2
+    treatment is the stale pip + "Purchased at X — no longer meets requirements" disclosure
+    line (no such chip exists). The stale-purchase state DOES already appear on attribute
+    drop (verified; no stop condition), so the test pins the shipped treatment's surface.
+(3) §6 announcement copy for a stale count returning to zero is unspecified; used
+    "All purchased badges qualify." (a change in count must announce; "0 … no longer qualify"
+    is unreadable). Announcements use engine ATTR_LABELS ("Close"), not 2K's long names.
+(4) The §6 build-change region is implemented as an App-level sr-only role=status element.
+    Rev 3 rescopes the SYNERGY region into the build-change region, but SynergyPanel is
+    F2-denied this wave — consolidating the synergy announcements into the shared region is
+    left as a follow-up (they announce the same event class from two DOM nodes until then).
+(5) Per-test 20s timeouts on the App-rendering F3 tests, following app.test.tsx's existing
+    pattern (whole-app walks exceed the 5s default under a fully-parallel suite).
+Concurrency note: commits 953287c + 1b1bf1a (Tier-2 shape B agents) landed on dev mid-slice
+from a parallel writer; tree was clean at every checkpoint, no file overlap, F3 sits linearly
+on top.
+
+NEXT
+F4 (or the PMM docs delta) per the standing queue. M5 stays data-blocked. Follow-up
+candidates for the next docket: consolidate the synergy announcements into the build-change
+region (judgment call 4); design-spec §3.4's Build-panel-digest stale count (`· ⚠ N stale`)
+was NOT implemented — it is not in the F3 brief's deliverables and reads as F4/BadgeCard-
+adjacent scope.
+─────────────────────────────────────────────
