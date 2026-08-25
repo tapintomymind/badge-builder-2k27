@@ -23,8 +23,21 @@ export interface BuildSwitcherProps {
   /** Has the working state been edited since it was loaded/saved? Drives the
    * ghost-pair disambiguation: "… — unsaved changes" vs "… — saved". */
   currentDirty?: boolean;
+  /** F2.2 disclosure: saved builds that are still stored but could not be
+   * read. They are skipped, never deleted — but skipping them SILENTLY made
+   * them vanish from this switcher with no error and no banner. */
+  unreadableCount?: number;
   onSelect: (id: string) => void;
   onOpenManager: () => void;
+}
+
+/** The shared copy for the unreadable-entry disclosure — one string, so the
+ * switcher and the manager dialog can never drift apart. */
+export function unreadableBuildsLine(count: number): string {
+  return (
+    `${count} saved build${count === 1 ? "" : "s"} couldn't be read — ` +
+    `preserved, not deleted.`
+  );
 }
 
 export function BuildSwitcher({
@@ -32,6 +45,7 @@ export function BuildSwitcher({
   currentName,
   currentSourceId,
   currentDirty = false,
+  unreadableCount = 0,
   onSelect,
   onOpenManager,
 }: BuildSwitcherProps) {
@@ -62,6 +76,13 @@ export function BuildSwitcher({
               {build.name} — saved
             </option>
           ))}
+        {unreadableCount > 0 ? (
+          // Disabled: it is a disclosure, not a destination. Rendered inside
+          // the existing <select> so it needs no layout of its own.
+          <option value="" disabled>
+            {unreadableBuildsLine(unreadableCount)}
+          </option>
+        ) : null}
       </select>
       <Button variant="secondary" size="sm" onClick={onOpenManager}>
         Manage
@@ -80,6 +101,8 @@ export interface BuildManagerDialogProps {
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
   onSaveAsNew: (name: string) => void;
+  /** F2.2 disclosure — see BuildSwitcherProps.unreadableCount. */
+  unreadableCount?: number;
 }
 
 export function BuildManagerDialog({
@@ -92,6 +115,7 @@ export function BuildManagerDialog({
   onDuplicate,
   onDelete,
   onSaveAsNew,
+  unreadableCount = 0,
 }: BuildManagerDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -127,9 +151,14 @@ export function BuildManagerDialog({
         </Button>
       </div>
       <ul className="build-manager__list">
-        {builds.length === 0 ? (
+        {builds.length === 0 && unreadableCount === 0 ? (
           <li>
             <span className="hint">No saved builds yet — save the working build below.</span>
+          </li>
+        ) : null}
+        {unreadableCount > 0 ? (
+          <li>
+            <span className="hint">{unreadableBuildsLine(unreadableCount)}</span>
           </li>
         ) : null}
         {builds.map((build) => (

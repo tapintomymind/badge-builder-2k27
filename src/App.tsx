@@ -56,17 +56,21 @@ import {
   levelIndex,
 } from "./engine/vocabulary";
 import {
+  clearAutosaveQuarantine,
+  duplicateNamedBuild,
+  exportRawPersistedData,
   listNamedBuilds,
   newBuildId,
-  readAutosaveWithReport,
-  readNamedBuild,
+  quarantineAutosave,
+  readAutosaveQuarantine,
+  readAutosaveResult,
   readNamedBuildWithReport,
   renameNamedBuild,
   saveNamedBuild,
   deleteNamedBuild,
   writeAutosave,
 } from "./persist/local-storage";
-import type { NamedBuildSummary } from "./persist/local-storage";
+import type { NamedBuildSummary, PersistResult } from "./persist/local-storage";
 import { BuildPanel } from "./ui/build/BuildPanel";
 import type { HeightClampNotice } from "./ui/build/BuildPanel";
 import { BuildManagerDialog, BuildSwitcher } from "./ui/builds/BuildManager";
@@ -89,6 +93,7 @@ import { AppHeader } from "./ui/shell/AppHeader";
 import { AutosaveWarning } from "./ui/shell/AutosaveWarning";
 import { DriftBanner } from "./ui/shell/DriftBanner";
 import { PreviewModeStrip } from "./ui/shell/PreviewModeStrip";
+import { QuarantineBanner } from "./ui/shell/QuarantineBanner";
 import { Section } from "./ui/primitives/Section";
 import { Toggle } from "./ui/primitives/Toggle";
 import { SynergyPanel } from "./ui/synergy/SynergyPanel";
@@ -255,24 +260,67 @@ function clearSynergyReferencesTo(
 
 /** File download of the current build — export + the AutosaveWarning escape
  * hatch. A Blob + <a download>, no network, no storage (tech-strategy §9). */
-function downloadBuildJson(envelope: SavedBuild): void {
+function downloadJsonFile(filename: string, text: string): void {
   if (typeof URL.createObjectURL !== "function") return; // jsdom guard
-  const blob = new Blob([serializeSavedBuild(envelope)], { type: "application/json" });
+  const blob = new Blob([text], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `${envelope.name}-${envelope.dataVersion}.json`;
+  anchor.download = filename;
   anchor.click();
-  URL.revokeObjectURL(url);
+  // F2.2 F-G: revoking SYNCHRONOUSLY races the browser's own read of the
+  // object URL — a lost race yields an empty download with no error surface,
+  // and these exports are exactly the escape hatches (AutosaveWarning, the
+  // quarantine banner) reached when storage is already failing, i.e. the
+  // only copy the user has. A leaked object URL for 60s costs nothing; the
+  // race costs the user their build.
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 60_000);
+}
+
+function downloadBuildJson(envelope: SavedBuild): void {
+  downloadJsonFile(
+    `${envelope.name}-${envelope.dataVersion}.json`,
+    serializeSavedBuild(envelope),
+  );
 }
 
 export default function App() {
   /** Boot read happens ONCE, with the H8 drift report: `droppedEntries`
    * lists loadout entries the deserializer stripped because their badge id
-   * left the dataset — disclosed below, never a crash (F1 boot backstop). */
-  const [boot] = useState(() => readAutosaveWithReport());
+   * left the dataset — disclosed below, never a crash (F1 boot backstop).
+   *
+   * F2.2 A1: `readAutosaveResult()` (not the old `readAutosaveWithReport()`)
+   * so "absent" and "unreadable" are TOLD APART. Collapsing them to `null`
+   * is what let an unreadable autosave boot fresh and be overwritten. */
+  const [boot] = useState(() => readAutosaveResult());
+  /** F2.2 A2 — quarantine the verbatim bytes DURING the boot render, before
+   * ANY effect (the mount autosave write included) can run. This is the
+   * first line of defence; `persistableRef` below is the second, and the
+   * order matters even with the guard in place.
+   *
+   * A side effect in a state initializer is deliberate and safe here:
+   * `quarantineAutosave` never overwrites an existing quarantine, so a
+   * StrictMode double render is a no-op the second time. */
+  const [quarantineWrite] = useState<PersistResult | null>(() =>
+    boot.kind === "unreadable" ? quarantineAutosave(boot.raw) : null,
+  );
+  /** Is a quarantine standing? Drives the banner; cleared only by an
+   * explicit Discard click.
+   *
+   * Keyed on the KEY'S EXISTENCE, not on this boot's outcome: once the
+   * autosave key is gone — "Clear just the unreadable autosave" on the
+   * recovery screen does exactly that — the next boot reads "absent", and a
+   * boot-outcome-keyed banner would leave preserved bytes sitting in storage
+   * with nothing pointing at them. Deliberately NOT how `persistableRef` is
+   * seeded: a stale quarantine from last week must not suppress autosave for
+   * a healthy build today. */
+  const [quarantined, setQuarantined] = useState(
+    () => boot.kind === "unreadable" || readAutosaveQuarantine() !== null,
+  );
   const [working, setWorkingState] = useState<WorkingState>(() =>
-    boot === null ? freshWorkingState() : fromSaved(boot.saved, null),
+    boot.kind === "ok" ? fromSaved(boot.value.saved, null) : freshWorkingState(),
   );
   /** Write-through mirror of `working`: updated SYNCHRONOUSLY by every
    * mutation, so the pagehide/visibilitychange flush can persist the very
@@ -283,10 +331,44 @@ export default function App() {
    * read synchronously inside handlers, the state re-renders the label. */
   const dirtyRef = useRef(false);
   const [dirty, setDirty] = useState(false);
-  const [autosaveFailed, setAutosaveFailed] = useState(false);
+  /**
+   * F2.2 A3 — "the app holds a state worth persisting". FALSE in exactly one
+   * situation: boot found an autosave it could not read, so `working` is a
+   * synthetic freshWorkingState() standing in for data we have QUARANTINED
+   * but not lost. Writing in that state would overwrite the user's real
+   * build with an empty one (F-CORE).
+   *
+   * Deliberately NOT `dirty`, which would be wrong in two independent ways:
+   *   (1) `loadBuild` calls `markClean()`, so a freshly LOADED build is
+   *       clean — a dirty-keyed guard would stop it ever autosaving and the
+   *       next reload would restore the PREVIOUS autosave. A new data-loss
+   *       bug traded for the old one.
+   *   (2) the pagehide/visibilitychange flush writes regardless of `dirty`.
+   *
+   * One-way latch: flips to true on a user edit, a named-build load, an
+   * import commit, a successful named save, or an explicit Discard — and
+   * never flips back. BOTH writers consult it.
+   *
+   * On the HEALTHY path (boot read succeeded — every boot for every user who
+   * has ever used this app) it is `true` from the first render, so the mount
+   * write happens exactly as it did before this slice. The guard is a NO-OP
+   * except on the defect path.
+   */
+  const persistableRef = useRef<boolean>(boot.kind !== "unreadable");
+  /** Bumped when the latch flips, so the autosave effect re-runs and writes
+   * even when `working` itself did not change (the Discard case). */
+  const [persistEpoch, setPersistEpoch] = useState(0);
+  /** A FAILED quarantine write is strictly MORE reason to suppress autosave,
+   * not less — and the failure surfaces on the existing role="alert" banner
+   * rather than silently trading the user's data for a successful fresh
+   * write. */
+  const [autosaveFailed, setAutosaveFailed] = useState(
+    () => quarantineWrite !== null && !quarantineWrite.ok,
+  );
   const [autosaveDismissed, setAutosaveDismissed] = useState(false);
   const [managerOpen, setManagerOpen] = useState(false);
-  const [namedBuilds, setNamedBuilds] = useState<NamedBuildSummary[]>(() => listNamedBuilds());
+  const [namedBuildListing, setNamedBuildListing] = useState(() => listNamedBuilds());
+  const namedBuilds: NamedBuildSummary[] = namedBuildListing.summaries;
   /** The two DISPLAY-ONLY overlays (H2). Session state — previews are never
    * persisted as if they were plan state. */
   const [overlay, setOverlay] = useState<OverlayState>(defaultOverlay);
@@ -295,13 +377,13 @@ export default function App() {
   /** H8 disclosure: loadout entries stripped at the deserialize boundary
    * because their badge id no longer exists in the current dataset. */
   const [droppedEntries, setDroppedEntries] = useState<readonly LoadoutEntry[]>(
-    boot?.droppedEntries ?? [],
+    boot.kind === "ok" ? boot.value.droppedEntries : [],
   );
   /** F2.1 heal disclosure: synergy assignments cleared at the deserialize
    * boundary because they referenced a badge not in the build's loadout (the
    * pre-F2 remove path wrote exactly this state). */
   const [clearedSynergyRefs, setClearedSynergyRefs] = useState<readonly ClearedSynergyRef[]>(
-    boot?.clearedSynergyRefs ?? [],
+    boot.kind === "ok" ? boot.value.clearedSynergyRefs : [],
   );
   /** Bumped on every disclosure ROUTE transition (load / import confirm) —
    * keys the DriftBanner so its internal re-check output can never linger
@@ -325,17 +407,32 @@ export default function App() {
     [],
   );
 
+  /** F2.2 A3 — flip the persistable latch to true, once, permanently. The
+   * epoch bump makes the autosave effect re-run even when `working` is
+   * unchanged (Discard), so re-arming always produces a write. */
+  const armPersistence = useCallback(() => {
+    if (persistableRef.current) return;
+    persistableRef.current = true;
+    setPersistEpoch((epoch) => epoch + 1);
+  }, []);
+
   /** A user EDIT (as opposed to a load/import/save): marks the state dirty.
    * An updater returning `prev` unchanged is a no-op and marks nothing. */
-  const applyEdit = useCallback((update: (prev: WorkingState) => WorkingState) => {
-    const prev = workingRef.current;
-    const next = update(prev);
-    if (next === prev) return;
-    workingRef.current = next;
-    setWorkingState(next);
-    dirtyRef.current = true;
-    setDirty(true);
-  }, []);
+  const applyEdit = useCallback(
+    (update: (prev: WorkingState) => WorkingState) => {
+      const prev = workingRef.current;
+      const next = update(prev);
+      if (next === prev) return;
+      workingRef.current = next;
+      setWorkingState(next);
+      dirtyRef.current = true;
+      setDirty(true);
+      // An edit is a state worth persisting, even if boot could not read the
+      // old autosave. The quarantine stays — an edit is not a discard.
+      armPersistence();
+    },
+    [armPersistence],
+  );
 
   const markClean = useCallback(() => {
     dirtyRef.current = false;
@@ -347,10 +444,14 @@ export default function App() {
   // write re-arms the dismissed banner: dismissal is per failure epoch,
   // never per session. ----
   useEffect(() => {
+    // F2.2 F-CORE, writer 1 of 2. See `persistableRef`: false ONLY when boot
+    // found an unreadable autosave, in which case `working` is a synthetic
+    // fresh state and writing it would destroy the quarantined original.
+    if (!persistableRef.current) return;
     const result = writeAutosave(toEnvelope(working));
     setAutosaveFailed(!result.ok);
     if (result.ok) setAutosaveDismissed(false);
-  }, [working]);
+  }, [working, persistEpoch]);
 
   // ---- tail-edit flush: committing happens on field blur, so a reload or
   // tab-hide mid-edit would lose the pending value. Blurring the active
@@ -362,6 +463,12 @@ export default function App() {
       if (active instanceof HTMLElement && typeof active.blur === "function") {
         active.blur();
       }
+      // F2.2 F-CORE, writer 2 of 2 — THE SAME predicate, read from the ref.
+      // This writer fired UNCONDITIONALLY pre-fix, so gating only the
+      // useEffect above would have returned the whole bug the moment the tab
+      // was closed or backgrounded. The blur runs FIRST: committing a
+      // pending field edit is itself an edit, and it arms the latch.
+      if (!persistableRef.current) return;
       writeAutosave(toEnvelope(workingRef.current));
     };
     const onVisibilityChange = () => {
@@ -530,7 +637,7 @@ export default function App() {
 
   // ---- named builds ----
   const refreshNamedBuilds = useCallback(() => {
-    setNamedBuilds(listNamedBuilds());
+    setNamedBuildListing(listNamedBuilds());
   }, []);
 
   /** Names already in use (for the collision auto-suffix). */
@@ -560,6 +667,10 @@ export default function App() {
       }
       applyWorking(fromSaved(report.saved, id));
       markClean();
+      // F2.2 A3: a LOADED build is a state worth persisting even though
+      // markClean() just made it non-dirty — the exact trap a dirty-keyed
+      // guard falls into.
+      armPersistence();
       // The load is its own disclosure ROUTE (same as boot and import):
       // REPLACE any stale prior-route report with this build's own — empty
       // for a clean build, so a leftover banner can never describe a build
@@ -571,7 +682,7 @@ export default function App() {
       setClampNotice(null);
       setManagerOpen(false);
     },
-    [applyWorking, markClean],
+    [applyWorking, armPersistence, markClean],
   );
 
   const saveAsNew = useCallback(
@@ -582,28 +693,34 @@ export default function App() {
       if (result.ok) {
         applyWorking((prev) => ({ ...prev, name: finalName, sourceId: id }));
         markClean();
+        armPersistence();
       } else {
         setAutosaveFailed(true);
       }
       refreshNamedBuilds();
     },
-    [applyWorking, markClean, refreshNamedBuilds, takenNames],
+    [applyWorking, armPersistence, markClean, refreshNamedBuilds, takenNames],
   );
 
   const duplicateBuild = useCallback(
     (id: string) => {
-      const saved = readNamedBuild(id);
-      if (saved === null) return;
-      const copyId = newBuildId();
-      const result = saveNamedBuild(copyId, {
-        ...saved,
-        name: uniqueBuildName(`${saved.name} copy`, takenNames()),
-        savedAt: new Date().toISOString(),
-      });
+      // F2.2 F-D: the copy is made from the source's RAW STORED BYTES, so it
+      // is byte-faithful apart from name + savedAt. Reading through the
+      // deserializer here produced a silently healed/stripped copy — with a
+      // raw copy there is no difference left to disclose. The name comes
+      // from the switcher summary, which is React state, not another read.
+      const source = namedBuilds.find((build) => build.id === id);
+      if (source === undefined) return;
+      const result = duplicateNamedBuild(
+        id,
+        newBuildId(),
+        uniqueBuildName(`${source.name} copy`, takenNames()),
+        new Date().toISOString(),
+      );
       if (!result.ok) setAutosaveFailed(true);
       refreshNamedBuilds();
     },
-    [refreshNamedBuilds, takenNames],
+    [namedBuilds, refreshNamedBuilds, takenNames],
   );
 
   const removeBuild = useCallback(
@@ -640,6 +757,22 @@ export default function App() {
     downloadBuildJson(toEnvelope(workingRef.current));
   }, []);
 
+  /** F2.2 slice B — the quarantine banner's FIRST action, deliberately ahead
+   * of Discard. Reuses F1's `exportRawPersistedData` (which now carries the
+   * quarantine key); this is only the download plumbing, not a second
+   * exporter. */
+  const exportRawNow = useCallback(() => {
+    downloadJsonFile("badge-builder-2k27-raw-saved-data.json", exportRawPersistedData());
+  }, []);
+
+  /** The ONLY deleting path in this slice, and an explicit informed click:
+   * drop the preserved bytes, hide the banner, and re-arm autosave. */
+  const discardQuarantine = useCallback(() => {
+    clearAutosaveQuarantine();
+    setQuarantined(false);
+    armPersistence();
+  }, [armPersistence]);
+
   // ---- import (M4): file → engine deserializer → confirm dialog. The
   // deserializer's H8 drift report rides along so the disclosure banner can
   // name what was stripped. ----
@@ -669,7 +802,22 @@ export default function App() {
 
   const confirmImport = useCallback(
     (saved: SavedBuild) => {
+      // F2.2 F-E: an import replaces the working state exactly as loadBuild
+      // does, and loadBuild guards it — so this uses loadBuild's PREDICATE
+      // VERBATIM. Two divergent guards on the same transition is how one of
+      // them rots.
+      const current = workingRef.current;
+      const guarded =
+        dirtyRef.current || (current.sourceId === null && workingHasContent(current));
+      if (guarded) {
+        const proceed = window.confirm(
+          `Replace the working build "${current.name}" with the imported "${saved.name}"? ` +
+            "Unsaved changes will be lost.",
+        );
+        if (!proceed) return;
+      }
       applyWorking(fromSaved(saved, null));
+      armPersistence();
       // An import is unsaved-as-named work: guard it like any other edit.
       dirtyRef.current = true;
       setDirty(true);
@@ -683,7 +831,7 @@ export default function App() {
       setClampNotice(null);
       setImportState(null);
     },
-    [applyWorking, importState],
+    [applyWorking, armPersistence, importState],
   );
 
   // ---- render-time readouts ----
@@ -818,6 +966,7 @@ export default function App() {
           currentName={working.name}
           currentSourceId={working.sourceId}
           currentDirty={dirty}
+          unreadableCount={namedBuildListing.unreadableCount}
           onSelect={loadBuild}
           onOpenManager={() => {
             setManagerOpen(true);
@@ -832,6 +981,9 @@ export default function App() {
       />
 
       <div className="app-banners">
+        {quarantined ? (
+          <QuarantineBanner onExportRaw={exportRawNow} onDiscard={discardQuarantine} />
+        ) : null}
         <DriftBanner
           key={disclosureEpoch}
           saved={toEnvelope(working)}
@@ -1063,6 +1215,7 @@ export default function App() {
         onDuplicate={duplicateBuild}
         onDelete={removeBuild}
         onSaveAsNew={saveAsNew}
+        unreadableCount={namedBuildListing.unreadableCount}
       />
 
       {importState !== null ? (

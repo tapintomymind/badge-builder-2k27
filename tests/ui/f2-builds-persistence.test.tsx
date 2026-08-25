@@ -13,6 +13,13 @@
  *      Duplicate×2 manufactured two identical "X copy" entries).
  * E  — tail-edit flush on pagehide/visibilitychange (PRE-FIX a reload
  *      mid-edit lost the pending field value: commits land on blur only).
+ *
+ * TIMEOUTS: every case here renders the full App two to four times, which
+ * costs seconds in jsdom and crosses vitest's 5s DEFAULT once the whole
+ * 45-file suite runs in parallel — an environment cost, not a defect, and it
+ * surfaced as intermittent 5s timeouts on loaded machines. The explicit
+ * 20000ms matches the override this file already carried on its heaviest
+ * case. [F2.2]
  */
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -86,7 +93,7 @@ describe("B — switcher guard: replacing a dirty working build confirms first",
     expect((screen.getByLabelText("Layup") as HTMLInputElement).value).toBe("0");
   });
 
-  it("a boot-restored autosave with content is guarded even before any edit this session", () => {
+  it("a boot-restored autosave with content is guarded even before any edit this session", { timeout: 20000 }, () => {
     const first = render(<App />);
     buyFloatGameGold();
     saveAsNew("Slasher v2");
@@ -105,7 +112,7 @@ describe("B — switcher guard: replacing a dirty working build confirms first",
     expect(confirmSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("ghost pair labels: '… — unsaved changes' vs '… — saved'; passive default stays the work", () => {
+  it("ghost pair labels: '… — unsaved changes' vs '… — saved'; passive default stays the work", { timeout: 20000 }, () => {
     const first = render(<App />);
     buyFloatGameGold();
     saveAsNew("Slasher v2");
@@ -129,7 +136,7 @@ describe("F — PersistResult surfaced on rename and delete", () => {
     });
   }
 
-  it("a failed rename raises the alert banner and never optimistically renames the header", () => {
+  it("a failed rename raises the alert banner and never optimistically renames the header", { timeout: 20000 }, () => {
     render(<App />);
     buyFloatGameGold();
     saveAsNew("Original");
@@ -147,7 +154,7 @@ describe("F — PersistResult surfaced on rename and delete", () => {
     expect(switcher().options[switcher().selectedIndex]?.textContent).toContain("Original");
   });
 
-  it("a failed delete raises the alert banner", () => {
+  it("a failed delete raises the alert banner", { timeout: 20000 }, () => {
     render(<App />);
     buyFloatGameGold();
     saveAsNew("Doomed");
@@ -160,7 +167,7 @@ describe("F — PersistResult surfaced on rename and delete", () => {
 });
 
 describe("F — AutosaveWarning re-arms on each new failure epoch", () => {
-  it("dismiss → recovery → new failure shows the banner again", () => {
+  it("dismiss → recovery → new failure shows the banner again", { timeout: 20000 }, () => {
     const throwing = vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
       throw new DOMException("QuotaExceededError");
     });
@@ -196,7 +203,7 @@ describe("F — duplicate-name handling: auto-suffix on collision", () => {
     return li;
   }
 
-  it("duplicating the same build twice yields distinguishable names", () => {
+  it("duplicating the same build twice yields distinguishable names", { timeout: 20000 }, () => {
     render(<App />);
     buyFloatGameGold();
     saveAsNew("Wing");
@@ -215,7 +222,7 @@ describe("F — duplicate-name handling: auto-suffix on collision", () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it("save-as-new with a taken name auto-suffixes", () => {
+  it("save-as-new with a taken name auto-suffixes", { timeout: 20000 }, () => {
     render(<App />);
     buyFloatGameGold();
     saveAsNew("Twin");
@@ -226,7 +233,7 @@ describe("F — duplicate-name handling: auto-suffix on collision", () => {
 });
 
 describe("E — tail-edit flush on pagehide/visibilitychange", () => {
-  it("a pending (unblurred) field edit is committed and autosaved on pagehide", () => {
+  it("a pending (unblurred) field edit is committed and autosaved on pagehide", { timeout: 20000 }, () => {
     render(<App />);
     const close = screen.getByLabelText("Close") as HTMLInputElement;
     close.focus();
@@ -239,7 +246,7 @@ describe("E — tail-edit flush on pagehide/visibilitychange", () => {
     expect(deserializeSavedBuild(text).build.attributes.close).toBe(77);
   });
 
-  it("visibilitychange → hidden flushes too", () => {
+  it("visibilitychange → hidden flushes too", { timeout: 20000 }, () => {
     render(<App />);
     const layup = screen.getByLabelText("Layup") as HTMLInputElement;
     layup.focus();

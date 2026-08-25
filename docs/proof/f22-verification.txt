@@ -1,0 +1,210 @@
+F2.2 — persistence data-integrity slice (autosave clobber guard + six adjacent destroyers)
+Verified 2026-08-25 on branch dev, live at http://localhost:5173 (vite dev, port 5173 pinned).
+
+===============================================================================
+AUTOMATED
+===============================================================================
+Baseline on the clean dev tip ff8544e, BEFORE any change:
+    npm test  ->  Test Files 40 passed (40) · Tests 631 passed (631)
+
+After the slice:
+    npm test        ->  Test Files 45 passed (45) · Tests 673 passed (673)
+    npm run typecheck (tsc --noEmit)  ->  clean
+    npm run build   ->  tsc --noEmit && vite build -> built in 93ms
+                        dist/assets/index-*.js 276.03 kB (gzip 83.91 kB)
+
+PINNING PROOF — the new/edited tests run against the PRE-FIX src/ (git stash push -- src/):
+    28 failed | 22 passed (50)
+The 22 that passed are the deliberate non-regression pins: test 1.5 (healthy path
+byte-for-byte), test 1.8 (absent != unreadable), 5.3 (guard fires on unparseable,
+never on absent), and the untouched cases in the two edited files. Every fix in
+this slice is pinned by at least one test that is RED before it and GREEN after.
+
+Architecture / lint groups observed green and untouched:
+    tests/ui/persist-boundary.test.ts   — every new storage call is inside src/persist/
+    tests/vocabulary.test.ts
+    tests/architecture.test.ts          — FIVE groups: (a) engine purity,
+                                          (b) runtime dependency allowlist,
+                                          (c) zero network egress,
+                                          (d) no runtime filesystem access,
+                                          (e) position-height access route
+    tests/alias-bijection.test.ts, tests/spot-check.test.ts
+
+===============================================================================
+DEVTOOLS PROOF 1 — corrupt autosave: boots, discloses, and the ORIGINAL BYTES
+                   SURVIVE TWO RELOADS
+===============================================================================
+Setup: localStorage.setItem('badge-builder-2k27:autosave:v1', '{not json')
+
+NOTE ON METHOD (this is itself a finding). The first attempt failed to even set
+up: calling location.reload() right after corrupting the key let the OUTGOING
+page's pagehide flush write its in-memory build straight over the corrupt
+string. That is the unconditional second writer the slice exists to gate — and
+in that case it fired CORRECTLY, because that page's own boot read had
+succeeded, so persistable was true. The setup therefore blocks autosave writes
+on the outgoing page only.
+
+Reload 1 (autosave writes blocked on the outgoing page):
+{
+  "PROOF_1a_after_reload_1": {
+    "autosave_key": "{not json",
+    "quarantine_key": "{not json",
+    "named_builds_intact": true,
+    "app_rendered": true,
+    "banners": [
+      "A saved build couldn't be read — it's been preserved, not deleted.Export raw saved dataDiscard"
+    ]
+  }
+}
+
+Reload 2 (NO blocking — the guard itself is now the thing under test):
+{
+  "PROOF_1b_after_reload_2_no_blocking": {
+    "autosave_key": "{not json",
+    "quarantine_key": "{not json",
+    "named_builds_intact": true,
+    "app_rendered": true,
+    "banners": [
+      "A saved build couldn't be read — it's been preserved, not deleted.Export raw saved dataDiscard"
+    ],
+    "switcher_options": ["Untitled build — unsaved changes", "QE drift build — saved"]
+  }
+}
+
+(a) boots without crashing            YES  (app_rendered: true)
+(b) quarantine banner renders         YES  (exact copy + Export first, then Discard)
+(c) original bytes still present      YES  (under BOTH the autosave and quarantine keys)
+(d) a second reload does not overwrite YES
+
+===============================================================================
+DEVTOOLS PROOF 2 — F-A: rename a build with a drifted loadout row changes
+                   ONLY `name`
+===============================================================================
+Fixture (the QE drift build already in this profile) carries all three things
+the deserializer would have rewritten:
+  - loadout row  "ghost-badge-removed-from-dataset"  -> H8 strip target
+  - Synergy Slot 1 fuse "limitless-range" (not in loadout) -> F2.1 heal target
+  - Synergy Slot 5 reaction "ghost-badge-removed-from-dataset"
+
+Renamed through the real UI (Manage -> Rename -> Save), then diffed the stored
+string field by field:
+{
+  "PROOF_2_rename_fidelity": {
+    "fields_that_changed": ["name"],
+    "name_before": "QE drift build",
+    "name_after": "RENAMED BY F2.2 PROOF",
+    "loadout_after": [
+      { "badgeId": "posterizer", "purchasedLevel": "hof" },
+      { "badgeId": "ghost-badge-removed-from-dataset", "purchasedLevel": "gold" },
+      { "badgeId": "interceptor", "purchasedLevel": "silver" }
+    ],
+    "drifted_row_survived": true,
+    "stranded_fuse_survived": true,
+    "stranded_reaction_survived": true
+  }
+}
+EXACTLY ONE field changed. A rename is a name change.
+
+===============================================================================
+DEVTOOLS PROOF 3 — F-B: "Clear just the unreadable autosave" is surgical
+===============================================================================
+The F1 recovery screen was reached by forcing a genuine render throw (no app
+code changed: Object.fromEntries was patched to throw for one render and
+restored immediately). Its three actions, in DOM order — narrowest blast
+radius first:
+  1. "Export raw saved data"
+  2. "Clear just the unreadable autosave"
+  3. "Clear ALL saved data — the autosave, every named build, and layout preferences"
+
+{
+  "PROOF_3_surgical_clear": {
+    "before": { "autosave": "{not json", "namedBuildIds": ["qe-drift-build"],
+                "quarantine": "{not json", "uiState": true },
+    "after":  { "autosave": null,        "namedBuildIds": ["qe-drift-build"],
+                "quarantine": "{not json", "uiState": true }
+  }
+}
+Only the autosave key went. Named builds, UI prefs and the quarantine all stayed.
+clearAutosave() had ZERO callers before this slice.
+
+===============================================================================
+DEVTOOLS PROOF 4 — F-B: the nuclear action confirms, and declining changes
+                   nothing
+===============================================================================
+{
+  "PROOF_4_nuclear_confirms_and_declining_changes_nothing": {
+    "confirm_message": "Delete ALL saved data? This removes the autosave, 1 named build, the preserved unreadable autosave. This cannot be undone.",
+    "before":          { "A": "present", "N": "present", "U": "present", "Q": "present" },
+    "after_declining": { "A": "present", "N": "present", "U": "present", "Q": "present" },
+    "unchanged": true
+  }
+}
+Pre-fix this destroyed every named build on ONE unconfirmed click, while
+deleting a SINGLE build required an in-row confirm. The asymmetry is corrected.
+
+===============================================================================
+DEVTOOLS PROOF 5 — the unreadable-named-build disclosure (R1(c))
+===============================================================================
+Seeded one unparseable entry into the named-builds store:
+{
+  "PROOF_5_unreadable_named_build_disclosure": {
+    "switcher_options": [
+      { "text": "Untitled build — unsaved changes", "disabled": false },
+      { "text": "RENAMED BY F2.2 PROOF — saved",    "disabled": false },
+      { "text": "1 saved build couldn't be read — preserved, not deleted.", "disabled": true }
+    ],
+    "manager_hints": ["1 saved build couldn't be read — preserved, not deleted."],
+    "unreadable_entry_still_stored": "{not json either"
+  }
+}
+Skipped, never deleted — and no longer skipped SILENTLY. Rendered as a disabled
+<option> inside the existing <select> so it costs zero new CSS and zero layout.
+
+===============================================================================
+DEVTOOLS PROOF 6 — a STANDING quarantine keeps disclosing itself
+===============================================================================
+Found during proof 3 and fixed in the same slice: after "Clear just the
+unreadable autosave", the next boot reads "absent", so a banner keyed on the
+boot outcome would have left the preserved bytes in storage with nothing
+pointing at them. The banner is keyed on the quarantine KEY'S EXISTENCE
+instead. persistableRef is deliberately NOT — a stale quarantine must not
+suppress autosave for a healthy build.
+
+Post-surgical-clear reload:
+{
+  "after_surgical_clear_reload": {
+    "autosave": "rewritten (boot was ABSENT, so persistable=true — correct)",
+    "quarantine": "{not json",
+    "banners": ["A saved build couldn't be read — it's been preserved, not deleted.Export raw saved dataDiscard"]
+  }
+}
+
+===============================================================================
+VIEWPORTS
+===============================================================================
+1280x900 — the quarantine banner sits in <div className="app-banners"> above
+           the layout, warning variant, 3px amber left border, body left and
+           actions right ("Export raw saved data", then "Discard"). No Dismiss
+           control. Zero new CSS: it composes the shipped Banner + Button.
+1280x900 — the recovery screen shows all three actions, export first, with the
+           blast-radius copy on the nuclear one (it wraps to its own row).
+ 390x844 — the banner reflows: copy stacks, actions wrap right. No overflow.
+
+SCREENSHOT FILES NOT WRITTEN. This environment has no screen-recording
+permission (`screencapture` -> "could not create image from display") and the
+browser tool returns images inline rather than to disk, so
+docs/proof/f22-quarantine-banner-{1280,390}.png and
+docs/proof/f22-recovery-screen-1280.png could not be produced. All three views
+were captured and inspected in-session; the DOM-level assertions above cover
+the same content, and every banner/recovery-screen state is additionally pinned
+by tests/ui/f22-quarantine-banner.test.tsx and tests/ui/recovery-boundary.test.tsx.
+
+===============================================================================
+LIVE DATA HANDLING
+===============================================================================
+The profile held real data (an autosave + one named build + UI prefs). It was
+captured verbatim before the first mutation, and restored byte-for-byte after:
+  autosave_restored: true · named_restored: true · ui_restored: true
+  quarantine_cleared: true · probe_entry_gone: true
+  build_name_back: "QE drift build"
+  stray_proof_keys: []   (no key outside the app's own namespace was left behind)

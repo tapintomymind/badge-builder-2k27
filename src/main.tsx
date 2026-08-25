@@ -2,7 +2,12 @@ import { Component, StrictMode } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
-import { clearAllPersistedData, exportRawPersistedData } from "./persist/local-storage";
+import {
+  clearAllPersistedData,
+  clearAutosave,
+  exportRawPersistedData,
+  persistedDataBlastRadius,
+} from "./persist/local-storage";
 import "./styles/tokens.css";
 import "./styles/app.css";
 
@@ -39,16 +44,53 @@ export class RecoveryBoundary extends Component<{ children: ReactNode }, Recover
     anchor.href = url;
     anchor.download = "badge-builder-2k27-raw-saved-data.json";
     anchor.click();
-    URL.revokeObjectURL(url);
+    // F2.2 F-G: a SYNCHRONOUS revoke races the browser's read of the object
+    // URL, and a lost race yields an empty download with no error surface —
+    // on THIS screen that export is the user's only copy, and it sits right
+    // next to the button that clears everything. 60s of a leaked URL is the
+    // cheaper side of that trade by a wide margin.
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 60_000);
   };
 
-  private clearSavedData = (): void => {
-    clearAllPersistedData();
+  private reload = (): void => {
     try {
       window.location.reload();
     } catch {
       // jsdom: navigation is unimplemented; the cleared storage is the point.
     }
+  };
+
+  /** F2.2 F-B: the surgical action. `clearAutosave()` already existed and had
+   * ZERO callers, so the only exit from an unreadable autosave was the
+   * nuclear one — which also destroys every named build. This is the action
+   * a user on this screen almost always wants. */
+  private clearJustAutosave = (): void => {
+    clearAutosave();
+    this.reload();
+  };
+
+  /** F2.2 F-B: the nuclear action now STATES its blast radius and ASKS.
+   * Pre-fix the copy said "clear it" while the function removed the
+   * autosave, every named build and the UI prefs on ONE unconfirmed click —
+   * while deleting a SINGLE build required an in-row confirm. The asymmetry
+   * was backwards. Same window.confirm idiom the switcher guard uses; no
+   * dialog component. */
+  private clearSavedData = (): void => {
+    const radius = persistedDataBlastRadius();
+    const parts = [radius.hasAutosave ? "the autosave" : null];
+    parts.push(
+      `${radius.namedBuildCount} named build${radius.namedBuildCount === 1 ? "" : "s"}`,
+    );
+    if (radius.hasQuarantine) parts.push("the preserved unreadable autosave");
+    const proceed = window.confirm(
+      `Delete ALL saved data? This removes ${parts.filter((part) => part !== null).join(", ")}. ` +
+        "This cannot be undone.",
+    );
+    if (!proceed) return;
+    clearAllPersistedData();
+    this.reload();
   };
 
   override render(): ReactNode {
@@ -77,14 +119,22 @@ export class RecoveryBoundary extends Component<{ children: ReactNode }, Recover
         <p>
           You can export the raw saved data exactly as stored (for backup or a bug report),
           and separately choose to clear it and start fresh. Nothing is cleared unless you
-          click the clear action yourself.
+          click a clear action yourself — exporting first is recommended, but it is not
+          required: a user whose export is broken must still be able to get out.
         </p>
-        <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem" }}>
+        {/* Export FIRST, in the DOM and in the copy. Then the surgical clear,
+          * then the nuclear one — narrowest blast radius first. */}
+        <div
+          style={{ display: "flex", gap: "0.75rem", marginTop: "1rem", flexWrap: "wrap" }}
+        >
           <button type="button" onClick={this.exportRawData}>
             Export raw saved data
           </button>
+          <button type="button" onClick={this.clearJustAutosave}>
+            Clear just the unreadable autosave
+          </button>
           <button type="button" onClick={this.clearSavedData}>
-            Clear saved data
+            Clear ALL saved data — the autosave, every named build, and layout preferences
           </button>
         </div>
       </main>

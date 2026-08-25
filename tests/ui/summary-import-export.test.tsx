@@ -109,20 +109,37 @@ describe("SummaryPanel — badges by level and spend by category", () => {
 });
 
 describe("Export (file-based, no network)", () => {
-  it("builds a Blob download named {buildName}-{dataVersion}.json", () => {
-    seedSummaryRig();
-    const createObjectURL = vi.fn(() => "blob:test");
-    const revokeObjectURL = vi.fn();
-    Object.defineProperty(URL, "createObjectURL", { value: createObjectURL, configurable: true });
-    Object.defineProperty(URL, "revokeObjectURL", { value: revokeObjectURL, configurable: true });
-    const click = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(function noop() {});
-    render(<App />);
-    fireEvent.click(screen.getAllByRole("button", { name: "Export JSON" })[0] as HTMLElement);
-    expect(createObjectURL).toHaveBeenCalledTimes(1);
-    expect(click).toHaveBeenCalledTimes(1);
-    expect(revokeObjectURL).toHaveBeenCalledWith("blob:test");
+  /**
+   * F2.2 test 8.2 — STRUCTURAL, not a race reproduction. The revoke race is
+   * unverified and a flaky race test would be worse than the bug, so this
+   * pins only the property that closes it: the revoke is NOT synchronous
+   * with the click.
+   */
+  it("builds a Blob download named {buildName}-{dataVersion}.json, revoking AFTER the click (F2.2 F-G)", () => {
+    vi.useFakeTimers();
+    try {
+      seedSummaryRig();
+      const createObjectURL = vi.fn(() => "blob:test");
+      const revokeObjectURL = vi.fn();
+      Object.defineProperty(URL, "createObjectURL", { value: createObjectURL, configurable: true });
+      Object.defineProperty(URL, "revokeObjectURL", {
+        value: revokeObjectURL,
+        configurable: true,
+      });
+      const click = vi
+        .spyOn(HTMLAnchorElement.prototype, "click")
+        .mockImplementation(function noop() {});
+      render(<App />);
+      fireEvent.click(screen.getAllByRole("button", { name: "Export JSON" })[0] as HTMLElement);
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      expect(click).toHaveBeenCalledTimes(1);
+      // The load-bearing assertion: still live immediately after the click.
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(60_000);
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:test");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
