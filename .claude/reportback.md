@@ -3960,3 +3960,142 @@ F8-E3 must precede F8-R2 — R2 surfaces the reproducibility token and
 `ROLL_ALGORITHM_VERSION` changed here, so R2 should read the version-in-seed
 note above before it starts. F8-S2 is unaffected by this slice.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-26 — A5-E: the bonus Badge Slots / Badge Points layer — model, persistence, composition seam
+Type: milestone-complete
+Actor: Tier 2 engine implementer (Claude Opus 5), constrained mode
+Slice: A5-E
+
+WHAT
+Landed the engine, persistence and composition half of scope.md §0.1 A5.
+`SavedBuild` gains `bonus: BonusBudget` — two build-level earned totals plus a
+per-category applied allocation — as a SEPARATE layer that is never merged into
+`budgets`. New `src/engine/budget.ts` owns the single composition, including the
+zero-base carve-out (`effective = base === 0 ? 0 : base + applied`), so every
+downstream reader is correct with no edit.
+
+THE SLICE IS INERT BY CONSTRUCTION AND THAT IS THE POINT. No control can write a
+non-zero bonus until A5-U, so every dependent behaviour is unreachable and the
+gate is literally "nothing changed" — which converts the riskiest part of this
+amendment (a persisted-shape change on a codebase with four data-loss defects)
+from argued to mechanically checked.
+
+EVIDENCE
+Branch a5-e-bonus-engine, worktree /tmp/bb-a5e, base dev @ 2e422c2.
+  bd8c4ad  feat(a5-e): the bonus Badge Slots / Badge Points layer
+  <this>   chore(reportback): A5-E slice-complete entry
+
+  npx tsc --noEmit    exit 0
+  npx vitest run      62 files, 1145 passed (from 60 / 1096)
+  npm run build       tsc --noEmit && vite build — 68 modules, 404ms
+  dependencies        {"react","react-dom"} — unchanged
+  git status          a strict subset of the Allowed paths
+
+  Mandated RUN-never-edit set: tests/ui/overlays.test.tsx,
+  tests/category-colors.test.ts, tests/feasibility-golden.test.ts,
+  tests/architecture.test.ts — 4 files / 207 tests green, and byte-untouched.
+  Test 8.5 RUN, NEVER EDITED, green. tests/vocabulary.test.ts green + untouched.
+
+  Full transcript: docs/proof/a5e-verification.txt
+
+DEV SERVER PORT USED: NONE. §4.3's mitigation asks the implementer to run
+exactly one server and state the port; this slice ran ZERO. All five worktrees
+share one localStorage origin (strictPort 5173), and pre-A5 code silently drops
+`bonus` on re-save, so every leg — including the persisted-shape legs and the
+runaway guard — was discharged in jsdom against an in-memory Storage stub.
+Nothing this slice ran could reach the user's real store.
+
+CONSTRAINED-MODE REPORTBACK
+changed_files:
+  src/engine/types.ts            BonusBudget; SavedBuild.bonus (required in TS)
+  src/engine/budget.ts           NEW — the one composition point + helpers
+  src/engine/serialization.ts    validateBonus (cap-free, by design) +
+                                 reassembly normalization + SavedBuildContent
+  src/engine/validate-loadout.ts two new SoftViolation members + their computation
+  src/engine/synergy-ledger.ts   ONE optional field: bonus?: BonusBudget
+  src/engine/summary.ts          totalBaseEquipSlots + bonus + baseline re-point
+  src/engine/ledger.ts           COMMENTS ONLY (verified: zero code diff)
+  src/config/index.ts            deriveBudget docstring — BASE output + A3's Σ=20
+  src/App.tsx                    state + wiring only; ZERO JSX structure change
+  tests/bonus.test.ts            NEW — groups 1, 2, 4 (22)
+  tests/serialization.test.ts    ADD group 3 (9)
+  tests/randomize.test.ts        ADD group 5 (5) + one type narrowing
+  tests/ui/a5-bonus-persistence.test.tsx  NEW — 3.9, 3.10, 6.6 (8)
+  tests/{eligibility,ui/app,ui/category-ledger,ui/m4-rig,
+         ui/position-height-clamp,ui/reset-build}  compiler-forced `bonus:` only
+  docs/proof/a5e-verification.txt  NEW
+denied_paths_checked:
+  randomize.ts · steps.ts · cost.ts · eligibility.ts · synergy.ts · dataset.ts ·
+  random.ts · src/ui/** · src/styles/** · src/data/** · src/persist/** ·
+  vite.config.ts · package.json · *.config.* — none appears in git status.
+first_proof_result:
+  §3.2 reader table reconciled against the tip (§2 of the transcript) and tsc
+  clean on the types-only change. FIVE readers surfaced that §3.2 does not list
+  — eligibility.ts:191, errors.ts:38/42/50, synergy.ts:224, DriftBanner.tsx:30,
+  SynergyPanel.tsx:316 — ALL type-position CONSUMERS of SavedBuild that read
+  neither a capacity nor a pool, so none needed an edit. No sixth reader found;
+  recorded as a negative result. F5.3's four-call-site
+  `badgeSlotsCapacityUnset` count re-confirmed, no further drift.
+verification_evidence: see EVIDENCE above + docs/proof/a5e-verification.txt
+heartbeats_emitted: n/a — single continuous pass, no blocking checkpoint reached
+stop_conditions_triggered: NONE (each of the seven checked explicitly, §9 of
+  the transcript)
+
+THREE THINGS WORTH TIER 1's ATTENTION, none blocking
+
+1. THE TEST COUNT MOVED BEFORE A SINGLE TEST WAS WRITTEN, and it is not an edit.
+   1096 → 1101 the moment src/engine/budget.ts existed: the architecture and
+   vocabulary lints generate one case PER SOURCE FILE, and the new engine file
+   is picked up by five of them. Enumerated from the JSON reporter rather than
+   assumed. Final 1145.
+
+2. ONE COMPILER-FORCED DIFF IS NOT A `bonus:` ADDITION — disclosed, not buried.
+   Widening `SoftViolation` with two BUILD-LEVEL members (no `category` field)
+   stops `warning.category` compiling in tests/randomize.test.ts:367-369. Fixed
+   by narrowing with `"category" in warning`; the assertion and its expectation
+   are byte-identical, and those sweep states carry no bonus layer so neither
+   new kind can fire. The alternative — a phantom `category` on a build-level
+   violation purely to keep a test compiling — was rejected as modelling the
+   feature wrong to protect a diff stat. ZERO assertion EXPECTATIONS changed.
+
+3. THE GATES WERE MUTATION-TESTED, because a passing assertion proves nothing
+   until it can fail. 1.7 fails when a forbidden literal is planted; 5.1 fails
+   ("expected 2 to be 3") when the composition is neutered; 6.6 fails
+   ("expected '4' to be '3'") when BuildPanel is reverted to the composed
+   record — i.e. it catches the runaway's very first step.
+
+SCOPE / PLAN IMPACT
+None. No scope.md, tech-strategy.md, design-spec.md or H-ruling changes.
+schemaVersion stays 1, MIGRATIONS stays empty, dataVersion and
+ROLL_ALGORITHM_VERSION untouched, `bonus` deliberately NOT added to
+stableDigest (the F8-E3 note). OQ-A5 (discipline-locked event tokens) stays
+open and stays non-blocking — A5 models the versatile pool only.
+
+DECISION NEEDED FROM TIER 1
+None.
+
+NEXT
+Branch pushed; NOT merged to dev, main untouched. Sequencing note: F8-E3 landed
+on dev mid-slice (2e422c2 → dfc602b), so this branch's base is now one merge
+behind. A trial merge against dfc602b was run and DISCARDED after verification:
+two conflicts in tests/randomize.test.ts, both pure adjacency (an import block
+and two blocks appended at the file tail — take both sides), plus ONE semantic
+conflict worth naming because it will not present as a conflict at all:
+F8-E3 changed `rollIterationBound` from two arguments to three (the new
+`ceilingSpend` is REQUIRED, not defaulted), so A5-E's test 5.4 needs
+`rollIterationBound(0, N, 0)`. With those three edits the merged tree is
+62 files / 1187 passed, tsc clean — and A5's own gates, including payoff 5.1,
+survive ROLL_ALGORITHM_VERSION 1→2 unchanged, because 5.1 asserts structure
+(the blocked flag and the step count) rather than a seeded golden.
+
+A5-U remains gated on Designer's design-spec.md §17 and is NOT on any critical
+path. Per A5-R8 the queue is now: F5.4 → [A5-E] → F8-S2 → A5-U → F8-R2, and
+F8-S2 must land AFTER this slice — `badgeSlotsBaselineText` now reads the BASE
+Σ and appends a bonus clause, so S2's §14.5 goldens must be authored against
+the post-A5 function.
+
+HOUSEKEEPING: a local-only branch `a5e-trial-merge` is left behind — its
+worktree is removed but branch deletion was permission-denied in this session.
+Safe to `git branch -D a5e-trial-merge`.
+─────────────────────────────────────────────
