@@ -205,6 +205,54 @@ export const syntheticFreeAtHof: RawBadge = {
   },
 };
 
+/* -------------------------------------------------------------- F8-E3 -- */
+
+/**
+ * THE TWO-DELTA EXCHANGE PAIR (INV-23). Both live in Physicals alongside
+ * `syntheticCheapBronzeOnly`, which is REUSED as the outgoing entry — a C-tier
+ * Bronze-only badge costing 1.
+ *
+ * With a pool of 5 and a capacity of 1, a walk that opens by buying the cheap
+ * badge is immediately at capacity with 4 points left, and EXACTLY TWO
+ * exchanges are admissible from it: `+1` to the B-tier Bronze below, and `+4`
+ * to the C-tier HOF-only one. Two admissible moves, deltas differing
+ * four-fold, one uniform draw. Any weighting by delta — of either sign — shows
+ * up immediately as a skew, and nothing else in the fixture can produce one.
+ *
+ * Each is legal at exactly ONE level, deliberately: one legal level per badge
+ * keeps the candidate set at exactly two, so the parity being measured is
+ * 1/2 and not a ratio that has to be derived.
+ */
+export const syntheticExchangePlusOne: RawBadge = {
+  id: "synthetic-exchange-plus-one",
+  name: "Synthetic Exchange Plus One",
+  tier: "B", // Bronze costs 2 — a delta of +1 over the cheap C-tier Bronze.
+  category: "Physicals",
+  description: "Synthetic fixture — not 2K27 data.",
+  isNew: false,
+  requirements: {
+    heightMinInches: 69,
+    heightMaxInches: 88,
+    logic: "single",
+    attrs: [{ attr: "vertical", perLevel: [60, null, null, null] }],
+  },
+};
+
+export const syntheticExchangePlusFour: RawBadge = {
+  id: "synthetic-exchange-plus-four",
+  name: "Synthetic Exchange Plus Four",
+  tier: "C", // HOF costs 5 — a delta of +4 over the cheap C-tier Bronze.
+  category: "Physicals",
+  description: "Synthetic fixture — not 2K27 data.",
+  isNew: false,
+  requirements: {
+    heightMinInches: 69,
+    heightMaxInches: 88,
+    logic: "single",
+    attrs: [{ attr: "vertical", perLevel: [null, null, null, 60] }],
+  },
+};
+
 export const syntheticBadges: readonly RawBadge[] = [
   syntheticAndTrailingNull,
   syntheticAndMidNullGap,
@@ -216,4 +264,6 @@ export const syntheticBadges: readonly RawBadge[] = [
   syntheticDearBronzeOnly,
   syntheticCheapBronzeOnly,
   syntheticFreeAtHof,
+  syntheticExchangePlusOne,
+  syntheticExchangePlusFour,
 ];

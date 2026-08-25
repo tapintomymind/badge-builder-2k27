@@ -1,0 +1,353 @@
+F8-E3 — the exchange move, and two contract corrections
+Branch f8-e3-exchange, cut from dev@70f90bf (1038/1038 across 59 files)
+Engine: src/engine/steps.ts (additive), src/engine/randomize.ts, src/engine/errors.ts
+ROLL_ALGORITHM_VERSION 1 -> 2
+
+=============================================================================
+1. FIRST PROOF — THE WORKED CASE FROM THE E2 ESCALATION, RED THEN GREEN
+=============================================================================
+Fixture: capacity 3, pool 16, Finishing, makeBuild(78, 72), 50 seeds.
+Gate:    optimalAddedSpend - proposedSpend <= 2 on EVERY seed.
+Command: npx vitest run tests/randomize.test.ts -t "FIRST PROOF"
+
+--- RED, on the tree as cut from dev, BEFORE exchangeSteps existed ----------
+FAIL tests/randomize.test.ts > F8-E3 FIRST PROOF — the worked case that
+     triggered the E2 escalation > capacity 3, pool 16, Finishing at attrs 72:
+     within 2 points of the achievable optimum, over 50 seeds
+AssertionError: 42/50 seeds left more than 2 points on the table
+  :: seed 0: spent 5 of an achievable 11
+   | seed 1: spent 7 of an achievable 11
+   | seed 2: spent 7 of an achievable 11
+   | seed 3: spent 5 of an achievable 11
+   | seed 4: spent 5 of an achievable 11
+  (42 entries; worst observed spend 3 of an achievable 11)
+
+The failure is the ESCALATION's failure, not a fixture-construction artefact:
+every one of those rolls is MAXIMAL (INV-7 green on the same tree) and the
+oracle is a true upper bound (no negative gap anywhere in the sweep). The
+achievable optimum at capacity 3 is 11, not the full pool of 16 — the roll was
+leaving up to 8 of the 11 it could actually have spent.
+
+--- GREEN, after exchangeSteps + the walk arm ------------------------------
+Test Files  1 passed (1)
+     Tests  1 passed | 44 skipped (45)
+
+worked-case achievable optimum: 11
+worked-case spends over 50 seeds:
+  [11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,
+   11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11]
+worked-case gaps: all 0, max 0
+  -> EXACTLY OPTIMAL on 50 of 50 seeds. The gate is <= 2.
+
+=============================================================================
+2. APPLIED-MOVE TRANSCRIPT, ONE SEED, EXCHANGES FIRING
+=============================================================================
+seed "worked-2", Finishing, capacity 3, pool 16, makeBuild(78, 72) — 7 moves:
+
+   0  ADD       float-game                      -      -> bronze  netCost 3  slot true
+   1  ADD       post-powerhouse                 -      -> bronze  netCost 1  slot true
+   2  ADD       physical-finisher               -      -> bronze  netCost 2  slot true
+   3  EXCHANGE  out physical-finisher@bronze -> in layup-mixmaster@bronze
+                                                       netCost +1  slot false
+   4  EXCHANGE  out post-powerhouse@bronze   -> in physical-finisher@bronze
+                                                       netCost +1  slot false
+   5  EXCHANGE  out physical-finisher@bronze -> in synthetic-and-trailing-null@bronze
+                                                       netCost +1  slot false
+   6  UPGRADE   synthetic-and-trailing-null     bronze -> silver  netCost 2  slot false
+
+  result: [{"badgeId":"float-game","purchasedLevel":"bronze"},
+           {"badgeId":"layup-mixmaster","purchasedLevel":"bronze"},
+           {"badgeId":"synthetic-and-trailing-null","purchasedLevel":"silver"}]
+  after: spent 11, remaining 5, slotsUsed 3 / 3
+
+Read moves 3-5: every outgoing entry was created by an EARLIER move of the same
+walk (move 4 re-buys physical-finisher, move 5 trades that same new entry away
+again). The slot count never moves off 3. The pool of 16 is not fully spent and
+should not be — 11 is the achievable maximum at capacity 3, and the oracle says
+so independently.
+
+--- SAME SEED, SECOND RUN --------------------------------------------------
+  SAME-SEED RE-RUN identical: true
+  re-run result: [{"badgeId":"float-game","purchasedLevel":"bronze"},
+                  {"badgeId":"layup-mixmaster","purchasedLevel":"bronze"},
+                  {"badgeId":"synthetic-and-trailing-null","purchasedLevel":"silver"}]
+Byte-identical, whole report object compared, not just the entries.
+
+=============================================================================
+3. INV-14 — THE FULL TABLE, BOTH FIXTURE FAMILIES, SPLIT BY REGIME
+=============================================================================
+Family 1 `equal-attributes`  : 200 fixtures, makeBuild(78, attrs) — F8-E2's own
+                               shape, reproduced so the two runs are comparable.
+Family 2 `spread-attributes` : 240 fixtures, PER-ATTRIBUTE spreads (45..99, an
+                               affine hash of (fixture, attribute) — no PRNG, no
+                               clock) across SEVEN heights 69/72/75/78/81/84/88.
+Both families x 5 seeds per fixture.
+
+  family              regime  n        median p90 p95 max  exact
+  equal-attributes    bound   n=  778  0      0   0   1    99.5%
+  equal-attributes    free    n=  222  0      1   1   2    86.0%
+  equal-attributes    all     n= 1000  0      0   0   2    96.5%
+  spread-attributes   bound   n=  602  0      0   0   1    99.8%
+  spread-attributes   free    n=  513  0      0   1   2    93.4%
+  spread-attributes   all     n= 1115  0      0   0   2    96.9%
+  both                bound   n= 1380  0      0   0   1    99.6%
+  both                free    n=  735  0      0   1   2    91.2%
+  both                all     n= 2115  0      0   0   2    96.7%
+
+  max iterations observed 14      (guard is 4*(max(E0,slots)+ceilingSpend)+1)
+  exchanges applied       1815
+
+  five worst rolls in the whole sweep:
+    equal-attributes#3   Rebounding pool 7  slots 4  seed ...-3-4  : 5 of 7  (gap 2)
+    equal-attributes#199 Shooting   pool 16 slots 5  seed ...-199-1: 14 of 16 (gap 2)
+    spread-attributes#20 Playmaking pool 4  slots 3  seed ...-20-1 : 2 of 4  (gap 2)
+    spread-attributes#20 Playmaking pool 4  slots 3  seed ...-20-3 : 2 of 4  (gap 2)
+    equal-attributes#3   Rebounding pool 7  slots 4  seed ...-3-1  : 6 of 7  (gap 1)
+
+--- EVERY ACCEPTANCE NUMBER, MEASURED AGAINST ITS GATE ---------------------
+  CAPACITY BOUND  median 0 · p95 <= 1 · max <= 2   ->  0 / 0 / 1   PASS (both families)
+  CAPACITY FREE   median 0 · p95 <= 1 · max <= 2   ->  0 / 1 / 2   PASS (both families)
+  Exactly-optimal overall >= 90%                   ->  96.7%       PASS
+  HARD CAP: no single roll more than 2 short       ->  0 rolls > 2 PASS
+  Oracle sanity: no negative gap, either family    ->  min gap 0   PASS
+  INV-20: zero exchanges in 100% of capacity-free  ->  0 / 735     PASS
+
+E2 measured, for comparison: bound 1 / 4 / 8, exact 47.7%.
+
+--- ORACLE CONSTRAINT NOTE -------------------------------------------------
+NO fixture in either family carries pins, exclusions, or a starting loadout.
+`optimalAddedSpend` passes pinnedBadgeIds: NONE and excludedBadgeIds: NONE, so
+it solves the SAME problem the roll solves — but only under that precondition,
+so the precondition is ASSERTED in the sweep-shape test rather than trusted.
+
+=============================================================================
+4. INV-20 — CAPACITY-FREE INERTNESS, PROVED TWO WAYS
+=============================================================================
+THE THEOREM. No move ever decreases the entry count (adds raise it, upgrades and
+exchanges hold it), and exchanges are offered only at equipSlotsUsed >=
+equipSlots. So a walk that ENDS below capacity was below capacity at EVERY
+iteration, was never offered an exchange, and is the two-move walk verbatim.
+
+  (a) property : 735 capacity-free rolls, 0 exchange steps.        735/735
+  (b) differential: every capacity-free roll is BYTE-IDENTICAL to a
+      reference two-move walk driven by the same seed.             735/735
+  (c) golden : six capacity-free fixtures pinned byte-for-byte.    6/6
+
+ON (b) RATHER THAN GOLDENS COPIED FROM THE E2 RUN — a deliberate deviation from
+the brief, and the reason is the brief's own mechanism. ROLL_ALGORITHM_VERSION
+rides inside the per-category RNG seed string (`${seed} ${VERSION} ${category}`)
+precisely so that a version bump changes the stream. At version 2 the same seed
+therefore CANNOT reproduce version-1 output — that is the mechanism working, not
+a regression, and it is why literal E2 goldens are unconstructible here. What the
+theorem actually claims is that the two-move and three-move walks AGREE wherever
+no exchange is offered; (b) compares them at the same version, which is that
+claim tested directly and is strictly stronger than a frozen output blob. The
+checked-in golden in (c) is from THIS implementation and is labelled as such.
+
+=============================================================================
+5. INV-23 — THE EXCHANGE IS NOT A COST PREFERENCE
+=============================================================================
+Fixture: Physicals, capacity 1, pool 5, three badges each legal at exactly one
+level — synthetic-cheap-bronze-only (C/Bronze, cost 1) as the outgoing entry,
+synthetic-exchange-plus-one (B/Bronze, cost 2, delta +1) and
+synthetic-exchange-plus-four (C/HOF, cost 5, delta +4) as the two targets.
+A walk that opens on `cheap` is instantly at capacity with 4 points left and
+EXACTLY TWO admissible exchanges, deltas differing four-fold.
+
+  INV-23 n=13405 of 40000 seeds — delta+1 6600 (49.24%), delta+4 6805
+  parity for a two-candidate set = 50.00%, gate +/-1.5% -> [48.50%, 51.50%]
+  measured deviation 0.76 percentage points                        PASS
+
+40,000 seeds are run to obtain 13,405 OBSERVATIONS: the fixture's first move is a
+three-way uniform draw and only the branch that opens on `cheap` presents the
+two-delta choice. Sampling error at n=13,405 is 0.43pp, so the +/-1.5% gate sits
+at 3.5 sigma. (The seed count was raised to shrink the confidence interval; the
+seed PREFIX was never varied.)
+
+INDEPENDENT FAIRNESS CHECK of the picker itself, run once and not checked in:
+  pickUniform over 2 items, 200,000 independent seeds -> 0.50102
+  same, over a disjoint seed block                    -> 0.49996
+So the 49.24% above is subsample noise in a conditioned second draw, not a bias.
+
+=============================================================================
+6. BOTH CLASS-2 CANARIES SEEN TO FAIL ON REAL CODE
+=============================================================================
+Injected `const bestExchange = 0;` into src/engine/steps.ts and
+`const preferredDelta = 1;` into src/engine/randomize.ts, then reverted.
+
+  × /src/engine/randomize.ts contains no ranking, scoring or quality token
+    AssertionError: "prefer" found in /src/engine/randomize.ts — the randomizer
+    ships under a narrow carve-out from a ratified Never, and this lint IS the
+    price of it
+  × /src/engine/steps.ts contains no ranking, scoring or quality token
+    AssertionError: "best" found in /src/engine/steps.ts — [same message]
+  Tests  2 failed | 1 passed | 69 skipped (72)
+
+After revert:  Tests  3 passed | 69 skipped (72)
+
+src/engine/steps.ts is NEW to the class-2 scope in this slice: the exchange
+enumerator is where "prefer the trade with the biggest delta" would actually be
+written. The pattern itself is UNCHANGED and every existing canary is intact.
+The structural half is extended too — steps.ts is asserted to contain no .sort(,
+no .reduce(, no .name, no pickUniform, and exactly ONE extremum, pinned by its
+arguments as `Math.min(pointsPool, ceiling)` (the lattice ceiling, not a choice
+between candidates). randomize.ts's single permitted extremum is unchanged at
+`Math.max(entriesAtStart, equipSlots)`.
+
+=============================================================================
+7. THE FIVE PRESERVED PROPERTIES, AND THE TEST THAT PINS EACH
+=============================================================================
+1. NOT A PREFERENCE — no comparator, argmax, weight, sort or reduce anywhere.
+     INV-23 (statistical, 13,405 observations, +/-1.5%)
+     tests/vocabulary.test.ts class 2, both files, structural + vocabulary
+2. READS ONLY LEGALITY AND NET COST, so INV-8 equivariance is untouched.
+     INV-24 (a) relabel and (b) swap, re-run on a CAPACITY-BOUND fixture where
+     exchanges provably fire (asserted before the equivariance arms run)
+3. exchangeableBadgeIds IS EXACTLY THE WALK'S OWN CREATIONS — INV-5 by
+   construction; a roll can never remove a badge the user placed.
+     INV-21 (a) every outBadgeId was created by an earlier move of the same walk
+     INV-21 (b) guarded fixture: user pin + exclusion + synergy role + stale
+     entry, 200 seeds x both modes, none ever exchanged out
+     tests/steps.test.ts 2.10 — the enumerator returns [] for an empty set
+4. SLOT-NEUTRAL, so INV-6 and AJ-11 overflow behaviour are unaffected.
+     INV-22 (three arms: structural, ledger-observed, pre-existing overflow)
+5. PROVABLY INERT BELOW CAPACITY.
+     INV-20 (a) property + (b) differential + (c) golden — see section 4
+
+=============================================================================
+8. THE TWO CONTRACT CORRECTIONS
+=============================================================================
+A4-R1 — `fill` ADDS, `reroll` REBUILDS.
+  `resolvePins` gains a fourth implicit-pin arm: in `fill`, every existing entry
+  not otherwise pinned is held `exact` with the new PinReason `"fillDefault"`.
+  `pins` is now a POSITIVE PERMISSION GRANT in both modes, so a forgotten pin
+  fails CLOSED in the mode where failing open is invisible. The note is emitted
+  only for entries that actually had a suppressed affordable upgrade, computed
+  by re-running the enumerator at the end of the walk with the fill-held entries
+  treated as unpinned — the same shape newBadgesBlockedByBadgeSlots already uses.
+  The caller-obligation paragraph is DELETED from the `pins` field doc and
+  replaced with the structural rule.
+    INV-5b   500 seeds x 20 states: every entry absent from `pins` is
+             byte-identical after a `fill`
+    INV-5b   an explicit `include` still re-opens the entry (the grant works)
+    INV-5b   the note fires only where the rule cost something
+  Also de-vacuumed: the AJ-11 `fill` decline test's
+  `steps.every(s => !s.requiresNewBadgeSlot)` is now vacuously true under A4-R1,
+  so the assertion is made explicit (`steps` is []) and a second arm added with
+  `include` pins where fifteen upgrades genuinely fire.
+
+A4-R2 — the termination bound.
+  `rollIterationBound(entriesAtStart, equipSlots, ceilingSpend)`:
+    4 * (max(entriesAtStart, equipSlots) + ceilingSpend) + 1
+  with ceilingSpend = min(points, legalCeiling) computed by the new
+  `ceilingSpendFor` in steps.ts. The third argument is REQUIRED, not defaulted —
+  a silently-omitted argument would produce a bound that is too tight in exactly
+  the capacity-bound case the exchange move exists for, and a FALSE THROW is the
+  one failure a backstop must not have. The existing two-argument unit test was
+  updated (the ceilingSpend-0 case still yields 13 / 13 / 21, so the ratified
+  two-move form survives as a special case rather than being replaced).
+    INV-17  the two-move form as the ceilingSpend-0 case
+    INV-17  the third argument's term, and the lattice-not-budget property
+    INV-17  AJ-11 REGRESSION FIXTURE: 5 entries against capacity 1, `fill`, both
+            with and without `include` pins — completes and does not throw
+  RollDidNotTerminateError's message now names all three measures.
+
+=============================================================================
+9. THE ENLARGED SWEEP, AND ONE FINDING IT PRODUCED
+=============================================================================
+E2's 200 fixtures were all makeBuild(78, attrs) — twenty equal attributes at one
+height. The second family adds 240 fixtures with per-attribute spreads across
+seven heights, deterministically generated in tests/randomize-oracle.ts.
+
+FINDING, disclosed rather than repaired. On the first run of the enlarged sweep
+the capacity-free max was 4 and one roll breached the hard cap. Root cause was
+NOT the engine: INV-23's `synthetic-exchange-plus-four` is legal ONLY at HOF — a
+shape no shipped badge has — and it had been added to the `syntheticBadges`
+barrel, which tests/randomize.test.ts splatted into the sweep dataset. In a
+capacity-free Physicals pool of 12 that fixture turns the category into an
+exact-cover problem greedy can miss by 4.
+
+  with the pair in the dataset:    free max 4, 1 roll over the cap
+  without it:                      free max 2, 0 rolls over the cap
+  and the offending roll is CAPACITY-FREE, hence byte-identical to the two-move
+  walk at the same seed — F8-E2's engine produces exactly the same result, so
+  the exchange move neither caused it nor could fix it.
+
+Fix: the sweep dataset is pinned to a NAMED SET (the E1/E2 fixtures), which is
+the same reasoning tests/feasibility-golden.test.ts already records for its own
+dataset, and which additionally makes the `equal-attributes` family a true
+reproduction of what E2 measured. INV-23 and INV-22 reach their pair through
+isolated datasets. The finding itself is pinned as a test —
+"the adversarial fixture, disclosed" — so it is on the record and so nobody
+re-splats the barrel into the sweep without seeing it.
+
+=============================================================================
+10. GATE LOG
+=============================================================================
+BEFORE (dev@70f90bf):  Test Files 59 passed · Tests 1038 passed
+AFTER  (this branch):  Test Files 59 passed · Tests 1080 passed   (+42)
+
+npm test                                              59 files / 1080 passed
+npm run typecheck                                     clean
+npm run build                                         built in 404ms, no errors
+npx vitest run tests/randomize.test.ts tests/steps.test.ts
+                                                      2 files / 97 passed
+npx vitest run tests/feasibility-golden.test.ts       1 file / 4 passed
+    INV-19's 504-cell table BYTE-IDENTICAL. The file is UNMODIFIED — confirmed
+    by `git status --porcelain` (it does not appear). SHIP GATE MET.
+npx vitest run tests/random.test.ts tests/summary.test.ts tests/summary-text.test.ts
+                                                      3 files / 57 passed
+npx vitest run tests/vocabulary.test.ts tests/architecture.test.ts
+                                                      2 files / 251 passed
+npx vitest run tests/ui/overlays.test.tsx             1 file / 4 passed  (H2 unchanged)
+npx vitest run tests/randomize.test.ts -t "INV-9"     1 passed — UNEDITED
+npx vitest run tests/steps.test.ts -t "additivity"    1 passed (INV-11, all four
+                                                      refundTriggers incl. onFuse)
+
+git status --porcelain — exactly nine files, all on the Allowed list:
+   M src/engine/__fixtures__/synthetic-badges.ts
+   M src/engine/errors.ts
+   M src/engine/randomize.ts
+   M src/engine/steps.ts
+   M tests/architecture.test.ts
+   M tests/randomize-oracle.ts
+   M tests/randomize.test.ts
+   M tests/steps.test.ts
+   M tests/vocabulary.test.ts
+ (plus this file, new under docs/proof/, and .claude/reportback.md)
+
+No flake was observed on any run. Every new sweep carries { timeout: 20000 }
+from the start; no existing timeout was lowered and vite.config.ts is untouched.
+
+=============================================================================
+11. STOP CONDITIONS
+=============================================================================
+None triggered. Specifically:
+  - no denied path touched; src/ui/** untouched, in particular
+    src/ui/grid/feasibility.ts — `legalSteps` was not modified at all, which is
+    why INV-19's golden could not move
+  - tests/feasibility-golden.test.ts run, never edited, not one cell moved
+  - INV-9 green, UNEDITED (its fixture is capacity-free: pool 3 against two
+    badges costing 4 together, so the walk can never fill both slots and
+    `atCapacity` is never true)
+  - INV-11 green on the current tree, across all four refundTriggers
+  - no weight, bias, preference, score, sort, comparator or reduce-to-an-extremum
+    was written; the headroom fair-share filter A4 measured and rejected was not
+    used, and the latitude A4 granted for it is left unspent
+  - no exchange with delta <= 0 is ever emitted
+  - exchangeableBadgeIds was never widened beyond the walk's own creations
+  - no capacity-bound gate missed
+  - badge.name is never read; badge.tier is read only inside costForLevel
+  - nothing is repaired that should be disclosed
+  - no Synergy Slot is read or written
+  - no dependency added; runtime dependencies remain exactly {react, react-dom}
+  - both lint canaries were made to fail, and neither pattern was weakened
+
+ONE DEVIATION FROM THE BRIEF, recorded rather than smoothed:
+  The brief's walk pseudocode ends every iteration with `rollCreated.add(
+  chosen.badgeId)` unconditionally. Implemented that way, an UPGRADE of a
+  pre-existing entry would enrol that entry as exchangeable — and an `include`
+  pin permits exactly such an upgrade on an entry the USER placed. The roll
+  could then trade the user's own badge away, which is the precise failure
+  INV-5 exists to prevent. The implementation enrols on ADDS and on the incoming
+  side of an EXCHANGE only; upgrades enrol nothing. INV-21 pins it.

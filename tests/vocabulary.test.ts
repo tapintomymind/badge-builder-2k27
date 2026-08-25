@@ -124,10 +124,19 @@ describe("F8 — display labels are free of the dataset's parse keys", () => {
  * "quality" and "better" are ordinary English everywhere else — and a lint that
  * fires on correct code gets weakened, which is worse than no lint. F8-R2 adds
  * `src/ui/summary/RollPanel.tsx` to this list when that file exists.
+ *
+ * F8-E3 adds `src/engine/steps.ts`: the exchange enumerator is where "prefer
+ * the trade with the biggest delta" would actually be written, so the file that
+ * enumerates the roll's moves now carries the same lint as the file that picks
+ * between them. The pattern is UNCHANGED and every canary below is intact.
  */
 const CLASS_2 = /scor(?:e|ing)|rank|weight|quality|meta|best|optimal|recommend|suggest|prefer|better/i;
 
-const CLASS_2_SCOPE = ["/src/engine/randomize.ts", "/src/engine/random.ts"];
+const CLASS_2_SCOPE = [
+  "/src/engine/randomize.ts",
+  "/src/engine/random.ts",
+  "/src/engine/steps.ts",
+];
 
 describe("F8-E2 containment lint, class 2: no ranking vocabulary in the roll engine", () => {
   for (const file of CLASS_2_SCOPE) {
@@ -158,6 +167,11 @@ describe("F8-E2 containment lint, class 2: no ranking vocabulary in the roll eng
     expect(CLASS_2.test('copy = "a better fit"')).toBe(true);
     expect(CLASS_2.test("const badgeQuality = 3;")).toBe(true);
     expect(CLASS_2.test("const metaTier = 1;")).toBe(true);
+    // F8-E3's own temptations, named so they cannot arrive by accident.
+    expect(CLASS_2.test("const bestExchange = trades[0];")).toBe(true);
+    expect(CLASS_2.test("candidates.sort(byHeadroomScore)")).toBe(true);
+    expect(CLASS_2.test("const preferHigherCeiling = true;")).toBe(true);
+    expect(CLASS_2.test("const deltaWeights = trades.map(t => t.netCost);")).toBe(true);
   });
 
   it("the substring form closes a miss the boundary form would have shipped", () => {
@@ -168,6 +182,10 @@ describe("F8-E2 containment lint, class 2: no ranking vocabulary in the roll eng
 
   it("negative canary: the roll engine's OWN legitimate vocabulary passes", () => {
     expect(CLASS_2.test("const candidates = legalSteps(input, category);")).toBe(false);
+    expect(CLASS_2.test("const trades = exchangeSteps(input, category, dataset);")).toBe(false);
+    expect(CLASS_2.test("if (netCost <= 0) continue;")).toBe(false);
+    expect(CLASS_2.test("const ceiling = ceilingSpendFor(input, category, pool);")).toBe(false);
+    expect(CLASS_2.test("exchangeableBadgeIds: rollCreatedIds")).toBe(false);
     expect(CLASS_2.test("const chosen = pickUniform(rng, candidates);")).toBe(false);
     expect(CLASS_2.test("maximal by construction")).toBe(false);
     expect(CLASS_2.test("const bound = rollIterationBound(used, equipSlots);")).toBe(false);
@@ -206,6 +224,22 @@ describe("F8-E2 containment lint, class 2: no ranking vocabulary in the roll eng
     // `Math.max` over steps cannot hide behind the exemption.
     expect(code.match(/Math\.(?:max|min)\s*\([^)]*\)/g) ?? []).toEqual([
       "Math.max(entriesAtStart, equipSlots)",
+    ]);
+  });
+
+  it("the SAME structural containment now holds for the exchange enumerator", () => {
+    // F8-E3. `steps.ts` is where a comparator over trades would actually be
+    // written, so it is held to the same mechanism check — not just the
+    // vocabulary one. The single permitted extremum is the LATTICE CEILING,
+    // pinned by its arguments so a future extremum over candidates cannot hide
+    // behind the exemption.
+    const code = stripComments(srcSources["/src/engine/steps.ts"] as string);
+    expect(code).not.toMatch(/\.sort\s*\(/);
+    expect(code).not.toMatch(/\.reduce\s*\(/);
+    expect(code).not.toMatch(/\.name\b/);
+    expect(code).not.toMatch(/pickUniform/);
+    expect(code.match(/Math\.(?:max|min)\s*\([^)]*\)/g) ?? []).toEqual([
+      "Math.min(pointsPool, ceiling)",
     ]);
   });
 });
