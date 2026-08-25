@@ -1873,3 +1873,450 @@ ul {
     padding: var(--space-1) var(--space-2);
   }
 }
+
+/* --- F5: visual identity — 2K-inspired dark + metallic (design-spec §10) --- */
+/* PRESENTATION ONLY, appended as ONE delimited block (F3 precedent): every
+ * behaviour, state class, copy string and a11y clause above stands. Later
+ * rules at equal specificity supersede the *presentation* of the §3 pip /
+ * chip / card / chrome blocks they name — nothing else.
+ *
+ * Channel-separation rule (§2.7.4, the primary carrier): metals are
+ * ENCLOSED FACES with a bevel and a highlight; semantics (--danger /
+ * --warning / --info) are FLAT — text, glyph, edge, or hatch. If it has a
+ * specular highlight it is a level; if it is flat it is a state. Gold and
+ * --warning are 1.6° apart in hue — this rule plus the mandatory B/S/G/H/L
+ * letters and ⚠/⊘/🔒 glyphs is what keeps them apart, not hue. */
+
+/* ---- level → metal map (F5 data hooks; overlay-invariant by ruling) ---- */
+
+.pip[data-level="bronze"] {
+  --pip-metal-hi: var(--metal-bronze-hi);
+  --pip-metal-lo: var(--metal-bronze-lo);
+  --pip-face: var(--metal-face-bronze);
+}
+
+.pip[data-level="silver"] {
+  --pip-metal-hi: var(--metal-silver-hi);
+  --pip-metal-lo: var(--metal-silver-lo);
+  --pip-face: var(--metal-face-silver);
+}
+
+.pip[data-level="gold"] {
+  --pip-metal-hi: var(--metal-gold-hi);
+  --pip-metal-lo: var(--metal-gold-lo);
+  --pip-face: var(--metal-face-gold);
+}
+
+.pip[data-level="hof"] {
+  --pip-metal-hi: var(--metal-hof-hi);
+  --pip-metal-lo: var(--metal-hof-lo);
+  --pip-face: var(--metal-face-hof);
+}
+
+.pip[data-level="legend"] {
+  --pip-metal-hi: var(--metal-legend-hi);
+  --pip-metal-lo: var(--metal-legend-lo);
+  --pip-face: var(--metal-face-legend);
+}
+
+.badge-card[data-purchased-level="bronze"] {
+  --card-metal: var(--metal-bronze);
+  --card-metal-face: var(--metal-face-bronze);
+}
+
+.badge-card[data-purchased-level="silver"] {
+  --card-metal: var(--metal-silver);
+  --card-metal-face: var(--metal-face-silver);
+}
+
+.badge-card[data-purchased-level="gold"] {
+  --card-metal: var(--metal-gold);
+  --card-metal-face: var(--metal-face-gold);
+}
+
+.badge-card[data-purchased-level="hof"] {
+  --card-metal: var(--metal-hof);
+  --card-metal-face: var(--metal-face-hof);
+}
+
+/* ---- §10.1 the metallic pip ladder ------------------------------------
+ * A locked pip keeps its metal identity: it is UNEARNED, not unknown. The
+ * -lo rim is decorative identity (2.40:1 — decorative-grade), never the
+ * state carrier: state is the 🔒 glyph + --fg-muted letter (6.67:1 on the
+ * inset well) + the — cost line, all AA or exempt. Rank stays legible in
+ * greyscale because it is carried by FILL DENSITY (empty well → rimmed
+ * well → full face → face + ring) before hue. */
+
+.pip--locked .pip__dot {
+  background: var(--bg-inset);
+  box-shadow: var(--bevel-inset);
+  border: 1px solid var(--pip-metal-lo, var(--border-subtle));
+  color: var(--fg-muted);
+  font-size: 8px; /* the TSX 🔒 glyph, demoted to a corner-of-the-eye badge */
+  gap: 1px;
+}
+
+/* The level letter, restored beside the lock from the pip's own data-level
+ * (decorative CSS content inside an aria-hidden span; the accessible name
+ * on the radio is unchanged). */
+.pip--locked .pip__dot::before {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pip--locked[data-level="bronze"] .pip__dot::before {
+  content: "B";
+}
+
+.pip--locked[data-level="silver"] .pip__dot::before {
+  content: "S";
+}
+
+.pip--locked[data-level="gold"] .pip__dot::before {
+  content: "G";
+}
+
+.pip--locked[data-level="hof"] .pip__dot::before {
+  content: "H";
+}
+
+/* Affordable upgrade: an open well rimmed in the metal's BASE tone. */
+.pip--upgrade .pip__dot {
+  background: var(--bg-inset);
+  border: 1px solid var(--pip-color);
+  color: var(--pip-color);
+}
+
+/* Unaffordable upgrade: same well, the rim goes dashed; the --danger delta
+ * + ⚠ (flat, per the channel rule) already ship above. Warned, NEVER
+ * disabled (H4 soft class). */
+.pip--unaffordable .pip__dot {
+  background: var(--bg-inset);
+  border: 1px dashed var(--pip-color);
+  color: var(--pip-color);
+}
+
+/* Owned / current: the struck-metal face — -hi → base gradient under
+ * --bevel-raised (the bevel IS the metal read), -lo rim, dark glyph
+ * (--fg-on-accent ≥ 5.64:1 on every face stop). */
+.pip--owned .pip__dot,
+.pip--current .pip__dot {
+  background: var(--pip-face, var(--pip-color));
+  border: 1px solid var(--pip-metal-lo, transparent);
+  color: var(--fg-on-accent);
+  box-shadow: var(--bevel-raised);
+}
+
+.pip--current .pip__dot {
+  box-shadow: var(--bevel-raised), 0 0 0 2px var(--fg-primary);
+}
+
+/* §10.4 stale purchase is TARNISHED metal: flat -lo, no gradient, no
+ * highlight — the loss of the specular highlight is the universal "this is
+ * a level" signal being withdrawn, and it survives greyscale and the
+ * amber-on-amber collision. Carriers: matte face, --fg-primary letter
+ * (≥6.11:1, verified), the retained --fg-primary ring (the purchase is
+ * real), and the ⚠ stale cost line + disclosure copy shipped above. */
+.pip--stale .pip__dot {
+  background: var(--pip-metal-lo, var(--bg-inset));
+  border: 1px solid var(--pip-metal-lo, var(--border-strong));
+  color: var(--fg-primary);
+  box-shadow: 0 0 0 2px var(--fg-primary);
+}
+
+.pip--stale .pip__cost::after {
+  content: " stale";
+}
+
+/* Boost halos re-asserted AFTER the state rules, so a boosted well keeps
+ * its role ring (hues unchanged — DC-4 passed and is not re-litigated). */
+.pip--halo-fuse .pip__dot {
+  box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--accent);
+}
+
+.pip--halo-reaction .pip__dot {
+  box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--info);
+}
+
+/* Legend: never purchasable — the ◇ outline drops to the -lo rim (unearned
+ * identity, like a locked pip's rim); the L letter and `boost` line are
+ * unchanged and still carry the state. */
+.pip--legend .pip__dot {
+  border-color: var(--pip-metal-lo, var(--lvl-legend));
+}
+
+/* Legend-effective: the full face + the strongest glow in the system.
+ * LAST of the pip rules so it wins over the halo re-assertion. */
+.pip--legend-effective .pip__dot {
+  background: var(--pip-face, var(--lvl-legend));
+  border: 1px solid var(--pip-metal-lo, var(--lvl-legend));
+  border-style: solid;
+  color: var(--fg-on-accent);
+  box-shadow: var(--glow-legend), var(--bevel-raised);
+}
+
+/* ---- §10.2 tier medallions: debossed, achromatic, ranked ---------------
+ * Deliberately NOT metallic — tier A in gold would put two independent
+ * axes into one hue channel (level Gold owns it). Levels are EMBOSSED
+ * metal; tiers are DEBOSSED wells. Rank varies by medallion size and rim
+ * weight; the letter stays --text-xs at all three sizes and rank survives
+ * greyscale and forced-colors (rim weight, never hue). Defaults = tier C. */
+.badge-card .chip--tier {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg-inset);
+  box-shadow: var(--bevel-inset);
+  border: 1px solid var(--border-subtle);
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+
+.badge-card[data-tier="B"] .chip--tier {
+  width: 22px;
+  height: 22px;
+  border-color: var(--border-strong);
+  color: var(--fg-secondary);
+}
+
+.badge-card[data-tier="A"] .chip--tier {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--fg-primary);
+  color: var(--fg-primary);
+  font-weight: 600;
+}
+
+/* ---- §10.3 card hierarchy ---------------------------------------------
+ * Top edge = PURCHASE level (overlay-invariant by construction — the H2
+ * guardrail: never effectiveLevel). Left edge = synergy role. Two
+ * orthogonal encodings on two different edges. */
+.badge-card {
+  position: relative;
+}
+
+.badge-card__name {
+  font-size: var(--text-base);
+}
+
+.badge-card__status {
+  font-weight: 600;
+}
+
+/* Purchased lift: quiet but unmistakable. Blocked cards are excluded —
+ * they keep rev 2's de-opacified recipe EXACTLY (canvas fill, subtle
+ * border, declared text tokens, opacity on the pip row only). */
+.badge-card[data-purchased-level]:not(.badge-card--blocked) {
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-raised);
+}
+
+.badge-card[data-purchased-level]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--card-metal-face);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+/* The blocker scans as the blocker: ⊘ for height-blocked, 🔒 for the
+ * next-locked requirement line. Alternative text is empty — decorative
+ * reinforcement of strings that already say Blocked/needs. The stale
+ * disclosure line keeps its own copy untouched (§10.4). */
+.badge-card--blocked .badge-card__eligibility::before {
+  content: "⊘ " / "";
+}
+
+.badge-card:not(.badge-card--blocked)
+  .badge-card__eligibility:not(.badge-card__eligibility--stale)::before {
+  content: "🔒 " / "";
+}
+
+/* ---- §10.4 boosted-badge glows (static; hues unchanged) ---------------- */
+
+.badge-card--fuse {
+  box-shadow: var(--glow-fuse), var(--shadow-raised);
+}
+
+.badge-card--reaction {
+  box-shadow: var(--glow-reaction), var(--shadow-raised);
+}
+
+/* ---- §10.5 chrome: gold is identity, blue is interaction ---------------
+ * Gold does the app's voice. Blue does your current interaction. Neither
+ * does state (--danger/--warning/--success/--info all unchanged; ledger
+ * numerals stay --fg-primary/--danger — §2.7.4's forbidden list). */
+
+.app-header {
+  position: relative;
+}
+
+.app-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--rule-gold);
+}
+
+.app-header__title {
+  color: var(--metal-gold);
+}
+
+/* Primary Button: rev 2's D2 substance (dark-on-fill) preserved and
+ * strictly better served — the gold face raises the label pairing from
+ * 5.81:1 to 9.72:1. Focus stays the blue --ring-focus (interaction). */
+.btn--primary {
+  background: var(--metal-face-gold);
+  color: var(--fg-on-accent);
+  box-shadow: var(--bevel-raised);
+}
+
+.section > summary {
+  position: relative;
+}
+
+.section > summary::after {
+  content: "";
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: 0;
+  height: 1px;
+  background: var(--rule-gold);
+}
+
+/* Sticky category digest: gold hairline + lift. A hairline is 1px — the
+ * rev-2 §5.3 sticky budget (≤88px) is unchanged. */
+.category-ledger {
+  box-shadow: var(--shadow-raised);
+}
+
+.category-ledger::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--rule-gold);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+/* The L-rail ledger overview reads as an instrument well. */
+.ledger-overview {
+  background: var(--bg-inset);
+  box-shadow: var(--bevel-inset);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+/* Synergy Slot permanence rims — decorative identity only (the
+ * Temporary/Permanent chips remain the carriers): gold-lo for Permanent
+ * (5–8), silver-lo for Temporary (1–4). Locked and season-reset rows keep
+ * their existing recipe. */
+.synergy-row[data-permanence="permanent"] {
+  border-color: var(--metal-gold-lo);
+}
+
+.synergy-row[data-permanence="temporary"] {
+  border-color: var(--metal-silver-lo);
+}
+
+/* The +2 designator banner reads as chrome, not a floating slab. Warning
+ * semantics unchanged. */
+.synergy-panel > .banner--warning {
+  box-shadow: var(--bevel-inset);
+  border-radius: var(--radius-sm);
+}
+
+/* ---- §10.6 forced-colors: REQUIRED companion block ---------------------
+ * Gradients, glows and shadows are discarded by the engine; every state
+ * must survive on its letter, glyph, rim weight and text — which the
+ * §2.7.4 carriers guarantee. Faces reset to Canvas/CanvasText with 1px
+ * CanvasText rims; the current pip keeps a heavier rim. */
+@media (forced-colors: active) {
+  .pip__dot,
+  .pip--locked .pip__dot,
+  .pip--upgrade .pip__dot,
+  .pip--unaffordable .pip__dot,
+  .pip--owned .pip__dot,
+  .pip--current .pip__dot,
+  .pip--stale .pip__dot,
+  .pip--legend .pip__dot,
+  .pip--legend-effective .pip__dot {
+    background: Canvas;
+    color: CanvasText;
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+
+  .pip--current .pip__dot,
+  .pip--stale .pip__dot {
+    border-width: 2px;
+  }
+
+  .pip--unaffordable .pip__dot,
+  .pip--legend .pip__dot {
+    border-style: dashed;
+  }
+
+  .badge-card .chip--tier {
+    background: Canvas;
+    color: CanvasText;
+    border-color: CanvasText;
+    box-shadow: none;
+  }
+
+  .btn--primary {
+    background: ButtonFace;
+    color: ButtonText;
+    box-shadow: none;
+  }
+
+  .badge-card[data-purchased-level]:not(.badge-card--blocked),
+  .badge-card--fuse,
+  .badge-card--reaction {
+    box-shadow: none;
+  }
+
+  .badge-card[data-purchased-level]::before,
+  .app-header::after,
+  .section > summary::after,
+  .category-ledger::before {
+    background: CanvasText;
+  }
+}
+
+/* ---- §10.6 prefers-contrast: faces collapse to their flat base tone ---- */
+@media (prefers-contrast: more) {
+  .pip--owned .pip__dot,
+  .pip--legend-effective .pip__dot {
+    background: var(--pip-color, var(--lvl-legend));
+    box-shadow: none;
+  }
+
+  .pip--current .pip__dot {
+    background: var(--pip-color);
+    box-shadow: 0 0 0 2px var(--fg-primary);
+  }
+
+  .btn--primary {
+    background: var(--metal-gold);
+    box-shadow: none;
+  }
+
+  .badge-card[data-purchased-level]::before {
+    background: var(--card-metal);
+  }
+}

@@ -37,6 +37,90 @@
   --lvl-hof: #a371f7;
   --lvl-legend: #f778ba;
 
+  /* ---- Metallic identity layer (§2.7, added rev 4 — F5) --------------
+   * ADDITIVE ONLY. Not one token above this comment changes value, so F5
+   * cannot move H4 (overspend), H2 (preview), or focus semantics.
+   *
+   * Base tones are ALIASES of the §2.1 level colors — a metal can never
+   * drift from its level color. Only -hi (highlight) and -lo (shade) are
+   * new values. Ratios re-verified in docs/proof/f5-contrast.txt; the
+   * method was calibrated by reproducing §2.1's bronze 6.65:1 exactly
+   * before any new value was derived (invariant I1). ---- */
+  --metal-bronze: var(--lvl-bronze);
+  --metal-bronze-hi: #e9a868;
+  --metal-bronze-lo: #7a4a22;
+  --metal-silver: var(--lvl-silver);
+  --metal-silver-hi: #eef3f7;
+  --metal-silver-lo: #4a535c;
+  --metal-gold: var(--lvl-gold);
+  --metal-gold-hi: #f7dc8a;
+  --metal-gold-lo: #6e5312;
+  --metal-hof: var(--lvl-hof);
+  --metal-hof-hi: #c9a9ff;
+  --metal-hof-lo: #4c2e86;
+  --metal-legend: var(--lvl-legend);
+  --metal-legend-hi: #ffb3d9;
+  --metal-legend-lo: #8c2f5e;
+
+  /* §2.1 rev-2's foreground-on-fill token, materialized with the layer that
+   * consumes it by name: the ONLY foreground permitted on a saturated fill.
+   * Exactly --bg-canvas, so every token's published canvas ratio IS its
+   * dark-text-on-fill ratio. */
+  --fg-on-accent: var(--bg-canvas);
+
+  /* THE load-bearing rule (§2.7.2): a metal FACE runs -hi → base and stops.
+   * -lo is rims and tarnish; it never appears under a glyph. Had a face run
+   * hi → base → lo, dark text over the -lo corner would measure 1.84–2.62:1
+   * — the exact defect class rev 2 §6 exists to prevent, arriving by a new
+   * route. Every stop below is >= base, so the worst text pairing on any
+   * face is the base pairing: 5.64:1 (dark on HOF). */
+  --metal-face-bronze: linear-gradient(
+    160deg,
+    var(--metal-bronze-hi) 0%,
+    var(--metal-bronze) 55%,
+    var(--metal-bronze) 100%
+  );
+  --metal-face-silver: linear-gradient(
+    160deg,
+    var(--metal-silver-hi) 0%,
+    var(--metal-silver) 55%,
+    var(--metal-silver) 100%
+  );
+  --metal-face-gold: linear-gradient(
+    160deg,
+    var(--metal-gold-hi) 0%,
+    var(--metal-gold) 55%,
+    var(--metal-gold) 100%
+  );
+  --metal-face-hof: linear-gradient(
+    160deg,
+    var(--metal-hof-hi) 0%,
+    var(--metal-hof) 55%,
+    var(--metal-hof) 100%
+  );
+  --metal-face-legend: linear-gradient(
+    160deg,
+    var(--metal-legend-hi) 0%,
+    var(--metal-legend) 55%,
+    var(--metal-legend) 100%
+  );
+
+  /* Glow / bevel / chrome (§2.7.3). Glows are STATIC by rule: no pulse, no
+   * shimmer — §2.6 says no animation carries information, and a glow is a
+   * decorative reinforcement of a state that text already carries.
+   * --bevel-raised is THE metal read (levels are embossed);
+   * --bevel-inset is the tier read (tiers are debossed). */
+  --glow-fuse: 0 0 0 1px rgba(76, 141, 246, 0.35), 0 0 16px -4px rgba(76, 141, 246, 0.55);
+  --glow-reaction: 0 0 0 1px rgba(88, 166, 255, 0.28), 0 0 14px -5px rgba(88, 166, 255, 0.45);
+  --glow-legend: 0 0 0 1px rgba(247, 120, 186, 0.4), 0 0 20px -4px rgba(247, 120, 186, 0.6);
+  --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  --bevel-inset: inset 0 1px 2px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.06);
+  --rule-gold: linear-gradient(90deg, rgba(227, 179, 65, 0.55) 0%, rgba(227, 179, 65, 0.06) 100%);
+  /* The no-op shadow: lets a state slot into the shared box-shadow list
+   * without a specificity fight (see .pip__dot). */
+  --shadow-none: 0 0 rgba(0, 0, 0, 0);
+
   /* ---- Typography (§2.2) — system stack only, zero network egress ---- */
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;

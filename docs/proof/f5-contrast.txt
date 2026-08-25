@@ -1,0 +1,41 @@
+F5 contrast re-verification — design-spec §2.7 metallic layer (rev 4)
+Computed 2026-08-25T14:58:26.940Z
+
+== Method calibration (invariant I1): reproduce §2.1's published figures first ==
+PASS  --lvl-bronze vs canvas (the §2.7.1 calibration row): 6.65:1 (requires 4.5:1; spec claimed 6.65:1)
+
+== §2.7.1 -hi stops: --fg-on-accent on each highlight ==
+PASS  dark text on --metal-bronze-hi: 9.25:1 (requires 4.5:1; spec claimed 9.25:1)
+PASS  dark text on --metal-silver-hi: 16.94:1 (requires 4.5:1; spec claimed 16.94:1)
+PASS  dark text on --metal-gold-hi: 14.02:1 (requires 4.5:1; spec claimed 14.02:1)
+PASS  dark text on --metal-hof-hi: 9.55:1 (requires 4.5:1; spec claimed 9.56:1)
+PASS  dark text on --metal-legend-hi: 11.45:1 (requires 4.5:1; spec claimed 11.45:1)
+
+== §2.7.1 base stops (aliases of --lvl-*): --fg-on-accent on each face's darkest stop ==
+PASS  dark text on --metal-bronze (base): 6.65:1 (requires 4.5:1; spec claimed 6.65:1)
+PASS  dark text on --metal-silver (base): 12.26:1 (requires 4.5:1; spec claimed 12.26:1)
+PASS  dark text on --metal-gold (base): 9.72:1 (requires 4.5:1; spec claimed 9.72:1)
+PASS  dark text on --metal-hof (base) — THE WORST PAIRING IN THE LAYER: 5.64:1 (requires 4.5:1; spec claimed 5.64:1)
+PASS  dark text on --metal-legend (base): 7.53:1 (requires 4.5:1; spec claimed 7.52:1)
+
+== §2.7.1 -lo stops: --fg-primary tarnish pairings (§10.4 stale purchase) ==
+PASS  --fg-primary on --metal-bronze-lo: 6.28:1 (requires 4.5:1; spec claimed 6.28:1)
+PASS  --fg-primary on --metal-silver-lo: 6.62:1 (requires 4.5:1; spec claimed 6.62:1)
+PASS  --fg-primary on --metal-gold-lo: 6.11:1 (requires 4.5:1; spec claimed 6.11:1)
+PASS  --fg-primary on --metal-hof-lo: 8.70:1 (requires 4.5:1; spec claimed 8.70:1)
+PASS  --fg-primary on --metal-legend-lo: 6.62:1 (requires 4.5:1; spec claimed 6.63:1)
+
+== §10.1 locked-pip glyph: --fg-muted on the --bg-inset well ==
+PASS  --fg-muted on --bg-inset: 6.68:1 (requires 4.5:1; spec claimed 6.67:1)
+
+== Rule check (§2.7.2): -lo NEVER sits under a glyph except the verified tarnish pairing. ==
+== The face is a -hi -> base gradient only; every stop >= base, so the face's worst ==
+== text pairing IS the base pairing (5.64:1 on HOF). Enforced in CSS by construction: ==
+== --metal-face-* gradients contain only -hi and base stops (src/styles/tokens.css). ==
+
+ALL CHECKS PASS
+
+One pairing is additionally pinned in the suite (tests/ui/f2-source-pins.test.ts,
+F5 describe): the worst pairing, resolved from the SHIPPED tokens.css through the
+alias hop, calibrated against the bronze 6.65:1 figure. It failed before the
+token layer landed and passes after.

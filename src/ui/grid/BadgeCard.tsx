@@ -215,6 +215,12 @@ export function LevelPipRow({
           <label
             key={level}
             className={`pip pip--${model.state}${halo}`}
+            // F5 presentation hooks (design-spec §10.7, ruled in): fields the
+            // component already renders, exposed as attributes so CSS can see
+            // them. Both are overlay-INVARIANT (level is static; model.state
+            // derives from purchase/eligibility/affordability, never overlay).
+            data-level={level}
+            data-state={model.state}
             style={{ "--pip-color": LEVEL_COLOR_TOKENS[level] } as React.CSSProperties}
           >
             <input
@@ -243,6 +249,9 @@ export function LevelPipRow({
       })}
       <span
         className={`pip pip--legend${legendEffective ? " pip--legend-effective" : ""}`}
+        // F5: static level identity only — the effective state stays on the
+        // EXISTING class; no new hook keys to an overlay-derived value.
+        data-level="legend"
         role="img"
         aria-label={
           legendEffective
@@ -329,6 +338,14 @@ export function BadgeCard(props: BadgeCardProps) {
   return (
     <div
       className={`badge-card${heightBlocked ? " badge-card--blocked" : ""}${roleClass}`}
+      // F5 presentation hooks (design-spec §10.7, ruled in). H2 guardrail:
+      // every value here is overlay-INVARIANT — data-purchased-level keys to
+      // purchasedLevel (NEVER effectiveLevel), data-tier is static dataset
+      // data, data-stale derives from build attributes. None of these nodes
+      // is ledger/summary/feasibility DOM.
+      data-purchased-level={purchased ?? undefined}
+      data-tier={badge.tier}
+      data-stale={stalePurchase ? "true" : undefined}
       onClick={heightBlocked ? undefined : () => {
         onCycle(badge.id);
       }}

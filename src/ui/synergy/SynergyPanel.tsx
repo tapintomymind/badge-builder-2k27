@@ -180,6 +180,10 @@ export function SynergySlotRow({
       className={`synergy-row${
         !synergySlot.unlocked || previewDisabled ? " synergy-row--dimmed" : ""
       }`}
+      // F5 presentation hook (design-spec §10.5 permanence rim): a field the
+      // row already renders (the Temporary/Permanent chip), exposed for CSS.
+      // Static per Synergy Slot — never overlay-derived.
+      data-permanence={synergySlot.permanence}
     >
       <legend className="synergy-row__legend">Synergy Slot {synergySlot.id}</legend>
       <div className="synergy-row__header">

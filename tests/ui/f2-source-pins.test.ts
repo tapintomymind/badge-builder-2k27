@@ -105,3 +105,44 @@ describe("F — canonical preview predicate adopted (no hand-negation)", () => {
     ).toBe(true);
   });
 });
+
+describe("F5 — §2.7 metallic layer: the worst token pairing holds AA", () => {
+  const tokens = read("src/styles/tokens.css");
+
+  /** Resolve a token to its hex, following one `var(--alias)` hop (the §2.7
+   * base metals are ALIASES of the §2.1 level tones by design). */
+  function resolveHex(name: string): string {
+    const match = new RegExp(`${name}:\\s*([^;]+);`).exec(tokens);
+    if (match === null) throw new Error(`token not declared: ${name}`);
+    const value = match[1]!.trim();
+    const alias = /^var\((--[\w-]+)\)$/.exec(value);
+    if (alias !== null) return resolveHex(alias[1]!);
+    if (!/^#[0-9a-fA-F]{6}$/.test(value)) throw new Error(`not a hex: ${name} = ${value}`);
+    return value;
+  }
+
+  /** WCAG 2.1 relative-luminance contrast ratio. */
+  function ratio(hexA: string, hexB: string): number {
+    const luminance = (hex: string): number => {
+      const channel = (offset: number): number => {
+        const srgb = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+        return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+    };
+    const [lighter, darker] = [luminance(hexA), luminance(hexB)].sort((a, b) => b - a);
+    return ((lighter as number) + 0.05) / ((darker as number) + 0.05);
+  }
+
+  it("the layer's worst pairing — --fg-on-accent on --metal-hof base — is ≥ 4.5:1 (spec: 5.64:1)", () => {
+    // Method calibration (design-spec §2.7.1 / invariant I1): the same
+    // arithmetic must reproduce §2.1's published bronze figure first.
+    expect(ratio(resolveHex("--lvl-bronze"), resolveHex("--bg-canvas"))).toBeCloseTo(6.65, 1);
+    // The single worst pairing in the §2.7 layer: dark text on the HOF base
+    // face. Every other face stop is ≥ this base tone (faces are hi → base
+    // only; -lo never sits under a glyph — §2.7.2's load-bearing rule).
+    const worst = ratio(resolveHex("--fg-on-accent"), resolveHex("--metal-hof"));
+    expect(worst).toBeGreaterThanOrEqual(4.5);
+    expect(worst).toBeCloseTo(5.64, 1);
+  });
+});
