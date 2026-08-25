@@ -1797,3 +1797,136 @@ docs/proof/f7-contrast.txt was calibrated against the current six, so it must
 be re-derived for the two that move. User's live acceptance pass on the palette
 is still the real DoD.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+F7.1 — Physicals takes gold, Playmaking returns to orange   [slice complete]
+2026-08-25 · branch dev · commit 6fd0db1 · design-spec §12.12
+
+WHAT SHIPPED
+The two user-directed hue substitutions the previous entry named as NEXT.
+
+  --cat-playmaking   #c9ab19  →  #f58236   (gold → orange)
+  --cat-physicals    #a582ec  →  #beb448   (violet → gold/brass)
+
+Two literals in src/styles/tokens.css and nothing else in that file. The
+channel rule, the selectors, the four consuming surfaces, the --cat
+inheritance mechanism, the §10.6 forced-colors companion and the single TSX
+line are untouched — verified by diff (the file's only delta is two lines).
+
+AUTHORITY
+User-directed override of PR #2, not a Designer re-derivation. Provenance is
+the user's own NBA 2K HQ build-sheet screenshot, which colour-codes Physicals
+gold/tan and Playmaking orange. Physicals takes gold, so Playmaking vacates it.
+
+PROOF FILE — REGENERATED, NOT HAND-EDITED
+docs/proof/f7-contrast.txt was rebuilt by a generator that reads the shipped
+tokens.css, so no figure in it is typed. The generator was calibrated first:
+it reproduced all four method-calibration figures (bronze 6.65, --danger 5.65,
+--warning 7.50, --border-strong vs surface 3.77) AND every pre-substitution
+value in the old file exactly — all six rows, both nearest-token ΔE columns,
+the 5.69–8.40 spread, the ΔE floor 32.9 with binding pair Finishing↔Physicals,
+and all three CVD lines — before a single value was substituted.
+
+  floor line now reads:  mutual worst: Playmaking vs Defense ΔE 38.8
+  range line now reads:  contrast spread: 5.69 – 8.84 on --bg-canvas
+
+The four calibration figures do not move under the substitution, which is the
+check that says no token outside the two was touched.
+
+Nine of the fifteen ΔE pairs changed; the six not touching Playmaking or
+Physicals (F↔S, F↔D, F↔R, S↔D, S↔R, D↔R) are unchanged.
+
+NEW COLUMNS. §2.8.1 puts a category hue on TYPE (the digest title), so the
+canvas-only file was under-covering. Added --bg-surface, --bg-raised and
+--danger-quiet, which makes all THIRTY pairings explicit. All thirty clear the
+4.5:1 AA text bar. Worst text pairing anywhere: Defense on --danger-quiet at
+4.79:1, margin 1.06×.
+
+FINDING — recorded, not smoothed over
+The tritan worst pair moves 1.4 → 0.5 (Playmaking↔Defense → Defense↔Physicals).
+design-spec §12.12.7 checked only the red-green axis, so this movement is not
+in the spec and is a genuine regression on a third axis. It does not change the
+conclusion and is written into the proof file rather than omitted: 1.4 and 0.5
+are both far below the ~2.3 JND, so the palette's tightest tritan pair was
+already indistinguishable and is merely a different indistinguishable pair now.
+No pair crosses from separable to inseparable (Defense↔Rebounding is 2.4 before
+and after), and §6's structural mitigation — every consuming surface renders
+the category NAME as text — is unchanged. Protan improves 5.0 → 13.4 and
+deutan is unchanged at 6.4, so two of three axes hold or improve.
+
+TESTS — four of the six named assertion classes did not exist
+The brief expected to EDIT pinned figures, a range max, a ΔE floor constant and
+a binding-pair name. The shipped twelve assertions are AA-bar + channel/selector
++ calibration only: no hex literals, no pinned figures, no range max, no ΔE
+floor, no binding pair, and no hue-gap assertion to remove. §12.12.9 ③
+anticipated this ("if PR #2's twelve are AA + ΔE only, this row is moot"), but
+the ΔE guard §12.12.5 reason 3 assumes exists does not, and the substitution is
+what makes ΔE load-bearing. So the directed values were LANDED as new guards
+rather than edited:
+
+  + pins both substituted hex literals and their canvas figures (7.33 / 8.84)
+  + pins the range: min 5.69 unchanged, max 8.40 → 8.84
+  + DELTA_E_FLOOR = 38.8, with 32.9 recorded in the doc comment as the
+    pre-substitution floor so a regression reads as a deliberate edit
+  + asserts the binding pair NAME separately (playmaking/defense), because
+    that is the half most likely to be left stale when only the number moves
+
+NO hue-gap assertion was added and none was removed (none existed). §12.12.5
+retires the metric: Playmaking↔Defense is 27.9° of hue at ΔE 38.8 while the old
+worst pair was 49.8° of hue at only ΔE 32.9 — degrees mis-rank provably here.
+tests/category-accents.test.ts was NOT created.
+
+The two new ΔE assertions provably discriminate: on the pre-substitution
+palette the generator measures the floor at 32.9 bound by Finishing↔Physicals,
+so both would fail on a revert.
+
+EVIDENCE
+npm test            694 passed / 694, 46 files, 0 failed  (691 baseline + 3
+                    added; no other assertion moved, no flake this run)
+npm run typecheck   exit 0
+npm run build       exit 0 — 65 modules, dist 276.19 kB / 83.96 kB gzip
+tests/category-colors.test.ts   15 passed / 15, run explicitly
+tests/vocabulary.test.ts + tests/layout-arithmetic.test.ts   77 passed / 77
+                    (layout arithmetic green — a colour substitution moves no
+                    layout arithmetic, per §12.12.9 ⑥)
+Runtime dependencies still exactly {react, react-dom}.
+
+BROWSER CONFIRMATION — http://localhost:5173 at 1440px, existing dev server
+Computed --cat-* tokens and the resolved --cat on all six live sections match
+the shipped hex exactly. Digest titles paint: Playmaking rgb(245,130,54)
+= #f58236, Physicals rgb(190,180,72) = #beb448.
+Visually: the PLAYMAKING attribute legend and its Pass Accuracy / Ball Handle /
+Speed With Ball slider fills read orange; the PHYSICALS legend and its Speed /
+Agility / Strength / Vertical fills read gold. Defense stays red, Rebounding
+magenta, Shooting green, Finishing blue.
+Gold-vs-gold check: the gold PHYSICALS digest title (#beb448) was viewed in the
+same frame as the Gold-level pip (#e3b341) on the Brick Wall card beneath it.
+Clearly distinguishable, and by the carrier split §12.4.1 derived rather than by
+luminance — a flat unenclosed letter-spaced word at heading weight against a
+small ringed disc enclosing the letter "G", plus the chroma drop. ΔE 17.8, which
+is 45% further apart than the ΔE-12.3 gold PR #2 already paints on that surface.
+
+KNOWN NOT-OURS
+The load-dependent vitest flake class (5s default timeouts under full-suite
+parallelism) did not fire this run. F2.2's { timeout: 20000 } values were not
+touched.
+
+FLAGGED FOR A DECISION — not actioned, outside the two-literal boundary
+src/styles/tokens.css lines 145–146 carry a DERIVATION comment that is now
+stale: "Range is 5.69:1–8.40:1 on --bg-canvas" and "Mutual separation is
+ΔE >= 32.9". Both figures moved (8.84 and 38.8). The brief scoped this file to
+two literals and named the comment block's channel rule as must-not-touch, so
+this was left alone and reported instead of improvised. It is a two-line
+follow-up and it is exactly the stale-number class this slice was written to
+avoid, so it should not sit long.
+
+SCOPE / PLAN IMPACT
+None. §12.12 is the binding record and is fully implemented.
+
+NEXT
+User's live acceptance pass on the palette is still the real DoD. §12.12.6's
+three merge conditions are already satisfied by PR #2 as shipped and were
+re-confirmed here: --danger does not override --cat on the digest title, --cat
+does not propagate past the title, and the title's --bg-surface and
+--danger-quiet pairings are now in the proof file.
+─────────────────────────────────────────────
