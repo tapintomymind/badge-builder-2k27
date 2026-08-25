@@ -3421,3 +3421,154 @@ NEXT
   · Merge is Tier 1's, in the order F4 -> F5.3. Merge-conflict forecast against
     `f8-engine` and the queued F5.4 attribute-pane slice is in the dispatch report.
 ─────────────────────────────────────────────
+
+═════════════════════════════════════════════
+F5.3 — card internals re-cut · collapsible categories · Reset build · integration into dev · integration-complete
+Agent: Tier-2 integrator · 2026-08-25
+Source branch: f5-3-card-collapse-reset (tip b1a267f) · base origin/f4-official-data @ 2999a6c
+Integration commits: f30f211 + 9f888ab + 99553d1 + 23d3d5f
+Branch dev · main untouched (444d034)
+─────────────────────────────────────────────
+
+WHAT LANDED
+All three deliverables, unchanged in behaviour from the branch. A+B: even card
+heights (`li { display: grid }` — the measured root cause was cards not filling
+their grid cells, 23–24px of dead space per cell, now 0.00px across 109
+card-rows at 390/768/1280/1357/1440); content-sized pips (spread 32.8 → 18px,
+26 at S under the frozen 44px touch floor); F4's NEW chip relocated to
+`.badge-card__meta` so all 53 title rows stay one line; collapsible categories
+via `<details>` with the ledger digest as `<summary>` (sticky intact, `#cat-*`
+never moved, every ledger number including the `--danger` overspend retained
+when collapsed). C: the `Reset build` control — clears the player (attributes,
+height, position, loadout, synergy assignments) while leaving budgets, unlocks,
+the +2 designation, ui-state and named-builds byte-unchanged. Plus two
+ride-along drift fixes: `.chip--accent` had NO CSS rule at all so the Fuse chip
+was invisible (now `1px solid rgb(76,141,246)`, 4.97:1 on `--bg-raised`), and
+`.btn:disabled` 0.45 → 0.6.
+
+INTEGRATION MECHANISM — cherry-pick, not a merge commit
+This history is strictly linear (zero merge commits across the whole log; the
+three entries above record a cherry-pick and two rebases for the same reason).
+A rebase of the branch would have replayed its two F4 commits, which are
+already on dev as 7289386 + fbcf49d, so the four branch-unique commits were
+CHERRY-PICKED instead, onto a THROWAWAY branch (f53-integrate) created from
+dev. f5-3-card-collapse-reset was never rebased, amended or force-pushed and
+still points at b1a267f — the /tmp/bb-f53 worktree stays valid. dev then
+fast-forwarded onto the result and the throwaway branch was deleted.
+Merge-commit count: 0 before, 0 after.
+
+b1a267f (docs/proof/f53-merge-forecast.txt) RIDES ALONG rather than being
+dropped, by the same reasoning de1f734 did for F8: it is the paper trail for
+this merge and belongs with it.
+
+CONFLICTS — two, where the forecast predicted five
+The forecast measured its five against a `git merge origin/dev` into the
+branch. Cherry-picking replays each commit against ITS OWN parent, which
+dissolved three of them outright: src/ui/grid/BadgeCard.tsx (forecast #2, "take
+ours" — the re-cut IS the deliverable) and src/styles/app.css (#3, the EOF
+append) both auto-merged, and tests/ledger.test.ts (#4, "take theirs") never
+entered the picture because no F5.3 commit touches that file. The two that
+remained:
+
+  src/App.tsx — forecast #1, the CategoryLedger import group. Resolved exactly
+    as forecast: took the two new component names (CategoryLedgerDigest,
+    CategoryLedgerLede) and DROPPED badgeSlotsCapacityUnset from that import —
+    dev already imports it from "./engine/ledger" (F8-E1) at line 36. The
+    categoryFeasibility call site (App.tsx:958) is dev's post-hoist
+    five-argument form (ledgerState, build, category, remaining, dataset) and
+    F5.3 does not touch it. tests/ui/category-ledger.test.tsx was checked for
+    the same stale import and is clean — it imports only the two components.
+
+  .claude/reportback.md — append-only, as forecast, and the FIFTH integration
+    to touch it. Resolved so all entries survive in chronological order:
+    …test-harness → F4.1 slice → F4.1 integration → F8-E1 → F8-E2 → F8
+    integration → F5.3 slice. Ordered by authored time, which puts F5.3's slice
+    entry LAST (ec1f31a 16:31 > 70f90bf 16:24), not at the seam where it was
+    written. The branch's copy had run "in the dispatch report." and the
+    closing rule together on one line, an artifact of appending to a file with
+    no trailing newline; dev's clean two-line form was kept and the branch's
+    concatenated duplicate dropped. Arithmetic reconciles exactly: dev 3157 +
+    branch-unique 266 = 3423, and the merged file is 3423 lines.
+
+THE ONE REAL COLLISION — assertion 19b vs F8-E1's hoist, resolved by following
+the symbol
+F8-E1 hoisted badgeSlotsCapacityUnset OUT of src/ui/grid/CategoryLedger.tsx
+into src/engine/ledger.ts and PINS ITS ABSENCE from the component; F5.3's
+assertion 19b in tests/layout-arithmetic.test.ts pinned its PRESENCE there.
+Directly contradictory — one had to go red. F8-E1 is right (a function that
+knows what a capacity number means is a rule, and the engine cannot import from
+src/ui/); 19b was right about its own tree and went stale under it.
+
+The author's validated amendment was applied, verbatim, INSIDE the cherry-pick
+of f30f211 — the commit that introduces 19b — so no intermediate commit on the
+integration branch is ever red, and the amendment is impossible to apply to the
+branch alone (src/engine/ledger.ts does not carry the symbol there). The check
+FOLLOWS THE SYMBOL rather than being deleted, because the property 19b exists
+to protect — exactly one definition, and every surface still reaches it — is
+still worth pinning after the hoist. It now asserts the export in
+src/engine/ledger.ts, its ABSENCE from CategoryLedger.tsx, that CategoryLedger
+imports `from "../../engine/ledger"`, and that SummaryPanel still reaches it.
+All four preconditions were verified against the merged tree before the commit
+was closed.
+
+COUNTS — predicted before measuring, and the prediction held
+  base f4-official-data @ 2999a6c   52 files /  856   (author's measured base)
+  branch tip f5-3                   53 files /  914   → F5.3 delta +58
+                                                        (+29 f30f211, +29 9f888ab)
+  dev @ 70f90bf, re-measured here   59 files / 1038   → harness + F8-E1 + F8-E2
+                                                        contribute +182 / +7 files
+  the two deltas are file-disjoint; the 19b amendment edits an existing it()
+  in place and is count-neutral
+  EXPECTED  1038 + 58 = 1096 / 60 files
+  ACTUAL    1096 passed / 60 files, 13.80s.  No gap.
+
+GATES
+  npm test                          60 files / 1096 passed
+  npm run typecheck                 clean
+  npm run build                     clean — tsc + vite, 67 modules, lightningcss
+                                    emitted dist/assets/index-C8Ets28a.css
+                                    38.40 kB. Run deliberately and NOT skipped:
+                                    the author's note that a CSS comment
+                                    containing `--space-*/` closes early and
+                                    breaks lightningcss while the suite stays
+                                    green makes the build the only gate for
+                                    that class.
+  runtime dependencies              exactly {react, react-dom}; package.json
+                                    and the lockfile byte-identical to dev
+  tests/ui/overlays.test.tsx        4/4 — the H2 guardrail, the highest-risk
+                                    regression in this merge since collapse
+                                    rewrites ledger DOM. File not modified by
+                                    the integration.
+  tests/category-colors.test.ts     15/15 — the `--cat` chain survives the
+                                    <details> nesting. File not modified.
+  tests/feasibility-golden.test.ts  4/4 — INV-19, all four including "every
+                                    affordable-upgrade count is unchanged, cell
+                                    for cell". No cell moved; the file is
+                                    byte-identical to dev.
+  tests/architecture.test.ts        181/181.
+
+SCOPE / PLAN IMPACT
+None to scope.md / tech-strategy.md / the H-rulings. Three items ride out of
+this integration UNRESOLVED, all inherited from the slice and none blocking:
+  · NO PROOF PNGs EXIST. The browser pane reported visibilityState: "hidden"
+    for the whole session and every capture came back unpainted, so the author
+    discharged every frame numerically instead. Two visual-only items stay
+    outstanding: the screenshot set, and a focus-ring shot on the trusted
+    interaction.
+  · Three pinned constants in design-spec are OPTIMISTIC — META_MAX 47 vs
+    measured 54.3, NEW_CHIP_MAX 40 vs 46, BADGE_NAME_MIN 92 vs 93.3. Every
+    dependent assertion was re-checked against the measured values and all
+    conclusions hold, but the table's owner should re-pin.
+  · F9 — the app-wide touch-floor pass — is opened by name in the slice entry
+    above, with six reflow surfaces enumerated.
+
+NEXT
+Nothing blocking. dev is at 23d3d5f, pushed. main untouched at 444d034. The
+queued F5.4 attribute-pane slice should read the forecast's closing section
+before it starts: BuildPanel.tsx is a likely conflict (the Reset button sits at
+the foot of .build-panel, and the auto-collapse latch is frozen), and cssBlock
+returns the FIRST matching block and cannot see into a media query — after F5.3
+there are two `.pip {`, two `.pip--legend {`, two `.badge-card__meta {` and four
+`.category-ledger {` blocks, so use blocksFor(...) with a find() on the
+declaring property.
+─────────────────────────────────────────────
