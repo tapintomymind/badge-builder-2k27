@@ -2128,3 +2128,85 @@ NEXT
   surfaced to the user as a named, reversible choice — that has not been done
   and is not an implementer's call.
 ─────────────────────────────────────────────
+
+═════════════════════════════════════════════
+Test-harness label index — integration into dev · integration-complete
+Agent: Tier-2 integrator · 2026-08-25
+Source branch: test-harness-labels (tip 561266f, impl ce2ba63) · base b94d403
+Record: docs/proof/shared-label-index.md (authored on the branch, §7 asked for
+  exactly the re-verification below)
+Integration commits: 59d2c39 + d45f8a8 · Branch dev · main untouched
+─────────────────────────────────────────────
+
+WHAT LANDED
+Test-harness only. Three files, +773: tests/setup-dom.ts, the new
+tests/ui/shared-label-index.test.tsx, docs/proof/shared-label-index.md. No
+src/**, no vite.config.ts, no other test file, no dependency change.
+jsdom's per-element `.labels` walk is replaced by one label→control index built
+once per DOM version, invalidated off jsdom's own document `_version` counter.
+
+INTEGRATION MECHANISM — cherry-pick, not a merge commit
+dev had advanced b94d403 → 9bd851c (F5.2). This history is strictly linear
+(zero merge commits; 6949956 records the prior integration as "rebased onto
+dev"), so the two branch commits were cherry-picked to preserve that. Verified
+equivalent, not merely similar: the resulting tree is bit-identical to a real
+merge tree (`git merge-tree 9bd851c 561266f` → empty diff against HEAD), all
+three files hash-identical to their 561266f blobs, and no fourth file differs
+from 9bd851c. Zero conflicts — the branch's files and F5.2's files do not
+intersect, so .claude/reportback.md never conflicted. test-harness-labels was
+left unmoved so the /tmp/bb-harness worktree is undisturbed.
+
+PASS-SET DIFF — against the real merge base 9bd851c, keyed `file :: full name`
+  baseline entries: 701      after entries: 713
+  missing after: 0           status changed: 0
+  added excluding tests/ui/shared-label-index.test.tsx: 0
+  baseline all passed: true  after all passed: true
+Three baseline runs and three post-merge runs, pass sets byte-identical within
+each set. The known F2.2 flake class did NOT fire once in 12+ full-suite runs.
+
+TIMINGS — interleaved before/after in one loop, 3 rounds, load 5.7–24.3
+Separate-block measurement was discarded: a load spike inflated two post-merge
+isolated runs to 12.3/12.7 s and would have understated the win.
+  full suite wall     39.87 / 38.11 / 35.65 s  →  11.29 / 11.13 / 11.26 s
+  full suite `tests` 168.20 /152.52 /152.14 s  →  52.97 / 53.16 / 53.77 s
+  f2-builds-persist   28.63 / 29.85 / 29.55 s  →   7.37 /  7.05 /  7.23 s
+Spread after: 0.16 s full-suite wall, 0.32 s isolated wall. ~3.4x full-suite
+wall, ~4.0x on the isolated file. The branch's §7 forward-check numbers hold.
+
+GATES — all green on the merged tree
+  npm run typecheck clean · npm run build clean (65 modules, 276.31 kB)
+  runtime dependencies still exactly {react, react-dom}; package.json,
+  package-lock.json and vite.config.ts byte-unchanged vs 9bd851c
+  RUN-never-edit gates: tests/ui/overlays.test.tsx + tests/category-colors.test.ts
+  19/19 pass, both files unmodified vs 9bd851c
+
+TIMEOUTS — deliberately NOT lowered
+No `{ timeout: 20000 }` annotation was changed, added or moved. For the record,
+the headroom they now carry: slowest single test 15 327 ms → 2 598 ms; tests
+over 5 000 ms 4 → 0; over 3 000 ms 17 → 0; over 1 000 ms 44 → 14. The worst
+case went from 4.7 s of headroom to 17.4 s. Removing the annotations is a
+separate change with its own review surface and is not made here.
+
+RESIDUAL RISK — re-verified on the merged tree, still holds, unchanged
+The index returns a frozen snapshot for the current DOM version where native
+`.labels` returns a live NodeList. Re-confirmed empirically after the merge
+(throwaway probe, deleted): the snapshot is a frozen Array carrying length,
+index access, item() (null out of range), iteration, forEach/entries/keys/
+values — and `instanceof NodeList === false`, `Array.isArray === true`.
+A held reference across a mutation stays stale (held.length 1 → 1) while a
+re-read is current (→ 0), exactly as §6 documents.
+Consumer survey re-run against the moved dev, since that was the open question:
+`.labels` appears zero times in src/** and tests/** outside the harness's own
+two files, and zero times in all five files F5.2 touched. In node_modules the
+only DOM readers remain @testing-library/dom (`getRealLabels`, whose one call
+site is `Array.from(getRealLabels(element))`, with no importer outside the
+package) and dom-accessibility-api (null-check then immediate copy). Neither
+branches on Array.isArray. No consumer holds a reference across a mutation.
+Verdict: the risk is real, unchanged by the merge, and still unreachable.
+
+NEXT
+Nothing blocking. The 20 s annotations are the user's call, on the numbers
+above. Fallback if ever needed is still a one-line delete of the
+installSharedLabelIndex() call, which the guard file's install check will
+report loudly.
+─────────────────────────────────────────────
