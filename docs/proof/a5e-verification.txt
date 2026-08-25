@@ -1,0 +1,281 @@
+A5-E — bonus Badge Slots and bonus Badge Points: engine, persistence,
+composition seam. VERIFICATION TRANSCRIPT.
+
+Authority: scope.md §0.1 A5 (A5-R1 … A5-R10) ·
+           features/bonus-badge-slots-and-points/engine-data-design.md
+Branch:    a5-e-bonus-engine, worktree /tmp/bb-a5e
+Base:      dev @ 2e422c2 ("F5.3 card re-cut … integration entry")
+Mode:      constrained (protocols/dispatch-efficiency.md §7)
+
+DEV SERVER: NONE STARTED. The design's §4.3 mitigation is procedural and this
+slice honoured it by running ZERO servers rather than one. All five worktrees
+share a single localStorage origin (vite.config.ts pins strictPort 5173
+precisely so the origin never moves), and pre-A5 code reading a post-A5 file
+silently drops `bonus` on re-save. Every leg of this slice — including the
+persisted-shape legs and the runaway guard — is discharged through jsdom with
+an in-memory Storage stub (tests/ui/storage-stub.ts), so nothing this slice ran
+could reach the user's real store.
+
+═══════════════════════════════════════════════════════════════════════════
+1. BASELINE, CONFIRMED BEFORE THE FIRST EDIT
+═══════════════════════════════════════════════════════════════════════════
+
+  $ git log --oneline -1
+  2e422c2 chore(reportback): F5.3 card re-cut, collapsible categories and
+          Reset build integration entry
+
+  $ npx vitest run
+  Test Files  60 passed (60)
+  Tests       1096 passed (1096)
+
+Matches the dispatch brief's stated base exactly.
+
+═══════════════════════════════════════════════════════════════════════════
+2. THE MANDATED §3.1 READER-INVENTORY RE-RUN
+═══════════════════════════════════════════════════════════════════════════
+
+  $ rg -n "deriveBudget|effectiveBudgets|badgeSlotsCapacityUnset|\
+overByBadgeSlots|\.equipSlots|\.points\b|budgets\[|fromSaved|toEnvelope|\
+zeroBudgets|SavedBuild\b" src/ tests/
+
+Run under the standing charge ("assume there is another reader this table
+still misses"). 159 hits in src/, across 21 files.
+
+EVERY ROW IN §3.2 RECONCILED. Four hits appear that §3.2 does not list; all
+four are TYPE-position consumers of `SavedBuild`, none reads a capacity or a
+pool, and none needed an edit:
+
+  src/engine/eligibility.ts:26,191  recheckEligibility(saved: SavedBuild, …)
+                                    reads saved.loadout + saved.build only.
+  src/engine/errors.ts:38,42,50     three doc/message strings naming the type.
+  src/engine/synergy.ts:224         one comment naming the deserializer.
+  src/ui/shell/DriftBanner.tsx:24,30  props.saved: SavedBuild — reads loadout.
+  src/ui/synergy/SynergyPanel.tsx:316 one comment naming fromSaved.
+
+These are CONSUMERS of the type, not CONSTRUCTORS of it, so the required
+`bonus` field forced no change at any of them. Confirmed by tsc: not one of
+those five files appears in the error set of §4 below.
+
+THE ROW THE DESIGN ITSELF FLAGGED AS ALREADY MOVED, RE-CONFIRMED:
+`badgeSlotsCapacityUnset` has FOUR call sites post-F5.3 (randomize.ts:285,
+summary.ts:240, CategoryLedger.tsx's Digest and Lede), not the pre-F5.3 three.
+Unchanged from the design's re-pin; no further drift found.
+
+NO SIXTH READER FOUND. The charge was run and came back empty — recorded as a
+negative result, not as an absence of effort.
+
+═══════════════════════════════════════════════════════════════════════════
+3. FIRST PROOF — tsc clean on the types-only change
+═══════════════════════════════════════════════════════════════════════════
+
+  $ npx tsc --noEmit
+  (src/ clean; 13 errors, ALL in tests/, all compiler-forced)
+
+═══════════════════════════════════════════════════════════════════════════
+4. THE COMPILER-FORCED TEST DIFFS — THE COMPLETE LIST
+═══════════════════════════════════════════════════════════════════════════
+
+`SavedBuild.bonus` and `SavedBuildContent.bonus` are REQUIRED in TypeScript
+(optional on the wire only), so every literal fails to compile until it adds
+the field — compiler-forced, in the safe direction. Twelve additions across
+seven files, every one of them the identical line `bonus: zeroBonus(),`:
+
+  tests/eligibility.test.ts                 1  (savedWith)
+  tests/serialization.test.ts               1  (makeSaved → createSavedBuild)
+  tests/ui/app.test.tsx                     1  (oldPlan)
+  tests/ui/category-ledger.test.tsx         1  (seedShootingBuild)
+  tests/ui/m4-rig.ts                        1  (makeRig)
+  tests/ui/position-height-clamp.test.tsx   1  (saved)
+  tests/ui/reset-build.test.tsx             4  (seeded ×3, other ×1)
+                                           --
+                                           10 literals
+  + the paired `import { zeroBonus }` line in each of the 7 files.
+
+ONE compiler-forced diff that is NOT a `bonus:` addition, disclosed rather
+than buried:
+
+  tests/randomize.test.ts:367-369 — a NARROWING, not an expectation change.
+
+  `SoftViolation` gained two BUILD-LEVEL members (bonusEquipSlotsOverApplied /
+  bonusPointsOverApplied) which carry no `category`, so `warning.category` is
+  no longer present on every member of the union and the map/`has` pair stops
+  compiling. Resolved by narrowing with `"category" in warning`, which leaves
+  the assertion and its expectation byte-identical. The sweep states in that
+  test carry no bonus layer at all, so neither new kind can fire and the set
+  being compared is the same set it has always been.
+
+  The alternative — giving the two build-level violations a phantom `category`
+  purely to keep the test compiling — was rejected: the design rules them
+  build-level ("one violation per kind, not six") and the payload shape is
+  fixed at { kind, applied, earned, overBy }.
+
+ZERO ASSERTION EXPECTATIONS WERE EDITED. No `toBe`, `toEqual`, `toHaveLength`
+or golden value anywhere in the pre-existing suite changed.
+
+═══════════════════════════════════════════════════════════════════════════
+5. THE TEST-COUNT MOVE, ACCOUNTED FOR EXACTLY
+═══════════════════════════════════════════════════════════════════════════
+
+Before any new test was written, the suite went 1096 → 1101. The +5 are NOT
+edits: they are per-source-file cases auto-generated by the existing
+architecture and vocabulary lints for the new src/engine/budget.ts.
+Enumerated from the JSON reporter rather than assumed:
+
+  architecture: engine purity (a)          /src/engine/budget.ts
+  architecture: zero network egress (c)    /src/engine/budget.ts
+  architecture: no runtime fs access (d)   /src/engine/budget.ts
+  H1 vocabulary lint: bare `slot` banned   /src/engine/budget.ts
+  persistence boundary: localStorage only  /src/engine/budget.ts
+
+That the new engine file is picked up by all five lints unprompted is the
+intended behaviour of those suites, and is itself evidence the file landed in
+the right layer.
+
+Final: 1096 → 1145 (+49) across 60 → 62 files.
+  +5   auto-generated lint cases (above)
+  +22  tests/bonus.test.ts                  (groups 1, 2, 4 + normalizeBonus)
+  +9   tests/serialization.test.ts          (group 3: 3.1–3.8, 3.11)
+  +5   tests/randomize.test.ts              (group 5: 5.1–5.5)
+  +8   tests/ui/a5-bonus-persistence.test.tsx (3.9, 3.10, 6.6)
+
+═══════════════════════════════════════════════════════════════════════════
+6. THE SHIP GATES, EACH VERIFIED TO BITE
+═══════════════════════════════════════════════════════════════════════════
+
+A passing assertion proves nothing unless it can fail. Three of the gates were
+mutation-tested against the shipped code.
+
+--- GATE 1.7 — no invented cap -------------------------------------------
+zeroBonus() is all-zero with exactly the six category keys; the two observed
+figures appear nowhere as a default, cap or placeholder in src/engine/budget.ts
+or src/config/index.ts (asserted against the comment-stripped source, so the
+prose recording the ruling cannot trip its own gate).
+
+  MUTATION: appended `export const PLANTED = 12;` to src/engine/budget.ts
+  RESULT:   FAILED — "/src/engine/budget.ts must not carry a bare 12:
+            expected true to be false"                              ✓ BITES
+  restored; green.
+
+--- GATE 2.2 — the zero-bonus identity gate ------------------------------
+effectiveBudgets(base, zeroBonus()) deep-equals base over all-zero, mixed-zero
+and all-positive spreads. validateLoadout and buildSummary return identical
+results with and without the layer. badgeSlotsBaselineText is byte-unchanged.
+And the whole pre-existing suite is green with zero assertion edits (§4).
+
+--- GATE 3.1 / 3.5 — persistence -----------------------------------------
+3.1  A real pre-A5 envelope (bonus absent) deserializes with ZERO problems and
+     yields bonus === zeroBonus().
+3.5  {earned: 1, Σ applied: 3} → deserialize (no throw) → validateLoadout
+     reports bonusEquipSlotsOverApplied in `warnings`, never `errors` →
+     serialize → deserialize AGAIN (no throw) → and a THIRD time, because an
+     autosave loop is not a one-shot. The F4/A1 chain stops here.
+3.7  Negative / non-finite / wrong-typed values push problems whose shape
+     matches validateBudgets'. `1.5` is ACCEPTED — no integer check, because
+     the shipped sibling has none for `points`.
+
+--- GATE 3.8 — the version machinery did not move ------------------------
+  SAVED_BUILD_SCHEMA_VERSION === 1, MIGRATIONS === {}.
+  Existing test 8.5 RUN, NEVER EDITED — still green, byte-identical.
+  A post-A5 envelope still declares schemaVersion 1, so a stale worktree
+  DEGRADES (drops bonus) rather than quarantining the whole store.
+
+--- GATE 5.1 — THE PAYOFF, the acceptance test for the amendment ---------
+Shooting at full base capacity (2 owned, 2 base Badge Slots, deep pool), one
+fixed seed, both legs.
+
+  zero bonus:  outcome not declined · equipSlotCapacity 2 ·
+               newBadgesBlockedByBadgeSlots TRUE ·
+               requiresNewBadgeSlot steps applied: 0
+  +1 applied:  outcome "rolled" · equipSlotCapacity 3 ·
+               requiresNewBadgeSlot steps applied: EXACTLY 1 ·
+               equipSlotsUsed 3 (= without + 1) ·
+               newBadgesBlockedByBadgeSlots TRUE again (the cap re-closes)
+
+  MUTATION: neutered the composition so effective ignored the applied bonus
+  RESULT:   FAILED — "expected 2 to be 3"                           ✓ BITES
+  restored; green.
+
+  "This will help equip extra badges too" [user 2026-08-26] — PROVEN against
+  the shipped roll engine, which A5 does not edit by a single line.
+
+--- GATE 6.6 — THE RUNAWAY GUARD -----------------------------------------
+base 3 + applied 1, booted from a seeded autosave:
+  the grid field renders 3 (not 4) · the ledger reads "0 / 4" ·
+  ten focus/blur cycles leave the field at 3 · the persisted base stays 3 and
+  the applied bonus stays 1 · a REAL edit to 5 commits 5 as the base and the
+  ledger moves to "0 / 6".
+
+  MUTATION: reverted BuildPanel's prop from baseBudgets back to budgets
+  RESULT:   FAILED — "expected '4' to be '3'" and "expected '6' to be '5'"
+            i.e. the runaway's first step, caught.                  ✓ BITES
+  restored; green.
+
+═══════════════════════════════════════════════════════════════════════════
+7. THE FOUR EXPLICITLY-MANDATED RUN-NEVER-EDIT FILES
+═══════════════════════════════════════════════════════════════════════════
+
+  $ npx vitest run tests/ui/overlays.test.tsx tests/category-colors.test.ts \
+      tests/feasibility-golden.test.ts tests/architecture.test.ts
+  Test Files  4 passed (4)
+  Tests       207 passed (207)
+
+  $ git diff --stat HEAD~1 -- <those four> tests/vocabulary.test.ts
+  (empty — not one byte touched)
+
+INV-19's golden table matters most of the four here: "every affordable-upgrade
+count is unchanged, cell for cell". No cell moved — the composition is inert at
+zero bonus, which is the whole claim.
+
+═══════════════════════════════════════════════════════════════════════════
+8. THE FULL GATE SET
+═══════════════════════════════════════════════════════════════════════════
+
+  $ npx tsc --noEmit                 → exit 0, clean
+  $ npx vitest run                   → 62 files, 1187→ see below; 1145 passed
+  $ npm run build                    → tsc --noEmit && vite build
+                                       ✓ 68 modules transformed, built in 404ms
+                                       (the only gate that catches a malformed
+                                        CSS comment — no CSS was touched, and
+                                        the gate is run anyway)
+  $ node -p dependencies             → {"react":"^19.2.8","react-dom":"^19.2.8"}
+                                       runtime deps EXACTLY {react, react-dom}
+  $ git status --porcelain           → a strict subset of the Allowed paths
+
+  Full suite on the branch: 62 files, 1145 passed.
+
+DENIED PATHS, CHECKED AND CLEAN: src/engine/randomize.ts · src/engine/steps.ts ·
+cost.ts · eligibility.ts · synergy.ts · dataset.ts · random.ts · src/ui/** ·
+src/styles/** · src/data/** · src/persist/** · vite.config.ts · package.json ·
+*.config.*. Not one of them appears in git status.
+
+NOT ONE RENDERED STRING MOVED. src/ui/** is untouched, and the one engine
+string that gained a conditional clause (badgeSlotsBaselineText) is
+byte-identical whenever earned === 0 — which, after this slice, is always,
+because no control can write otherwise.
+
+═══════════════════════════════════════════════════════════════════════════
+9. STOP-CONDITIONS — NONE TRIGGERED
+═══════════════════════════════════════════════════════════════════════════
+
+  SAVED_BUILD_SCHEMA_VERSION / MIGRATIONS needed to change   NO
+  test 8.5 went red                                          NO
+  an assertion outside a compiler-forced addition needed
+    editing                                                  NO (the one
+    non-`bonus:` diff is a type NARROWING with an unchanged
+    expectation — §4, disclosed not buried)
+  any rendered string changed                                NO
+  a reader appeared that §3.2 does not list                  NO (five
+    type-position consumers found, none needing an edit — §2)
+  the runaway hazard could not be closed without touching
+    BudgetGrid                                               NO (closed at the
+    App seam; BudgetGrid.tsx is untouched)
+  npm run build or the deps allowlist moved                  NO
+
+COORDINATOR NOTE (A6, mid-slice), HONOURED: `validateBody`'s
+`build: envelope["build"] as unknown as Build` cast is UNTOUCHED. Confirmed by
+grepping this slice's own diff of serialization.ts — the only occurrences of
+"build" in it are in comment prose. The `bonus` field sits on SavedBuild, gets
+the reassembly literal, and its "required in TypeScript" ruling is unaffected.
+`workingHasContent` was widened through a DERIVED predicate
+(`bonusHasContent`, computed over the Σ helpers) rather than a hand-enumerated
+field list, so A6's later widening is additive.
