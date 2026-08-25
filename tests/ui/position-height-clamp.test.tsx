@@ -15,6 +15,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import App from "../../src/App";
 import { defaultAppConfig } from "../../src/config";
+import { zeroBonus } from "../../src/engine/budget";
 import { shippedDataset } from "../../src/engine/dataset";
 import { SAVED_BUILD_SCHEMA_VERSION } from "../../src/engine/serialization";
 import { createDefaultSynergySlots } from "../../src/engine/synergy";
@@ -171,6 +172,7 @@ describe("engine violation surfaces in PhysiqueSection (HARD-DISCLOSED)", () => 
       name: "old build",
       build: { ...makeBuild(84, 50), position: "PG" },
       budgets: zeroBudgets(),
+      bonus: zeroBonus(),
       loadout: [],
       synergy: createDefaultSynergySlots(null),
       // [F4/A4] The trigger is passed EXPLICITLY, never inherited from

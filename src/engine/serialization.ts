@@ -31,12 +31,14 @@
  *    `clearedSynergyRefs` so the UI can disclose the heal.
  */
 
+import { normalizeBonus } from "./budget";
 import { badgeById, shippedDataset } from "./dataset";
 import { MalformedSavedBuildError, UnsupportedSchemaVersionError } from "./errors";
 import { MAX_PLUS_TWO_SYNERGY_SLOTS, SYNERGY_SLOT_IDS, permanenceForSynergySlot } from "./synergy";
 import type {
   AppConfig,
   BadgeDataset,
+  BonusBudget,
   Budget,
   Build,
   LoadoutEntry,
@@ -67,6 +69,10 @@ export interface SavedBuildContent {
   name: string;
   build: Build;
   budgets: Record<Category, Budget>;
+  /** [A5] The bonus layer — see SavedBuild.bonus. Required here too: the
+   *  caller always holds one (`zeroBonus()` at worst), and an optional field
+   *  would model a state the pipeline forbids. */
+  bonus: BonusBudget;
   loadout: LoadoutEntry[];
   synergy: SynergySlot[];
   config: AppConfig;
@@ -86,6 +92,7 @@ export function createSavedBuild(
     name: content.name,
     build: content.build,
     budgets: content.budgets,
+    bonus: content.bonus,
     loadout: content.loadout,
     synergy: content.synergy,
     config: content.config,
@@ -177,6 +184,66 @@ function validateBudgets(problems: string[], value: unknown): void {
       const fieldValue = budget[field];
       if (!isFiniteNumber(fieldValue) || fieldValue < 0) {
         problems.push(`budgets.${category}.${field} must be a non-negative number`);
+      }
+    }
+  }
+}
+
+/**
+ * [A5] Shape-validates the bonus layer. A STRICT SUPERSET of what shipped:
+ * ABSENT and `null` are both LEGAL and normalize to `zeroBonus()` — absent is
+ * the normal state of every pre-A5 file, and refusing `null` buys nothing and
+ * costs a build.
+ *
+ * STRICTNESS IS `validateBudgets`'s, BYTE FOR BYTE, and deliberately not more.
+ * Finite and >= 0, with NO INTEGER CHECK: the shipped sibling has none for
+ * `points`, and adding a strictness the sibling lacks is the F4/R3 trap
+ * running the other way. Extra keys inside the applied records are IGNORED,
+ * never a problem — a future category or a hand-edit typo is not worth
+ * refusing a build over.
+ *
+ * [A5] NO Σ ≤ earned CHECK HERE, DELIBERATELY. The cap has exactly ONE owner:
+ * validate-loadout.ts's `bonusEquipSlotsOverApplied` / `bonusPointsOverApplied`
+ * SoftViolations (see the matching comment there).
+ *
+ * WHY: a user who earned 3, applied 3, then edits the total down to 2 at
+ * season rollover reaches `Σ applied > earned` THROUGH THE UI with no external
+ * editing — season-earned rewards expire, so the gesture is ordinary. With a
+ * throw here, that state is written straight back by the autosave and REFUSED
+ * on the next boot; the read swallows the throw and the app overwrites the
+ * user's build with an empty one.
+ *
+ * The deserializer validates SHAPE. validateLoadout validates RULES. A state
+ * ruled DISCLOSABLE must never be a state the deserializer REFUSES. All four
+ * of this project's data-loss defects (F2.1, F2.2, F4/A1, F4/R3) are that one
+ * shape: a validator refused a value it had not been widened for, and the
+ * refusal reached a write path.
+ */
+function validateBonus(problems: string[], value: unknown): void {
+  if (value === undefined || value === null) return; // absent ⇒ zeroBonus()
+  if (!isRecord(value)) {
+    problems.push("bonus must be an object when present");
+    return;
+  }
+  for (const field of ["earnedEquipSlots", "earnedPoints"] as const) {
+    const fieldValue = value[field];
+    if (fieldValue === undefined) continue; // additive default: 0
+    if (!isFiniteNumber(fieldValue) || fieldValue < 0) {
+      problems.push(`bonus.${field} must be a non-negative number`);
+    }
+  }
+  for (const field of ["appliedEquipSlots", "appliedPoints"] as const) {
+    const applied = value[field];
+    if (applied === undefined) continue; // additive default: six zeros
+    if (!isRecord(applied)) {
+      problems.push(`bonus.${field} must be an object when present`);
+      continue;
+    }
+    for (const category of CATEGORIES) {
+      const categoryValue = applied[category];
+      if (categoryValue === undefined) continue; // additive default: 0
+      if (!isFiniteNumber(categoryValue) || categoryValue < 0) {
+        problems.push(`bonus.${field}.${category} must be a non-negative number`);
       }
     }
   }
@@ -368,6 +435,7 @@ function validateBody(
 
   validateBuild(problems, envelope["build"]);
   validateBudgets(problems, envelope["budgets"]);
+  validateBonus(problems, envelope["bonus"]);
   const shapedLoadout = validateLoadoutShape(problems, envelope["loadout"]);
   const shapedSynergy = validateSynergyShape(problems, envelope["synergy"]);
   validateConfig(problems, envelope["config"]);
@@ -423,6 +491,11 @@ function validateBody(
     name: name as string,
     build: envelope["build"] as unknown as Build,
     budgets: envelope["budgets"] as unknown as Record<Category, Budget>,
+    // [A5] THE ONE NORMALIZATION POINT. This reassembly is a LITERAL, not a
+    // spread, so an absent `bonus` is simply lost unless it is named here.
+    // Absent / null ⇒ zeroBonus(); partial ⇒ filled; extra keys ⇒ dropped.
+    // Downstream (App.tsx's `fromSaved`) does NOT re-normalize.
+    bonus: normalizeBonus(envelope["bonus"]),
     loadout: kept,
     synergy,
     config: envelope["config"] as unknown as AppConfig,

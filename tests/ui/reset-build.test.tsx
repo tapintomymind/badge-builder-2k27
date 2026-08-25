@@ -18,6 +18,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../src/App";
 import { defaultAppConfig } from "../../src/config";
+import { zeroBonus } from "../../src/engine/budget";
 import { shippedDataset } from "../../src/engine/dataset";
 import { SAVED_BUILD_SCHEMA_VERSION } from "../../src/engine/serialization";
 import { createDefaultSynergySlots } from "../../src/engine/synergy";
@@ -71,6 +72,7 @@ function seedFullBuild(): void {
     name: "Reset fixture",
     build: { ...makeBuild(80, 0, { threePt: 99, mid: 99 }), position: "SG" as const },
     budgets: budgetsWith({ equipSlots: 4, points: 20 }),
+    bonus: zeroBonus(),
     loadout: [{ badgeId: "deadeye", purchasedLevel: "bronze" }],
     synergy,
     // [F4/A4] refundTrigger passed EXPLICITLY, never inherited from the
@@ -151,6 +153,7 @@ describe("the control: present, gated on the DEFAULT scope, never resetting dire
       name: "Budgets only",
       build: makeBuild(78, 0),
       budgets: budgetsWith({ equipSlots: 4, points: 20 }),
+      bonus: zeroBonus(),
       loadout: [],
       synergy: createDefaultSynergySlots(null),
       config: { ...defaultAppConfig, refundTrigger: "legendByAnyMeans" as const },
@@ -213,6 +216,7 @@ describe("19 — the confirm names real counts and states the guarantee", () => 
       name: "Sparse",
       build: makeBuild(78, 0, { threePt: 70 }),
       budgets: budgetsWith({ equipSlots: 0, points: 0 }),
+      bonus: zeroBonus(),
       loadout: [],
       synergy: createDefaultSynergySlots(null),
       config: { ...defaultAppConfig, refundTrigger: "legendByAnyMeans" as const },
@@ -326,6 +330,7 @@ describe("15 + 16 — what the reset must NOT be able to reach", () => {
       name: "Precious",
       build: makeBuild(75, 42),
       budgets: budgetsWith({ equipSlots: 2, points: 9 }),
+      bonus: zeroBonus(),
       loadout: [{ badgeId: "deadeye", purchasedLevel: "silver" }],
       synergy: createDefaultSynergySlots(null),
       config: { ...defaultAppConfig, refundTrigger: "legendByAnyMeans" as const },

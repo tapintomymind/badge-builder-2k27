@@ -11,6 +11,7 @@ import { createDefaultSynergySlots } from "../../src/engine/synergy";
 import type { Budget, SavedBuild, SynergySlot } from "../../src/engine/types";
 import type { Category } from "../../src/engine/vocabulary";
 import { CATEGORIES } from "../../src/engine/vocabulary";
+import { zeroBonus } from "../../src/engine/budget";
 import { shippedDataset } from "../../src/engine/dataset";
 import { makeBuild } from "../helpers/test-utils";
 
@@ -42,6 +43,7 @@ export function makeRig(options: RigOptions = {}): SavedBuild {
     name: options.name ?? "M4 rig",
     build: makeBuild(78, 0, options.attributes ?? {}),
     budgets: budgetsWith(options.budgets ?? {}),
+    bonus: zeroBonus(),
     loadout: options.loadout ?? [],
     synergy,
     // [F4/A4] The trigger is passed EXPLICITLY, never inherited from

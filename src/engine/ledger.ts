@@ -121,7 +121,14 @@ export function refunded(
 }
 
 /** The seed's formula: remainingPoints(category) = pool − spent + refunds.
- * May go negative — overspend is a SOFT violation (H4), warned, never blocked. */
+ * May go negative — overspend is a SOFT violation (H4), warned, never blocked.
+ *
+ * [A5] `state.budgets[category].points` is the EFFECTIVE pool — base plus any
+ * applied bonus Badge Points, already composed by `effectiveBudgets` at the
+ * App seam. This function is CORRECT UNCHANGED and needs no bonus awareness:
+ * composing ONCE, upstream, is exactly what makes every reader in this file
+ * right with no edit and no possibility of a missed one. Do not reach for the
+ * bonus layer here — `LedgerState` deliberately does not carry it. */
 export function remainingPoints(
   state: LedgerState,
   category: Category,
@@ -174,6 +181,21 @@ export function equipSlotsUsed(
  * NO RE-EXPORT SHIM was left behind in CategoryLedger.tsx — a UI module
  * re-exporting an engine function is the same layering inversion the hoist
  * exists to remove. All three importers were updated instead.
+ *
+ * [A5] THIS PREDICATE IS CORRECT UNCHANGED. DO NOT "FIX" IT INTO BASE-KEYED —
+ * IT ALREADY IS.
+ *
+ * It receives the COMPOSED record, but `effectiveBudgets` is ABSORBING AT
+ * ZERO: a base of 0 composes to an effective of 0 no matter how large the
+ * applied bonus is, because a 0 base means "the user has not entered this
+ * yet", and unknown + 2 is not 2. So `budget.equipSlots === 0` still asks
+ * exactly the §4.7 question, and a category with an unset base plus an applied
+ * bonus stays UNSET: the allocation is recorded, kept, disclosed ("applied and
+ * waiting"), and starts counting the moment a base is entered.
+ *
+ * Carving out at the composition instead of here is what keeps this file, the
+ * roll engine, validateLoadout, feasibility, steps.ts and summary.ts all
+ * correct with no edit. [scope.md §0.1 A5-R4 · src/engine/budget.ts]
  */
 export function badgeSlotsCapacityUnset(budget: Budget): boolean {
   return budget.equipSlots === 0;

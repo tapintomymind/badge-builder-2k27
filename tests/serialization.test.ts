@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { appliedEquipSlotsTotal, effectiveBudgets, zeroBonus } from "../src/engine/budget";
 import { loadDataset, shippedDataset, shippedRawDataset } from "../src/engine/dataset";
 import { driftFromDroppedEntries, recheckEligibility } from "../src/engine/eligibility";
 import { MalformedSavedBuildError, UnsupportedSchemaVersionError } from "../src/engine/errors";
@@ -52,6 +53,7 @@ function makeSaved(): SavedBuild {
       name: "test build",
       build: makeBuild(78, 85, { mid: 92, steal: 93 }),
       budgets: makeBudgets(),
+      bonus: zeroBonus(),
       loadout: [
         { badgeId: "deadeye", purchasedLevel: "gold" },
         { badgeId: "glove", purchasedLevel: "gold" },
@@ -700,5 +702,186 @@ describe("F4 group 8 — a pre-F4 SavedBuild still loads", () => {
       (error) => error.kind === "tooManyPlusTwoSynergySlots",
     );
     expect(capErrors).toHaveLength(1);
+  });
+});
+
+// ===========================================================================
+// A5 group 3 — the bonus layer at the JSON boundary.
+//
+// WRITTEN AGAINST THE ONE SHAPE ALL FOUR OF THIS PROJECT'S DATA-LOSS DEFECTS
+// SHARE: a validator refused a value it had not been widened for, and the
+// refusal reached a write path. The construction rule these tests enforce is
+// that ANY value the app's own write path can produce must be readable by its
+// own read path on the very next boot — INCLUDING values the rules layer
+// considers violations. [scope.md §0.1 A5-R5 · engine-data-design.md §4]
+// ===========================================================================
+
+/** A REAL pre-A5 envelope: current in every other respect, `bonus` simply
+ *  absent — which is every saved build that exists today. */
+const PRE_A5_SAVED_BUILD_JSON = JSON.stringify({
+  schemaVersion: 1,
+  dataVersion: shippedDataset.dataVersion,
+  savedAt: "2026-08-26T12:00:00.000Z",
+  name: "pre-A5 build",
+  build: makeBuild(78, 85, { mid: 92, steal: 93 }),
+  budgets: Object.fromEntries(
+    CATEGORIES.map((category) => [category, { points: 20, equipSlots: 4 }]),
+  ),
+  loadout: [{ badgeId: "deadeye", purchasedLevel: "gold" }],
+  synergy: makeSynergy(),
+  config: defaultAppConfig,
+});
+
+/** Re-parses the pre-A5 envelope with a `bonus` value spliced in. */
+function withBonus(bonus: unknown): string {
+  const parsed = JSON.parse(PRE_A5_SAVED_BUILD_JSON) as Record<string, unknown>;
+  parsed["bonus"] = bonus;
+  return JSON.stringify(parsed);
+}
+
+describe("A5 group 3 — a pre-A5 SavedBuild still loads, and an over-applied one round-trips", () => {
+  it("3.1 SHIP GATE — a pre-A5 envelope (bonus ABSENT) deserializes with ZERO problems and yields zeroBonus()", () => {
+    const { saved, droppedEntries, clearedSynergyRefs } =
+      deserializeSavedBuildWithReport(PRE_A5_SAVED_BUILD_JSON);
+    expect(droppedEntries).toEqual([]);
+    expect(clearedSynergyRefs).toEqual([]);
+    expect(saved.bonus).toEqual(zeroBonus());
+  });
+
+  it("3.2 bonus: null is LEGAL and normalizes to zeroBonus() — refusing null buys nothing and costs a build", () => {
+    expect(() => deserializeSavedBuild(withBonus(null))).not.toThrow();
+    expect(deserializeSavedBuild(withBonus(null)).bonus).toEqual(zeroBonus());
+  });
+
+  it("3.3 a PARTIAL bonus fills every other field with 0 and carries exactly the six category keys", () => {
+    const saved = deserializeSavedBuild(withBonus({ earnedEquipSlots: 2 }));
+    expect(saved.bonus.earnedEquipSlots).toBe(2);
+    expect(saved.bonus.earnedPoints).toBe(0);
+    expect(Object.keys(saved.bonus.appliedEquipSlots).sort()).toEqual([...CATEGORIES].sort());
+    expect(Object.keys(saved.bonus.appliedPoints).sort()).toEqual([...CATEGORIES].sort());
+    for (const category of CATEGORIES) {
+      expect(saved.bonus.appliedEquipSlots[category]).toBe(0);
+      expect(saved.bonus.appliedPoints[category]).toBe(0);
+    }
+  });
+
+  it("3.4 an UNKNOWN key inside appliedEquipSlots is IGNORED, never a problem", () => {
+    const text = withBonus({
+      earnedEquipSlots: 1,
+      appliedEquipSlots: { Shooting: 1, Telekinesis: 9 },
+    });
+    expect(() => deserializeSavedBuild(text)).not.toThrow();
+    const saved = deserializeSavedBuild(text);
+    expect(saved.bonus.appliedEquipSlots.Shooting).toBe(1);
+    expect(Object.keys(saved.bonus.appliedEquipSlots)).not.toContain("Telekinesis");
+  });
+
+  /**
+   * 3.5 SHIP GATE — THE HIGHEST-VALUE TEST IN THE AMENDMENT, and F4 test 8.6's
+   * shape aimed squarely at F4/A1's defect class.
+   *
+   * The state is reachable with NO external editing: season-earned rewards
+   * expire, so a user who earned 3, applied 3, then edits the total down at
+   * rollover lands at Σ applied > earned through the UI. With a Σ ≤ earned
+   * check at the JSON boundary that state is written straight back by the
+   * autosave and REFUSED on the next boot — the read swallows the throw and
+   * the app overwrites the user's build with an empty one.
+   */
+  it("3.5 SHIP GATE — an OVER-APPLIED bonus deserializes, warns (never errors), re-serializes and DESERIALIZES AGAIN", () => {
+    const text = withBonus({
+      earnedEquipSlots: 1,
+      appliedEquipSlots: { Shooting: 1, Defense: 1, Rebounding: 1 },
+    });
+
+    // Leg 1: it loads at all.
+    expect(() => deserializeSavedBuild(text)).not.toThrow();
+    const first = deserializeSavedBuild(text);
+    expect(first.bonus.earnedEquipSlots).toBe(1);
+    expect(appliedEquipSlotsTotal(first.bonus)).toBe(3);
+
+    // Leg 2: the RULES layer reports it — as a WARNING, and it is the sole owner.
+    const validation = validateLoadout({
+      loadout: first.loadout,
+      budgets: effectiveBudgets(first.budgets, first.bonus),
+      synergySlots: first.synergy,
+      refundTrigger: first.config.refundTrigger,
+      bonus: first.bonus,
+    });
+    expect(validation.warnings).toContainEqual({
+      kind: "bonusEquipSlotsOverApplied",
+      applied: 3,
+      earned: 1,
+      overBy: 2,
+    });
+    for (const error of validation.errors) {
+      expect(error.kind).not.toMatch(/^bonus/);
+    }
+
+    // Leg 3: the app writes it back verbatim and reads it again. THE CHAIN
+    // THAT FAILED IN F4/A1 STOPS HERE.
+    const round = serializeSavedBuild(first);
+    expect(() => deserializeSavedBuild(round)).not.toThrow();
+    const second = deserializeSavedBuild(round);
+    expect(second.bonus).toEqual(first.bonus);
+    // …and a THIRD time, because an autosave loop is not a one-shot.
+    expect(() => deserializeSavedBuild(serializeSavedBuild(second))).not.toThrow();
+  });
+
+  it("3.6 a fully-populated bonus round-trips value for value", () => {
+    const bonus = {
+      earnedEquipSlots: 5,
+      earnedPoints: 40,
+      appliedEquipSlots: Object.fromEntries(
+        CATEGORIES.map((category, index) => [category, index]),
+      ),
+      appliedPoints: Object.fromEntries(
+        CATEGORIES.map((category, index) => [category, index * 2]),
+      ),
+    };
+    const saved = deserializeSavedBuild(withBonus(bonus));
+    expect(saved.bonus).toEqual(bonus);
+    expect(deserializeSavedBuild(serializeSavedBuild(saved)).bonus).toEqual(bonus);
+  });
+
+  it("3.7 negative and non-finite values push problems whose SHAPE matches validateBudgets's", () => {
+    for (const bad of [
+      { earnedEquipSlots: -1 },
+      { earnedPoints: Number.NaN },
+      { earnedPoints: Number.POSITIVE_INFINITY },
+      { earnedEquipSlots: "2" },
+      { appliedEquipSlots: { Shooting: -1 } },
+      { appliedPoints: { Defense: Number.NaN } },
+      { appliedEquipSlots: [] },
+      { appliedPoints: 7 },
+    ]) {
+      expect(() => deserializeSavedBuild(withBonus(bad)), JSON.stringify(bad)).toThrowError(
+        MalformedSavedBuildError,
+      );
+    }
+    // Not an object at all.
+    expect(() => deserializeSavedBuild(withBonus(7))).toThrowError(MalformedSavedBuildError);
+    expect(() => deserializeSavedBuild(withBonus("nope"))).toThrowError(MalformedSavedBuildError);
+
+    // NO INTEGER CHECK — validateBudgets has none for points either, and
+    // adding a strictness the shipped sibling lacks is the F4/R3 trap running
+    // the other way.
+    expect(() => deserializeSavedBuild(withBonus({ earnedPoints: 1.5 }))).not.toThrow();
+  });
+
+  it("3.8 SHIP GATE — the version machinery did NOT move (test 8.5's claim, restated at the A5 boundary)", () => {
+    expect(SAVED_BUILD_SCHEMA_VERSION).toBe(1);
+    expect(Object.keys(MIGRATIONS)).toEqual([]);
+    // A post-A5 envelope still DECLARES 1, so a pre-A5 worktree degrades
+    // (dropping `bonus`) rather than quarantining the whole store.
+    const posted = JSON.parse(
+      serializeSavedBuild(deserializeSavedBuild(withBonus({ earnedEquipSlots: 1 }))),
+    ) as Record<string, unknown>;
+    expect(posted["schemaVersion"]).toBe(1);
+  });
+
+  it("3.11 createSavedBuild carries the bonus through, and a zero bonus survives the round trip", () => {
+    const saved = makeSaved();
+    expect(saved.bonus).toEqual(zeroBonus());
+    expect(deserializeSavedBuild(serializeSavedBuild(saved)).bonus).toEqual(zeroBonus());
   });
 });

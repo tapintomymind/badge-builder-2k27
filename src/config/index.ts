@@ -58,6 +58,23 @@ export const plusTwoSlotIds: readonly SynergySlotId[] | null = null;
  */
 export const DEFAULT_BUDGET_STRATEGY: BudgetStrategy = "manual";
 
+/**
+ * [A5] ITS OUTPUT IS THE **BASE** SIX. Composition happens AFTER, at the App
+ * seam, in `effectiveBudgets` (src/engine/budget.ts). The bonus layer is never
+ * merged into what this returns, and the base-entry grid is wired to THIS
+ * record rather than the composed one — otherwise a rendered effective number
+ * would be committed straight back as a base on the next blur
+ * [scope.md §0.1 A5-R4, A5-R6].
+ *
+ * A3's Σ = 20 PROPERTY, recorded here where the real derivation will land: the
+ * six BASE capacities sum to the 20 a build starts with
+ * (`EQUIP_SLOTS_BASELINE`). It is a property of the BASE spread only — "we
+ * don't need to include the bonus into the original 20"
+ * [user 2026-08-26] — so an applied bonus does not raise it, and the `derived`
+ * arm must satisfy it when M5 lands. It is NOT enforced today and must not be:
+ * `0` means "not entered" (§4.7), so a partially-entered spread legitimately
+ * sums to less than 20, and A3 rules the comparison a DISCLOSURE, never a gate.
+ */
 export function deriveBudget(
   build: Build,
   manualBudgets: Record<Category, Budget>,

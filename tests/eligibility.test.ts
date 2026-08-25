@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { zeroBonus } from "../src/engine/budget";
 import { badgeById, loadBadge, shippedDataset } from "../src/engine/dataset";
 import {
   entryIsStale,
@@ -154,6 +155,7 @@ describe("INV-20 — entryIsStale IS recheckEligibility's predicate, not a secon
       budgets: Object.fromEntries(
         CATEGORIES.map((category) => [category, { equipSlots: 3, points: 20 }]),
       ) as SavedBuild["budgets"],
+      bonus: zeroBonus(),
       loadout,
       synergy: [],
       config: { refundTrigger: "legendByAnyMeans", plusTwoSlotIds: null, budgetStrategy: "manual" },

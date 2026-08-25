@@ -20,6 +20,7 @@ import type { Budget } from "../../src/engine/types";
 import type { Category } from "../../src/engine/vocabulary";
 import { CATEGORIES } from "../../src/engine/vocabulary";
 import { defaultAppConfig } from "../../src/config";
+import { zeroBonus } from "../../src/engine/budget";
 import { shippedDataset } from "../../src/engine/dataset";
 import { SAVED_BUILD_SCHEMA_VERSION } from "../../src/engine/serialization";
 import type { SavedBuild } from "../../src/engine/types";
@@ -155,6 +156,7 @@ describe("F5.3/B — a collapsed category is hidden, never subtracted", () => {
           category === "Shooting" ? shootingBudget : { equipSlots: 0, points: 0 },
         ]),
       ) as Record<Category, Budget>,
+      bonus: zeroBonus(),
       loadout: [{ badgeId: "deadeye", purchasedLevel: "bronze" }],
       synergy: createDefaultSynergySlots(null),
       // [F4/A4] refundTrigger passed EXPLICITLY, never inherited.

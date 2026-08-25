@@ -152,6 +152,42 @@ export interface Budget {
   points: number;
 }
 
+/**
+ * Build-level bonus Badge Slots and Badge Points earned BEYOND the 20-Badge-Slot
+ * baseline, plus how the user has currently applied them across the six
+ * categories.
+ *
+ * OFFICIAL 2K27 MECHANIC, not an app invention. Bonus Slots and Tokens are
+ * earned through Build Specialization, Seasons and Crew rewards; bonus tokens
+ * are versatile (spendable in any discipline); and they can be reassigned at
+ * any time — apply a Bonus Slot to Finishing, change your mind, apply it to
+ * Defense. NOTHING HERE EVER LOCKS.
+ * [official 2K page + user observation 2026-08-26]
+ *
+ * THERE IS NO PUBLISHED CAP ON EITHER TOTAL and none is modelled. Both are
+ * user-entered and grow as the user earns more. A constant here would be
+ * invented 2K27 data — the one thing the seed forbids outright.
+ *
+ * A SEPARATE LAYER, NEVER MERGED INTO `budgets`. The effective per-category
+ * capacity/pool is composed in exactly one place — `effectiveBudgets` in
+ * src/engine/budget.ts (scope.md §0.1 A5-R1, A5-R4).
+ */
+export interface BonusBudget {
+  /** TOTAL bonus Badge Slots earned. User-entered, growable. Default 0. */
+  earnedEquipSlots: number;
+  /** TOTAL bonus Badge Points earned. 2K's page calls these "Badge Tokens";
+   *  this app has said "Badge Points" since M1 and keeps doing so (H1).
+   *  User-entered, growable. Default 0. */
+  earnedPoints: number;
+  /** How many of `earnedEquipSlots` are applied to each category right now.
+   *  Σ ≤ earnedEquipSlots is SOFT (validateLoadout), never enforced here and
+   *  NEVER at the JSON boundary. Freely reversible; nothing locks. */
+  appliedEquipSlots: Record<Category, number>;
+  /** How many of `earnedPoints` are applied to each category right now.
+   *  Same rules. */
+  appliedPoints: Record<Category, number>;
+}
+
 // ---------------------------------------------------------------------------
 // Synergy — TYPE ONLY at M1 (scope.md §2 M1 carve-out). The serializer
 // round-trips `SavedBuild.synergy` opaquely; ZERO synergy behavior ships
@@ -266,6 +302,20 @@ export interface SavedBuild {
   name: string;
   build: Build;
   budgets: Record<Category, Budget>;
+  /**
+   * [A5] The bonus layer. ADDITIVE-OPTIONAL ON THE WIRE, REQUIRED HERE.
+   *
+   * Optionality exists in the JSON only: a pre-A5 file has no `bonus` key and
+   * the deserializer normalizes the absence to `zeroBonus()` at its ONE
+   * normalization point. In memory, absence would model a state the pipeline
+   * cannot produce — so this is required and `tsc` forces every literal to say
+   * so (the F4 `description` / `isNew` precedent, in the safe direction).
+   *
+   * NOT merged into `budgets`: `budgets` stays the BASE six, and the effective
+   * capacity/pool is composed by `effectiveBudgets`. schemaVersion stays 1 —
+   * the change is a strict superset with nothing to migrate (A5-R5).
+   */
+  bonus: BonusBudget;
   loadout: LoadoutEntry[];
   /** TYPE-only at M1 — round-tripped opaquely by the serializer. */
   synergy: SynergySlot[];

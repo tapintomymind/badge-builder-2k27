@@ -23,6 +23,7 @@
  * exactly where it is. Nothing in this file removes, clamps or fixes anything.
  */
 
+import { appliedEquipSlotsTotal, baseEquipSlotsOf, zeroBonus } from "./budget";
 import { costForLevel } from "./cost";
 import { badgeById, shippedDataset } from "./dataset";
 import { entryIsStale, maxPurchasableLevel, reasonsForLevel, validateBadge } from "./eligibility";
@@ -36,6 +37,7 @@ import type { LoadoutValidation } from "./validate-loadout";
 import type {
   Badge,
   BadgeDataset,
+  BonusBudget,
   Build,
   LoadoutEntry,
   SynergyRole,
@@ -106,14 +108,37 @@ export interface BuildSummary {
   countsByLevel: Record<Level, number>;
   totalSpent: number;
   totalPool: number;
-  /** Σ of the six ENTERED capacities — what the A3 baseline compares against. */
+  /** Σ of the six ENTERED capacities. [A5] EFFECTIVE — base + applied bonus,
+   *  because `state.budgets` arrives already composed. */
   totalEquipSlots: number;
+  /**
+   * [A5] Σ of the six BASE capacities — the "20 a build starts with" spread,
+   * with the bonus layer taken back out. Recovered exactly via
+   * `baseEquipSlotsOf` (the carve-out is absorbing at zero, so effective 0 ⇒
+   * base 0). Equals `totalEquipSlots` whenever no bonus is applied, and
+   * whenever `state.bonus` is absent.
+   *
+   * THIS, not `totalEquipSlots`, is what `badgeSlotsBaselineText` compares
+   * against the baseline: the user's clarification settles the frame — "we
+   * don't need to include the bonus into the original 20", so the Σ-vs-20
+   * comparison continues to describe the BASE only (A5-R3).
+   */
+  totalBaseEquipSlots: number;
   equipSlotsBaseline: typeof EQUIP_SLOTS_BASELINE;
   /** false while ANY category is unset — §4.7's "0 suppresses comparisons".
    *  The consumer must render NOTHING (absent from the DOM), not a greyed row. */
   equipSlotsBaselineComparable: boolean;
   /** How many of the six carry an unset capacity — the `N of 6` footnote. */
   categoriesWithoutCapacity: number;
+  /**
+   * [A5] The build's bonus layer, carried so the ONE phrasing of the Σ-vs-20
+   * fact (`badgeSlotsBaselineText`) can name it without a second parameter —
+   * AJ-5's one-function-two-surfaces rule, preserved.
+   *
+   * `zeroBonus()` when the caller's `SynergyLedgerState.bonus` is absent, so
+   * every pre-A5 caller sees exactly the pre-A5 output.
+   */
+  bonus: BonusBudget;
   dataVersion: string;
   validation: LoadoutValidation;
   /** The build the summary was taken over. Carried so the pure text builder
@@ -291,9 +316,23 @@ export function buildSummary(
       (sum, category) => sum + state.budgets[category].equipSlots,
       0,
     ),
+    // [A5] `state.budgets` is the COMPOSED record, so the base Σ is recovered
+    // by subtracting the applied allocation back out — through the inverse in
+    // src/engine/budget.ts, never re-derived here, so the two cannot drift.
+    // `state.bonus` absent ⇒ nothing was applied ⇒ base Σ === effective Σ.
+    totalBaseEquipSlots: CATEGORIES.reduce(
+      (sum, category) =>
+        sum +
+        baseEquipSlotsOf(
+          state.budgets[category].equipSlots,
+          state.bonus?.appliedEquipSlots[category] ?? 0,
+        ),
+      0,
+    ),
     equipSlotsBaseline: EQUIP_SLOTS_BASELINE,
     equipSlotsBaselineComparable: categoriesWithoutCapacity === 0,
     categoriesWithoutCapacity,
+    bonus: state.bonus ?? zeroBonus(),
     dataVersion: dataset.dataVersion,
     validation: validateLoadout(state, dataset),
     build,
@@ -367,7 +406,15 @@ export function synergyProjections(
  */
 export function badgeSlotsBaselineText(summary: BuildSummary): string | null {
   if (!summary.equipSlotsBaselineComparable) return null;
-  return `${summary.totalEquipSlots} of the ${summary.equipSlotsBaseline} a build starts with`;
+  // [A5] READS THE BASE Σ, NOT THE EFFECTIVE ONE. "We don't need to include
+  // the bonus into the original 20" [user 2026-08-26] — the Σ-vs-20 sentence
+  // describes the BASE spread, and the bonus gets its own clause rather than
+  // being folded into the comparison (A5-R3). Byte-identical to the pre-A5
+  // output whenever nothing is earned, which is every existing build.
+  const baseline = `${summary.totalBaseEquipSlots} of the ${summary.equipSlotsBaseline} a build starts with`;
+  if (summary.bonus.earnedEquipSlots === 0) return baseline;
+  const applied = appliedEquipSlotsTotal(summary.bonus);
+  return `${baseline} · +${applied} of ${summary.bonus.earnedEquipSlots} bonus Badge Slots applied`;
 }
 
 /** Convenience for consumers that hold a row and want the ladder position. */
