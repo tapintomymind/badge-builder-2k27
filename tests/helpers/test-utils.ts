@@ -28,6 +28,15 @@ export function stripComments(code: string): string {
   return code.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
 }
 
+/** The css block for one selector heading (naive but stable: from the
+ * selector to its closing brace). */
+export function cssBlock(css: string, selector: string): string {
+  const start = css.indexOf(`${selector} {`);
+  if (start === -1) throw new Error(`selector not found: ${selector}`);
+  const end = css.indexOf("}", start);
+  return css.slice(start, end);
+}
+
 /** A Build with every attribute at `value` (override per-attribute as needed). */
 export function makeBuild(
   heightInches: number,

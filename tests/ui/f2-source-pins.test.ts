@@ -9,8 +9,12 @@
  * - E: only the CategoryLedger DIGEST is sticky (§5.3 rev 2 budget); the
  *   lede scrolls. PRE-FIX the whole ledger was the sticky layer → 198px of
  *   chrome against the budget.
- * - E: the §5.1 rev-2 rail re-cut (248 / fluid / 192) — rails are the free
- *   variable; 3-up at 1280 and 2-up at 768 follow arithmetically.
+ * - E: the L layout is TWO columns — one rail beside the grid, at one
+ *   breakpoint, with no second fixed-rail tier above it. Successive re-cuts
+ *   treated the rails as the free variable and kept re-sizing a third column
+ *   that could not hold a ledger row on one line at any width 3-up-at-1280
+ *   could afford; §13 removed the column instead. 3-up at 1280 and 2-up at
+ *   768 still follow arithmetically.
  * - F: components import the engine's synergySlotDisabledByPreview rather
  *   than hand-negating synergySlotActive (QE hygiene: a future change to
  *   the activity rule must not desynchronize boost math from the
@@ -18,7 +22,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { srcSources } from "../helpers/test-utils";
+import { cssBlock, srcSources } from "../helpers/test-utils";
 
 /** CSS sources via Vite's typed raw glob — same zero-node:fs discipline as
  * tests/helpers/test-utils.ts. */
@@ -32,15 +36,6 @@ function read(relativePath: string): string {
   const source = srcSources[`/${relativePath}`] ?? cssSources[`/${relativePath}`];
   if (source === undefined) throw new Error(`source not found: ${relativePath}`);
   return source;
-}
-
-/** The css block for one selector heading (naive but stable: from the
- * selector to its closing brace). */
-function cssBlock(css: string, selector: string): string {
-  const start = css.indexOf(`${selector} {`);
-  if (start === -1) throw new Error(`selector not found: ${selector}`);
-  const end = css.indexOf("}", start);
-  return css.slice(start, end);
 }
 
 describe("E — blocked-card contrast (P1-1): no container opacity", () => {
@@ -64,30 +59,31 @@ describe("E — sticky chrome budget (§5.3 rev 2): digest sticky, lede scrolls"
   });
 });
 
-describe("E — §5.1 rev-2 rail re-cut: rails are the free variable", () => {
+describe("E — the F5.2 L re-cut: one rail, and one tier", () => {
   const css = read("src/styles/app.css");
 
-  it("L layout uses the rev-6 258px / fluid / 204px columns", () => {
-    // rev 2 (248/192) sized the columns without sizing their contents and
-    // overflowed the left rail; rev 5 re-cut to 280/176 but sized the right
-    // rail against a content box the F5 paint slice then took 24px out of;
-    // rev 6 re-cuts to 258/204 and pulls the well's padding into the derived
-    // arithmetic. The ARITHMETIC is re-derived in
-    // tests/layout-arithmetic.test.ts — this is only the literal-drift guard.
-    expect(css).toContain("grid-template-columns: 258px minmax(0, 1fr) 204px");
-    expect(css).not.toContain("grid-template-columns: 320px"); // rev 1's rails
-    expect(css).not.toContain("grid-template-columns: 248px"); // rev 2's rails
-    expect(css).not.toContain("grid-template-columns: 280px"); // rev 5's rails
-    // M: still no rail — single column below 1280 (§5.2, unchanged by rev 6).
+  it("L layout uses the F5.2 two-column geometry — one rail, not two", () => {
+    // Every three-column cut this repo shipped sized a right column that
+    // could not hold ONE ledger row on one line at any width 3-up-at-1280
+    // could afford (design-spec §13.2). The right rail is gone; the ledger
+    // moved into the single rail, which has a 266px content box. The
+    // ARITHMETIC is re-derived in tests/layout-arithmetic.test.ts — this is
+    // only the literal-drift guard.
+    //
+    // The trailing `;` below is load-bearing: without it this positive guard
+    // is a leading substring of a three-track declaration, and it would pass
+    // on the very layout it exists to forbid.
+    expect(css).toContain("grid-template-columns: 300px minmax(0, 1fr);");
+    // …and for the same reason the negative guards name the FULL three-track
+    // declaration. `not.toContain("grid-template-columns: 300px")` is now
+    // self-contradictory — the surviving declaration starts with it.
+    expect(css).not.toContain("grid-template-columns: 300px minmax(0, 1fr) 268px");
+    expect(css).not.toContain("grid-template-columns: 258px minmax(0, 1fr) 204px");
+    expect(css).not.toContain("grid-template-columns: 280px"); // the 280 rails
+    expect(css).not.toContain("grid-template-columns: 248px"); // the 248 rails
+    expect(css).not.toContain("grid-template-columns: 320px"); // the 320 rails
+    // M/S: still a single fluid column below 1280 (§5.2, unchanged).
     expect(css).toContain("grid-template-columns: minmax(0, 1fr)");
-  });
-
-  it("XL (≥1440) is a SECOND rail tier, not a wider single one", () => {
-    // rev 6: 1280 is the worst case for the rails, and rev 5 made every
-    // wider viewport pay its bill. XL relaxes the geometry where the width
-    // actually exists; L keeps the tight cut.
-    expect(css).toContain("@media (min-width: 1440px)");
-    expect(css).toContain("grid-template-columns: 300px minmax(0, 1fr) 268px");
   });
 
   it("cards keep the ≥240px floor", () => {

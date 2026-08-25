@@ -1009,42 +1009,99 @@ export default function App() {
       </p>
 
       <div className="layout">
-        <aside className="rail-left" aria-label="Build">
-          <BuildPanel
-            build={working.build}
-            budgets={budgets}
-            heightRange={heightRange}
-            buildViolationReasons={buildViolationReasons}
-            clampNotice={clampNotice}
-            onHeightCommit={(heightInches) => {
-              // Fields commit on EVERY blur — a no-change commit is a no-op
-              // (returning prev), so tabbing through never marks dirty.
-              const changed = workingRef.current.build.heightInches !== heightInches;
-              applyEdit((prev) =>
-                prev.build.heightInches === heightInches
-                  ? prev
-                  : { ...prev, build: { ...prev.build, heightInches } },
-              );
-              // A height change ends the clamp notice's hold (§3.3 rev 3).
-              if (changed) setClampNotice(null);
-            }}
-            onPositionChange={handlePositionChange}
-            onAttributeCommit={handleAttributeCommit}
-            onBudgetCommit={(category, field, value) => {
-              applyEdit((prev) =>
-                prev.budgets[category][field] === value
-                  ? prev
-                  : {
-                      ...prev,
-                      budgets: {
-                        ...prev.budgets,
-                        [category]: { ...prev.budgets[category], [field]: value },
-                      },
-                    },
-              );
-            }}
-          />
-        </aside>
+        {/* .rail-column is the GRID ITEM and .rail-left is the sticky box
+            inside it. Presentation only — no landmark, no id, no state. A
+            sticky grid item is constrained by the grid CONTAINER, not by its
+            own row, so with the two panels now occupying rows 2 and 3 the
+            rail would slide straight out of the grid and paint over them.
+            Stretching this wrapper to row 1 gives the sticky box a
+            containing block that ends where the badge grid ends. */}
+        <div className="rail-column">
+          <div className="rail-left">
+            <aside className="rail-ledger" aria-label="Ledger overview">
+              <Section title="Ledger overview" storageKey="section-ledger-overview">
+                <div className="ledger-overview">
+                  {CATEGORIES.map((category) => {
+                    const readout = readouts[category];
+                    const budget = budgets[category];
+                    // PER-METRIC status via the in-grid ledger's OWN string
+                    // builders (design-review P0-1): danger + "over by N ⚠"
+                    // land ONLY on the metric that is genuinely over — never
+                    // color alone, never a red in-budget number.
+                    const pointsOverText = overByBadgePoints(readout);
+                    const equipSlotsOverText = overByBadgeSlots(readout, budget);
+                    const capacityUnset = badgeSlotsCapacityUnset(budget);
+                    return (
+                      <div key={category} className="ledger-overview__row">
+                        <span className="ledger-overview__label">{category}</span>
+                        <span className="num ledger-overview__metrics">
+                          <span
+                            className={
+                              pointsOverText !== null
+                                ? "ledger-over ledger-overview__points"
+                                : "ledger-overview__points"
+                            }
+                          >
+                            {readout.spent}/{budget.points}
+                            {pointsOverText !== null ? ` ${pointsOverText}` : ""}
+                          </span>
+                          {" · "}
+                          <span
+                            className={
+                              equipSlotsOverText !== null
+                                ? "ledger-over ledger-overview__capacity"
+                                : "ledger-overview__capacity"
+                            }
+                          >
+                            {readout.equipSlotsUsed}/{capacityUnset ? "—" : budget.equipSlots}
+                            {equipSlotsOverText !== null ? ` ${equipSlotsOverText}` : ""}
+                          </span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Section>
+            </aside>
+
+            <aside className="rail-build" aria-label="Build">
+              <BuildPanel
+                build={working.build}
+                budgets={budgets}
+                heightRange={heightRange}
+                buildViolationReasons={buildViolationReasons}
+                clampNotice={clampNotice}
+                onHeightCommit={(heightInches) => {
+                  // Fields commit on EVERY blur — a no-change commit is a no-op
+                  // (returning prev), so tabbing through never marks dirty.
+                  const changed = workingRef.current.build.heightInches !== heightInches;
+                  applyEdit((prev) =>
+                    prev.build.heightInches === heightInches
+                      ? prev
+                      : { ...prev, build: { ...prev.build, heightInches } },
+                  );
+                  // A height change ends the clamp notice's hold (§3.3 rev 3).
+                  if (changed) setClampNotice(null);
+                }}
+                onPositionChange={handlePositionChange}
+                onAttributeCommit={handleAttributeCommit}
+                onBudgetCommit={(category, field, value) => {
+                  applyEdit((prev) =>
+                    prev.budgets[category][field] === value
+                      ? prev
+                      : {
+                          ...prev,
+                          budgets: {
+                            ...prev.budgets,
+                            [category]: { ...prev.budgets[category], [field]: value },
+                          },
+                        },
+                  );
+                }}
+              />
+            </aside>
+          </div>
+        </div>
 
         <main id="badge-grid">
           <FilterBar
@@ -1121,80 +1178,34 @@ export default function App() {
           )}
         </main>
 
-        <aside className="rail-right" aria-label="Ledger and synergy">
-          <div className="rail-right__overview">
-            <Section title="Ledger overview" storageKey="section-ledger-overview">
-              <div className="ledger-overview">
-                {CATEGORIES.map((category) => {
-                  const readout = readouts[category];
-                  const budget = budgets[category];
-                  // PER-METRIC status via the in-grid ledger's OWN string
-                  // builders (design-review P0-1): danger + "over by N ⚠"
-                  // land ONLY on the metric that is genuinely over — never
-                  // color alone, never a red in-budget number.
-                  const pointsOverText = overByBadgePoints(readout);
-                  const equipSlotsOverText = overByBadgeSlots(readout, budget);
-                  const capacityUnset = badgeSlotsCapacityUnset(budget);
-                  return (
-                    <div key={category} className="ledger-overview__row">
-                      <span>{category}</span>
-                      <span className="num ledger-overview__metrics">
-                        <span
-                          className={
-                            pointsOverText !== null
-                              ? "ledger-over ledger-overview__points"
-                              : "ledger-overview__points"
-                          }
-                        >
-                          {readout.spent}/{budget.points}
-                          {pointsOverText !== null ? ` ${pointsOverText}` : ""}
-                        </span>
-                        {" · "}
-                        <span
-                          className={
-                            equipSlotsOverText !== null
-                              ? "ledger-over ledger-overview__capacity"
-                              : "ledger-overview__capacity"
-                          }
-                        >
-                          {readout.equipSlotsUsed}/{capacityUnset ? "—" : budget.equipSlots}
-                          {equipSlotsOverText !== null ? ` ${equipSlotsOverText}` : ""}
-                        </span>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </Section>
-          </div>
-          <div id="panel-synergy">
-            <Section title="Synergy Slots" storageKey="section-synergy">
-              <SynergyPanel
-                synergySlots={working.synergy}
-                loadout={working.loadout}
-                dataset={shippedDataset}
-                overlay={overlay}
-                onSynergySlotsChange={setSynergySlots}
-              />
-            </Section>
-          </div>
-          <div id="panel-summary">
-            <Section title="Summary" storageKey="section-summary">
-              <SummaryPanel
-                loadout={working.loadout}
-                synergySlots={working.synergy}
-                budgets={budgets}
-                readouts={readouts}
-                validation={validation}
-                dataset={shippedDataset}
-              />
-              {/* §11.5 ⑤ (rev 5): the right-rail Export/Import pair is GONE —
-                  a ratified rev-2 §3.6 clause that never shipped (~198px of
-                  min-content in a 142px rail box). The header pair above is
-                  the only one; tests/layout-arithmetic.test.ts pins this. */}
-            </Section>
-          </div>
-        </aside>
+        <div className="panel-below" id="panel-synergy">
+          <Section title="Synergy Slots" storageKey="section-synergy">
+            <SynergyPanel
+              synergySlots={working.synergy}
+              loadout={working.loadout}
+              dataset={shippedDataset}
+              overlay={overlay}
+              onSynergySlotsChange={setSynergySlots}
+            />
+          </Section>
+        </div>
+
+        <div className="panel-below" id="panel-summary">
+          <Section title="Summary" storageKey="section-summary">
+            <SummaryPanel
+              loadout={working.loadout}
+              synergySlots={working.synergy}
+              budgets={budgets}
+              readouts={readouts}
+              validation={validation}
+              dataset={shippedDataset}
+            />
+            {/* §11.5 ⑤ (rev 5): the right-rail Export/Import pair is GONE —
+                a ratified rev-2 §3.6 clause that never shipped (~198px of
+                min-content in a 142px rail box). The header pair above is
+                the only one; tests/layout-arithmetic.test.ts pins this. */}
+          </Section>
+        </div>
       </div>
 
       <footer className="app-footer">
