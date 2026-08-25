@@ -894,3 +894,87 @@ JSON.parse error message copy on the import dialog) stays open. Natural next
 dispatch: QE runtime smoke over the three routes (boot-heal, load-disclosure,
 re-check merge) on a real browser profile with a genuine pre-F2 localStorage.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-26 — Tier 2 shape upgraded A → B: lean 3-agent team scaffolded in-repo
+Type: fyi
+Actor: architect (Tier 1)
+Slice: n/a
+
+WHAT
+`.claude/agents/` created on `dev` with exactly three contracts, per the original Option B
+definition (`tech-strategy.md` §7: conductor + engine-agent + ui-agent):
+
+- `tier2-conductor.md` — routes slices against `workspace/badge-builder-2k27/impl-briefs/*.md`,
+  dispatches the two implementers in constrained mode, verifies their reportback entries carry
+  the §7.1 fields, never talks to the user, escalates to Tier 1 through this channel. Carries the
+  path-ownership routing table, the split-a-cross-boundary-slice-into-two rule (F1/F2 precedent),
+  and the kill-switch mechanics.
+- `tier2-engine-implementer.md` — owns `src/engine/**`, `src/data/**` (generated pipeline only),
+  `src/config/**`, `scripts/**`, and the engine test suites. Never touches `src/ui/**` or
+  `src/styles/**`.
+- `tier2-ui-implementer.md` — owns `src/ui/**`, `src/styles/**`, `src/persist/**` (the single
+  `window.localStorage`-toucher boundary + its lint), `tests/ui/**`, and **`src/App.tsx` in its
+  default allowlist**. `src/engine/**` is DENIED — every number the UI shows is an engine readout.
+
+All three encode this project's standing rules rather than restating them loosely: constrained mode
+as the default dispatch shape with the §7.1 field list, §7.2 preflight echo, §7.3 heartbeats/kill,
+and the §7.4 `git status --porcelain` self-check (out-of-allowlist edit = stop-condition report,
+never a silent completion); never invent 2K27 data, with the three config seams and
+`decision-needed`-not-a-guess; `badges.json` generated and never hand-edited, with the
+badges-json-gate revisit trigger named; the H1 "Badge Slots" / "Synergy Slots" vocabulary rule;
+runtime deps exactly `{react, react-dom}` with a dependency need as stop-and-report; work on `dev`
+never `main`, one commit per slice with `npm test` green plus a separate `chore(reportback):` commit;
+`design-spec.md` binding for UI and `seed.md` sealed.
+
+**`src/App.tsx` is baked into the UI implementer's default allowlist** — the M4 lesson. It was
+omitted from M4's published Allowed paths, the implementer had to file `out-of-scope-edit-detected`
+for a pure-wiring edit the milestone was unreachable without, and Tier 1 ratified it post-hoc. Same
+Critic-B1 class ("allowlists not executable as written"), second occurrence. It is now a default, not
+a discovery.
+
+**Authority.** User directive 2026-08-26 ("Upgrade to Shape B at the morning session"), executed by
+Architect via Tier 1 orchestrator dispatch. This REVERSES the 2026-08-25 `planned`-checkpoint ruling
+(`scope.md` §0, `tech-strategy.md` §7: Option A ratified, B rejected per `critic-review §NB-8`). The
+rejection rationale is unchanged on the merits — the allowlist boundary does live in the impl brief,
+and a Tier-1-dispatched implementer does get identical §7.2–§7.4 enforcement. It is overridden by
+user directive, and B's disclosed cost is knowingly accepted: **newly created agents are not
+dispatchable until a session restart, so these three register only in sessions opened AFTER this
+commit, inside the project directory**
+(`memory/runtime_claude_code_agent_registry_session_restart.md`).
+
+**Unchanged:** no `settings.json`, no `hooks/` — the `badges-json-gate.py` deferral stands with its
+revisit trigger (a hand edit to `badges.json` bypassing the generator) still unmet.
+`db-register.md` is untouched and still declared-empty (`databases: []`, localStorage only); all
+three contracts carry its escalation clause — if this project ever grows persistent shared state,
+stop and route through Tier 1 `db-admin`. No Tier 2 critic (Tier 1 `critic` / `quality-engineer` /
+`ui-ux-reviewer` cover review), no Tier 2 deployment agent (no deploy target), no DB agent (no
+database) — the `tech-strategy.md` §7 omit table survives this upgrade intact.
+
+EVIDENCE
+Commit 953287c on `dev` (`main` untouched at 444d034). Three files added under `.claude/agents/`
+plus this file's header block updated in place — the "Tier 2 shape: A — bare" claim is superseded
+with the original wording struck and kept visible, not erased. `npm test`: 518 passed / 35 files
+(unchanged — agent contracts are non-code, verified anyway). `git status --porcelain` clean after
+commit. This entry's `chore(reportback):` commit follows.
+
+SCOPE / PLAN IMPACT
+No code, no milestone, no H-ruling, no allowlist change. `scope.md` §0's ratified-decisions row
+"Tier 2 shape | Option A — bare" and `tech-strategy.md` §7 are both superseded as of 2026-08-26;
+Architect has appended a dated supersession addendum to `tech-strategy.md` §7 recording the
+override, the unchanged-on-the-merits rationale, the accepted restart cost, and this commit SHA.
+`scope.md` §0's row is left as the 2026-08-25 record it is — §0.1 is the established home for
+post-seal amendments, and the authoritative supersession now lives in §7.
+
+One process note for Tier 1: the three new agents cannot be dispatched or test-invoked from the
+session that created them. Their first real exercise is the next slice dispatched from a session
+started inside `badge-builder-2k27/` after this commit — F3 (sliders + position-height constraints)
+is the natural first candidate, and it is a UI slice, so it exercises the `src/App.tsx` default
+allowlist immediately.
+
+NEXT
+Nothing is blocked on this. The queue is unchanged: F3 → F4 → PMM docs delta → docs landing commit →
+`dev` → `main` no-ff promotion → deep-dive packet, with the user's own acceptance-bar session (the
+real 2K27 build, fuse/reaction pair assigned, numbers reconciled against the game) as the project's
+actual DoD. M5 stays data-blocked.
+─────────────────────────────────────────────
