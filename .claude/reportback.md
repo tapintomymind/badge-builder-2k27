@@ -556,3 +556,98 @@ pair assigned and numbers reconciled against the game — is the milestone's act
 and needs the user at the keyboard (DOD final checkbox). QE pass should also capture the
 five contracted PNGs. M5 stays data-blocked.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-25 — F1 engine-robustness slice complete: import validation, drift strip+report, boot crash-loop closed
+Type: milestone-complete
+Actor: Tier-2 fix implementer / Claude (Fable 5)
+Slice: n/a (post-M4 review remediation, slice F1)
+
+WHAT
+All five F1 docket items fixed, each with a pinning test that fails on pre-fix code:
+1. [P0] deserializeSavedBuild now validates the FULL body (H6 at the JSON boundary):
+   name/savedAt strings; build.heightInches finite, position PG/SG/SF/PF/C when present,
+   attributes all 20 keys numeric 0-99; budgets all 6 categories with non-negative
+   points/equipSlots; loadout entries typed, purchasedLevel a valid PURCHASABLE level
+   (legend and non-canonical strings rejected), no duplicate badge ids; synergy entries
+   with ids 1-8 unique, unlocked boolean, permanence matching the seed table, magnitude
+   1|2, at most TWO magnitude-2, fuse/reaction refs null or loadout badges; config
+   refundTrigger/budgetStrategy/plusTwoSlotIds validated. Malformed input throws typed
+   MalformedSavedBuildError carrying a `problems` list — surfaced verbatim by the
+   existing import-dialog danger banner. Never a cast-through: the NaN-ledger,
+   LegendNotPurchasableError-render-crash, and silent double-count import shapes from
+   the review dockets are all closed at the one seam.
+2. [P0] Boot crash-loop closed: unknown badge ids in an OTHERWISE-VALID build are H8
+   dataset drift, not a failure — stripped into a reported `droppedEntries` field
+   (deserializeSavedBuildWithReport; readAutosaveWithReport in persist), synergy refs to
+   dropped ids cleared. A stored autosave holding a removed badge id now boots to a full
+   first render (pinned by tests/ui/boot-drift.test.tsx; pre-fix that exact boot threw
+   UnknownBadgeError from ledger requireBadge before any banner could mount).
+   Backstop: RecoveryBoundary error boundary in src/main.tsx — render failure shows a
+   minimal recovery screen (message + "Export raw saved data" + "Clear saved data")
+   instead of a white screen. It NEVER auto-clears storage (asserted by test); storage
+   access rides the new persist recovery surface (exportRawPersistedData /
+   clearAllPersistedData), preserving the single-owner localStorage boundary lint.
+3. [P2] validateLoadout gains HardViolation `tooManyPlusTwoSynergySlots` (>2
+   magnitude-2 synergy slots) — the seed's sealed "2 different +2 slots" cap now lives
+   in the single enforcement surface, not only in the SynergyPanel component. Also
+   enforced at the JSON boundary by item 1.
+4. [P2] synergySlotDisabledByPreview exported from src/engine/synergy.ts as THE
+   canonical predicate for the "disabled by season-reset preview" UI state
+   (+ plusTwoSynergySlotIds and MAX_PLUS_TWO_SYNERGY_SLOTS). F2 swaps the two
+   hand-negated copies (SynergyPanel.tsx, BadgeCard.tsx).
+5. [P2] EligibilityDrift gains `droppedFromDataset`; recheckEligibility stamps it, and
+   new driftFromDroppedEntries() maps the deserializer's droppedEntries into the SAME
+   drift-report structure DriftBanner consumes — one disclosure shape for both drift
+   sources. F2 wires the visible disclosure.
+
+Sanity check settled: `git show dev:vite.config.ts` line 16 contains `host: true` — the
+reviewer claim that it was missing is WRONG; QE's LAN-live verification stands.
+
+EVIDENCE
+- Commit 17d939c on dev (this entry's chore commit follows), pushed to origin/dev.
+- Suite: 473 passed / 0 failed (was 443), 30 files — `npm test`.
+- `npm run build` (tsc --noEmit + vite build) clean.
+- Pre-fix pinning proof: `git stash push -- src/` then running the five test files
+  (serialization, validate-loadout, synergy, ui/boot-drift, ui/recovery-boundary)
+  yields 5/5 files FAILED (32 failing tests) against pre-fix src; stash popped, all
+  green again.
+- Full review evidence lives in the Tier-1 task outputs (w27y2d7y0 confirmed set,
+  wi8ui20qq verified set) and workspace design-review.md.
+
+CONSTRAINED-MODE REPORTBACK (required for M1-M4 completions)
+changed_files: src/engine/serialization.ts, src/engine/errors.ts,
+  src/engine/eligibility.ts, src/engine/synergy.ts, src/engine/validate-loadout.ts,
+  src/persist/local-storage.ts, src/main.tsx (error-boundary mount only),
+  tests/serialization.test.ts, tests/synergy.test.ts, tests/validate-loadout.test.ts,
+  tests/ui/boot-drift.test.tsx (new), tests/ui/recovery-boundary.test.tsx (new)
+denied_paths_checked: src/ui/** untouched; src/App.tsx untouched (boundary mounts in
+  main.tsx, so even the permitted App.tsx carve-out went unused); src/data/** untouched
+  (no invented 2K27 data); runtime deps still exactly {react, react-dom}
+first_proof_result: pre-fix stash-run — 5/5 pinning-test files fail (32 tests),
+  including the boot-drift render test failing with UnknownBadgeError
+second_proof_result: post-fix full suite 473/473 green; typecheck + vite build clean;
+  vocabulary lint and persist-boundary lint green over the new code
+verification_evidence: npm test tail, npm run build tail, stash-run tail (this session)
+heartbeats_emitted: n/a (single-session slice)
+stop_conditions_triggered: none
+
+SCOPE / PLAN IMPACT
+No scope/H-ruling changes. Two notes for F2 and one for Tier 1:
+1. F2 wiring points shipped and waiting: readAutosaveWithReport + droppedEntries +
+   driftFromDroppedEntries (disclosure), synergySlotDisabledByPreview (swap the two
+   hand-rolled copies), MalformedSavedBuildError.problems (richer import banner copy if
+   desired), and the still-unrendered validateLoadout errors channel (now including
+   tooManyPlusTwoSynergySlots).
+2. Deserializer permanence check is STRICT against the seed table (1-4 temporary, 5-8
+   permanent): a hand-edited file flipping a synergy permanence is malformed, not
+   preserved. Judged sealed data, not user choice; flag if Tier 1 reads it looser.
+3. "Clear saved data" on the recovery screen clears ALL app keys (autosave + named
+   builds + UI prefs) — it is behind an explicit user click with the raw-export escape
+   hatch offered first, and nothing anywhere auto-clears.
+
+NEXT
+Slice F2 (UI side) picks up: DriftBanner/import-dialog disclosure of droppedEntries,
+rendering the validateLoadout errors channel, swapping the hand-negated preview
+predicates, and the remaining UI-owned docket items from the review set.
+─────────────────────────────────────────────
