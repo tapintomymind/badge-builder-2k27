@@ -149,14 +149,23 @@ export function listNamedBuilds(): NamedBuildSummary[] {
   return summaries;
 }
 
-export function readNamedBuild(id: string): SavedBuild | null {
+/** null = no such build, or an unreadable envelope (never throws). Carries
+ * the deserializer's full H8/heal report — `droppedEntries` and
+ * `clearedSynergyRefs` — so the named-build LOAD route can disclose a strip
+ * or heal exactly like the boot and import routes do. */
+export function readNamedBuildWithReport(id: string): DeserializedSavedBuild | null {
   const text = readStore()[id];
   if (text === undefined) return null;
   try {
-    return deserializeSavedBuild(text);
+    return deserializeSavedBuildWithReport(text);
   } catch {
     return null;
   }
+}
+
+/** The report-free form for callers that only need the build. */
+export function readNamedBuild(id: string): SavedBuild | null {
+  return readNamedBuildWithReport(id)?.saved ?? null;
 }
 
 export function saveNamedBuild(id: string, saved: SavedBuild): PersistResult {

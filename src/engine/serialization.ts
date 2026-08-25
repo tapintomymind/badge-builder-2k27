@@ -13,15 +13,22 @@
  * carve-out, scope.md §2 M1): known fields are validated, everything else is
  * preserved verbatim.
  *
- * DESERIALIZE VALIDATES THE FULL BODY (H6 at the JSON boundary). Two failure
+ * DESERIALIZE VALIDATES THE FULL BODY (H6 at the JSON boundary). Three
  * classes, deliberately distinct:
  *  - MALFORMED input (wrong types, invalid levels, duplicate loadout rows,
  *    junk synergy/config shapes) throws MalformedSavedBuildError — LOUDLY,
- *    never a cast-through into NaN ledgers or render crashes.
+ *    never a cast-through into NaN ledgers or render crashes. Reserved for
+ *    GENUINELY untyped/corrupt shapes only.
  *  - DATASET DRIFT (a badge id absent from the CURRENT dataset in an
  *    otherwise-valid build) is H8's supported scenario, NEVER a failure:
  *    those loadout entries are stripped into `droppedEntries` (and any
  *    synergy references to them cleared) so the UI can disclose the drop.
+ *  - STRANDED SYNERGY REFS (a well-typed fuse/reaction badge id not in the
+ *    loadout) are HEALABLE, never malformed (F2.1 re-ruling): the pre-F2
+ *    app wrote exactly this state in normal use (removing a purchase did
+ *    not clear its synergy role), and a user's real autosave must never be
+ *    destroyed by an upgrade. The stale assignment is cleared into
+ *    `clearedSynergyRefs` so the UI can disclose the heal.
  */
 
 import { badgeById, shippedDataset } from "./dataset";
@@ -34,6 +41,7 @@ import type {
   Build,
   LoadoutEntry,
   SavedBuild,
+  SynergyRoleKind,
   SynergySlot,
   SynergySlotId,
 } from "./types";
@@ -103,13 +111,26 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+/** One synergy assignment cleared at deserialize because it referenced a
+ * badge id not in the build's loadout (F2.1 re-ruling): the pre-F2 app wrote
+ * exactly this state in normal use — removing a purchase did not clear its
+ * synergy role — so the condition heals with disclosure, never throws. */
+export interface ClearedSynergyRef {
+  synergySlotId: SynergySlotId;
+  role: SynergyRoleKind;
+  badgeId: string;
+}
+
 /** The deserializer's full result: the validated build plus the H8 drift
  * report. `droppedEntries` is empty in the normal case; it lists the loadout
  * entries whose badge id is absent from the CURRENT dataset — stripped, never
- * a failure, so the UI can disclose the drop (DriftBanner path). */
+ * a failure, so the UI can disclose the drop (DriftBanner path).
+ * `clearedSynergyRefs` lists stale synergy assignments healed because their
+ * badge id was not in the loadout (disclosed on the same surface). */
 export interface DeserializedSavedBuild {
   saved: SavedBuild;
   droppedEntries: LoadoutEntry[];
+  clearedSynergyRefs: ClearedSynergyRef[];
 }
 
 function validateBuild(problems: string[], value: unknown): void {
@@ -197,11 +218,14 @@ function validateLoadoutShape(problems: string[], value: unknown): LoadoutEntry[
 }
 
 /** Validates known SynergySlot fields; unknown extra fields pass through
- * OPAQUELY (the M1 carve-out). Returns the raw records for reassembly. */
+ * OPAQUELY (the M1 carve-out). Returns the raw records for reassembly.
+ * Role references are checked for TYPE only (string | null) — loadout
+ * membership is deliberately not a shape failure: a well-typed reference to
+ * a badge outside the loadout is the healable stranded-ref condition,
+ * partitioned after shape validation succeeds (F2.1 re-ruling). */
 function validateSynergyShape(
   problems: string[],
   value: unknown,
-  loadoutBadgeIds: ReadonlySet<string>,
 ): Record<string, unknown>[] {
   if (!Array.isArray(value)) {
     problems.push("synergy must be an array");
@@ -245,12 +269,6 @@ function validateSynergyShape(
       if (reference === null) continue;
       if (typeof reference !== "string") {
         problems.push(`synergy[${index}].${roleField} must be null or a badge id string`);
-        continue;
-      }
-      if (!loadoutBadgeIds.has(reference)) {
-        problems.push(
-          `synergy[${index}].${roleField} "${reference}" is not a badge in this build's loadout`,
-        );
       }
     }
     entries.push(raw);
@@ -296,11 +314,12 @@ function validateConfig(problems: string[], value: unknown): void {
 }
 
 /**
- * Full-body validation + the H8 drift partition. `envelope` has already
- * passed the schemaVersion/dataVersion envelope checks and any migrations.
- * Throws MalformedSavedBuildError (with every problem found) on junk;
- * strips dataset-drifted loadout entries into `droppedEntries` and clears
- * synergy references to them.
+ * Full-body validation + the H8 drift partition + the F2.1 heal partition.
+ * `envelope` has already passed the schemaVersion/dataVersion envelope
+ * checks and any migrations. Throws MalformedSavedBuildError (with every
+ * problem found) on genuinely untyped junk; strips dataset-drifted loadout
+ * entries into `droppedEntries` (clearing synergy references to them), and
+ * heals stranded synergy references into `clearedSynergyRefs`.
  */
 function validateBody(
   envelope: Record<string, unknown>,
@@ -316,8 +335,7 @@ function validateBody(
   validateBuild(problems, envelope["build"]);
   validateBudgets(problems, envelope["budgets"]);
   const shapedLoadout = validateLoadoutShape(problems, envelope["loadout"]);
-  const loadoutBadgeIds = new Set(shapedLoadout.map((entry) => entry.badgeId));
-  const shapedSynergy = validateSynergyShape(problems, envelope["synergy"], loadoutBadgeIds);
+  const shapedSynergy = validateSynergyShape(problems, envelope["synergy"]);
   validateConfig(problems, envelope["config"]);
 
   if (problems.length > 0) {
@@ -332,16 +350,31 @@ function validateBody(
     else kept.push(entry);
   }
   const droppedIds = new Set(droppedEntries.map((entry) => entry.badgeId));
+  const keptBadgeIds = new Set(kept.map((entry) => entry.badgeId));
+
+  // --- Synergy role references, partitioned three ways: kept as-is (badge
+  // in the loadout), cleared silently alongside its droppedEntries report
+  // (dataset drift), or HEALED + reported (stranded ref — the pre-F2 app's
+  // remove-without-clearing state; F2.1 re-ruling, never malformed). ---
+  const clearedSynergyRefs: ClearedSynergyRef[] = [];
   const synergy = shapedSynergy.map((raw) => {
-    const fuseBadgeId = raw["fuseBadgeId"] as string | null;
-    const reactionBadgeId = raw["reactionBadgeId"] as string | null;
-    return {
-      // Spread first: unknown future fields round-trip OPAQUELY (M1 carve-out).
-      ...raw,
-      fuseBadgeId: fuseBadgeId !== null && droppedIds.has(fuseBadgeId) ? null : fuseBadgeId,
-      reactionBadgeId:
-        reactionBadgeId !== null && droppedIds.has(reactionBadgeId) ? null : reactionBadgeId,
-    } as unknown as SynergySlot;
+    // Spread first: unknown future fields round-trip OPAQUELY (M1 carve-out).
+    const healed: Record<string, unknown> = { ...raw };
+    for (const roleKind of ["fuse", "reaction"] as const) {
+      const roleField = roleKind === "fuse" ? "fuseBadgeId" : "reactionBadgeId";
+      const reference = raw[roleField] as string | null;
+      if (reference === null || keptBadgeIds.has(reference)) continue;
+      healed[roleField] = null;
+      if (!droppedIds.has(reference)) {
+        // Stranded (not dataset drift): disclose the heal.
+        clearedSynergyRefs.push({
+          synergySlotId: raw["id"] as SynergySlotId,
+          role: roleKind,
+          badgeId: reference,
+        });
+      }
+    }
+    return healed as unknown as SynergySlot;
   });
 
   const saved: SavedBuild = {
@@ -355,14 +388,15 @@ function validateBody(
     synergy,
     config: envelope["config"] as unknown as AppConfig,
   };
-  return { saved, droppedEntries };
+  return { saved, droppedEntries, clearedSynergyRefs };
 }
 
 /**
  * Deserialize with the full H8 drift report. Throws
  * UnsupportedSchemaVersionError on an unreadable envelope and
- * MalformedSavedBuildError on a junk body; dataset drift never throws —
- * it is reported via `droppedEntries`.
+ * MalformedSavedBuildError on a genuinely untyped body; dataset drift and
+ * stranded synergy refs never throw — they are reported via
+ * `droppedEntries` / `clearedSynergyRefs`.
  */
 export function deserializeSavedBuildWithReport(
   text: string,

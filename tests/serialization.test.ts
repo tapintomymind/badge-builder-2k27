@@ -334,11 +334,10 @@ describe("deserializeSavedBuild — malformed bodies throw MalformedSavedBuildEr
     expect(() => deserializeSavedBuild(threePlusTwo)).toThrowError(MalformedSavedBuildError);
   });
 
-  it("rejects a synergy reference to a badge that is NOT in the loadout (H4 at the boundary)", () => {
+  it("rejects a synergy role reference of a genuinely untyped shape (number, not string/null)", () => {
     const text = corrupt((envelope) => {
       const synergy = envelope["synergy"] as Record<string, unknown>[];
-      synergy[4]!["unlocked"] = true;
-      synergy[4]!["fuseBadgeId"] = "posterizer"; // not a loadout badge
+      synergy[4]!["fuseBadgeId"] = 42;
     });
     expect(() => deserializeSavedBuild(text)).toThrowError(MalformedSavedBuildError);
   });
@@ -390,6 +389,11 @@ describe("deserializeSavedBuildWithReport — dataset drift strips into droppedE
     ]);
   });
 
+  it("a reference cleared by DATASET drift is disclosed via droppedEntries only — never double-reported in clearedSynergyRefs", () => {
+    const { clearedSynergyRefs } = deserializeSavedBuildWithReport(driftedText());
+    expect(clearedSynergyRefs).toEqual([]);
+  });
+
   it("clears synergy references to the dropped badge id, keeping unrelated references", () => {
     const { saved } = deserializeSavedBuildWithReport(driftedText());
     const synergySlot5 = saved.synergy.find((entry) => entry.id === 5);
@@ -410,11 +414,88 @@ describe("deserializeSavedBuildWithReport — dataset drift strips into droppedE
     expect(synergySlot5["fuseBadgeId"]).toBeNull();
   });
 
-  it("reports droppedEntries [] for a fully-valid build (and the report-free form matches)", () => {
+  it("reports droppedEntries [] and clearedSynergyRefs [] for a fully-valid build (and the report-free form matches)", () => {
     const text = serializeSavedBuild(makeSaved());
-    const { saved, droppedEntries } = deserializeSavedBuildWithReport(text);
+    const { saved, droppedEntries, clearedSynergyRefs } = deserializeSavedBuildWithReport(text);
     expect(droppedEntries).toEqual([]);
+    expect(clearedSynergyRefs).toEqual([]);
     expect(saved).toEqual(makeSaved());
     expect(deserializeSavedBuild(text)).toEqual(saved);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F2.1 re-ruling — a STRANDED synergy reference (fuse/reaction badge id not in
+// the loadout) is a HEALABLE condition, never MalformedSavedBuildError. The
+// PRE-F2 app wrote exactly this state in normal use (removing a purchase did
+// not clear its synergy role), so a user's real autosave must never be
+// destroyed by an upgrade: the stale assignment is cleared into the report
+// (clearedSynergyRefs, alongside droppedEntries) and deserialization proceeds.
+// ---------------------------------------------------------------------------
+
+describe("deserializeSavedBuildWithReport — stranded synergy refs heal into clearedSynergyRefs (F2.1)", () => {
+  /** The valid fixture shaped exactly like a pre-F2 autosave: Posterizer was
+   * purchased, fused on Synergy Slot 5, then removed — the pre-F2 remove
+   * path left the fuse reference stranded. Posterizer still exists in the
+   * dataset; it is just not in the loadout. */
+  function strandedText(): string {
+    return corrupt((envelope) => {
+      const synergy = envelope["synergy"] as Record<string, unknown>[];
+      synergy[4]!["unlocked"] = true;
+      synergy[4]!["fuseBadgeId"] = "posterizer"; // in the dataset, NOT in the loadout
+    });
+  }
+
+  it("does NOT throw (pre-F2.1 this was rejected as malformed — destroying real pre-F2 autosaves)", () => {
+    expect(() => deserializeSavedBuildWithReport(strandedText())).not.toThrow();
+  });
+
+  it("clears the stranded reference and reports it in clearedSynergyRefs; the loadout survives intact", () => {
+    const { saved, droppedEntries, clearedSynergyRefs } =
+      deserializeSavedBuildWithReport(strandedText());
+    expect(clearedSynergyRefs).toEqual([
+      { synergySlotId: 5, role: "fuse", badgeId: "posterizer" },
+    ]);
+    expect(saved.synergy.find((entry) => entry.id === 5)?.fuseBadgeId).toBeNull();
+    // Nothing else was touched: the plan is intact, no dataset drift.
+    expect(saved.loadout).toEqual([
+      { badgeId: "deadeye", purchasedLevel: "gold" },
+      { badgeId: "glove", purchasedLevel: "gold" },
+    ]);
+    expect(droppedEntries).toEqual([]);
+  });
+
+  it("heals BOTH roles independently and keeps valid references", () => {
+    const text = corrupt((envelope) => {
+      const synergy = envelope["synergy"] as Record<string, unknown>[];
+      synergy[1]!["unlocked"] = true;
+      synergy[1]!["reactionBadgeId"] = "float-game"; // stranded (not in loadout)
+      synergy[4]!["unlocked"] = true;
+      synergy[4]!["fuseBadgeId"] = "posterizer"; // stranded (not in loadout)
+      synergy[4]!["reactionBadgeId"] = "deadeye"; // VALID — in the loadout
+    });
+    const { saved, clearedSynergyRefs } = deserializeSavedBuildWithReport(text);
+    expect(clearedSynergyRefs).toEqual([
+      { synergySlotId: 2, role: "reaction", badgeId: "float-game" },
+      { synergySlotId: 5, role: "fuse", badgeId: "posterizer" },
+    ]);
+    const synergySlot2 = saved.synergy.find((entry) => entry.id === 2);
+    const synergySlot5 = saved.synergy.find((entry) => entry.id === 5);
+    expect(synergySlot2?.reactionBadgeId).toBeNull();
+    expect(synergySlot5?.fuseBadgeId).toBeNull();
+    expect(synergySlot5?.reactionBadgeId).toBe("deadeye");
+  });
+
+  it("still preserves unknown synergy extra fields OPAQUELY while healing (M1 carve-out)", () => {
+    const envelope = JSON.parse(strandedText()) as Record<string, unknown>;
+    const synergy = envelope["synergy"] as Record<string, unknown>[];
+    synergy[4]!["futureField"] = "opaque";
+    const { saved } = deserializeSavedBuildWithReport(JSON.stringify(envelope));
+    const synergySlot5 = saved.synergy.find((entry) => entry.id === 5) as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(synergySlot5["futureField"]).toBe("opaque");
+    expect(synergySlot5["fuseBadgeId"]).toBeNull();
   });
 });

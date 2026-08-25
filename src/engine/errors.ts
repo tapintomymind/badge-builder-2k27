@@ -55,7 +55,11 @@ export class UnsupportedSchemaVersionError extends Error {
  *
  * Deliberately NOT thrown for dataset drift (a badge id absent from the
  * current dataset in an otherwise-valid build) — that is H8's supported
- * scenario, reported via `droppedEntries` instead.
+ * scenario, reported via `droppedEntries` instead. Also NOT thrown for a
+ * STRANDED synergy reference (a well-typed fuse/reaction badge id not in the
+ * loadout) — the pre-F2 app wrote that state in normal use, so it heals into
+ * `clearedSynergyRefs` (F2.1 re-ruling); destroying a user's real autosave
+ * over it would be the exact silent loss this error class exists to prevent.
  */
 export class MalformedSavedBuildError extends Error {
   readonly problems: readonly string[];

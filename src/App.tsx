@@ -29,6 +29,7 @@ import {
   deserializeSavedBuildWithReport,
   serializeSavedBuild,
 } from "./engine/serialization";
+import type { ClearedSynergyRef } from "./engine/serialization";
 import { createDefaultSynergySlots, defaultOverlay } from "./engine/synergy";
 import type { SynergyState } from "./engine/synergy";
 import { categoryLedgerAt } from "./engine/synergy-ledger";
@@ -51,6 +52,7 @@ import {
   newBuildId,
   readAutosaveWithReport,
   readNamedBuild,
+  readNamedBuildWithReport,
   renameNamedBuild,
   saveNamedBuild,
   deleteNamedBuild,
@@ -264,6 +266,16 @@ export default function App() {
   const [droppedEntries, setDroppedEntries] = useState<readonly LoadoutEntry[]>(
     boot?.droppedEntries ?? [],
   );
+  /** F2.1 heal disclosure: synergy assignments cleared at the deserialize
+   * boundary because they referenced a badge not in the build's loadout (the
+   * pre-F2 remove path wrote exactly this state). */
+  const [clearedSynergyRefs, setClearedSynergyRefs] = useState<readonly ClearedSynergyRef[]>(
+    boot?.clearedSynergyRefs ?? [],
+  );
+  /** Bumped on every disclosure ROUTE transition (load / import confirm) —
+   * keys the DriftBanner so its internal re-check output can never linger
+   * stale across a build switch. */
+  const [disclosureEpoch, setDisclosureEpoch] = useState(0);
 
   /** EVERY working-state mutation flows through here (write-through ref). */
   const applyWorking = useCallback(
@@ -430,8 +442,8 @@ export default function App() {
 
   const loadBuild = useCallback(
     (id: string) => {
-      const saved = readNamedBuild(id);
-      if (saved === null) return;
+      const report = readNamedBuildWithReport(id);
+      if (report === null) return;
       // Switcher guard: replacing a dirty working build — or a boot-restored
       // autosave that never got a sourceId — destroys the only copy (the
       // autosave is overwritten on the next commit). Confirm first; the
@@ -441,13 +453,20 @@ export default function App() {
         dirtyRef.current || (current.sourceId === null && workingHasContent(current));
       if (guarded) {
         const proceed = window.confirm(
-          `Replace the working build "${current.name}" with "${saved.name}"? ` +
+          `Replace the working build "${current.name}" with "${report.saved.name}"? ` +
             "Unsaved changes will be lost.",
         );
         if (!proceed) return;
       }
-      applyWorking(fromSaved(saved, id));
+      applyWorking(fromSaved(report.saved, id));
       markClean();
+      // The load is its own disclosure ROUTE (same as boot and import):
+      // REPLACE any stale prior-route report with this build's own — empty
+      // for a clean build, so a leftover banner can never describe a build
+      // it does not belong to.
+      setDroppedEntries(report.droppedEntries);
+      setClearedSynergyRefs(report.clearedSynergyRefs);
+      setDisclosureEpoch((epoch) => epoch + 1);
       setManagerOpen(false);
     },
     [applyWorking, markClean],
@@ -531,6 +550,7 @@ export default function App() {
             kind: "confirm",
             saved: report.saved,
             droppedEntries: report.droppedEntries,
+            clearedSynergyRefs: report.clearedSynergyRefs,
           });
         } catch (error) {
           setImportState({
@@ -554,6 +574,10 @@ export default function App() {
       setDroppedEntries(
         importState?.kind === "confirm" ? importState.droppedEntries : [],
       );
+      setClearedSynergyRefs(
+        importState?.kind === "confirm" ? importState.clearedSynergyRefs : [],
+      );
+      setDisclosureEpoch((epoch) => epoch + 1);
       setImportState(null);
     },
     [applyWorking, importState],
@@ -696,9 +720,11 @@ export default function App() {
 
       <div className="app-banners">
         <DriftBanner
+          key={disclosureEpoch}
           saved={toEnvelope(working)}
           currentDataset={shippedDataset}
           droppedEntries={droppedEntries}
+          clearedSynergyRefs={clearedSynergyRefs}
         />
         {autosaveFailed && !autosaveDismissed ? (
           <AutosaveWarning

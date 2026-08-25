@@ -22,6 +22,7 @@
 
 import { useEffect, useRef } from "react";
 import { badgeById } from "../../engine/dataset";
+import type { ClearedSynergyRef } from "../../engine/serialization";
 import { defaultOverlay, effectiveLevel, synergyRoleFor } from "../../engine/synergy";
 import type { CategoryLedgerReadout } from "../../engine/synergy-ledger";
 import type { HardViolation, LoadoutValidation } from "../../engine/validate-loadout";
@@ -240,6 +241,10 @@ export type ImportDialogState =
        * their badge id left the dataset — disclosed post-confirm via the
        * DriftBanner path. */
       droppedEntries: LoadoutEntry[];
+      /** F2.1 heal report from the deserializer: synergy assignments
+       * cleared because they referenced a badge not in the loadout —
+       * disclosed post-confirm on the same surface. */
+      clearedSynergyRefs: ClearedSynergyRef[];
     }
   | { kind: "error"; message: string };
 
