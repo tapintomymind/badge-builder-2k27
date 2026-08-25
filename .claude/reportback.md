@@ -1930,3 +1930,201 @@ re-confirmed here: --danger does not override --cat on the digest title, --cat
 does not propagate past the title, and the title's --bg-surface and
 --danger-quiet pairings are now in the proof file.
 ─────────────────────────────────────────────
+
+═════════════════════════════════════════════
+F5.2 — the L information-architecture re-cut (LAYOUT ONLY) · slice-complete
+Agent: Tier-2 implementer (constrained mode) · 2026-08-25
+Brief: workspace/badge-builder-2k27/impl-briefs/f5-2-ia-recut-layout-only.md rev 2
+Design authority: design-spec.md rev 6 §13.0.1 (authoritative over the rest of §13)
+Implementation commit: e11e8f1 · Branch dev · main untouched
+─────────────────────────────────────────────
+
+REBASE ANCHOR
+Tip b94d403. Designer's two-hue correction HAD landed (6fd0db1 + b94d403), tree
+clean apart from the untracked .claude/worktrees/. tokens.css read
+--cat-playmaking: #f58236 and --cat-physicals: #beb448, i.e. the post-hue side
+of §0.1 ⑤. Baseline suite 46 files / 694 tests green in 35.77s — three ABOVE
+the brief's recorded 691, exactly as §0.1 ⑤ predicted, and 694 is the
+denominator every count below is arithmetic against.
+
+One precondition was superseded by the dispatch: :5173 was already bound by a
+dev server the orchestrator had started, with an explicit instruction to use it
+rather than restart it. Everything else in §0.3 passed as written.
+
+changed_files (all within Allowed paths)
+  src/App.tsx · src/styles/app.css · tests/layout-arithmetic.test.ts
+  tests/ui/f2-source-pins.test.ts · tests/helpers/test-utils.ts
+  docs/proof/f52-{before-1280,after-390,after-768,after-1280,after-1440}.png
+  docs/proof/f52-seam-{1339,1340,1356,1357}.png · docs/proof/f52-verification.txt
+  .claude/reportback.md (this entry) + the two authorized tokens.css comment
+  lines (see AUTHORIZED CARVE-OUT below) — both in THIS commit, not e11e8f1.
+
+denied_paths_checked — I did not touch any of these
+  src/ui/** (no .tsx under it changed; C7 held — every selector §13.5 needs
+  already existed) · src/engine/** · src/data/** · src/config/** ·
+  src/persist/** · src/main.tsx · tests/category-colors.test.ts ·
+  tests/ui/overlays.test.tsx · tests/ui/f2-disclosure-surfaces.test.tsx ·
+  tests/vocabulary.test.ts · tests/alias-bijection.test.ts · every other test
+  file · scripts/** · package.json · package-lock.json · *.config.* ·
+  tsconfig.json · .env* · .claude/** except this file.
+  src/styles/tokens.css: NO token value changed and no token was added. Only
+  the two comment lines the dispatch explicitly authorized.
+
+first_proof_result — RED BY 49px, verbatim in f52-verification.txt §1
+  Against the UNMODIFIED tree at b94d403, zero CSS bytes changed:
+      const rowBox = RAIL_RIGHT - SECTION_CHROME - 2 * WELL_PAD_X;  // 204-34-8 = 162
+      expect(rowBox).toBeGreaterThanOrEqual(76 + ROW_GAP_X + 127);  // 76+8+127 = 211
+      AssertionError: expected 162 to be greater than or equal to 211
+  211 − 162 = 49. The temporary `it` was deleted; the arithmetic survives as
+  the permanent shippedBroken canary in the rewritten I8b.
+
+SHIPPED GEOMETRY
+  L breakpoint 1280, and it is the only fixed-rail breakpoint.
+  grid-template-columns: 300px minmax(0, 1fr);   rail content box 266.
+  XL tier deleted — `rg -n "1440" src/` returns nothing. Right rail deleted —
+  `rg -n "rail-right" src/` returns nothing. Well sides back to --space-3 and
+  the ledger column-gap --space-3, uniform at every width, no tier to restore.
+
+   WIDTH | .layout          | ledger rail | cards     | synergy tracks    | pickers
+     390 | 366px            | none        | 1-up @366 | 332px             | column
+     768 | 736px            | none        | 2-up @362 | 702px             | row
+    1280 | 300px 936px      | block       | 3-up @304 | 601px 601px       | row
+    1440 | 300px 1096px     | block       | 4-up @265 | 450px 450px 450px | column*
+  No horizontal scrollbar at any width. * see T16 below — the one deviation.
+
+  4-up seam, derived and exact. It is a centre threshold (995 → 3-up, 996 →
+  4-up); headless Chrome has 0-width overlay scrollbars, so the named 1356/1357
+  pair maps to 1339/1340 there. Both pairs shot. 1339 → centre 995 → 3-up;
+  1340 → centre 996 → 4-up at exactly the 240px card floor. With a 17px classic
+  scrollbar the same centres fall on 1356/1357, matching §13.0.1 exactly.
+
+WHICH .rail-left RULE I EDITED (T7)
+  The EXISTING one, inside @media (min-width: 1280px) — the sticky rule with
+  max-height and overflow-y. No second base `.rail-left {` rule was created, so
+  the overflow guard still inspects the block that actually has overflow-y.
+  .synergy-panel's grid rule sits at its existing location, BELOW the badge-card
+  grid, so CARD_FLOOR still parses 240 (T5).
+
+THE --cat CHAIN SURVIVED — all five §4.2 confirmations, at 1280
+  categoryAnchorId still has exactly two consumers and neither file appears in
+  git status. Six slider fills in six distinct hues with the .attr-group
+  fieldsets now two asides deep (#3d93e9 #1caf61 #f58236 #ef5a64 #e467bb
+  #beb448 — the last two confirm the two-hue correction intact). Six legends
+  and six digest h2s in their category hue. Jump-nav shows two neutral-bordered
+  panel chips at the FRONT followed by six hued chips, exactly as C9 rules.
+  tests/category-colors.test.ts 15/15 without being edited.
+
+verification_evidence
+  npm test                               46 files / 701 tests   PASS
+  npm run typecheck                      exit 0                 PASS
+  npm run build                          clean                  PASS
+  overlays.test.tsx (H2 gate)             4/4                   PASS
+  category-colors.test.ts (--cat gate)   15/15                  PASS
+  f2-disclosure-surfaces.test.tsx (D1)   11/11                  PASS
+  layout-arithmetic + f2-source-pins     35/35                  PASS
+  git status clean before this commit.
+  Count arithmetic: 694 − 4 (I3-at-XL) − 1 (f2-source-pins XL pin) + 12 = 701.
+  Per file: layout-arithmetic 19 → 27, f2-source-pins 9 → 8.
+
+FOUR DEVIATIONS FROM THE BRIEF — all measured, all in f52-verification.txt §5
+  D1  .rail-column, ONE structural element beyond the brief's JSX, and it was
+      necessary. A sticky grid item is constrained by the grid CONTAINER, not
+      by its own row, so with the panels in rows 2–3 the rail scrolled out of
+      the grid and painted over the Synergy panel (measured doc-top 4660
+      against a grid ending at 4644). Four no-new-element candidates were
+      tested and none moved the clamp by a pixel. The wrapper clamps it at
+      3768 = exactly row 1's bottom. It carries no landmark, no id, no
+      storageKey, no state, and one declaration. .rail-left keeps every rule
+      the brief specifies, so T7's guard and the frozen
+      `.rail-left .segmented__track` selector are both intact — the Position
+      grid still resolves to 3 × 87.33px, matching §13.0.1's predicted ~88px.
+  D2  .ledger-overview__label min-width 0 → max-content. §13.4's literal CSS
+      collapses the label track to 0px: `1fr auto` sizes auto from content
+      first, the over-budget metrics want 303px of a 230px box, and min-width:0
+      removes the fr track's automatic minimum. Measured with the spec's CSS:
+      tracks "0px 230px", all six labels 0px wide, overflowing onto their own
+      numbers — and it renders almost-plausibly, which is why nothing caught
+      it. After: "77.41px 152.59px", which is §13.4's stated intent.
+  D3  .synergy-panel floor takes §11.5 ③'s min() idiom. A bare 426px floor is
+      absolute: at 390 the track stayed 426 in a 366 box and the document grew
+      a horizontal scrollbar (scrollWidth 455 vs 390). §13.5's own table says
+      that row is 366, so the spec asserted shrink-to-fit and then forbade it.
+      426 is still one number used twice. Consequence handled: ATTR_CELL_FLOOR
+      parsed the first min() idiom in the file and .synergy-panel sits above
+      the attribute grid, so it is now read out of that block by name.
+  D4  The @container block moved below `.synergy-row__pickers`. §13.5 lists it
+      immediately after `.synergy-row`, but the base `flex-direction: column`
+      is ~40 lines lower and a container query has no specificity of its own —
+      so at the spec's position the query evaluated true and changed nothing.
+      Measured before the move: 601px row, pickers still "column". Both D3 and
+      D4 are now pinned by new assertions.
+
+FOR DESIGNER — rev 7
+  T16's band is NOT empty, and 1440 lands in it. A size query evaluates against
+  the CONTENT box, and .synergy-row is a fieldset with 34px of chrome, so the
+  threshold effectively fires at border-box ~460. 1280 → row 601 → content 567
+  → side by side; 1440 → row 450 → content 416 → STACKED. That contradicts
+  §4.3's "1440 identical to 1280". Failure direction is conservative and stop
+  condition #12 is scoped to 1280 (green), and T16 explicitly forbids
+  re-deriving the number, so I left 426 alone. Designer's call.
+  ROOT CAUSE, and it generalises: §13.0.1's below-grid table omits the
+  <Section> chrome. Re-derived — 1280: (1214−12)/2 = 601, not 609; 1440:
+  (1374−24)/3 = 450, not 455. Those 5px are exactly what drops 1440 under the
+  threshold. Same class of omission as I12's, one level up.
+
+  C4 CLEARS, by 0.56px. Browser-measured max-content of the pinned 15-char
+  string "112/116 · 13/15" in the shipped --font-num at 14px = 126.44px against
+  the pinned 127. Not a stop-and-report, but it is measured at the limit.
+  Final slack as the code computes it: 266 − 239 = 27 ≥ SPACE_6 24, +3.
+  Recomputed with the measured label instead of the pinned one: 25.59, +1.59.
+
+  C5 — the 76 ÷ 9 chars bridge is unsound, and here is why it looked right.
+  "Rebounding" is TEN characters and renders in the PROPORTIONAL face; measured
+  it is 77.41px, not 76. What 76 actually is, is the empty-state METRICS string
+  "0/0 · 0/—" — nine --font-num chars, measured 75.86px = 9 × 8.43. The two
+  constants coincidentally shared a value and the note attached to the wrong
+  one. The advance is sound (8.429 px/char, confirmed twice independently);
+  only the bridge is wrong. Recommend restating it from the metrics string and
+  re-pinning LEDGER_LABEL_MAX at 78, which the slack still funds.
+
+  Cosmetic: the over-budget row wraps with the middot leading line 2
+  ("· 11/9 over by 2 ⚠"). P0-1's per-metric spans are intact.
+
+AUTHORIZED CARVE-OUT — tokens.css, two comment lines, zero token values
+  The F7.1 entry above flagged tokens.css lines 145–146 as carrying stale
+  numbers and left them for a follow-up. The dispatching orchestrator
+  explicitly authorized correcting those two lines here and nothing else in the
+  file. Done, in this commit: range 5.69:1–8.40:1 → 5.69:1–8.84:1, and
+  "ΔE >= 32.9" → "ΔE >= 38.8 (Playmaking↔Defense, the closest pair)". No token
+  value changed, no token added, the channel-rule block untouched. That
+  follow-up is now closed.
+
+heartbeats_emitted: 0 discrete messages — dispatched in batch mode, so progress
+  is recorded here and in f52-verification.txt rather than streamed.
+
+stop_conditions_triggered: none.
+  #2 was approached and cleared: no .tsx under src/ui/ was needed, C7 held.
+  #12 was checked explicitly and is green at 1280 — header on ONE line
+  (measured 53px against a 53px tallest child; the real header demand is 400px,
+  under the conservative 426 pin) and pickers side by side. The 1440 picker
+  stack is recorded above as a T16 observation, not a stop condition.
+  #9 checked and cleared: 126.44 ≤ 127. #8 cleared with 175px of margin.
+  #10 respected: no overflow-x: hidden or clip anywhere; the 390 scrollbar was
+  fixed at its cause, not masked.
+
+KNOWN NOT-OURS — the flake class fired, twice, and is recorded
+  Run A: 8 failures across 3 files under full-suite parallelism. Run B: 1 —
+  tests/ui/f2-eligibility-disclosure.test.tsx, "Test timed out in 5000ms",
+  which §4.4 names by file. ISOLATION: that file 6/6 PASS in 8.81s;
+  f2-disclosure-surfaces 11/11 PASS. Full-suite re-run on the unchanged tree:
+  46/46 files, 701/701 PASS. No { timeout: 20000 } was lowered, added or moved,
+  and vite.config.ts was not touched.
+
+NEXT
+  Designer owns three calls: the 426 threshold vs the content-box band at 1440,
+  the LEDGER_LABEL_MAX re-pin at 78, and whether §13.0.1's below-grid table
+  should be re-derived with Section chrome included. None blocks the slice.
+  §13.0.1 also asks that the ledger's move out of a right-hand column be
+  surfaced to the user as a named, reversible choice — that has not been done
+  and is not an implementer's call.
+─────────────────────────────────────────────
