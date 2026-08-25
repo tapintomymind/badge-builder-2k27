@@ -206,3 +206,97 @@ NEXT
 M2 (synergy engine) is unblocked and ready to dispatch against
 `workspace/badge-builder-2k27/impl-briefs/m2-*.md`. Nothing is waiting on the user.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-25 — M2 complete: synergy engine, 231 tests green (77 new)
+Type: milestone-complete
+Actor: Tier-2 implementer (constrained mode, Tier-1 dispatched) / Claude Fable 5
+Slice: M2
+
+WHAT
+M2.1 shipped per `impl-briefs/m2-synergy-engine.md`. The hidden-complexity layer is fully
+modelled and unit-tested before any UI depends on it: SynergySlot model (8 slots, 1–4
+temporary / 5–8 permanent, per-slot magnitude as DATA — all 8 default magnitude 1,
+plusTwoSlotIds still null, nothing guessed per OQ-A1); assignSynergy/clearSynergy with the
+four H4 hard invariants as typed results (pure — never a silent throw, never a partial
+mutation; NO equip-slot check anywhere in them, per the H4 ruling); synergyRoleFor (at
+most one role, ever); effectiveLevel EXCLUSIVE not additive (H5) with clampToLegend
+(HOF+2 → Legend); the H2 ledger/overlay separation — ledger(state, basis) takes
+LedgerBasis, a different type from OverlayState, so reactionsActive structurally cannot
+reach any ledger function; overlayForBasis total over its 2 cases with reactionsActive a
+literal false in both; refunds derive from committed state (all-unlocked-slots basis,
+H2(a) as ratified) through M1's effectiveLevelFor seam with zero M1 signature changes;
+legendByPermanentBoostOnly pre-wired via permanent-only filtering; validateLoadout as the
+single enforcement surface (HARD invariant errors vs SOFT budget warnings — equip-slot
+overflow and points overspend warn, never block).
+
+All seven required test groups: the 53-badge × 4-overlay exhaustive property test with an
+independent oracle (boost ∈ {0,1,2}, never a sum of two roles); ledger("current")
+invariance (kept, honestly labelled near-tautological — the M4 primary-row regression is
+the real control); basis-mapping totality incl. a source-text pin that synergy-ledger.ts
+writes `reactionsActive: false` exactly twice and never true; the replay test; the
+enumerated refund pairs asserted exactly {(gold,2), (hof,1), (hof,2)} with gold+1 and
+silver+2 explicitly excluded; the H4/NB-3 over-capacity pin (assignSynergy SUCCEEDS on an
+over-capacity badge, its refund COUNTS in the ledger, validateLoadout reports the overflow
+as a SoftViolation in the same state); all four invariant rejections plus
+reaction-in-temporary-slot inert under seasonReset.
+
+EVIDENCE
+Commit c250842 on `dev` (branch `main` untouched). `npm test`: 231 passed / 18 files
+(154 M1 baseline + 77 new). `npm run typecheck`: clean. `npm run build`: green. Verbose
+run output with all six brief-required test items visible saved to
+`docs/proof/m2-test-output.txt`.
+
+CONSTRAINED-MODE REPORTBACK (required for M1-M4 completions)
+changed_files:
+  src/engine/types.ts (additive: SynergyRole/SynergyRoleKind/OverlayState/LedgerBasis)
+  src/engine/synergy.ts · src/engine/synergy-ledger.ts · src/engine/validate-loadout.ts
+  tests/{synergy,synergy-overlays,synergy-ledger,validate-loadout}.test.ts
+  docs/proof/m2-test-output.txt
+  — all within the brief's Allowed paths (src/engine/**, tests/**, docs/proof/**).
+  src/config/** untouched: M1 already shipped both required seams (refundTrigger default
+  legendByAnyMeans, plusTwoSlotIds null); nothing new was needed there.
+denied_paths_checked:
+  I did not touch src/ui/**, src/persist/**, src/data/**, scripts/**, src/App.tsx,
+  src/main.tsx, src/styles/**, index.html, package.json, package-lock.json,
+  tsconfig.json, vite.config.ts (or any *.config.*), or any .env*. This entry is the
+  channel-mandated completion report; no other .claude/ file was touched.
+  `git status --porcelain` before commit listed only the nine changed_files above.
+first_proof_result:
+  `npm test` green at ~minute 20 of the run — 231 passed (18 files) with the 4-overlay
+  property test, the enumerated refund-pair test, the basis-mapping totality test, and
+  the over-capacity synergy test all visible by name in the verbose output. Saved to
+  docs/proof/m2-test-output.txt.
+verification_evidence:
+  Test Files 18 passed (18) · Tests 231 passed (231) · `tsc --noEmit` exit 0 ·
+  `vite build` ✓ built (190.67 kB bundle — unchanged; the engine is not yet imported by
+  the M3 shell) · `git status --porcelain` clean after commit.
+heartbeats_emitted: batch-mode (live 5-minute heartbeats waived for this autonomous run)
+stop_conditions_triggered: none
+
+SCOPE / PLAN IMPACT
+None to scope.md / tech-strategy.md / design-spec.md / H-rulings. Four implementation
+judgment calls inside Tier-2 latitude, recorded for audit:
+(1) H1 naming: the sealed spec's `slotActive` ships as `synergySlotActive` — the bare
+    `slot` prefix is banned by the H1 ruling even though the lint regex would not catch
+    the compound. Doc comments cross-reference the spec name.
+(2) clearSynergy enforces the slot-unlocked invariant too (the brief binds the invariant
+    list to "assignSynergy / clearSynergy" jointly). A synergy assignment SITTING on a
+    locked slot is however valid state (assign-then-relock), reported by validateLoadout
+    as no violation — the lock invariant guards the action, not the state; the boost is
+    simply not live. A test pins this.
+(3) assignSynergy uses "set" semantics (assigning badge B to an occupied position
+    replaces the previous occupant, which loses its role — per the seed's "set a slot's
+    fuse or reaction badge"), and re-assigning a badge to the exact position it already
+    holds is an idempotent success, not a rejected "second role".
+(4) validateLoadout's SOFT warnings include pointsOverspend alongside equipSlotOverflow
+    (H4 puts both in the Budget class; one enforcement surface, one rule). A refund can
+    lift a category out of overspend since warnings derive from the committed ledger.
+Magnitude-2 values in tests are test-local hypotheticals exercising the per-slot-data
+seam; the shipped default remains 8×(+1) / plusTwoSlotIds null.
+
+NEXT
+M3 (UI: build panel, badge grid, ledger bars) is unblocked — its hard contract
+(every card renders via effectiveLevel(badgeId, defaultOverlay)) now has its M2
+function, exported with a shipped `defaultOverlay`. Nothing is waiting on the user.
+─────────────────────────────────────────────
