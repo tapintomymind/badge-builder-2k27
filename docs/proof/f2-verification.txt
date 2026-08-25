@@ -1,0 +1,56 @@
+F2 (UI + APP) fix-slice verification — 2026-08-25
+==================================================
+
+1. FULL SUITE (post-fix)
+   Test Files  34 passed (34)
+   Tests       507 passed (507)
+   npm run typecheck: tsc --noEmit exit 0
+   npm run build: tsc --noEmit && vite build ✓ built (266.48 kB bundle)
+   (Count note: 511→507 vs the mid-session run is the deletion of the
+   orphaned src/ui/grid/ledger-metrics.ts — architecture.test.ts generates
+   4 lint tests per src file; the module had zero importers.)
+
+2. PRE-FIX PINNING PROOF (git stash push -- src/, run pins, stash pop)
+   Test Files  8 failed (8)
+   Tests       32 failed | 26 passed (58)
+   Failing files against pre-fix src:
+     tests/ui/f2-eligibility-disclosure.test.tsx   (docket A: 4 fail)
+     tests/ui/f2-builds-persistence.test.tsx       (dockets B/E/F: 10 fail)
+     tests/ui/f2-disclosure-surfaces.test.tsx      (dockets C/D1/D2/E/F: 8 fail)
+     tests/ui/f2-source-pins.test.ts               (dockets E/F: 5 fail)
+     tests/ui/badge-card.test.tsx                  (P3 chip phrasing: 1 fail)
+     tests/ui/badge-card-synergy.test.tsx          (E compact chip: 3 fail)
+     tests/ui/boot-drift.test.tsx                  (C boot-route disclosure: 1 fail)
+     tests/ui/category-ledger.test.tsx             (E digest/lede split + P2
+                                                    refunded-0 suppression: 1 fail)
+
+3. LIVE BROWSER MEASUREMENTS (vite dev @ http://localhost:5173, Chrome pane)
+   1280×900 (L):
+     .layout grid-template-columns  = 248px 784px 192px   (§5.1 rev-2 re-cut)
+     card grid                      = 3-up @ 253px         (≥240px floor kept)
+     jump nav                       = all 6 category chips fully on-screen,
+                                      rightmost edge x=813 (was clipped mid-word)
+     panel chips                    = display:none at L (correct gating)
+     rail Ledger overview           = per-metric spans, no danger on
+                                      in-budget numbers
+     document h-overflow            = 0
+   768×1024 (M):
+     .layout                        = single column (736px), rails dissolved
+     card grid                      = 2-up @ 362px          (§5.2 restored)
+     panel chips Synergy/Summary    = FIRST in the row, x=16 / x=98 (on-screen;
+                                      was x=946/1035 off a 768 viewport)
+     document h-overflow            = 0
+   390×844 (S):
+     sticky chrome                  = jump nav 44px + ledger digest 59px
+                                      = 103px total (spec budget ≤104px;
+                                      pre-fix measured 198px)
+     digest row                     = single line (Badge Points x/y · left N ·
+                                      Badge Slots u/c)
+     .category-ledger__lede         = position:static (scrolls away)
+     Build panel                    = collapsed <details> with live digest
+                                      once values exist (auto-collapse latch
+                                      verified firing on mount)
+     document h-overflow            = 0
+   Bonus live confirmation: the pagehide flush re-wrote the autosave during a
+   location.reload() issued immediately after localStorage.clear() — the
+   tail-edit flush observably fires in a real browser, not only in jsdom.
