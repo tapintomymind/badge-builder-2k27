@@ -99,7 +99,7 @@ describe("eligibility against the real dataset", () => {
     const eligibility = validateBadge(flash!, makeBuild(78, 0, { speed: 99, agility: 81 }));
     expect(eligibility.allowed).toBe(true);
     expect(eligibility.maxPurchasableLevel).toBe("gold");
-    expect(eligibility.reasons.some((reason) => /needs 91 Aglty for HOF/.test(reason))).toBe(true);
+    expect(eligibility.reasons.some((reason) => /needs 91 Agility for HOF/.test(reason))).toBe(true);
   });
 
   it("a build meeting every threshold has no reasons and max HOF (Glove, Steal 99 at 6'6)", () => {
