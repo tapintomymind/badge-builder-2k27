@@ -2325,3 +2325,188 @@ KNOWN NOT-OURS
   the stronger artifact: it is the exact rendered content, and it diffs.
   The vitest flake class did NOT fire on any run of this slice.
 ─────────────────────────────────────────────
+
+═════════════════════════════════════════════
+F8-E2 — the roll engine (seeded PRNG + randomized greedy + containment lint) · slice-complete
+Agent: Tier-2 implementer (constrained mode) · 2026-08-25
+Brief: workspace/badge-builder-2k27/impl-briefs/f8-e2-roll-engine.md rev 1
+Preamble: impl-briefs/f8-00-slice-map-and-rebase-ledger.md rev 1 (AJ-3, AJ-4, AJ-8, AJ-9, AJ-11)
+Implementation commit: 5679e31 · Branch f8-engine (isolated worktree /tmp/bb-f8e)
+Sits directly on F8-E1 (1c1e1d4). NOT merged to dev. main untouched.
+─────────────────────────────────────────────
+
+⚠ THREE DISPATCH GATES THE BRIEF NAMES AS BLOCKING ARE NOT VISIBLY MET
+The brief carries a "⛔ DO NOT DISPATCH" header with three gates. Verified on
+the tree, all three are open:
+
+  1. OQ-1 (the ranking carve-out) — `scope.md` contains NO occurrence of
+     "randomiz" or "randomis" at all. §1's CUT row 5 ("Ranking / scoring /
+     'best loadout' / 'recommended' / 'optimal'", disposition Never) is
+     unamended.
+  2. `scope.md` §0.1 A4 — NOT PRESENT. §0.1 runs A1, A2, A3 and stops. (The
+     "A4" strings in scope.md are all `OQ-A4`, the LAN-binding question, which
+     is a different item entirely.)
+  3. `scope.md` §1 amendments — not landed.
+
+  Plus F4, a HARD prerequisite, has not landed (see the F8-E1 entry above).
+
+  The dispatching orchestrator's instruction was explicit and carried the OQ-1
+  rulings in substance — pins IN with `exact` default, exclusions IN,
+  minimum-level pins CUT, AJ-11's H4 generator carve-out ratified, synergy OUT
+  structurally — so this was implemented as directed rather than stopped. IT IS
+  RECORDED HERE BECAUSE THE PAPER TRAIL DOES NOT YET EXIST: the ratified "Never"
+  in scope.md §1 has not been narrowed in writing, and this slice ships code
+  that a strict reading of §1 forbids. Architect should land §0.1 A4 and the §1
+  amendments before this reaches `dev`.
+
+changed_files (all within Allowed paths except the ONE declared below)
+  NEW  src/engine/random.ts · src/engine/randomize.ts
+  MOD  src/engine/errors.ts (+RollDidNotTerminateError, +EmptyCandidateSetError)
+       src/engine/__fixtures__/synthetic-badges.ts (+5 fixtures: the
+         equivariance twins, the cost-indifference pair, the zero-net-cost badge)
+       src/engine/README.md (one section)
+  NEW  tests/random.test.ts · tests/randomize.test.ts · tests/randomize-oracle.ts
+  MOD  tests/vocabulary.test.ts (class 2 ONLY; class 1 untouched; class 3 NOT
+         added — it is R2's) · tests/architecture.test.ts (group (f) EXTENDED,
+         not duplicated; groups (a)–(e) untouched)
+  NEW  docs/proof/f8e2-verification.txt
+  MOD  .claude/reportback.md (this entry)
+
+  DECLARED CROSS-SLICE EDIT — tests/feasibility-golden.test.ts
+  E1's golden table built its synthetic arm by spreading the `syntheticBadges`
+  BARREL. E2 added five fixtures to that barrel from its own allowlisted
+  fixtures file, so the dataset the R-4 control measures grew underneath it and
+  the table went RED — e.g. `b7-synthetic-gap|Defense|empty|99` moved 52 → 56.
+  `categoryFeasibility` is untouched by E2. The arm is now pinned to the five
+  H3 fixtures BY NAME, and NOT ONE CELL WAS REGENERATED OR EDITED — the table is
+  byte-identical to what E1 produced against the unmodified feasibility.ts.
+  That file is not on E2's allowlist, so this is declared rather than quiet: the
+  alternatives were a permanently-red control or a regenerated table, and a
+  control that reddens whenever anyone adds a fixture teaches people to
+  regenerate it, which is exactly how a golden table stops being a control.
+
+denied_paths_checked — I DID NOT TOUCH ANY OF THESE
+  src/ui/** (ALL of it — zero UI in this slice) · src/engine/steps.ts (E1
+  shipped it; no change was needed) · src/engine/eligibility.ts · src/engine/
+  {cost,ledger,summary,summary-text,synergy,synergy-ledger,validate-loadout,
+  dataset,vocabulary,serialization}.ts (every one CALLED, never CHANGED) ·
+  src/config/** · src/data/** · src/persist/** · src/main.tsx · src/App.tsx ·
+  src/styles/** · tests/ui/** including overlays.test.tsx (RUN explicitly,
+  never edited) · package.json / package-lock.json / tsconfig.json /
+  vite.config.ts (NO dependency, NO timeout change) · .claude/** except this
+  file · the `main` branch.
+
+first_proof_result — RED THEN GREEN, in that order, both verbatim in the proof
+  STEP 1, before src/engine/randomize.ts existed:
+      $ ls src/engine/randomize.ts src/engine/random.ts
+      ls: src/engine/random.ts: No such file or directory
+      Error: Cannot find module '../src/engine/randomize'
+       Test Files  1 failed (1)
+  RED FOR THE RIGHT REASON — no roller, not a fixture bug. The gap fixture
+  (`synthetic-and-mid-null-gap`) already loads and is green in tests/steps.test.ts
+  2.1 on the same tree.
+
+  STEP 2, after the walk: "never proposes Silver on the gap badge, over 500
+  seeds" PASSES, with a non-vacuity guard asserting the gap badge was actually
+  rolled at least once.
+
+  STEP 3: one printed rollBuild (six category reports, applied steps, pins,
+  before/after readouts, token) plus a second call on the SAME seed —
+  3,401 bytes compared, BYTE-IDENTICAL.
+
+verification_evidence
+  npm test          50 files / 796 tests  →  52 files / 871 tests. ALL GREEN.
+  npm run typecheck clean · npm run build clean
+  npx vitest run tests/randomize.test.ts tests/random.test.ts  → 56 PASS
+  npx vitest run tests/steps.test.ts        → 15 PASS (E1's INV-11 RE-RUN before
+      shipping the fast path — additivity holds on every RefundTrigger, so the
+      precomputed net-cost path is safe)
+  npx vitest run tests/vocabulary.test.ts tests/architecture.test.ts → 248 PASS,
+      both class-2 canaries SEEN TO FAIL correctly on strings that should fail
+  npx vitest run tests/ui/overlays.test.tsx → 4 PASS (H2 unchanged, as it must
+      be — this slice touches no ledger DOM; run to PROVE it, never edited)
+  dependencies still exactly {react, react-dom}
+  BUNDLE UNCHANGED at 277.01 kB / 84.20 kB gzip — random.ts and randomize.ts
+  have no consumer until R2, so they tree-shake out entirely.
+
+  MEASURED NUMBERS THE BRIEF ASKED FOR
+    INV-9  P(dear A-tier bought first) over 4,000 seeds: inside [0.47, 0.53].
+    INV-10 3-way and 7-way over 60,000 draws each: every bucket within ±1.5%.
+           `n === 1` consumes ZERO draws; empty array throws.
+    INV-1b golden vector checked in: [970862100, 723468513, 3366361262,
+           3485145008, 814780240, 1445049048, 978648718, 1859069169,
+           3355951680, 4071567883].
+    INV-14 see the stop-condition below.
+
+⚠ STOP-AND-REPORT — INV-14's THRESHOLD IS UNREACHABLE, AND INV-9 IS WHY
+  The brief pins median 0 and p95 ≤ 2 points against the exact-DP oracle, on the
+  stated hypothesis that a miss means "the step enumerator is wrong, NOT the
+  concept". THE ENUMERATOR IS NOT WRONG:
+    · INV-7 proves every roll is MAXIMAL — re-running the enumerator on the
+      result returns [] in every rolled category.
+    · The oracle is a true UPPER bound — no measured gap is ever negative.
+    · 47.7% of rolls hit the exact optimum.
+
+  The gap splits cleanly on ONE axis — whether Badge Slots bind:
+      CAPACITY FREE  (points were the binding limit)   median 0 · p95 1  ✔ meets spec
+      CAPACITY BOUND (the roll filled every Badge Slot) median 1 · p95 4  ✘
+
+  MEASURED EXAMPLE: capacity 3, pool 16, Finishing at attributes 72. The roll
+  bought three cost-1 Bronzes and one Silver upgrade — spend 5, ELEVEN POINTS
+  LEFT — and it is maximal, because none of those three badges qualifies at any
+  higher level. The oracle reaches 11 by spending the same three Badge Slots on
+  badges that can climb.
+
+  Recovering that spend requires PREFERRING badges with higher legal ceilings,
+  which is verbatim the brief's own stop-condition ("a small preference for
+  badges you nearly qualify for is a quality heuristic wearing an affordability
+  costume"). INV-14 and INV-9 cannot both be satisfied. The engine design
+  already contains the seed of the resolution — it observes that "a
+  capacity-bound category can legitimately leave 40% of its pool unspent" —
+  that insight simply did not reach this threshold. ARCHITECT'S CALL. Both
+  regimes are pinned in the test so nothing drifts while it is pending, and the
+  full reasoning is in the test's header comment rather than only here.
+
+THREE MORE PLACES THE BRIEF NO LONGER MATCHED THE CODE
+  1. THE TERMINATION BOUND IN THE BRIEF IS TOO SMALL. `4 * equipSlots + 1`
+     throws on legal input: AJ-11 explicitly lets `fill` roll into a
+     PRE-EXISTING Badge Slots overflow, and five entries against a capacity of
+     one admits up to fifteen upgrade steps against a bound of five. Shipped as
+     `4 * max(entriesAtStart, equipSlots) + 1`, with the case pinned in INV-17.
+  2. `RollRequest.pins`'s own doc says "absent id ⇒ unpinned" while §1(d) rules
+     the default `exact`. Implemented as the TYPE CONTRACT states — the engine
+     honours the record exactly as given — because baking `exact` in would make
+     `reroll` structurally unreachable. The ruled product default is the
+     CALLER's to seed, and that obligation is written into the field's doc
+     comment so R2 cannot miss it. Worth an explicit confirmation from Architect.
+  3. The H3 gap fixture E2 was told to reuse from E1 already shipped before
+     either slice (`syntheticAndMidNullGap`). Reused; no duplicate added.
+
+  Also: a TEST-ONLY seam was added — `rollCategory(…, options?: { iterationBound })`.
+  A correct implementation cannot reach the real lattice bound, so without it
+  the H6 termination guard could only be asserted, never proven to throw. Two
+  lines, documented at the type, never passed by production callers.
+
+heartbeats_emitted: 0 discrete messages — dispatched in batch mode; progress is
+  recorded here and in docs/proof/f8e2-verification.txt.
+
+stop_conditions_triggered: TWO, both reported above and neither worked around —
+  the three unmet dispatch gates (OQ-1 / §0.1 A4 / §1), and INV-14's threshold.
+  Approached and cleared: no weight, bias or preference of any kind was added
+  (INV-14's gap was reported rather than tuned away); nothing sorts, ranks,
+  scores or reduces to an extremum over candidates; `badge.name` is never read;
+  no synergy read-as-candidate or write; no range derived from
+  maxPurchasableLevel; no Math.random anywhere under src/; no repair of an
+  overspend, over-capacity or stale purchase; no dependency; no pin dropped or
+  downgraded under any decline; INV-11 re-run GREEN before shipping the fast
+  path; "every loadout is equally likely" appears NOWHERE in the codebase.
+
+KNOWN NOT-OURS
+  The vitest flake class fired ONCE, on the run that was already red for the
+  golden-table coupling: tests/ui/f2-builds-persistence.test.tsx > "declining
+  the confirm keeps the working build; accepting replaces it", 24,690 ms —
+  timeout-shaped, under full-suite parallelism. The full-suite re-run after the
+  golden fix was 52/52 files and 871/871 tests GREEN, that file included. No
+  { timeout: 20000 } was lowered, added or moved, and vite.config.ts was not
+  touched.
+─────────────────────────────────────────────
