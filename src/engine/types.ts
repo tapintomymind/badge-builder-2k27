@@ -157,6 +157,39 @@ export interface SynergySlot {
   reactionBadgeId: string | null;
 }
 
+/** The two synergy role positions a SynergySlot pairs (seed: Synergy system). */
+export type SynergyRoleKind = "fuse" | "reaction";
+
+/**
+ * The single synergy role a badge holds — AT MOST ONE, EVER (H5). Enforced by
+ * assignSynergy (H4 invariant class) and read back via synergyRoleFor.
+ * Magnitude is the holding synergy slot's magnitude — data, not a constant.
+ */
+export interface SynergyRole {
+  kind: SynergyRoleKind;
+  synergySlotId: SynergySlotId;
+  magnitude: 1 | 2;
+}
+
+/**
+ * The two DISPLAY-ONLY simulation toggles (H2). This type is an input to
+ * boost / effectiveLevel rendering paths ONLY. It is — by design — a
+ * different type from LedgerBasis, so no ledger function can accept it.
+ */
+export interface OverlayState {
+  reactionsActive: boolean;
+  seasonReset: boolean;
+}
+
+/**
+ * The LEDGER-ONLY basis channel (H2). The refund ledger is computed from
+ * committed state; season reset is reachable only through the parallel
+ * "postSeasonReset" value (rendered by M4 as a second, labelled row).
+ * `reactionsActive` has no representation here — structurally, the ledger's
+ * signature cannot accept it. That is the control; tests are the backstop.
+ */
+export type LedgerBasis = "current" | "postSeasonReset";
+
 // ---------------------------------------------------------------------------
 // Config seams (seed: Open items — implement behind config, don't guess).
 // ---------------------------------------------------------------------------
