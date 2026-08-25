@@ -1334,3 +1334,230 @@ real headroom (55px over the I3 ceiling at 1440) and is where new rail residents
 should be sized first. M5 stays data-blocked. User's live acceptance pass at
 their own viewport is the real DoD — the XL tier in particular is aimed at it.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-25 — F2.2 persistence data-integrity slice complete: unreadable saved data is preserved and disclosed, never overwritten
+Type: milestone-complete
+Actor: Tier 2 implementer (Claude Opus 5) — constrained mode, Tier 1 dispatch
+Slice: F2.2 (post-M4 user-directed hotfix)
+
+WHAT
+All seven findings in `impl-briefs/f2-2-autosave-clobber-guard.md` are fixed, each
+with a test that is RED against the pre-fix tree. Slices A–H all landed; one part of
+slice G is deferred (see SCOPE / PLAN IMPACT).
+
+The two P0s were both live for a user with real builds:
+
+F-CORE — `readAutosaveWithReport()` returned `null` for BOTH "no autosave" and
+"unreadable autosave". The boot path could not tell them apart, booted a fresh
+working state, and the mount-time autosave `useEffect` wrote that empty build over
+the user's unreadable-but-recoverable bytes. F1's raw-export recovery could never
+help: it is wired to the RENDER ERROR BOUNDARY, which does not fire on the swallowed
+path. New `readAutosaveResult()` distinguishes absent / ok / unreadable;
+`readAutosaveWithReport()` is retained as a thin wrapper so the change is additive
+and the existing gates are untouched. The `catch` stays — a corrupt autosave still
+never takes the app down at boot; what changed is that the caller LEARNS it happened.
+The verbatim bytes are quarantined under a new key during the boot RENDER (a state
+initializer, so it precedes every effect), written once and never overwritten. BOTH
+writers are gated on ONE predicate. A failing quarantine write still suppresses
+autosave and surfaces `role="alert"` — never trade the user's data for a successful
+fresh write.
+
+The predicate is NOT `dirty`, and the brief was right that this is the single most
+likely way the slice ships broken. `loadBuild` calls `markClean()`, so a dirty-keyed
+guard would stop a freshly LOADED build ever autosaving — the next reload restores
+the PREVIOUS autosave, a new data-loss bug for an old one (pinned by test 1.4). And
+the pagehide/visibilitychange flush wrote UNCONDITIONALLY, so gating one writer
+returns the whole bug on tab close (pinned by test 1.2's second half). The predicate
+is "the app holds a state worth persisting", seeded from the boot outcome, latched
+one-way to true on edit / load / import / successful named save / explicit Discard,
+read from the ref by the flush.
+
+F-A — `renameNamedBuild` read through the full deserializer, which applies the H8
+drift strip AND the F2.1 stranded-ref heal AND rebuilds the envelope from a fixed
+field list, discarded the report, and wrote the transformed result back over the
+original. A NAME CHANGE silently rewrote the loadout. It now patches the RAW stored
+string via a shared `patchStoredEntry` helper. This extends an existing guarantee
+rather than inventing one — the store already keeps entry values as opaque strings,
+which is exactly why one unreadable entry survives a read-modify-write today.
+
+Also: F-B blast-radius copy + confirm + the surgical `clearAutosave()` wired (it had
+ZERO callers); F-C `writeStore` refuses to clobber an unparseable envelope; F-D
+duplicate copies bytes via the same helper; F-E import guards unsaved work with
+`loadBuild`'s exact predicate; F-F `writeUiSectionOpen` stops resetting; F-G both
+raw-export revokes deferred 60s. `listNamedBuilds` returns an unreadable count and
+the switcher + manager disclose it. The quarantine key is in BOTH
+`exportRawPersistedData()` and `clearAllPersistedData()`.
+
+EVIDENCE
+Branch dev. `fix(f2.2): preserve unreadable saved data instead of overwriting it`
+(8fbaacd), on ff8544e. `main` untouched.
+
+Baseline BEFORE any change, on the clean dev tip: 40 files / 631 tests, ALL GREEN.
+After: 45 files / 675 tests, all green. `npm run typecheck` clean. `npm run build`
+clean (tsc --noEmit && vite build, 93ms).
+
+PINNING PROOF — the new + edited tests run against the PRE-FIX `src/`
+(`git stash push -- src/`): 28 failed | 22 passed. The 22 passers are the deliberate
+non-regression pins (1.5 healthy-path byte-level, 1.8 absent≠unreadable, 5.3
+guard-fires-on-unparseable-never-on-absent). Every fix is pinned by at least one
+assertion that is red before it and green after.
+
+Test 1.5 — the healthy path is byte-for-byte unchanged — is GREEN. It asserts the
+written bytes equal `serializeSavedBuild(toEnvelope(fromSaved(...)))` exactly. The
+guard is a no-op on every boot for every user who has ever used this app; it fires
+only on the defect path.
+
+Architecture lints green and untouched: `persist-boundary` (every new storage call
+is inside `src/persist/`), `vocabulary`, `alias-bijection`, `spot-check`, and
+`architecture.test.ts` — FIVE groups observed, as the brief predicted post-F3:
+(a) engine purity, (b) runtime dependency allowlist, (c) zero network egress,
+(d) no runtime filesystem access, (e) position-height access route.
+
+Full DevTools output: `docs/proof/f22-verification.txt`.
+
+CONSTRAINED-MODE REPORTBACK
+changed_files:
+  src/persist/local-storage.ts, src/App.tsx, src/main.tsx,
+  src/ui/shell/QuarantineBanner.tsx (NEW), src/ui/builds/BuildManager.tsx,
+  tests/ui/f22-autosave-guard.test.tsx (NEW), tests/ui/f22-quarantine-banner.test.tsx (NEW),
+  tests/ui/f22-rename-fidelity.test.tsx (NEW), tests/ui/f22-store-envelope.test.ts (NEW),
+  tests/ui/f22-import-guard.test.tsx (NEW), tests/ui/recovery-boundary.test.tsx,
+  tests/ui/summary-import-export.test.tsx, tests/ui/f2-builds-persistence.test.tsx,
+  docs/proof/f22-verification.txt, .claude/reportback.md
+  ALL within the brief's Allowed paths. `git status --porcelain` shows nothing else
+  staged; one untracked `.claude/worktrees/` from another agent's session was left
+  alone, not committed.
+denied_paths_checked:
+  I did not touch `src/engine/**` (the deserializer is not the bug — its strip/heal is
+  correct and F1/F2.1-ratified; the bug was that rename and duplicate RAN it and
+  PERSISTED the result). I did not touch `src/styles/app.css`, `src/styles/tokens.css`,
+  or any file under `src/styles/**` — ZERO new CSS. I did not touch
+  `src/ui/primitives/**`, including `Banner.tsx`. I did not touch `package.json`,
+  `package-lock.json`, `tsconfig.json` or any `*.config.*`; `dependencies` is still
+  exactly `{react, react-dom}`. I did not touch `src/config/**`, `src/data/**`,
+  `src/ui/grid/**`, `src/ui/build/**`, `src/ui/synergy/**`. I did not touch `main`.
+  `src/ui/summary/SummaryPanel.tsx` — see the scope deviation below; NOT touched.
+first_proof_result:
+  All four confirmations, live at localhost:5173, output pasted in
+  `docs/proof/f22-verification.txt`. (a) boots without crashing; (b) the quarantine
+  banner renders with the exact copy; (c) `localStorage` STILL holds the original
+  `{not json` under BOTH the autosave and quarantine keys; (d) a SECOND reload with
+  no write-blocking leaves both byte-identical.
+  Setup finding worth recording: the first attempt failed because calling
+  `location.reload()` right after corrupting the key let the OUTGOING page's pagehide
+  flush write its in-memory build over the corrupt string — the unconditional second
+  writer, doing the right thing in that case (its own boot read had succeeded, so
+  persistable was true). That is a live demonstration of why one predicate had to
+  cover both writers.
+verification_evidence:
+  npm test 675/675 · npm run typecheck clean · npm run build clean · the four DevTools
+  proofs plus two extra (unreadable-named-build disclosure; standing-quarantine
+  disclosure) — all in `docs/proof/f22-verification.txt`. Viewports 1280 and 390 both
+  inspected in-session: the banner composes the shipped Banner + Button and reflows at
+  390 with no overflow and no new CSS.
+  SCREENSHOT FILES NOT WRITTEN — see the DEVIATIONS block below.
+heartbeats_emitted: batch-mode (live 5-minute heartbeats waived for this run by Tier 1)
+stop_conditions_triggered: [denied-path-required-for-slice-G-part-2] — see below.
+  No other stop condition fired. Specifically: the guard is not keyed on `dirty`; both
+  writers are gated; no second quarantine key and no overwrite of an existing one;
+  nothing auto-repairs, auto-migrates or auto-clears; `serialization.ts` untouched; no
+  new CSS, no primitive change, no new dependency; no lint reddened.
+
+SCOPE / PLAN IMPACT
+No change to scope.md, tech-strategy.md, design-spec.md, or any H-ruling. No
+`schemaVersion` bump, no `MIGRATIONS` entry, no persisted-shape change. Two persistence
+changes exactly as the brief's §0.4 inventory ruled: Q1 the new additive quarantine key,
+Q2 the write-condition change. F4 is unblocked — its precondition 2 is met, and it
+should re-run its own `rg` sweep since `App.tsx` moved.
+
+THREE DEVIATIONS, all surfaced rather than silently decided:
+
+1. SLICE G PART 2 DEFERRED — the brief names the wrong file. §3.7 and the Allowed-paths
+   line both place `ImportDialog` in `src/ui/builds/BuildManager.tsx`. It is actually in
+   `src/ui/summary/SummaryPanel.tsx`, which this brief DENIES ("untouched by this
+   slice") and which F4 explicitly OWNS and has detailed rulings for (its N6 banner
+   re-cut, the new `hardViolationText` arm). So the pre-commit disclosure of
+   `droppedEntries` / `clearedSynergyRefs` is NOT shipped. Slice G part 1 — the
+   unsaved-work guard, the part with the data-loss consequence — IS shipped and pinned
+   (tests 7.1, 7.2, plus the not-guarded-when-empty case). Recommendation: fold the
+   disclosure into F4, which already owns that file and is already re-cutting copy in
+   it. Related: `DriftBanner`'s `droppedLine` / `clearedRefsLine` are not exported, and
+   `src/ui/shell/DriftBanner.tsx` is not on this brief's allowlist either.
+
+2. F-F IMPLEMENTED AS REFUSAL, NOT REWRITE. §3.8 and R8 say "on a parse failure, write
+   only the single key being set rather than resetting the object" — but the current
+   code already produces exactly those bytes (`state = {}` then `state[key] = open`
+   stringifies to `{key: open}`), so the instruction as literally worded is a no-op, and
+   test 8.1's "writes the single key AND does not reset the object" cannot both hold
+   when there is no readable object. I implemented the reading consistent with §0.1
+   rule 6 (a hard stop-condition: never destroy persisted bytes without a click that
+   named that outcome) and with R8's own stated goal of leaving no instance of the
+   swallow-then-overwrite SHAPE in the file: a present-but-unparseable UI-state value is
+   left exactly as it is, silently — no quarantine, no banner, no disclosure, since the
+   payload is a layout preference. Cost: a user with a corrupted ui-state key can no
+   longer persist accordion state until they clear it from the recovery screen. Flagging
+   for a ruling; the alternative is three characters away.
+
+3. SCREENSHOTS NOT WRITTEN TO docs/proof/. This environment has no screen-recording
+   permission (`screencapture` → "could not create image from display") and the browser
+   tool returns images inline, not to disk, so
+   `f22-quarantine-banner-{1280,390}.png` / `f22-recovery-screen-1280.png` do not exist.
+   All three views were captured and inspected in-session; `docs/proof/f22-verification.txt`
+   carries DOM-level assertions over the same content, and every banner and
+   recovery-screen state is pinned by tests. Someone with screenshot capability should
+   backfill the three PNGs.
+
+ONE ADDITION BEYOND THE BRIEF, found during the live proof: the quarantine banner is
+keyed on the quarantine KEY'S EXISTENCE, not on this boot's outcome. The brief's A3
+snippet implies `boot.kind === "unreadable"`, but after "Clear just the unreadable
+autosave" the next boot reads "absent" — a boot-outcome-keyed banner would leave the
+preserved bytes sitting in storage with nothing pointing at them. `persistableRef` is
+deliberately still seeded from the boot outcome only: a stale quarantine must not
+suppress autosave for a healthy build. Both properties are pinned (2.1b).
+
+DESIGNER ASKS (raised, not resolved)
+1. `Banner`'s `role` defaults to `"status"` with no opt-out, so `QuarantineBanner` IS a
+   live region. `design-spec.md` §6 budgets "three, and only three"; `DriftBanner`
+   already ships as a fourth, and this is a fifth. Shipped the default as ruled (R5) —
+   widening the primitive is a `src/ui/primitives/**` edit this slice denies. The §6
+   budget no longer matches reality and needs a rev-5 ruling. Note the deliberate
+   contrast with F4's A2, which routes ITS disclosure to plain text to avoid a fourth
+   region: if Designer disagrees they are ruling on both at once.
+2. CONFIRM ASYMMETRY (OQ-2). `Discard` on the quarantine banner ships with NO confirm,
+   matching `main.tsx`'s shipped precedent, while slice D ADDS one to the nuclear
+   action. Blast radius scaling the ceremony is defensible, but it is a Designer call.
+
+OQ-1 SURFACED, NOT RESOLVED — the multi-tab bargain is not the documented one.
+`tech-strategy.md` §9 accepts last-write-wins, but the unconditional pagehide flush makes
+the shipped behaviour "last tab CLOSED wins": a stale tab opened yesterday clobbers a
+newer tab's save merely by being closed, with no edit and no intent. F2.2 NARROWS this —
+a stale tab whose boot read failed no longer flushes at all — but a stale tab whose boot
+read SUCCEEDED still flushes yesterday's state over today's on close. F2.2 does not close
+it. Ask: re-affirm last-write-wins (and correct §9's wording to "last tab closed wins"),
+or schedule a follow-up. Cheap version is a `savedAt` freshness check before the flush;
+thorough version is `BroadcastChannel`. Blocks nothing.
+
+PRE-EXISTING FAILURES — DIAGNOSED AND FIXED AT THE ROOT
+The two tests the F6 entry flagged ("save-as-new writes a second build" — the actual name
+is "duplicating the same build twice yields distinguishable names" — and "save-as-new
+with a taken name auto-suffixes") did NOT reproduce here: the clean dev tip ran 631/631
+green, and `tests/ui/f2-builds-persistence.test.tsx` ran 10/10 standalone. Then one of my
+own new tests failed the same way, which gave the cause: these are vitest's 5000ms DEFAULT
+timeout, not logic failures. Each case renders the full App two to four times, which costs
+seconds in jsdom, and once the whole suite runs in parallel the slowest cases cross 5s on a
+loaded machine. This file already carried a `{ timeout: 20000 }` override on its heaviest
+case — the convention existed and the rest of the file had not adopted it. Applied that
+override to every case in the file and to the new App-rendering files, with a header note
+explaining why. Load-dependent, so absence of a failure is not proof, but the mechanism is
+identified and the margin is now 4x. `vite.config.ts` is a denied path, so a global
+`testTimeout` was not an option.
+
+NEXT
+F4 is unblocked and is the intended next slice; it must re-run its `rg` sweep and reader
+inventory because `App.tsx` moved. Awaiting Tier 1 / Designer on: the two Designer asks,
+the F-F ruling, OQ-1, and whether slice G part 2 folds into F4. The user can resume using
+Rename and the recovery screen — both are now safe. Their live localStorage was captured
+verbatim before the browser proofs and restored byte-for-byte after; no key outside the
+app's own namespace was left behind.
+─────────────────────────────────────────────
