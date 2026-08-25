@@ -651,3 +651,129 @@ Slice F2 (UI side) picks up: DriftBanner/import-dialog disclosure of droppedEntr
 rendering the validateLoadout errors channel, swapping the hand-negated preview
 predicates, and the remaining UI-owned docket items from the review set.
 ─────────────────────────────────────────────
+─────────────────────────────────────────────
+2026-08-25 — F2 complete: UI fix slice — eligibility disclosure, switcher guard, violation/drift surfacing, layout re-cut (507 tests green, +34)
+Type: milestone-complete
+Actor: Tier-2 fix implementer (constrained mode, Tier-1 dispatched) / Claude Fable 5
+Slice: F2 (UI + APP)
+
+WHAT
+All six docket groups fixed, each with a pinning test that fails on pre-fix code.
+
+A [P1×3] Eligibility disclosure: (a) a purchase above the current attribute cap is a
+distinct `stale` pip state (warning ring + ⚠ cost glyph + aria "no longer meets
+requirements") and the card renders the ENGINE's failing-requirement string — pipModel
+now consults levelPasses before the current/owned short-circuits; (b) below-purchase
+pips take the same levelPasses gate as unpurchased ones, so an ineligible gap level
+(H3 second ruling, exercised via the engine's syntheticAndMidNullGap fixture through
+the real loader) renders locked and fires nothing; (c) cycleBadge is a no-op when the
+purchased level is not in the purchasable sequence — a card-body tap can never remove
+a stale purchase; Escape on the pip stays the destructive affordance. Removal paths
+(setLevel-null, cycle-to-none) now also clear any synergy role the badge held, so the
+engine-forbidden synergyTargetNotPurchased state can no longer be created by the UI
+and a later re-purchase cannot silently re-attach a boost.
+
+B [P1] Switcher guard + ghost pair: loadBuild confirms before replacing a dirty
+working build OR a boot-restored autosave with content (sourceId null after reload —
+covered without the deferred schema change); labels are "<name> — unsaved changes" vs
+"<name> — saved"; the passive default remains the user's work.
+
+C [P2] Disclosure wiring: validateLoadout errors (all four HardViolation kinds incl.
+F1's tooManyPlusTwoSynergySlots) render as a danger banner in SummaryPanel via
+hardViolationText(); F1's droppedEntries report flows to the DriftBanner path on BOTH
+routes (boot backstop and import — including a same-dataVersion import): "N badge(s)
+from this build no longer exist in the dataset: <names/ids> — removed from the plan."
+
+D [P0×2, design-review]: rail Ledger overview rebuilt per-metric using the in-grid
+CategoryLedger's own exported over-by builders (overByBadgePoints/overByBadgeSlots) —
+danger + "over by N ⚠" only on the metric genuinely over; an under-budget number can
+never render red again (P0-1's 68-under-in-danger repro is pinned). Build panel
+auto-collapses below 1280 exactly once on the first non-zero COMMIT (blur-commit,
+never mid-typing, per the M3 note), one-shot latch persisted; the user's re-open is
+never overridden (P0-2).
+
+E [P1s, design-review]: §5.1 rail re-cut 248/fluid/192 — rails were the free
+variable; 3-up at 1280 and 2-up at 768 restored with the 240px card floor intact,
+which also un-clips the JumpNav at 1280 (P1-4 falls out, as the review predicted);
+JumpNav panel chips moved to the FRONT of the row (only route to Synergy/Summary
+below L — P1-3); card synergy chip compacted to "⚡ Fuse · SS<n> +<m>" with the
+H1-correct "Synergy Slot N" long form as the accessible name (P1-5; vocabulary lint
+green); `.badge-card--blocked` container opacity removed — text stays at declared
+tokens (reason string back ≥4.5:1), opacity only on the non-text pip row (P1-1);
+CategoryLedger split into sticky digest (title + one compact row) + scrolling lede
+(meter, refunded>0 only, feasibility, hint, projection) for the §5.3 sticky budget
+(P1-7; `refunded 0` P2 folded in); autosave flush on pagehide/beforeunload/
+visibilitychange commits the pending unblurred edit through a write-through ref
+(P1-8 — blurs the active element, then writes synchronously).
+
+F [P2 hygiene]: rename/delete surface PersistResult via the AutosaveWarning path (no
+optimistic header rename over a failed write); both hand-negated preview predicates
+replaced with engine synergySlotDisabledByPreview (+ a source lint that bans the
+inline pattern, with a positive canary); AutosaveWarning dismissal is per failure
+epoch — a successful write re-arms it; duplicate names auto-suffix ("X copy",
+"X copy 2") across save-as-new/duplicate/rename; the orchestrator-ratified "0 =
+unset" Badge Slots capacity ruling applied uniformly on ALL FOUR surfaces (card chip,
+in-grid ledger, rail overview, summary chip — engine untouched, warning filtered
+UI-side) with the single neutral "Badge Slots capacity not set" hint. P3 folded in:
+"Would go over Badge Slots" phrasing on unpurchased cards. P3 deferred: the untouched
+reloaded build still labels "— unsaved changes" (honest without a persisted sourceId;
+needs the deferred schema change).
+
+EVIDENCE
+- Commit 731fe92 on dev (this entry's chore commit follows), pushed to origin/dev.
+- Suite: 507 passed / 0 failed, 34 files — `npm test`; `npm run typecheck` and
+  `npm run build` (tsc --noEmit + vite build) clean.
+- Pre-fix pinning proof: throwaway git worktree at pre-fix HEAD (f8b4f8c) + the four
+  new f2-* test files and five updated legacy files → 32 tests FAIL / 26 pass
+  (the 26 are deliberate invariant guards: no-errors→no-banner, entered-capacity
+  still warns, ordinary cycle still works, ledger keeps charging stale purchases,
+  positive canary, 240px floor). Worktree removed after.
+- One pin nuance recorded honestly: the failed-DELETE banner test passes pre-fix via
+  an autosave side-channel (sourceId-clear write also failing); the PersistResult
+  class pin is carried by the failed-RENAME test, which fails pre-fix.
+- vite.config.ts: test.css enabled scoped to src/styles/ — without it vitest stubs
+  every *.css import (incl. `?raw`) to "", which silently un-pins the stylesheet
+  lints in tests/ui/f2-source-pins.test.ts. Test-infra only; no runtime surface.
+
+CONSTRAINED-MODE REPORTBACK (required for M1-M4 completions)
+changed_files: src/App.tsx, src/styles/app.css, src/ui/build/BuildPanel.tsx,
+  src/ui/builds/BuildManager.tsx, src/ui/grid/BadgeCard.tsx,
+  src/ui/grid/CategoryLedger.tsx, src/ui/grid/JumpNav.tsx,
+  src/ui/shell/DriftBanner.tsx, src/ui/summary/SummaryPanel.tsx,
+  src/ui/synergy/SynergyPanel.tsx, vite.config.ts (test.css only),
+  tests/ui/{app,badge-card,badge-card-synergy,boot-drift,category-ledger}.test.tsx,
+  tests/ui/f2-{eligibility-disclosure,disclosure-surfaces,builds-persistence}.test.tsx (new),
+  tests/ui/f2-source-pins.test.ts (new)
+denied_paths_checked: src/engine/** untouched (F1 frozen — consumed only its exports:
+  deserializeSavedBuildWithReport, droppedEntries, synergySlotDisabledByPreview,
+  tooManyPlusTwoSynergySlots); src/persist/** untouched (readAutosaveWithReport,
+  readUiSectionOpen/writeUiSectionOpen pre-existed); src/data/** untouched (no
+  invented 2K27 data); runtime deps still exactly {react, react-dom}
+first_proof_result: pre-fix worktree run — 32 pinning tests fail, incl. the A(a)
+  stale-pip, A(b) gap-level, A(c) cycle-removal, B guard/labels, C all three wiring
+  gaps, D1 per-metric rail, D2 auto-collapse, E flush + all three stylesheet pins,
+  F rename-PersistResult / re-arm / dup-name / 0=unset
+second_proof_result: post-fix 507/507 green; typecheck + vite build clean; H1
+  vocabulary lint green over the compacted chip copy
+verification_evidence: npm test tail, npm run build tail, worktree run JSON report
+  (this session)
+heartbeats_emitted: n/a (single-session slice)
+stop_conditions_triggered: none
+
+SCOPE / PLAN IMPACT
+No engine or schema changes; sourceId-in-envelope stays deferred. Three notes for
+the workspace docs (Designer re-cuts, not code): the shipped layout now implements
+the design-review §10 D1 remedy as rails 248/192 with BOTH rails dissolving below
+1280 (M and S share one structure — §5.1/§5.2/§5.3 rev-2 candidates); CategoryLedger
+is digest+lede (§3.4/§5.3 candidate); the "0 = unset" ruling should be written into
+§4.7/design-spec when Designer does the re-cut pass. UI/UX re-review + QE runtime
+smoke on this slice are the natural next dispatches; note the concurrent-editor
+observation logged by Tier 1 this session (vite.config.ts css merge + orphan
+ledger-metrics.ts cleanup landed from outside this thread mid-session — converged,
+no conflict, but worth an orchestrator eye).
+
+NEXT
+F2 complete on dev. Awaiting UI/UX Reviewer re-pass (P0-1/P0-2 verification +
+sticky-budget re-measure at 390) and QE runtime smoke; OQ-A4 note — `host: true`
+is already in vite.config.ts, so the phone test is unblocked from the config side.
+─────────────────────────────────────────────
