@@ -71,7 +71,14 @@ export function maxPurchasableLevel(badge: Badge, build: Build): PurchasableLeve
   return max;
 }
 
-function reasonsForLevel(
+/**
+ * Why one level fails, in the phrasing every disclosure surface shares
+ * ("needs 90 Close or 93 Layup"). EXPORTED in F8-E1 — unchanged body, no new
+ * rule — because the copy-as-text block must reproduce §3.4's stale-purchase
+ * sentence, and it needs the reasons for the PURCHASED level specifically
+ * rather than `validateBadge`'s union over all four.
+ */
+export function reasonsForLevel(
   requirements: BadgeRequirements,
   build: Build,
   level: PurchasableLevel,
@@ -139,6 +146,39 @@ export interface EligibilityDrift {
 }
 
 /**
+ * Is this purchase STALE — bought at a level the build no longer supports?
+ *
+ * EXTRACTED IN F8-E1 from `recheckEligibility`'s own inline predicate, which
+ * is refactored below to call it. ONE definition, two callers: the drift
+ * report (H8 disclosure) and the summary roster / roll engine, which must
+ * agree to the letter about what "no longer qualifies" means. A second copy
+ * would be a fifth surface free to disagree with the other four.
+ *
+ * Two ways to be stale, and `maxPurchasableLevel === null` counts as exceeded:
+ *  - the build's height is now outside the badge's range (blocks it entirely);
+ *  - the purchased level is above the highest level that still passes.
+ *
+ * H8 — this DISCLOSES. Nothing anywhere repairs, clamps or removes a stale
+ * entry: not the drift report, not the roster, not the roll.
+ *
+ * NOTE the one case this predicate does NOT own: a badge id absent from the
+ * current dataset has no `Badge` to pass, so `recheckEligibility` keeps its
+ * own `droppedFromDataset` branch above this call.
+ */
+export function entryIsStale(
+  badge: Badge,
+  build: Build,
+  purchasedLevel: PurchasableLevel,
+): boolean {
+  const eligibility = validateBadge(badge, build);
+  if (!eligibility.allowed) return true;
+  return (
+    eligibility.maxPurchasableLevel === null ||
+    levelIndex(purchasedLevel) > levelIndex(eligibility.maxPurchasableLevel)
+  );
+}
+
+/**
  * The H8 drift action's engine half, consumed by M3's DriftBanner.
  *
  * RECOMPUTES against the current dataset; does NOT diff against the old one —
@@ -165,10 +205,10 @@ export function recheckEligibility(
       continue;
     }
     const eligibility = validateBadge(badge, saved.build);
-    const exceeds =
-      eligibility.maxPurchasableLevel === null ||
-      levelIndex(entry.purchasedLevel) > levelIndex(eligibility.maxPurchasableLevel);
-    if (!eligibility.allowed || exceeds) {
+    // ONE definition of "stale" (F8-E1). The condition below is byte-for-byte
+    // what this loop used to inline; `eligibility` is still read here because
+    // the drift PAYLOAD needs its fields.
+    if (entryIsStale(badge, saved.build, entry.purchasedLevel)) {
       drifted.push({
         badgeId: entry.badgeId,
         purchasedLevel: entry.purchasedLevel,

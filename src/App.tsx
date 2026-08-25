@@ -33,6 +33,7 @@ import type { ClearedSynergyRef } from "./engine/serialization";
 import { applyRatifiedMagnitudes, createDefaultSynergySlots, defaultOverlay } from "./engine/synergy";
 import type { SynergyState } from "./engine/synergy";
 import { categoryLedgerAt } from "./engine/synergy-ledger";
+import { badgeSlotsCapacityUnset } from "./engine/ledger";
 import type { CategoryLedgerReadout, SynergyLedgerState } from "./engine/synergy-ledger";
 import { positionHeightRange, validateBuild } from "./engine/validate-build";
 import { validateLoadout } from "./engine/validate-loadout";
@@ -78,7 +79,6 @@ import { BadgeCard } from "./ui/grid/BadgeCard";
 import { BadgeGridSection } from "./ui/grid/BadgeGridSection";
 import {
   CategoryLedger,
-  badgeSlotsCapacityUnset,
   overByBadgePoints,
   overByBadgeSlots,
   projectionDiffers,
@@ -955,9 +955,9 @@ export default function App() {
     CATEGORIES.map((category) => [
       category,
       categoryFeasibility(
-        badgesByCategory.get(category) ?? [],
+        ledgerState,
         working.build,
-        working.loadout,
+        category,
         readouts[category].remainingPoints,
         shippedDataset,
       ),

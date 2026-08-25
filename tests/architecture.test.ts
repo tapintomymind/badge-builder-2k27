@@ -111,3 +111,80 @@ describe("architecture: no runtime filesystem access (d)", () => {
     });
   }
 });
+
+/* ------------------------------------------------- F8-E1: engine purity (f) -- */
+
+/**
+ * INV-2 — the engine reads no clock, no DOM and no ambient randomness.
+ *
+ * Scoped to a NAMED LIST rather than all of `src/engine/**` on purpose:
+ * `serialization.ts` takes `savedAt: string = new Date().toISOString()` as an
+ * explicit, injectable default, and a blanket clock ban would redden correct
+ * shipped code. F8-E2 appends `random.ts` and `randomize.ts` to this list —
+ * it does NOT duplicate the group and does NOT touch groups (a)–(e).
+ */
+const PURE_ENGINE_MODULES = [
+  "/src/engine/steps.ts",
+  "/src/engine/summary.ts",
+  "/src/engine/summary-text.ts",
+];
+
+/**
+ * The ONE place under `src/` allowed to call `Math.random`, named so a new one
+ * anywhere reddens loudly.
+ *
+ * The brief asks for `Math.random` to appear NOWHERE under `src/**`. It
+ * already does — `local-storage.ts` mints build ids with it — and that call is
+ * correct: a persisted id SHOULD be unpredictable, it is not engine code, and
+ * `src/persist/**` is a denied path in this slice. So the ban is expressed as
+ * an EXPLICIT ALLOWLIST instead of a blanket rule that cannot pass: the engine
+ * is unconditionally forbidden, and every non-engine occurrence must be
+ * listed here on purpose. Reported as a brief↔code divergence rather than
+ * silently weakened.
+ */
+const MATH_RANDOM_ALLOWLIST = ["/src/persist/local-storage.ts"];
+
+describe("architecture: engine purity (f) — no clock, no DOM, no ambient randomness", () => {
+  const FORBIDDEN = /\b(?:Math\.random|crypto|window|document|new Date\(|Date\.now\()/;
+
+  for (const file of PURE_ENGINE_MODULES) {
+    it(`${file} reads no clock, no DOM and no ambient randomness`, () => {
+      const source = srcSources[file];
+      expect(source, `${file} is missing — the F8-E1 module set changed`).toBeDefined();
+      const code = stripComments(source as string);
+      const match = FORBIDDEN.exec(code);
+      expect(
+        match,
+        `"${match?.[0]}" found in ${file} — the engine is pure and I/O-free, and a hidden ` +
+          "input here makes every determinism test flaky-green",
+      ).toBeNull();
+    });
+  }
+
+  it("NO file under src/engine/ calls Math.random — the seeded PRNG is the only source", () => {
+    for (const file of engineFiles) {
+      const code = stripComments(srcSources[file] as string);
+      expect(code.includes("Math.random"), `${file} calls Math.random`).toBe(false);
+    }
+  });
+
+  it("every Math.random under src/ is on the explicit allowlist", () => {
+    const callers = srcFiles.filter((file) =>
+      stripComments(srcSources[file] as string).includes("Math.random"),
+    );
+    expect(callers.sort()).toEqual([...MATH_RANDOM_ALLOWLIST].sort());
+  });
+
+  it("POSITIVE CANARY: the forbidden pattern really does catch what it claims to", () => {
+    // A lint that cannot fail on its own canary is worse than no lint.
+    expect(FORBIDDEN.test("const x = Math.random();")).toBe(true);
+    expect(FORBIDDEN.test("const t = Date.now();")).toBe(true);
+    expect(FORBIDDEN.test("const d = new Date();")).toBe(true);
+    expect(FORBIDDEN.test("window.location")).toBe(true);
+    expect(FORBIDDEN.test("document.body")).toBe(true);
+    expect(FORBIDDEN.test("crypto.getRandomValues(a)")).toBe(true);
+    // …and does not fire on the vocabulary the pure modules legitimately use.
+    expect(FORBIDDEN.test("const dataVersion = dataset.dataVersion;")).toBe(false);
+    expect(FORBIDDEN.test("const rows = summary.categories;")).toBe(false);
+  });
+});

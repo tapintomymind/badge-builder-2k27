@@ -1,0 +1,186 @@
+F8-E1 VERIFICATION LOG — badge-builder-2k27
+Branch: f8-engine   Base: origin/dev @ 9bd851c
+Date: 2026-08-25T19:09:48Z
+
+===========================================================================
+FIRST PROOF — INV-19 golden table GREEN against the UNMODIFIED
+src/ui/grid/feasibility.ts, BEFORE src/engine/steps.ts existed.
+===========================================================================
+$ git status --porcelain   (only the new golden test exists)
+?? .golden.txt
+?? docs/proof/f8e1-verification.txt
+?? tests/feasibility-golden.test.ts
+
+$ ls src/engine/steps.ts
+ls: src/engine/steps.ts: No such file or directory
+
+$ npx vitest run tests/feasibility-golden.test.ts
+
+ RUN  v4.1.11 /private/tmp/bb-f8e
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  15:09:49
+   Duration  565ms (transform 312ms, setup 30ms, import 346ms, tests 45ms, environment 0ms)
+
+
+===========================================================================
+POST-HOIST GATES — F8-E1
+===========================================================================
+
+$ npx vitest run tests/feasibility-golden.test.ts   # THE R-4 CONTROL, zero numbers moved
+
+ RUN  v4.1.11 /private/tmp/bb-f8e
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  15:23:05
+   Duration  313ms (transform 138ms, setup 16ms, import 158ms, tests 53ms, environment 0ms)
+
+
+$ npx vitest run tests/ui/overlays.test.tsx   # H2 SHIP GATE — run, never edited
+
+ RUN  v4.1.11 /private/tmp/bb-f8e
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  15:23:06
+   Duration  2.61s (transform 293ms, setup 85ms, import 346ms, tests 1.59s, environment 506ms)
+
+
+$ npx vitest run tests/vocabulary.test.ts tests/architecture.test.ts
+
+ RUN  v4.1.11 /private/tmp/bb-f8e
+
+
+ Test Files  2 passed (2)
+      Tests  231 passed (231)
+   Start at  15:23:09
+   Duration  273ms (transform 241ms, setup 35ms, import 276ms, tests 27ms, environment 0ms)
+
+
+$ npx vitest run tests/steps.test.ts tests/summary.test.ts tests/summary-text.test.ts
+
+ RUN  v4.1.11 /private/tmp/bb-f8e
+
+
+ Test Files  3 passed (3)
+      Tests  59 passed (59)
+   Start at  15:23:18
+   Duration  324ms (transform 368ms, setup 48ms, import 424ms, tests 56ms, environment 0ms)
+
+
+$ npx vitest run tests/ui/category-ledger.test.tsx tests/ui/summary-import-export.test.tsx   # the two shipped UI files whose imports moved
+
+ RUN  v4.1.11 /private/tmp/bb-f8e
+
+
+ Test Files  2 passed (2)
+      Tests  11 passed (11)
+   Start at  15:23:19
+   Duration  4.52s (transform 310ms, setup 119ms, import 367ms, tests 3.85s, environment 627ms)
+
+
+$ npm test   # FULL SUITE
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+
+ Test Files  50 passed (50)
+      Tests  796 passed (796)
+   Start at  15:23:24
+   Duration  37.35s (transform 3.79s, setup 1.77s, import 6.83s, tests 157.40s, environment 10.47s)
+
+
+$ git status --porcelain
+ M src/App.tsx
+ M src/engine/README.md
+ M src/engine/eligibility.ts
+ M src/engine/ledger.ts
+ M src/ui/grid/CategoryLedger.tsx
+ M src/ui/grid/feasibility.ts
+ M src/ui/summary/SummaryPanel.tsx
+ M tests/architecture.test.ts
+ M tests/eligibility.test.ts
+ M tests/ledger.test.ts
+?? docs/proof/f8e1-verification.txt
+?? src/engine/steps.ts
+?? src/engine/summary-text.ts
+?? src/engine/summary.ts
+?? tests/feasibility-golden.test.ts
+?? tests/steps.test.ts
+?? tests/summary-text.test.ts
+?? tests/summary.test.ts
+
+===========================================================================
+BROWSER NO-REGRESSION PASS — 1280px
+===========================================================================
+NOTE ON THE PORT: :5173 was OCCUPIED by a concurrent implementer's dev server
+(three other F8/F5.2 slices are in flight in parallel worktrees). vite.config.ts
+is a DENIED path in this slice, so `strictPort: true` / `port: 5173` were NOT
+changed; the server was started on an alternate port via the CLI flag
+`npx vite --port 5199 --strictPort`, which changes no file.
+
+NOTE ON THE SCREENSHOT: docs/proof/f8e1-no-regression-1280.png could not be
+written — this harness renders browser screenshots inline and cannot persist
+them to disk, and the app's own download path is sandbox-blocked. The DOM text
+capture below is substituted, and is strictly stronger evidence than a PNG for
+this slice: it is the exact rendered content of every surface the hoist can
+reach, and it is diffable.
+
+State driven through the real UI at 1280: attributes set via the sliders, all
+twelve budget fields committed through their blur handlers, and six badges
+purchased across FOUR categories by clicking real level pips. Physicals was
+left at capacity 0 deliberately, to exercise the "0 = capacity not set" ruling.
+
+--- .category-ledger__row (the digests) ---
+Badge Points 14 / 16   left 2   Badge Slots 3 / 3
+Badge Points  3 /  5   left 2   Badge Slots 1 / 3
+Badge Points  1 /  6   left 5   Badge Slots 1 / 2
+Badge Points  2 /  4   left 2   Badge Slots 1 / 3
+Badge Points  0 /  3   left 3   Badge Slots 0 / 3
+Badge Points  0 /  0   left 0   Badge Slots 0
+
+--- .category-ledger__feasibility (THE SURFACE THE HOIST FEEDS) ---
+2 pts · 0 Badge Slots left → 1 upgrade to badges you already own; new badges would go over Badge Slots.
+2 pts · 2 Badge Slots left → 3 upgrades still affordable
+5 pts · 1 Badge Slot left → 24 upgrades still affordable
+2 pts · 2 Badge Slots left → 7 upgrades still affordable
+3 pts · 3 Badge Slots left → 6 upgrades still affordable
+0 pts left → nothing else fits at these prices.
+
+  All FOUR §3.6 phrasings render, including the Badge-Slots-exhausted split
+  that is driven by `affordableOwnedUpgrades` — i.e. exactly the count the R-4
+  hoist re-expressed. Singular/plural agreement is intact ("1 Badge Slot left"
+  vs "2 Badge Slots left", "1 upgrade" vs "3 upgrades").
+
+--- .category-ledger__hint ---
+Badge Slots capacity not set          (Physicals only — the one category at 0)
+
+  And NO overflow warning fires for Physicals anywhere, at any surface, despite
+  0 purchased against "capacity 0". The ratified 0 = UNSET ruling survives the
+  hoist of `badgeSlotsCapacityUnset` into src/engine/ledger.ts.
+
+--- rail Ledger overview ---
+Finishing 14/16 · 3/3   Shooting 3/5 · 1/3   Playmaking 1/6 · 1/2
+Defense 2/4 · 1/3       Rebounding 0/3 · 0/3   Physicals 0/0 · 0/—
+
+  Physicals renders `0/—`, not `0/0` — the unset capacity reads as unset on the
+  second surface too.
+
+--- .summary__table ---
+Badges by level:  Bronze 3 · Silver 2 · Gold 1 · HOF 0 · Legend (boost) 0
+Spend by category: Finishing 14/16 · Shooting 3/5 · Playmaking 1/6 ·
+                   Defense 2/4 · Rebounding 0/3 · Physicals 0/0 · Total 20/34
+
+  THE NUMBERS RECONCILE: 14 + 3 + 1 + 2 + 0 + 0 = 20, and the six pools sum to
+  34. Six purchased badges = 3 Bronze + 2 Silver + 1 Gold.
+
+--- validation ---
+.summary__errors: []   (no HARD violation produced by the refactor)
+
+VERDICT: zero visual change, as designed. The authoritative proof that no
+DISPLAYED NUMBER moved is the 504-cell golden table above, which is green
+before and after the hoist with no cell edited.
