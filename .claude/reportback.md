@@ -2977,3 +2977,181 @@ KNOWN NOT-OURS
   { timeout: 20000 } was lowered, added or moved, and vite.config.ts was not
   touched.
 ─────────────────────────────────────────────
+
+═════════════════════════════════════════════
+F8-E1 + F8-E2 — engine selectors, the ONE step enumerator, and the roll engine · integration into dev · integration-complete
+Agent: Tier-2 integrator · 2026-08-25
+Source branch: f8-engine (tip b6272a6) · base origin/dev @ 9bd851c
+Integration commits: d23de0b + 6562cde + 8ba17b4 + eb2cc8f + de1f734
+Branch dev · main untouched (444d034)
+─────────────────────────────────────────────
+
+WHAT LANDED
+Both engine slices, unchanged in behaviour from the branch. E1: the step
+enumerator hoisted out of src/ui/grid/feasibility.ts into src/engine/steps.ts
+so the UI's feasibility readout and the roller share ONE enumerator and cannot
+drift into a self-contradicting app; the summary selectors
+(src/engine/summary.ts, src/engine/summary-text.ts); and two rules hoisted out
+of components (badgeSlotsCapacityUnset out of CategoryLedger.tsx, plus the
+feasibility internals). E2: the roll engine — a seeded PRNG
+(src/engine/random.ts, hand-rolled mulberry32 + xmur3, no dependency), a
+randomized greedy over uniformly-sampled legal steps (src/engine/randomize.ts),
+and the Math.random containment lint.
+
+Five new src modules (random, randomize, steps, summary, summary-text) and six
+new test files, plus the tests/randomize-oracle.ts helper.
+
+INTEGRATION MECHANISM — rebase, not a merge commit
+This history is strictly linear (zero merge commits across the whole log; the
+two entries above record a rebase and a cherry-pick for the same reason), so
+f8-engine was rebased, not merged. The rebase was run on a THROWAWAY branch
+(f8-integrate) created from f8-engine, never on f8-engine itself, and f8-engine
+was NOT force-pushed — the /tmp/bb-f8e worktree stays valid. dev then
+fast-forwarded onto the result. Merge-commit count: 0 before, 0 after.
+
+b6272a6 (docs/proof/f8-merge-forecast.txt) RIDES ALONG rather than being
+dropped. It is docs-only and docs/proof/ is an established convention on dev
+(48 artifacts, including d45f8a8's forward check for the harness slice, which
+landed by exactly this route). The forecast is the paper trail for this merge
+and belongs with it.
+
+CONFLICTS — two, both forecast, both trivial, both append-at-tail
+  tests/ledger.test.ts — both sides appended a describe block at the tail and
+    both edited the import list. The IMPORTS AUTO-MERGED into the correct union
+    (badgeSlotsCapacityUnset from the engine, overByBadgePoints /
+    overByBadgeSlots from CategoryLedger, srcSources / stripComments from
+    test-utils) — the forecast expected to union them by hand; git got there on
+    its own. Only the two describe blocks conflicted, over a shared closing
+    brace pair. Resolved by keeping BOTH blocks, each with its own closing:
+    dev's "F4 group 9.6 — M1 honesty: onFuse with no isFusedFor" first, E1's
+    "badgeSlotsCapacityUnset — hoisted out of CategoryLedger.tsx" after. Four
+    describe blocks in the file, neither side's assertions touched.
+  .claude/reportback.md — append-only, as forecast, and the FOURTH integration
+    to touch it. Resolved so all entries survive in chronological order:
+    …test-harness → F4.1 slice → F4.1 integration → F8-E1 → F8-E2. Both sides
+    had appended a heavy-rule-opened block after the same closing rule, so the
+    shared framing was reproduced for each rather than one side inheriting it.
+    Arithmetic reconciles exactly: base (9bd851c) 2130 + dev-unique 467 +
+    branch-unique 382 (E1 197 + E2 185) = 2979, and the merged file is 2979
+    lines. Nothing dropped, nothing duplicated.
+
+  src/App.tsx, src/engine/ledger.ts and src/ui/summary/SummaryPanel.tsx all
+  auto-merged, as forecast. Keeping the SummaryPanel diff to a single import
+  line is what bought that.
+
+SEMANTIC BREAKAGE — five mechanical edits, all forecast, all applied
+  (a) src/engine/__fixtures__/synthetic-badges.ts — F4 made description and
+      isNew REQUIRED on RawBadge. E2's four new fixtures (twinA, dear, cheap,
+      freeAtHof) took the same two fields F4 gave the five pre-existing ones;
+      syntheticTwinB spreads twinA and needed nothing. 9 literals now carry the
+      fields.
+  (b) tests/steps.test.ts — ONE line, AND THE GUARD DID ITS JOB. The
+      RefundTrigger exhaustiveness check failed to compile ("Type 'true' is not
+      assignable to type 'never'") because F4 added onFuse. Added "onFuse" to
+      REFUND_TRIGGERS rather than letting INV-11 quietly skip the new arm.
+      INV-11 is green on all four triggers including onFuse, so E2's
+      precomputed net-cost fast path is safe against F4's additive cost model.
+      This is the load-bearing post-merge finding.
+  (c) tests/feasibility-golden.test.ts — ONE string, the dataVersion staleness
+      guard: "2026-08-25.1" -> "2026-08-26.1". NO CELL WAS TOUCHED (see below).
+  (d) tests/summary-text.test.ts — TWO strings in the golden block:
+      dataset "2026-08-25.1" -> "2026-08-26.1", and
+      "Synergy Slot 7 · Permanent · +1" -> "+2". The second was verified
+      against dev's own source rather than taken on faith:
+      synergy.ts's magnitudeForSynergySlot returns 2 for slot 7 even at
+      userDesignated null, and createDefaultSynergySlots reads it, so the
+      magnitude is the slot's own configured value exactly as design-spec §14.4
+      requires. No builder code changed. Synergy Slot 5 correctly stays +1.
+
+The five edits were folded into the commits that introduced the files
+(autosquash), not left as a trailing fixup commit, so every commit on dev
+builds: d23de0b, 6562cde and 8ba17b4 each typecheck exit 0 independently. The
+fold was proved content-neutral — the tree hash before and after is identical
+(ad1331d1dfd908c44c4a3c388c62ab341d40baad).
+
+THE GOLDEN TABLE — the load-bearing check. VERDICT: NOT ONE CELL MOVED.
+Checked two independent ways, because "the test is green" is the weaker claim:
+  1. The GOLDEN literal in the merged tree is BYTE-IDENTICAL to f8-engine's —
+     504 cells both sides, string-equal. The only diff in the whole file is the
+     one dataVersion line (1 insertion, 1 deletion).
+  2. "every affordable-upgrade count is unchanged, cell for cell" passes, i.e.
+     rows regenerated from the POST-F4 dataset still equal that untouched
+     table. 7 x 6 x 4 x 3 = 504.
+So the guard's instruction ("if dataVersion moves the table is STALE —
+regenerate it, never hand-edit a cell") was honoured by bumping only the
+version assertion and letting the table prove itself. F4's data change is
+annotation-only (description / isNew): no eligibility gate and no tier cost
+moved, and the R-4 enumerator hoist is stable across the F4 boundary.
+
+PASS-SET ARITHMETIC — computed first, then confirmed
+  dev baseline (491b392):                   53 files /  868 tests, 12.57s
+  branch on-branch total:                                871
+  branch baseline was 701 (pre-F4, pre-harness)
+  F8 contributes 871 - 701 =                             170
+  expected after integration: 868 + 170 =               1038
+  actual (de1f734):                         59 files / 1038 tests, 12.79s
+ZERO GAP. File count reconciles too: 53 + 6 new test files = 59 (the seventh
+added path, tests/randomize-oracle.ts, is a helper the suite imports, not a
+test file). No flake fired on any run of this integration.
+
+GATES — all green
+  npm test                1038/1038, 59 files
+  npm run typecheck       exit 0
+  npm run build           exit 0 (tsc --noEmit && vite build, 66 modules)
+  runtime dependencies    exactly react ^19.2.8 + react-dom ^19.2.8, nothing else
+  EXPLICIT RUN-AND-REPORT gates:
+    tests/ui/overlays.test.tsx        4/4 green — the H2 guardrail, the file to
+                                      watch for any future F8/F5 pairing.
+                                      Unmodified by this integration (empty
+                                      diff), so it is still a clean baseline
+                                      for when S2 adds a DOM subtree inside
+                                      the summary region.
+    tests/category-colors.test.ts     15/15 green, unmodified
+    tests/feasibility-golden.test.ts  4/4 green — see the verdict above
+    tests/architecture.test.ts        178/178 green
+
+MATH.RANDOM CONTAINMENT LINT — green, and independently re-derived
+It ships stronger than specified: an absolute ban under src/engine/** plus a
+build-wide assertion that the SET of Math.random callers EQUALS a one-entry
+allowlist. Both assertions pass:
+  "NO file under src/engine/ calls Math.random"                green
+  "every Math.random under src/ is on the explicit allowlist"  green
+Verified against the tree, not just the reporter: the only real caller under
+src/ is src/persist/local-storage.ts:251 (build-id minting), exactly the
+allowlisted entry. The one other textual hit, src/engine/random.ts:4, is a
+comment stating the ban and is removed by stripComments before the check.
+Confirmed nothing on dev since the branch point added a caller: the
+9bd851c..491b392 diff over src/ contains no Math.random line either way.
+
+OPEN ITEMS — carried, NOT resolved here. Neither blocks this merge.
+  1. The capacity-bound roll gap: median 1 / p95 4 against an exact-DP oracle.
+     A fix is being ruled on separately.
+  2. Three E2 dispatch gates whose paper trail Architect is landing now —
+     scope.md carries no randomizer amendment yet.
+
+COSMETIC NIT — left alone deliberately
+tests/steps.test.ts still carries the comment "When F4 lands onFuse, THIS LINE
+STOPS COMPILING until the new arm is added" and "Pre-F4 the union has THREE".
+F4 has now landed and the guard has fired and been satisfied, so the comment
+reads as history rather than instruction. Not rewritten: the validated recipe
+specified ONE line in that file, and holding the diff to exactly the measured
+shape was worth more than tidying prose. Trivial follow-up for whoever next
+touches the file.
+
+BRANCH REFS
+f8-engine left EXACTLY where it was — b6272a6, local and remote, NOT
+force-pushed and NOT deleted; the /tmp/bb-f8e worktree is valid and clean.
+/tmp/bb-f53 (f5-3-card-collapse-reset, b175a04) untouched and clean — it still
+descends from 2999a6c and will absorb this merge on its own rebase, which is
+expected. Confirmed no conflict surface with these two slices: neither touches
+BadgeCard.tsx. The F8/F5 collision lands later, in the roll-UI slice (R2).
+The throwaway f8-integrate branch was deleted after dev fast-forwarded.
+main untouched at 444d034.
+
+SCOPE / PLAN IMPACT
+None from the integration itself. The randomizer amendment to scope.md is
+Architect's in-flight item, listed above.
+
+NEXT
+Nothing blocking. The two open items are owned elsewhere.
+─────────────────────────────────────────────
