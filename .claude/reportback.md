@@ -300,3 +300,121 @@ M3 (UI: build panel, badge grid, ledger bars) is unblocked — its hard contract
 (every card renders via effectiveLevel(badgeId, defaultOverlay)) now has its M2
 function, exported with a shipped `defaultOverlay`. Nothing is waiting on the user.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-25 — M3 complete: build panel + badge grid + category ledgers + persistence UI, 380 tests green
+Type: milestone-complete
+Actor: Tier-2 implementer (constrained mode, Tier-1 dispatched, batch run) / Claude Fable 5
+Slice: M3.1
+
+WHAT
+M3.1 shipped per `impl-briefs/m3-ui-build-panel-badge-grid-ledger.md` against the binding
+`design-spec.md`. All 19 §9 M3 components exist and render: 10 primitives + `tokens.css`
+(§2 tokens verbatim, dark single theme, reduced-motion collapse), 4 shell components
+(ProvenanceChip disclosure, DriftBanner with recompute-not-diff via M1 `recheckEligibility`,
+AutosaveWarning as the app's only role=alert), build panel (PhysiqueSection with the
+four-treatment inert Position control, AttributeGrid in 6 AttrGroup fieldsets, BudgetGrid +
+BudgetTotalRow behind the `deriveBudget` seam with the single unverified banner + H7
+Category≠AttrGroup hint), grid (JumpNav, CategoryLedger-as-sticky-group-header rendering
+engine readouts with H4 soft-red `over by N ⚠` + hatched meter overflow and zero disabled
+controls, BadgeGridSection, BadgeCard + LevelPipRow with pips as the canonical radiogroup,
+card-body cycle on top capped at maxPurchasableLevel, always-visible what-if deltas,
+locked pips carrying engine `reasons[]` strings, height-blocked grey-out), and
+BuildSwitcher + BuildManagerDialog (load/rename/duplicate/delete/save-as-new, native
+<dialog>, in-row delete confirm, per-row dataVersion + drift dot).
+`src/persist/local-storage.ts` created as the ONLY `window.localStorage` toucher (a new
+lint test pins the boundary); every write wrapped; autosave failure surfaces the banner
+and never crashes. `vite.config.ts` got exactly the one authorized `host: true` line
+(OQ-A4) — LAN reachability verified empirically (HTTP 200 on the machine's LAN IP).
+HARD CONTRACT HONORED: every card renders via `effectiveLevel(state, badgeId,
+defaultOverlay)`, never `purchasedLevel` — pinned by a test that fuses a Gold badge to
+HOF under the neutral overlay while the purchase radiogroup stays Gold.
+
+EVIDENCE
+Commit cedb108 on `dev` (`main` untouched). `npm test`: 380 passed / 23 files (306
+pre-existing + 74 new UI tests: primitives smoke, ledger readouts + overflow, locked-pip
+reason strings, height-block, pip/cycle/Escape interactions, Over-Badge-Slots soft chip,
+drift banner recompute list, throwing-setItem alert, autosave save→reload round-trip,
+persist-boundary lint with positive canary). `npm run typecheck` clean. `npm run build`
+green. Vocabulary lint green over all new UI copy. Proofs: docs/proof/m3-desktop-1280.png,
+docs/proof/m3-mobile-390.png, docs/proof/m3-contrast.txt (all §2.1 ratios re-verified),
+docs/proof/m3-test-output.txt.
+
+CONSTRAINED-MODE REPORTBACK (required for M1-M4 completions)
+changed_files:
+  index.html (title only) · src/App.tsx · src/main.tsx (style imports) ·
+  vite.config.ts (ONE added line: `host: true`) ·
+  src/styles/{tokens.css, app.css} · src/persist/local-storage.ts ·
+  src/ui/useMediaQuery.ts · src/ui/README.md (stale "empty until M3" stub updated) ·
+  src/ui/primitives/{Button,Toggle,NumberField,HeightField,SegmentedControl,Chip,Section,
+  Banner,Hint,Meter}.tsx · src/ui/shell/{AppHeader,ProvenanceChip,DriftBanner,
+  AutosaveWarning}.tsx · src/ui/build/{BuildPanel,AttributeGrid,BudgetGrid}.tsx ·
+  src/ui/grid/{JumpNav,CategoryLedger,BadgeGridSection,BadgeCard}.tsx + anchors.ts ·
+  src/ui/builds/BuildManager.tsx ·
+  tests/ui/{app,badge-card,category-ledger,primitives}.test.tsx ·
+  tests/ui/persist-boundary.test.ts · tests/ui/storage-stub.ts ·
+  docs/proof/{m3-desktop-1280.png, m3-mobile-390.png, m3-contrast.txt, m3-test-output.txt}
+  — all within the brief's Allowed paths.
+denied_paths_checked:
+  I did not touch src/engine/** (the load-bearing denial — every number the UI shows is an
+  engine readout; no rule was needed that the engine does not expose), src/data/**,
+  src/config/** (read-only imports of its seams only), scripts/**, package.json,
+  package-lock.json, tsconfig.json, or any .env*. No dependency was added: no CSS
+  framework, no icon package, no headless-UI package; runtime deps remain exactly
+  {react, react-dom} (pre-existing test still green). This entry is the channel-mandated
+  completion report; no other .claude/ file was touched.
+first_proof_result:
+  http://localhost:5173 opened in a real Chrome pane; entered a 6'6" build (Close 88,
+  Layup 72, Dr Dunk 65, St Dunk 40, Post Ctrl 55, Mid 78, 3Pt 83; Finishing 16 pts /
+  3 Badge Slots): Finishing grid gated exactly per engine (Float Game capped Silver with
+  "needs 90 Close or 93 Layup for Gold"; Hook Specialist AND-logic showing only the
+  failing line). Bought 3 badges (Aerial Wizard B, Float Game S, Ghost Stepper G) →
+  ledger dropped to 10/16 · left 6 · Badge Slots 3/3; saved as "Slasher v2"; reloaded the
+  page; everything returned. Screenshots (same state, headless Chrome) at
+  docs/proof/m3-desktop-1280.png + m3-mobile-390.png.
+verification_evidence:
+  Test Files 23 passed (23) · Tests 380 passed (380) · `tsc --noEmit` exit 0 ·
+  `vite build` ✓ (235.16 kB bundle) · `git status --porcelain` clean after commit ·
+  LAN probe `http://<machine-LAN-IP>:5173` → 200 (OQ-A4 live) · contrast checker output
+  in docs/proof/m3-contrast.txt, ALL CHECKS PASS.
+heartbeats_emitted: batch-mode (live heartbeats waived for this autonomous run per dispatch)
+stop_conditions_triggered: none
+
+SCOPE / PLAN IMPACT — judgment calls for Tier 1 / Designer (none change engine or plan)
+1. LAYOUT SPEC CONFLICT, resolved toward no-overlap: design-spec §3.4 asks 3 cards/row at
+   ≥1280 with 280px card min AND 320/340px rails — at exactly 1280 the center column is
+   ~524px and three 280px cards overflowed under the right rail (verified in a real
+   render). Shipped `repeat(auto-fill, minmax(240px, 1fr))`: 2-up at 1280, 3-up from
+   ~1600, pip rows intact, zero overlap. Designer may want to re-cut §5.1's numbers.
+2. CONTRAST SPEC DEFECT, resolved toward the §6 AA bar: §3.1 Button's literal pairing
+   (`--fg-primary` on `--accent`) measures 2.76:1 — fails the spec's own non-negotiable
+   AA. Primary buttons ship dark-on-accent (5.81:1), the same treatment as level chips.
+   Recorded in docs/proof/m3-contrast.txt.
+3. AutosaveWarning ships WITH its inline "Export now" (a ~10-line Blob download): §3.2
+   specs it as part of this M3 component, while the brief's Excludes cuts the M4
+   "summary/export UI" (§3.6 ExportImportControls). A dead-end warning that tells the
+   user to export with no way to do it seemed the worse reading. M4 still owns the full
+   export/import surface.
+4. Over-Badge-Slots chip suppressed while a category's capacity is 0 (unset): at zero
+   state every card warned "buying would exceed 0" — noise, not disclosure. Chip fires
+   only against an entered capacity (>0). Ledger overflow behavior is unaffected.
+5. dataVersion is STICKY per plan (H8): loading an old-dataset build autosaves with its
+   original stamp — restamping would be the silent re-validation H8 forbids. New builds
+   stamp current. Cosmetic gap: after reload the switcher shows "(unsaved)" because the
+   named-build linkage (sourceId) is not part of the engine's SavedBuild envelope and
+   M3 cannot extend engine types; noted for M4/M5 polish.
+6. Mobile Build-panel auto-collapse evaluates at mount (open at zero state, collapsed
+   once values exist, user choice persisted thereafter) rather than mid-session — a
+   panel that snaps shut while typing seemed hostile; §5.3's intent (digest summary once
+   a build exists) is preserved.
+7. Test-env note: under this vitest/jsdom combination `window.localStorage` arrives as a
+   method-less stub (Node `--localstorage-file` shim shadows jsdom's). The app is
+   unaffected (all access goes through the wrapped persist layer); UI tests install a
+   deterministic in-memory Storage (tests/ui/storage-stub.ts). No config edit was needed
+   or made.
+
+NEXT
+M4 (synergy panel, overlays, filters, summary/export, FeasibilityReadout, mobile
+verification pass) is ready to dispatch against `impl-briefs/m4-*.md`. M3 leaves it a
+panel addition: cards already render through effectiveLevel with the overlay threaded.
+─────────────────────────────────────────────
