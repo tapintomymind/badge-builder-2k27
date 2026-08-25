@@ -1244,3 +1244,93 @@ above 142px or the left's above 246px, the answer is the §11.8 IA re-cut, not
 another shave — tests/layout-arithmetic.test.ts will say so. M5 stays
 data-blocked. User's live acceptance pass on the restyled UI is the real DoD.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-25 — F6 complete: right-rail width re-cut (§11 rev 6) + XL tier, 19 layout assertions green
+Type: slice-complete
+Actor: Claude Code (cloud session, branch claude/right-sidebar-width-62di4r off dev)
+Slice: F6 (one commit)
+
+WHAT
+User report: the right rail is "a bit too skinny, and items are not laying next
+to each other as smoothly." Measured before touching anything — all 6 ledger
+rows were wrapping onto two lines in the EMPTY state, with no build loaded.
+
+The cause is a seam between F5's two commits, not a bad number in either. F5.0
+derived the right rail against a 142px content box; F5 then styled
+`.ledger-overview` as an inset well with `--space-3` sides. That took 24px the
+geometry slice had already spent, leaving the rows 118px against a 168px demand.
+
+This is exactly the escalation F5's own NEXT block named — "if any later
+addition pushes the right rail's min-content above 142px [...] the answer is the
+§11.8 IA re-cut, not another shave." F5's paint slice was that addition, and it
+went unnoticed because the guard could not see it (below).
+
+Shipped:
+- L (1280–1439) re-cut 280/176 → `258px minmax(0,1fr) 204px`. Page padding,
+  column gap and card floor untouched — the density preference is still
+  protected, and rev 6 does not spend it any more than rev 5 did.
+- Ledger well sides --space-3 → --space-1 and row column gap --space-4 →
+  --space-2 AT L ONLY; both restored at XL.
+- NEW XL tier at ≥1440: `300px minmax(0,1fr) 268px`, well and gap back to F5's
+  values. 1280 is the WORST case for the rails and rev 5 made every wider
+  viewport pay its bill — the rails stayed pinned at their 1280 sizes while the
+  centre absorbed all the extra width, so a 1728px display wrapped its ledger
+  rows for a shortfall that only existed at 1280.
+- tests/layout-arithmetic.test.ts 12 → 19 assertions. I8's right-rail clause was
+  wrong in two independent ways and both are fixed: it stopped at
+  RAIL_RIGHT − SECTION_CHROME so the well was free, and LEDGER_ROW_MIN = 137 was
+  MIN-content (where the text breaks) when a flex row wraps at MAX-content. It
+  would have passed at 142px even with the well counted. I8b now PARSES the
+  well's padding and the row's gap out of the CSS and re-derives the fit, so a
+  number a paint slice can spend is treated as geometry. New I3-XL group derives
+  the second tier; new I3 clause records that L now sits ON its ceiling.
+- f2-source-pins rail literal moved to the rev-6 numbers (expected casualty,
+  §11.5 ⑥), plus a pin on the XL tier's existence.
+
+VERIFICATION
+docs/proof/f6-verification.txt — full before/after measurements, the L geometry
+derivation, and the degradation table for real numbers.
+docs/proof/f6-after-1280.png, f6-after-1440.png. The BEFORE is the shipped
+f5-after-1280.png (the two-line ledger rows are visible in it).
+Pre-change proofs: each of the three changed CSS values reverted in isolation
+against the rev-6 tree fails 2–3 of the new assertions. I8b also pins the
+pre-rev-6 arithmetic as an in-test canary so it cannot become vacuous.
+npm test: 631 tests, 629 pass. npm run build: clean.
+
+SCOPE / PLAN IMPACT
+None to scope.md / H-rulings. No .tsx, engine, data or config file was touched —
+this slice is three files: app.css and two test files. Judgment calls recorded:
+(1) L now sits ON the I3 ceiling (462 of 463; 745px centre against a 744px 3-up
+    minimum) and the left rail sits ON its I9 floor (258 − 34 = 224 = the §3.1
+    usable track). That is deliberate and is asserted, not merely true: there is
+    nothing left to take at 1280, and the next re-cut there must move a floor.
+    If that is not acceptable, the lever is the §11.8 IA re-cut.
+(2) At 1280 with REAL numbers the ledger still wraps (2 of 6 at "12/16 · 3/5",
+    6 of 6 at the over-budget strings). No affordable rail holds those — the
+    over-budget string alone is ~230px of text. I8b's floor is the EMPTY state
+    on purpose, and the wrap is the designed §11.5 ④ degradation. XL clears the
+    typical case outright.
+(3) The Synergy Slot header still wraps at L. It holds four controls (title,
+    permanence chip, Boost segmented, Unlocked toggle) needing ~420px; no rail
+    width fixes it. At XL it lays out on two clean lines instead of five. A real
+    fix is §11.8 IA, not geometry — flagged, not attempted.
+(4) The XL breakpoint is pinned at 1440 by an assertion derived from its own
+    rails, so raising the rails without raising the breakpoint fails loudly.
+
+PRE-EXISTING FAILURES — NOT THIS SLICE'S
+tests/ui/f2-builds-persistence.test.tsx fails 2 tests ("save-as-new writes a
+second build", "save-as-new with a taken name auto-suffixes"), both 5s vitest
+timeouts. Reproduced identically on the clean origin/dev tip with this slice's
+three files stashed. Left alone; flagging so the next slice does not inherit
+them as a mystery.
+
+NEXT
+Rev-6's named trigger, replacing rev-5's: at L there is no slack left in either
+direction. Any addition that raises the right rail's row demand above 162px, or
+the left rail's content demand above 224px, must go to the §11.8 IA re-cut —
+tests/layout-arithmetic.test.ts will fail rather than let it be shaved. XL has
+real headroom (55px over the I3 ceiling at 1440) and is where new rail residents
+should be sized first. M5 stays data-blocked. User's live acceptance pass at
+their own viewport is the real DoD — the XL tier in particular is aimed at it.
+─────────────────────────────────────────────

@@ -122,20 +122,28 @@ ul {
   }
 }
 
-/* L (≥1280): three columns 280 / fluid / 176 with a 12px gap — the §5.1
- * rev-5 re-cut. RAILS ARE STILL THE FREE VARIABLE, cards still ≥240px, and
+/* L (1280–1439): three columns 258 / fluid / 204 with a 12px gap — the §5.1
+ * rev-6 re-cut. RAILS ARE STILL THE FREE VARIABLE, cards still ≥240px, and
  * page padding + gaps are UNCHANGED (rev 2 bought width from the density
- * preference and said so in dissent; rev 5 does not).
+ * preference and said so in dissent; rev 5 and rev 6 do not).
  *
- * Rev 2's 248/192 sized the columns and never sized their CONTENTS: the
- * 6-option Position control needs 266px in a 214px box (invariant I8), which
- * is the horizontal scrollbar the user reported. 280/176 = 456px of rail,
- * leaving a 751px centre at 1280 with a 17px scrollbar — 3×240 cards + 2×12
- * gaps is 744px, so 3-up survives with 7px to spare. Derivation: §0.1 + §11.3.
- * Re-derived mechanically by tests/layout-arithmetic.test.ts. */
+ * Rev 5's 280/176 sized the right rail against a 142px content box — and
+ * then the F5 paint slice gave .ledger-overview an inset well with 12px of
+ * horizontal padding, leaving the rows 118px. Every ledger row has wrapped
+ * onto two lines since, INCLUDING the empty state: that is the "too skinny,
+ * items not next to each other" the user reported. Rev 6 fixes both halves —
+ * the well's padding is now part of the derived arithmetic (I8b), and the
+ * rail is re-cut to the ceiling I3 allows.
+ *
+ * 258 is the LEFT rail's derived floor, not a preference: 258 − 34 chrome =
+ * 224 = the §3.1 usable slider track (I9). 258/204 = 462px of rail, leaving
+ * a 745px centre at 1280 with a 17px scrollbar — 3×240 cards + 2×12 gaps is
+ * 744px, so 3-up survives. That 1px is the whole remaining margin at 1280,
+ * which is why the comfortable geometry lives at XL below rather than here.
+ * Derivation: §0.1 + §11.3. Re-derived by tests/layout-arithmetic.test.ts. */
 @media (min-width: 1280px) {
   .layout {
-    grid-template-columns: 280px minmax(0, 1fr) 176px;
+    grid-template-columns: 258px minmax(0, 1fr) 204px;
     column-gap: var(--space-3);
     padding: var(--space-4);
   }
@@ -164,6 +172,26 @@ ul {
     top: var(--space-3);
     max-height: calc(100vh - var(--space-6));
     overflow-y: auto;
+  }
+}
+
+/* XL (≥1440): the comfortable geometry — 300 / fluid / 268 (§5.1 rev 6).
+ *
+ * 1280 is the WORST case for the rails, not the normal one, and rev 5 made
+ * every wider viewport pay 1280's bill: the rails stayed pinned at their
+ * 1280 sizes while the centre column absorbed all the extra width. The
+ * ledger rows kept wrapping on a 1728px display for a shortfall that only
+ * exists at 1280.
+ *
+ * At 1440 the I3 ceiling is 1440 − 17 − 32 − 24 − 744 = 623px of rail, so
+ * 300/268 = 568 clears it with 55px to spare and the grid stays 3-up (4-up
+ * needs 996px of centre; there is 807px). The right rail's content box is
+ * 268 − 34 chrome − 24 well = 210px, which clears the widest ledger row —
+ * "Rebounding" 76 + 16 gap + metrics 76 = 168 — with room for real numbers
+ * rather than the empty state. Both relaxations below are undone at L. */
+@media (min-width: 1440px) {
+  .layout {
+    grid-template-columns: 300px minmax(0, 1fr) 268px;
   }
 }
 
@@ -1135,11 +1163,14 @@ ul {
   gap: var(--space-2);
 }
 
+/* The column gap is the label↔metrics separation, and at L it is the last
+ * few pixels between "one line" and "two". --space-2 at L, restored to
+ * --space-4 at XL where the width exists (I8b derives both). */
 .ledger-overview__row {
   display: flex;
   flex-wrap: wrap; /* §11.5 ④: degrade by wrapping, never by scrolling */
   justify-content: space-between;
-  gap: var(--space-1) var(--space-4);
+  gap: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
   padding: var(--space-1) 0;
 }
@@ -2213,12 +2244,29 @@ ul {
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
 
-/* The L-rail ledger overview reads as an instrument well. */
+/* The L-rail ledger overview reads as an instrument well.
+ *
+ * ITS HORIZONTAL PADDING IS RAIL GEOMETRY, NOT PAINT. F5 shipped this well
+ * with --space-3 sides, which took 24px out of a 142px content box that the
+ * F5.0 geometry slice had already spent — every ledger row has wrapped since,
+ * empty state included. --space-1 sides at L is what the rail can actually
+ * fund; XL restores --space-3. tests/layout-arithmetic.test.ts (I8b) now
+ * parses this value, so the next paint slice cannot spend it invisibly. */
 .ledger-overview {
   background: var(--bg-inset);
   box-shadow: var(--bevel-inset);
   border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-1);
+}
+
+@media (min-width: 1440px) {
+  .ledger-overview {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .ledger-overview__row {
+    column-gap: var(--space-4);
+  }
 }
 
 /* Synergy Slot permanence rims — decorative identity only (the

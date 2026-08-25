@@ -67,16 +67,27 @@ describe("E — sticky chrome budget (§5.3 rev 2): digest sticky, lede scrolls"
 describe("E — §5.1 rev-2 rail re-cut: rails are the free variable", () => {
   const css = read("src/styles/app.css");
 
-  it("L layout uses the rev-5 280px / fluid / 176px columns", () => {
+  it("L layout uses the rev-6 258px / fluid / 204px columns", () => {
     // rev 2 (248/192) sized the columns without sizing their contents and
-    // overflowed the left rail; rev 5 re-cut to 280/176. The ARITHMETIC is
-    // re-derived in tests/layout-arithmetic.test.ts — this is only the
-    // literal-drift guard.
-    expect(css).toContain("grid-template-columns: 280px minmax(0, 1fr) 176px");
+    // overflowed the left rail; rev 5 re-cut to 280/176 but sized the right
+    // rail against a content box the F5 paint slice then took 24px out of;
+    // rev 6 re-cuts to 258/204 and pulls the well's padding into the derived
+    // arithmetic. The ARITHMETIC is re-derived in
+    // tests/layout-arithmetic.test.ts — this is only the literal-drift guard.
+    expect(css).toContain("grid-template-columns: 258px minmax(0, 1fr) 204px");
     expect(css).not.toContain("grid-template-columns: 320px"); // rev 1's rails
     expect(css).not.toContain("grid-template-columns: 248px"); // rev 2's rails
-    // M: still no rail — single column below 1280 (§5.2, unchanged by rev 5).
+    expect(css).not.toContain("grid-template-columns: 280px"); // rev 5's rails
+    // M: still no rail — single column below 1280 (§5.2, unchanged by rev 6).
     expect(css).toContain("grid-template-columns: minmax(0, 1fr)");
+  });
+
+  it("XL (≥1440) is a SECOND rail tier, not a wider single one", () => {
+    // rev 6: 1280 is the worst case for the rails, and rev 5 made every
+    // wider viewport pay its bill. XL relaxes the geometry where the width
+    // actually exists; L keeps the tight cut.
+    expect(css).toContain("@media (min-width: 1440px)");
+    expect(css).toContain("grid-template-columns: 300px minmax(0, 1fr) 268px");
   });
 
   it("cards keep the ≥240px floor", () => {
