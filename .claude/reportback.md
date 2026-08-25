@@ -1721,3 +1721,79 @@ Rename and the recovery screen — both are now safe. Their live localStorage wa
 verbatim before the browser proofs and restored byte-for-byte after; no key outside the
 app's own namespace was left behind.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-25 — F7 + F8 integrated into dev: PR #2 rebased over the F2.2 wave, 691 tests green
+Type: fyi
+Actor: Tier 2 implementer (Claude Opus 5) — Tier 1 dispatch
+Slice: n/a (integration chore)
+
+WHAT
+PR #2 (branch claude/right-sidebar-width-62di4r, authored in a parallel cloud
+session) carried TWO commits, not the one it was opened with: F7's category
+identity colour layer (§2.8) and a later F8 splitting ATTR_LABELS into a
+display map and ATTR_SOURCE_LABELS. Both are now on dev.
+
+The branch's parent was already b22f8ab — it was cut AFTER the rev-6 rail
+re-cut, not before it — so the anticipated src/styles/app.css conflict did not
+exist. The only divergence was the F2.2 wave (ff8544e, 8fbaacd, 6713746),
+which shares exactly one file with this branch: this log.
+
+Strategy: rebase onto dev, then fast-forward. dev has no merge commits since
+b22f8ab and PR #1 landed linearly off this same branch, so a rebase keeps the
+established shape. Author metadata is preserved on both commits; nothing was
+squashed.
+
+CONFLICTS AND HOW THEY WERE RESOLVED
+One file, .claude/reportback.md, conflicting once per replayed commit. Both
+sides were pure appends at EOF with zero deletions, so each was resolved by
+concatenating the base file with all three self-delimiting blocks — no side's
+entry was dropped or reflowed.
+
+Ordering is by the entries' own authorship time, not by landing order: F7
+17:22:30Z, F8 17:29:03Z, F2.2 17:39:43Z. So F7 and F8 sit ABOVE the F2.2 entry
+even though F2.2 reached dev first. That is the judgement call in this
+integration — "newest last" is read against when an entry was written, which
+keeps the log a truthful chronology rather than a merge-order artifact.
+
+No colour value was touched. The user-directed Physicals→gold and
+Playmaking→orange correction is Designer's, and ships as its own slice.
+
+EVIDENCE
+pre-rebase PR #2 tip   900db6e → 0338172
+post-rebase            0392b7d → d5d0f3c   (fast-forwarded onto 6713746)
+PR #2's twelve owned files are byte-identical pre- and post-rebase
+(git diff 0338172 d5d0f3c over those paths is empty); the only delta is this
+log.
+
+npm test        691 passed / 691, 46 files, 0 failed  (baseline on 6713746 was
+                675; +16 from F7's category-colors guard and F8's vocabulary
+                guards)
+npm run typecheck   exit 0
+npm run build       exit 0 — 65 modules, dist 276.19 kB / 83.96 kB gzip
+
+H2 overlay ship gate, run explicitly:
+  tests/ui/overlays.test.tsx — 4 passed / 4, both ship-gate cases green.
+  F7's claim that it adds no data-* to ledger DOM holds structurally too: the
+  slice's only TSX change is data-attr-group on AttributeGrid's fieldset, and
+  that file references no ledger DOM.
+Vocabulary lint: vocabulary + alias-bijection + category-colors — 74 passed / 74.
+Runtime dependencies still exactly {react, react-dom}.
+
+Baseline note: on the clean 6713746 tip a full-suite run showed 673/675, with
+tests/ui/f2-disclosure-surfaces.test.tsx and f2-eligibility-disclosure.test.tsx
+each timing out at 5s. Both pass in isolation and both passed in the post-merge
+full run. They are load-dependent vitest timeouts under full-suite parallelism,
+not regressions — the same flake class the F6 and F7 entries flagged.
+
+SCOPE / PLAN IMPACT
+None. Additive slice; no scope.md, tech-strategy.md, design-spec.md or
+H-ruling change.
+
+NEXT
+Designer's two-hue correction (Physicals → gold, Playmaking → orange) lands on
+top of the six §2.8 tokens in tokens.css. The contrast proof in
+docs/proof/f7-contrast.txt was calibrated against the current six, so it must
+be re-derived for the two that move. User's live acceptance pass on the palette
+is still the real DoD.
+─────────────────────────────────────────────
