@@ -2475,3 +2475,123 @@ Merge is Tier 1's. The branch is `f4-official-data`, pushed, NOT merged to `dev`
 and `main` untouched. Expect to rebase on F5.2 — the merge-conflict forecast is
 in the dispatch report.
 ─────────────────────────────────────────────
+
+═════════════════════════════════════════════
+F4.1 — official-2K-page data adoption · integration into dev · integration-complete
+Agent: Tier-2 integrator · 2026-08-25
+Source branch: f4-official-data (tip 2999a6c, impl bf02019 + reportback 81664b7)
+Integration commits: 7289386 + fbcf49d · Branch dev · main untouched (444d034)
+─────────────────────────────────────────────
+
+WHAT LANDED
+All five parts of the brief, unchanged from the branch: 53 official badge
+descriptions + 19 isNew flags (dataVersion 2026-08-26.1, gameVersion still
+null); disciplineLock on Synergy Slots enforced HARD in both assignSynergy and
+validate-loadout.ts; the 20-Badge-Slots default disclosure on BudgetTotalRow
+(four states); onFuse as the default refund trigger; Synergy Slot 7 defaulting
+to +2 with load-normalization for pre-existing builds.
+
+INTEGRATION MECHANISM — rebase, not a merge commit
+dev had advanced 9bd851c → 498dceb (the test-harness label index). This history
+is strictly linear (zero merge commits across the whole log; the harness entry
+above records its own cherry-pick for the same reason), so f4-official-data was
+rebased rather than merged: `git rebase --onto 498dceb b94d403` replayed
+bf02019 + 81664b7 and dropped the author's now-redundant 2999a6c merge commit.
+dev fast-forwarded onto the result. Zero merge commits remain.
+
+Verified equivalent, not merely similar: the rebased tree differs from the
+author's own merge tree (2999a6c) in exactly four files — the three harness
+files (tests/setup-dom.ts, tests/ui/shared-label-index.test.tsx,
+docs/proof/shared-label-index.md) and .claude/reportback.md. Every other file
+F4 touched is byte-identical to the author's resolved merge.
+
+CONFLICTS — two, both forecast, both resolved against a known-good reference
+  src/App.tsx — F5.2's IA re-cut (panel-below divs, ledger folded into the
+    single rail) vs F4's older rail-right aside carrying the new
+    ratifiedMagnitudeNormalized prop. Resolved to F5.2's structure WITH F4's
+    prop. That is precisely the resolution the author had already made in
+    2999a6c, and 498dceb's App.tsx blob is identical to 9bd851c's (d52de705),
+    so the author's merged file was a valid drop-in and was taken verbatim
+    rather than re-derived by hand.
+  .claude/reportback.md — append-only, as forecast. Resolved so all three
+    entries survive in chronological order: F5.2 → test-harness → F4.1.
+    Arithmetic reconciles exactly both ways: base 1932 + shared-open 1 +
+    dev-unique 278 + F4-unique 265 + shared-close 1 = 2477, and the conflicted
+    file's 2480 lines − 3 markers = 2477. dev's first 2211 lines are a
+    byte-identical prefix, and the 266-line F4.1 entry is byte-identical to
+    81664b7's. Nothing was dropped; the only deduplicated lines are a blank
+    and a rule.
+  src/styles/app.css auto-merged, as it did in the author's merge. No other
+  file conflicted — the F4 × harness file intersection was reportback alone.
+
+INCIDENTAL FIX
+The author's merge 2999a6c carried a line-join defect at EOF: the F4.1 entry's
+closing rule was concatenated onto "in the dispatch report." with no newline.
+The rebase reproduces 81664b7's original, correctly separated form.
+
+PASS-SET ARITHMETIC — computed first, then confirmed
+  dev baseline (498dceb):                  47 files / 713 tests, 11.90s
+  branch baseline was 701 (b94d403 = 694, F5.2 added 7)
+  F4 contributed 856 − 701 =               155
+  harness contributed 713 − 701 =           12
+  expected after integration: 713 + 155 =  868
+  actual (fbcf49d):                        53 files / 868 tests, 23.73s
+Zero gap. The six new files are the F4 suites (f4-badge-card-description,
+f4-budget-total-baseline, f4-dataversion-drift, f4-plus-two-roundtrip,
+f4-slot7, enrichment-spot-check). No flake; green on the first run.
+
+GATES — all green
+  npm test                868/868, 53 files
+  npm run typecheck       exit 0
+  npm run build           exit 0 (tsc --noEmit && vite build, 65 modules)
+  runtime dependencies    exactly {react ^19.2.8, react-dom ^19.2.8}
+  src/styles/tokens.css   untouched by F4 (empty diff 498dceb..fbcf49d)
+  RUN-never-edit gates    tests/ui/overlays.test.tsx + tests/category-colors.test.ts
+                          green and unmodified (empty diff); with
+                          architecture.test.ts, 3 files / 174 tests
+  architecture.test.ts    unedited; all five groups green — (a) engine purity,
+                          (b) runtime dependency allowlist, (c) zero network
+                          egress, (d) no runtime filesystem access,
+                          (e) position-height access route
+  package.json / lockfile untouched
+
+DATA CLAIMS — checked against the tree, not the report
+  src/data/badges.json: 53 badges, all 53 carrying a non-empty description, 0
+  missing the field. isNew is a boolean on every badge; exactly 19 are true.
+  dataVersion "2026-08-26.1", asOf "2026-08-26", gameVersion null.
+  Per-category isNew in canonical CATEGORIES order (vocabulary.ts:40 —
+  Finishing-first) reads 2/5/1/3/5/3. The branch report's "5/2/1/3/5/3" is the
+  same multiset written Shooting-first; total 19 either way. A cosmetic
+  ordering nit in the report's phrasing, not a data defect.
+
+RATIFICATIONS RECORDED (Tier 1 accepted all four; not re-litigated here)
+  1. src/engine/dataset.ts edited despite being a denied path — loadBadge is
+     the only constructor of a Badge, so description/isNew are otherwise
+     unpopulatable and the tree would not compile.
+  2. RatifiedMagnitudeReport.slots renamed synergySlots — `slots` is a bare
+     banned token under the H1 vocabulary lint.
+  3. Test 7.4's "exactly one role=status" assertion was already false before
+     F4 (PlusTwoDesignator's Banner defaults to one); it now asserts the real
+     invariant — live-region count identical with and without the disclosure.
+  4. Enter/Space activation on the description <summary> is unproven.
+
+OPEN ITEM — carried, not resolved here
+Per ratification 4: keyboard activation (Enter/Space) on the description
+<summary> remains unproven, because a bare control <details> fails identically
+under the automation harness. The pointer path is fully proven. This needs a
+human keyboard check; it was deliberately not attempted during integration.
+
+BRANCH REFS
+f4-official-data was left EXACTLY where it was — 2999a6c, local and remote, NOT
+force-pushed and NOT deleted. f5-3-card-collapse-reset is in flight in
+/tmp/bb-f53 branched off it; it still descends from 2999a6c with its
+uncommitted work undisturbed, and will pick up the new dev on its own merge.
+The /tmp/bb-f4 worktree is likewise untouched. The temporary rebase branch used
+for the integration was deleted after dev fast-forwarded. main untouched.
+
+SCOPE / PLAN IMPACT
+None. OQ-A3 remains OPEN exactly as the branch left it.
+
+NEXT
+The open item above is a human keyboard check. Nothing else blocking.
+─────────────────────────────────────────────
