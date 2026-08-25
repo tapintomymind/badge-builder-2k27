@@ -29,6 +29,13 @@
  * ZERO RANKING. Steps are emitted in `dataset.badges` order, then
  * `PURCHASABLE_LEVELS` order. Never sorted, never scored, never grouped. That
  * order is an INPUT to a uniform index, not a preference.
+ *
+ * F8-E3 ADDS A SECOND, SEPARATE ENUMERATOR -- `exchangeSteps`. `legalSteps` is
+ * UNCHANGED and that is deliberate: `categoryFeasibility` counts `legalSteps`
+ * and renders "N upgrades still affordable", so if the grid's enumerator
+ * started counting exchanges the grid would advertise moves it cannot offer.
+ * One enumerator per move class, one consumer contract each. INV-19's 504-cell
+ * golden table is the mechanical proof that `legalSteps` did not move.
  */
 
 import { costForLevel, whatIf } from "./cost";
@@ -156,6 +163,138 @@ export function legalSteps(
   return steps;
 }
 
+/* --------------------------------------------------------------- F8-E3 -- */
+
+/** One legal exchange: drop `outBadgeId`, buy `badgeId` at `toLevel`. */
+export interface ExchangeStep {
+  kind: "exchange";
+  outBadgeId: string;
+  outLevel: PurchasableLevel;
+  badgeId: string;
+  category: Category;
+  toLevel: PurchasableLevel;
+  /** Refund-aware, probed from the SHIPPED ledger exactly as `netCostOf` does.
+   *  ALWAYS > 0 — a non-positive exchange is not emitted. */
+  netCost: number;
+  /** Always false. An exchange is slot-count-neutral: one out, one in. */
+  requiresNewBadgeSlot: false;
+}
+
+/** The roll's whole move set: add, upgrade (both `LegalStep`) and exchange. */
+export type RollStep = LegalStep | ExchangeStep;
+
+/** `LegalStep` carries no `kind`, so presence of the tag IS the discriminant.
+ *  Adding a tag to `LegalStep` would have changed the enumerator the grid
+ *  shares, and the grid is not allowed to move. */
+export function isExchangeStep(step: RollStep): step is ExchangeStep {
+  return "kind" in step && step.kind === "exchange";
+}
+
+/**
+ * Every legal spend-increasing exchange in one category, in deterministic
+ * `dataset.badges` order (outgoing entry, then incoming badge, then level).
+ *
+ * `exchangeableBadgeIds` is THE SAFETY BOUNDARY: the roll passes only the
+ * entries IT created during this walk. Nothing the user placed, and nothing
+ * pinned by any of the five pin reasons, can ever appear as `outBadgeId`.
+ * This function does not know about pins and must not learn about them —
+ * the caller's set is narrower than "unpinned" and that is deliberate.
+ *
+ * `netCost > 0` IS AN ADMISSIBILITY CONDITION, exactly like the caller's
+ * `netCost <= remainingPoints`. It is not "spend more where you can" — it is
+ * "do not go backwards", and it is what makes the walk terminate. Two
+ * admissible exchanges with different net costs are returned side by side in
+ * one flat array with nothing to tell them apart, because the caller picks
+ * uniformly and must not be able to see the difference.
+ *
+ * NO affordability filter lives here, matching `legalSteps`. The roll applies
+ * `netCost <= remainingPoints`. `categoryFeasibility` DOES NOT CALL THIS.
+ */
+export function exchangeSteps(
+  input: StepEnumerationInput & { exchangeableBadgeIds: ReadonlySet<string> },
+  category: Category,
+  dataset: BadgeDataset = shippedDataset,
+): ExchangeStep[] {
+  const { state, build, pinnedBadgeIds, excludedBadgeIds, exchangeableBadgeIds } = input;
+
+  const ownedLevels = new Map<string, PurchasableLevel>();
+  for (const entry of state.loadout) ownedLevels.set(entry.badgeId, entry.purchasedLevel);
+
+  // The outgoing side: dataset order, owned, and created by THIS walk.
+  const outgoing: { id: string; level: PurchasableLevel; netCost: number }[] = [];
+  for (const badge of dataset.badges) {
+    if (badge.category !== category) continue;
+    if (!exchangeableBadgeIds.has(badge.id)) continue;
+    const level = ownedLevels.get(badge.id);
+    if (level === undefined) continue;
+    outgoing.push({ id: badge.id, level, netCost: netCostOf(state, badge, level, dataset) });
+  }
+  if (outgoing.length === 0) return [];
+
+  const steps: ExchangeStep[] = [];
+  for (const out of outgoing) {
+    for (const badge of dataset.badges) {
+      if (badge.category !== category) continue;
+      // An exchange BUYS AN UNOWNED BADGE. Raising something already held is an
+      // upgrade and `legalSteps` already emits it.
+      if (ownedLevels.has(badge.id)) continue;
+      if (excludedBadgeIds.has(badge.id)) continue;
+      if (pinnedBadgeIds.has(badge.id)) continue;
+      if (!validateBadge(badge, build).allowed) continue;
+
+      for (const level of PURCHASABLE_LEVELS) {
+        // H3: PER LEVEL, inherited verbatim from legalSteps. Gaps are legal.
+        if (!levelPasses(badge.requirements, build, level)) continue;
+        const netCost = netCostOf(state, badge, level, dataset) - out.netCost;
+        if (netCost <= 0) continue;
+        steps.push({
+          kind: "exchange",
+          outBadgeId: out.id,
+          outLevel: out.level,
+          badgeId: badge.id,
+          category,
+          toLevel: level,
+          netCost,
+          requiresNewBadgeSlot: false,
+        });
+      }
+    }
+  }
+
+  return steps;
+}
+
+/**
+ * The most net spend this category could EVER absorb, capped by its own pool.
+ *
+ * Feeds the third argument of `rollIterationBound`. It is a LATTICE quantity,
+ * not a budget one: `min(pool, ceiling)` keeps the §3.3 argument that a
+ * fat-fingered `points: 999` cannot produce a long loop, because the ceiling
+ * term stops growing once every height-allowed badge in the category is at its
+ * dearest legal level.
+ */
+export function ceilingSpendFor(
+  input: StepEnumerationInput,
+  category: Category,
+  pointsPool: number,
+  dataset: BadgeDataset = shippedDataset,
+): number {
+  const { state, build } = input;
+  let ceiling = 0;
+  for (const badge of dataset.badges) {
+    if (badge.category !== category) continue;
+    if (!validateBadge(badge, build).allowed) continue;
+    let dearest = 0;
+    for (const level of PURCHASABLE_LEVELS) {
+      if (!levelPasses(badge.requirements, build, level)) continue;
+      const cost = netCostOf(state, badge, level, dataset);
+      if (cost > dearest) dearest = cost;
+    }
+    ceiling += dearest;
+  }
+  return Math.min(pointsPool, ceiling);
+}
+
 /**
  * The loadout that results from applying one step. Pure — the input array is
  * never mutated, and entry ORDER is preserved (an upgrade replaces in place; a
@@ -173,6 +312,22 @@ export function applyStep(
       ? { badgeId: entry.badgeId, purchasedLevel: step.toLevel }
       : entry,
   );
+}
+
+/**
+ * The loadout that results from applying one exchange. Pure. The outgoing
+ * entry is dropped and the incoming one APPENDS, so the result is exactly what
+ * "remove then buy" produces and the entry count is unchanged — which is why
+ * an exchange can never move `equipSlotsUsed` (INV-22).
+ */
+export function applyExchange(
+  loadout: readonly LoadoutEntryLike[],
+  step: ExchangeStep,
+): LoadoutEntryLike[] {
+  return [
+    ...loadout.filter((entry) => entry.badgeId !== step.outBadgeId),
+    { badgeId: step.badgeId, purchasedLevel: step.toLevel },
+  ];
 }
 
 /** Structural alias so `applyStep` needs no import cycle through types.ts. */

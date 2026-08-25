@@ -31,7 +31,8 @@ import { legalSteps } from "../src/engine/steps";
 import type { SynergyLedgerState } from "../src/engine/synergy-ledger";
 import { categoryLedgerAt } from "../src/engine/synergy-ledger";
 import type { BadgeDataset, Build } from "../src/engine/types";
-import type { Category } from "../src/engine/vocabulary";
+import type { Attr, Category } from "../src/engine/vocabulary";
+import { ATTRS } from "../src/engine/vocabulary";
 
 const NONE: ReadonlySet<string> = new Set<string>();
 
@@ -107,4 +108,95 @@ export function grossSpendOf(
     if (badge === undefined || badge.category !== category) return sum;
     return sum + costForLevel(badge.tier, entry.purchasedLevel, dataset);
   }, 0);
+}
+
+/* ------------------------------------------------------- F8-E3: the sweep -- */
+
+/**
+ * THE INV-14 FIXTURE FAMILIES. Two of them, reported separately, because
+ * F8-E2's 200 fixtures all used `makeBuild(78, attrs)` — TWENTY EQUAL
+ * ATTRIBUTES AT ONE HEIGHT. That is a narrow slice of the input space, and a
+ * distribution measured over it can only speak for builds nobody makes. The
+ * second family carries per-attribute spreads across seven heights.
+ *
+ * BOTH FAMILIES ARE DELIBERATELY UNPINNED, WITH AN EMPTY LOADOUT, AND NO
+ * EXCLUSIONS. `optimalAddedSpend` passes `pinnedBadgeIds: NONE` and
+ * `excludedBadgeIds: NONE`, so it solves the UNCONSTRAINED problem — which is
+ * the SAME problem only while the fixtures carry no pins and no exclusions.
+ * Adding either to a fixture without teaching the oracle about it would
+ * contaminate every gap number in the file, so `noFixtureCarriesPinsOrExclusions`
+ * asserts the precondition rather than trusting it.
+ */
+export interface SweepFixture {
+  index: number;
+  family: "equal-attributes" | "spread-attributes";
+  points: number;
+  equipSlots: number;
+  category: Category;
+  build: Build;
+}
+
+const SWEEP_CATEGORIES: readonly Category[] = [
+  "Finishing",
+  "Shooting",
+  "Playmaking",
+  "Rebounding",
+  "Defense",
+  "Physicals",
+];
+
+/** F8-E2's shape, reproduced byte-for-byte so the two runs are comparable. */
+export function equalAttributeFamily(size = 200): SweepFixture[] {
+  const fixtures: SweepFixture[] = [];
+  for (let index = 0; index < size; index += 1) {
+    fixtures.push({
+      index,
+      family: "equal-attributes",
+      points: 4 + (index % 17),
+      equipSlots: 1 + (index % 5),
+      category: SWEEP_CATEGORIES[index % SWEEP_CATEGORIES.length] as Category,
+      build: buildWithEqualAttributes(60 + (index % 35), 78),
+    });
+  }
+  return fixtures;
+}
+
+/**
+ * The second family: per-attribute spreads across seven heights.
+ *
+ * Deterministic by construction — the "randomness" is an affine hash of
+ * (index, attribute index), so the family is a pure function of `size` and is
+ * identical on every machine and every run. No PRNG, no clock, no shuffle.
+ */
+export function spreadAttributeFamily(size = 240): SweepFixture[] {
+  const heights = [69, 72, 75, 78, 81, 84, 88];
+  const fixtures: SweepFixture[] = [];
+  for (let index = 0; index < size; index += 1) {
+    const attributes = {} as Record<Attr, number>;
+    for (let position = 0; position < ATTRS.length; position += 1) {
+      const attr = ATTRS[position] as Attr;
+      // 45..99, spread differently for every (fixture, attribute) pair.
+      attributes[attr] = 45 + ((index * 37 + position * 53 + (index % 11) * 7) % 55);
+    }
+    fixtures.push({
+      index,
+      family: "spread-attributes",
+      points: 3 + (index % 19),
+      equipSlots: 1 + (index % 6),
+      category: SWEEP_CATEGORIES[index % SWEEP_CATEGORIES.length] as Category,
+      build: {
+        heightInches: heights[index % heights.length] as number,
+        attributes,
+      },
+    });
+  }
+  return fixtures;
+}
+
+function buildWithEqualAttributes(value: number, heightInches: number): Build {
+  const attributes = Object.fromEntries(ATTRS.map((attr) => [attr, value])) as Record<
+    Attr,
+    number
+  >;
+  return { heightInches, attributes };
 }

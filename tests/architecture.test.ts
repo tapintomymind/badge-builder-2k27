@@ -122,6 +122,11 @@ describe("architecture: no runtime filesystem access (d)", () => {
  * explicit, injectable default, and a blanket clock ban would redden correct
  * shipped code. F8-E2 appends `random.ts` and `randomize.ts` to this list —
  * it does NOT duplicate the group and does NOT touch groups (a)–(e).
+ *
+ * F8-E3 adds no module: `exchangeSteps` lives in `steps.ts` and the walk in
+ * `randomize.ts`, both already listed. A NAMED LIST only protects what someone
+ * remembered to name, so the drift guard below asserts the coverage instead of
+ * assuming it — put the roll's machinery in a new file and this group reddens.
  */
 const PURE_ENGINE_MODULES = [
   "/src/engine/steps.ts",
@@ -165,6 +170,27 @@ describe("architecture: engine purity (f) — no clock, no DOM, no ambient rando
       ).toBeNull();
     });
   }
+
+  it("DRIFT GUARD: every module carrying the roll's machinery is ON the pure list", () => {
+    // The roll's whole surface: the two enumerators, the selection primitive
+    // and the walk. Whichever files hold them must be covered by the group
+    // above, or a future slice moves one out and quietly loses the lint.
+    const MACHINERY = ["exchangeSteps", "legalSteps", "pickUniform", "rollIterationBound"];
+    for (const token of MACHINERY) {
+      const carriers = engineFiles.filter((file) =>
+        new RegExp(`(?:export (?:function|const)|function) ${token}\\b`).test(
+          stripComments(srcSources[file] as string),
+        ),
+      );
+      expect(carriers.length, `no engine module defines ${token}`).toBeGreaterThan(0);
+      for (const file of carriers) {
+        expect(
+          PURE_ENGINE_MODULES.includes(file),
+          `${file} defines ${token} but is not on PURE_ENGINE_MODULES`,
+        ).toBe(true);
+      }
+    }
+  });
 
   it("NO file under src/engine/ calls Math.random — the seeded PRNG is the only source", () => {
     for (const file of engineFiles) {

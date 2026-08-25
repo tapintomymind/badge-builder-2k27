@@ -9,11 +9,17 @@
  * before the walk existed. The RED run is in docs/proof/f8e2-verification.txt.
  *
  * ON THE DISTRIBUTION CLAIM (AJ-9). Nothing in this file asserts, or names a
- * test after, "every loadout is equally likely". That sentence is FALSE for
- * randomized greedy. What is true, and what is tested, is step-equiprobability
- * (INV-10) plus equivariance (INV-8) — and equivariance is the load-bearing
- * one, because a statistic can only fail to observe a preference whereas
- * equivariance shows the roller cannot express one.
+ * test after, uniformity over OUTCOMES. That claim is FALSE for randomized
+ * greedy and is banned outright by scope.md §0.1 A4. What is true, and what is
+ * tested, is move-equiprobability (INV-10, and INV-23 for the third move kind)
+ * plus equivariance (INV-8, and INV-24 for the third move kind) — and
+ * equivariance is the load-bearing one, because a statistic can only fail to
+ * observe a preference whereas equivariance shows the roller cannot express one.
+ *
+ * F8-E3 adds INV-20..24 and restates INV-5 and INV-7 over the ENLARGED move
+ * set. The three-kind move set does not weaken a single claim above: `netCost
+ * > 0` gates whether an exchange is OFFERED, exactly as `netCost <=
+ * remainingPoints` already did, and never how often it is drawn.
  */
 
 import { describe, expect, it } from "vitest";
@@ -26,8 +32,27 @@ import {
   rollIterationBound,
 } from "../src/engine/randomize";
 import type { PinMode, RollRequest } from "../src/engine/randomize";
-import { syntheticBadges } from "../src/engine/__fixtures__/synthetic-badges";
-import { legalSteps } from "../src/engine/steps";
+import {
+  syntheticAndMidNullGap,
+  syntheticAndTrailingNull,
+  syntheticBadges,
+  syntheticCheapBronzeOnly,
+  syntheticDearBronzeOnly,
+  syntheticExchangePlusFour,
+  syntheticExchangePlusOne,
+  syntheticFreeAtHof,
+  syntheticHeightBoundary,
+  syntheticOrBothNull,
+  syntheticThresholdBoundary,
+  syntheticTwinA,
+  syntheticTwinB,
+} from "../src/engine/__fixtures__/synthetic-badges";
+import { badgeById } from "../src/engine/dataset";
+import { createRng, pickUniform } from "../src/engine/random";
+import { applyStep, exchangeSteps, isExchangeStep, legalSteps } from "../src/engine/steps";
+import type { RollStep } from "../src/engine/steps";
+import { entryIsStale } from "../src/engine/eligibility";
+import { synergyRoleFor } from "../src/engine/synergy";
 import { createDefaultSynergySlots } from "../src/engine/synergy";
 import { categoryLedgerAt } from "../src/engine/synergy-ledger";
 import type { SynergyLedgerState } from "../src/engine/synergy-ledger";
@@ -36,7 +61,13 @@ import type { BadgeDataset, Budget, LoadoutEntry, RawBadge, SynergySlot } from "
 import type { Category, PurchasableLevel } from "../src/engine/vocabulary";
 import { CATEGORIES, levelIndex } from "../src/engine/vocabulary";
 import { makeBuild } from "./helpers/test-utils";
-import { grossSpendOf, optimalAddedSpend } from "./randomize-oracle";
+import {
+  equalAttributeFamily,
+  grossSpendOf,
+  optimalAddedSpend,
+  spreadAttributeFamily,
+} from "./randomize-oracle";
+import type { SweepFixture } from "./randomize-oracle";
 
 // ---------------------------------------------------------------------------
 // Datasets. Isolated ones exist because the statistical and equivariance
@@ -44,9 +75,39 @@ import { grossSpendOf, optimalAddedSpend } from "./randomize-oracle";
 // shipped badges in the way the signal is unmeasurable.
 // ---------------------------------------------------------------------------
 
+/**
+ * THE SWEEP DATASET IS PINNED TO A NAMED SET, NOT SPLATTED FROM
+ * `syntheticBadges`. Same reasoning `tests/feasibility-golden.test.ts` already
+ * records, and F8-E3 is the slice that proved it was needed here too.
+ *
+ * The barrel export GROWS, and a fixture added to make one statistical property
+ * observable in an ISOLATED two- or three-badge dataset has no business
+ * changing a distribution measured over the whole dataset. INV-23's pair is
+ * exactly that: `synthetic-exchange-plus-four` is legal ONLY at HOF, which is a
+ * shape no shipped badge has, and dropping it into Physicals turns a
+ * capacity-free pool of 12 into an exact-cover problem that randomized greedy
+ * can miss by 4 — see `the adversarial fixture, disclosed` below, where that
+ * finding is pinned rather than hidden.
+ *
+ * So: this dataset is the E1/E2 fixture set, which also makes the
+ * `equal-attributes` sweep family a true reproduction of what F8-E2 measured.
+ * INV-23 and INV-22 reach their pair through `datasetOf(...)` instead.
+ */
 const dataset: BadgeDataset = loadDataset({
   ...shippedRawDataset,
-  badges: [...shippedRawDataset.badges, ...syntheticBadges],
+  badges: [
+    ...shippedRawDataset.badges,
+    syntheticAndTrailingNull,
+    syntheticAndMidNullGap,
+    syntheticOrBothNull,
+    syntheticHeightBoundary,
+    syntheticThresholdBoundary,
+    syntheticTwinA,
+    syntheticTwinB,
+    syntheticDearBronzeOnly,
+    syntheticCheapBronzeOnly,
+    syntheticFreeAtHof,
+  ],
 });
 
 function datasetOf(...badges: RawBadge[]): BadgeDataset {
@@ -87,6 +148,73 @@ function requestOf(overrides: Partial<RollRequest> = {}): RollRequest {
 }
 
 const NONE: ReadonlySet<string> = new Set<string>();
+
+/**
+ * The walk's OWN bookkeeping, re-derived from the report so the tests can check
+ * the safety boundary without the engine handing them the answer. An `add`
+ * enrols a badge; an `exchange` swaps one id for another; an UPGRADE ENROLS
+ * NOTHING, because an `include`-pinned entry the user placed may legally be
+ * raised and enrolling it there is exactly how a roll would start deleting the
+ * user's badges.
+ */
+function rollCreatedIdsOf(steps: readonly RollStep[]): Set<string> {
+  const created = new Set<string>();
+  for (const step of steps) {
+    if (isExchangeStep(step)) {
+      created.delete(step.outBadgeId);
+      created.add(step.badgeId);
+    } else if (step.fromLevel === null) {
+      created.add(step.badgeId);
+    }
+  }
+  return created;
+}
+
+const exchangesIn = (steps: readonly RollStep[]) => steps.filter(isExchangeStep);
+
+/**
+ * E2'S TWO-MOVE WALK, kept alive here as a REFERENCE IMPLEMENTATION for INV-20.
+ *
+ * Why a reference walk rather than goldens copied from the E2 run: the whole
+ * point of `ROLL_ALGORITHM_VERSION` is that it rides in the per-category RNG
+ * seed string, so at version 2 the SAME seed necessarily draws a different
+ * stream than it did at version 1. Literal E2 output cannot match, BY
+ * CONSTRUCTION — that is the mechanism working, not a regression. What the
+ * theorem actually claims is that the two-move and three-move walks agree
+ * wherever no exchange is offered, and this compares them at the same version,
+ * which is the apples-to-apples form of exactly that claim.
+ *
+ * Scoped to the sweep's shape — empty loadout, `fill`, no pins, no exclusions —
+ * so it stays a few lines rather than a second engine.
+ */
+function twoMoveWalk(
+  seed: string,
+  state: SynergyLedgerState,
+  build: ReturnType<typeof makeBuild>,
+  category: Category,
+  activeDataset: BadgeDataset,
+): LoadoutEntry[] {
+  const rng = createRng(`${seed} ${ROLL_ALGORITHM_VERSION} ${category}`);
+  const capacity = state.budgets[category].equipSlots;
+  let loadout: LoadoutEntry[] = [...state.loadout];
+  const at = (): SynergyLedgerState => ({ ...state, loadout });
+  for (let guard = 0; guard < 400; guard += 1) {
+    const readout = categoryLedgerAt(at(), "current", category, activeDataset);
+    const newBadgesAllowed = readout.equipSlotsUsed < capacity;
+    const candidates = legalSteps(
+      { state: at(), build, pinnedBadgeIds: NONE, excludedBadgeIds: NONE },
+      category,
+      activeDataset,
+    ).filter(
+      (step) =>
+        step.netCost <= readout.remainingPoints &&
+        (!step.requiresNewBadgeSlot || newBadgesAllowed),
+    );
+    if (candidates.length === 0) break;
+    loadout = applyStep(loadout, pickUniform(rng, candidates)) as LoadoutEntry[];
+  }
+  return loadout.filter((entry) => badgeById(activeDataset, entry.badgeId)?.category === category);
+}
 
 /** Twenty structurally different starting states, for the property sweeps. */
 function sweepStates(): SynergyLedgerState[] {
@@ -264,6 +392,118 @@ describe("INV-5 — pin respect: no pin is EVER dropped, under any outcome", () 
     }
   });
 
+  it(
+    "INV-5b — A4-R1: in `fill`, every entry absent from `pins` is byte-identical",
+    { timeout: 20000 },
+    () => {
+      // `fill` ADDS; only `reroll` REBUILDS. An absent id is not permission, so a
+      // forgotten pin fails CLOSED — which is the point, because a `fill` that
+      // quietly raises one entry is a single pip in a 53-card grid.
+      for (let seed = 0; seed < 500; seed += 1) {
+        const state = sweepStates()[seed % 20] as SynergyLedgerState;
+        const result = rollBuild(
+          requestOf({
+            state,
+            build: healthy,
+            pins: {},
+            seed: `fillpin-${seed}`,
+            mode: "fill",
+          }),
+          dataset,
+        );
+        for (const original of state.loadout) {
+          const proposed = result.proposedLoadout.find(
+            (entry) => entry.badgeId === original.badgeId,
+          );
+          expect(proposed, `${original.badgeId} vanished from a fill`).toEqual(
+            original,
+          );
+        }
+      }
+    },
+  );
+
+  it("INV-5b — an explicit `include` is what re-opens an entry to `fill`", () => {
+    // The corollary, and the reason the rule is a PERMISSION GRANT rather than
+    // a ban: the mechanism to raise an existing entry still exists, it just has
+    // to be asked for. Without this the correction would be indistinguishable
+    // from "fill can never upgrade anything".
+    const state = stateOf({
+      loadout: [{ badgeId: "deadeye", purchasedLevel: "bronze" }],
+      budgets: budgets(30, 5),
+    });
+    const held = rollCategory(
+      requestOf({
+        state,
+        build: healthy,
+        pins: {},
+        seed: "grant",
+        mode: "fill",
+      }),
+      "Shooting",
+      dataset,
+    );
+    const granted = rollCategory(
+      requestOf({
+        state,
+        build: healthy,
+        pins: { deadeye: "include" },
+        seed: "grant",
+        mode: "fill",
+      }),
+      "Shooting",
+      dataset,
+    );
+    const levelOf = (report: { proposedEntries: LoadoutEntry[] }) =>
+      report.proposedEntries.find((entry) => entry.badgeId === "deadeye")
+        ?.purchasedLevel;
+    expect(levelOf(held)).toBe("bronze");
+    expect(levelIndex(levelOf(granted) as PurchasableLevel)).toBeGreaterThan(
+      levelIndex("bronze"),
+    );
+  });
+
+  it("INV-5b — the `fillDefault` note fires only where the rule COST something", () => {
+    // Emitting a note for all twenty entries of a full build is noise. The note
+    // means "this one could have absorbed points if you let it".
+    const rich = rollCategory(
+      requestOf({
+        state: stateOf({
+          loadout: [{ badgeId: "deadeye", purchasedLevel: "bronze" }],
+          budgets: budgets(30, 5),
+        }),
+        build: healthy,
+        seed: "note",
+        mode: "fill",
+      }),
+      "Shooting",
+      dataset,
+    );
+    expect(rich.pinned.some((note) => note.reason === "fillDefault")).toBe(
+      true,
+    );
+
+    // Same entry, nothing left to pay with: held all the same, but SILENT.
+    const broke = rollCategory(
+      requestOf({
+        state: stateOf({
+          loadout: [{ badgeId: "deadeye", purchasedLevel: "bronze" }],
+          budgets: budgets(1, 5),
+        }),
+        build: healthy,
+        seed: "note",
+        mode: "fill",
+      }),
+      "Shooting",
+      dataset,
+    );
+    expect(broke.proposedEntries).toContainEqual({
+      badgeId: "deadeye",
+      purchasedLevel: "bronze",
+    });
+    expect(broke.pinned.some((note) => note.reason === "fillDefault")).toBe(false);
+  });
+
   it("a synergy-role holder is IMPLICITLY and NON-OVERRIDABLY pinned", () => {
     // The highest-severity risk in the feature: clearing this entry would
     // strand a fuse reference, which is the F2.1 defect class.
@@ -384,8 +624,12 @@ describe("INV-6 — budget respect (AJ-11): a roll never creates a violation it 
   });
 });
 
-describe("INV-7 — maximality, by re-running the enumerator on the result", () => {
-  it("no legal affordable step remains in any rolled category", { timeout: 20000 }, () => {
+describe("INV-7 — maximality, by re-running BOTH enumerators on the result", () => {
+  // F8-E3 restates this over the ENLARGED move set, which makes it strictly
+  // stronger than E2's version: a roll is now maximal against add, upgrade AND
+  // exchange, so "no move of any kind remains" is what the empty-candidate-set
+  // exit actually means.
+  it("no affordable move of ANY kind remains in any rolled category", { timeout: 20000 }, () => {
     for (let seed = 0; seed < 150; seed += 1) {
       const request = requestOf({
         state: stateOf({ budgets: budgets(24, 4) }),
@@ -416,6 +660,27 @@ describe("INV-7 — maximality, by re-running the enumerator on the result", () 
             (!step.requiresNewBadgeSlot || readout.equipSlotsUsed < report.equipSlotCapacity),
         );
         expect(remaining, `${report.category} left a step on the table`).toEqual([]);
+
+        // …AND the third move kind, under the roll's own capacity policy.
+        const remainingExchanges =
+          readout.equipSlotsUsed < report.equipSlotCapacity
+            ? []
+            : exchangeSteps(
+                {
+                  state: proposedState,
+                  build: request.build,
+                  pinnedBadgeIds: new Set(
+                    report.pinned
+                      .filter((note) => note.mode === "exact")
+                      .map((note) => note.badgeId),
+                  ),
+                  excludedBadgeIds: NONE,
+                  exchangeableBadgeIds: rollCreatedIdsOf(report.steps),
+                },
+                report.category,
+                dataset,
+              ).filter((step) => step.netCost <= readout.remainingPoints);
+        expect(remainingExchanges, `${report.category} left an exchange on the table`).toEqual([]);
       }
     }
   });
@@ -643,7 +908,44 @@ describe("declines — every failure-table case, and a decline MUTATES NOTHING (
     // Only upgrades of the two it already owns; no third badge appeared.
     expect(report.proposedEntries.length).toBe(2);
     expect(report.steps.every((step) => !step.requiresNewBadgeSlot)).toBe(true);
+    // A4-R1: unpinned in `fill` means HELD, so the two entries are byte-identical
+    // and the overflow is disclosed rather than worked around. Stated explicitly
+    // because `every()` over an empty array is vacuously true, and an assertion
+    // that cannot fail is not an assertion.
+    expect(report.steps).toEqual([]);
+    expect(report.pinned.every((note) => note.reason === "fillDefault")).toBe(true);
   });
+
+  it("…and with explicit `include` pins the SAME overflow upgrades, still slot-neutral", () => {
+    // The non-vacuous half: grant permission and `fill` genuinely works inside
+    // the overflow. This is the input A4-R2 ratified the bound for.
+    const state = stateOf({
+      loadout: [
+        { badgeId: "deadeye", purchasedLevel: "bronze" },
+        { badgeId: "static-middy", purchasedLevel: "bronze" },
+      ],
+      budgets: budgets(40, 1),
+    });
+    const report = rollCategory(
+      requestOf({
+        state,
+        pins: { deadeye: "include", "static-middy": "include" },
+        seed: "fillcap",
+        mode: "fill",
+      }),
+      "Shooting",
+      dataset,
+    );
+    expect(report.outcome).toBe("rolled");
+    expect(report.steps.length).toBeGreaterThan(0);
+    expect(report.steps.every((step) => !step.requiresNewBadgeSlot)).toBe(true);
+    // INV-22 in the overflow: the roll never makes a disclosed violation worse.
+    expect(report.after.equipSlotsUsed).toBeLessThanOrEqual(
+      report.before.equipSlotsUsed,
+    );
+    expect(exchangesIn(report.steps)).toEqual([]);
+  });
+
 
   it("no eligible badge at all declines as noEligibleBadges", () => {
     // A 5'9" build cannot reach the 78–78 fixture, and it is the only badge.
@@ -719,13 +1021,66 @@ describe("declines — every failure-table case, and a decline MUTATES NOTHING (
 });
 
 describe("INV-17 — termination is bounded by the LATTICE, not by the budget", () => {
-  it("the bound is 4 x max(entries, capacity) + 1, which a pre-existing overflow needs", () => {
-    expect(rollIterationBound(0, 3)).toBe(13);
-    expect(rollIterationBound(3, 3)).toBe(13);
+  it("the two-move bound 4 x max(entries, capacity) + 1 survives as the ceilingSpend-0 case", () => {
+    // A4-R2 RATIFIED this form and E3 EXTENDS it; it does not replace it. With
+    // nothing left to absorb, the extended formula collapses to it exactly.
+    expect(rollIterationBound(0, 3, 0)).toBe(13);
+    expect(rollIterationBound(3, 3, 0)).toBe(13);
     // THE CASE THE BRIEF'S 4*equipSlots WOULD HAVE THROWN ON: five entries
     // against a capacity of one is legal input that `fill` may roll into, and
     // it admits up to fifteen upgrade steps against a bound of five.
-    expect(rollIterationBound(5, 1)).toBe(21);
+    expect(rollIterationBound(5, 1, 0)).toBe(21);
+    expect(4 * 1 + 1).toBeLessThan(3 * 5);
+  });
+
+  it("the third argument is REQUIRED, and it is the exchange move's term", () => {
+    // Each exchange raises net spend by >= 1 and hands an entry's level index
+    // back by at most 3, so `ceilingSpend` enters with the same weight of 4.
+    expect(rollIterationBound(0, 3, 11)).toBe(4 * (3 + 11) + 1);
+    expect(rollIterationBound(5, 1, 2)).toBe(4 * (5 + 2) + 1);
+    // A LATTICE bound, not a budget one: a fat-fingered pool cannot inflate it
+    // past what the category could actually absorb, because ceilingSpend is
+    // min(points, legalCeiling) and the caller passes the capped value.
+    expect(rollIterationBound(0, 3, 6)).toBeLessThan(
+      rollIterationBound(0, 3, 999),
+    );
+  });
+
+  it("AJ-11 REGRESSION: 5 entries against capacity 1 in `fill` completes and does not throw", () => {
+    // THE EXACT INPUT THE BRIEF'S `4 * equipSlots + 1` WOULD HAVE THROWN ON.
+    // Five entries in one category against a capacity of one is legal input —
+    // AJ-11 explicitly permits `fill` to roll into a pre-existing Badge Slots
+    // overflow — and it admits fifteen upgrade steps against a bound of five.
+    // Pinned so the tightening cannot come back.
+    const loadout: LoadoutEntry[] = [
+      { badgeId: "deadeye", purchasedLevel: "bronze" },
+      { badgeId: "static-middy", purchasedLevel: "bronze" },
+      { badgeId: "quick-trigger", purchasedLevel: "bronze" },
+      { badgeId: "smooth-operator", purchasedLevel: "bronze" },
+      { badgeId: "limitless-range", purchasedLevel: "bronze" },
+    ];
+    const pins = Object.fromEntries(
+      loadout.map((entry) => [entry.badgeId, "include" as PinMode]),
+    );
+    const state = stateOf({ loadout, budgets: budgets(60, 1) });
+    // Both arms: permission granted (fifteen upgrades live) and withheld.
+    for (const activePins of [pins, {}]) {
+      const report = rollCategory(
+        requestOf({
+          state,
+          build: makeBuild(78, 99),
+          pins: activePins,
+          seed: "aj11",
+          mode: "fill",
+        }),
+        "Shooting",
+        dataset,
+      );
+      expect(report.outcome).not.toBe("declined");
+      expect(report.after.equipSlotsUsed).toBe(5);
+    }
+    // …and the bound really is the loose one, not the form that would throw.
+    expect(rollIterationBound(5, 1, 0)).toBeGreaterThanOrEqual(3 * 5);
     expect(4 * 1 + 1).toBeLessThan(3 * 5);
   });
 
@@ -760,7 +1115,7 @@ describe("INV-17 — termination is bounded by the LATTICE, not by the budget", 
         dataset,
       );
       expect(report.after.equipSlotsUsed).toBeLessThanOrEqual(3);
-      expect(report.steps.length).toBeLessThanOrEqual(rollIterationBound(0, 3));
+      expect(report.steps.length).toBeLessThanOrEqual(rollIterationBound(0, 3, 0));
     }
   });
 
@@ -824,110 +1179,871 @@ describe("INV-18 — scope compositionality", () => {
   });
 });
 
-describe("INV-14 — the unspent gap against the exact-DP oracle", () => {
-  /**
-   * ⚠ THE SPECIFIED THRESHOLD IS NOT MET GLOBALLY, AND IT IS NOT AN ENUMERATOR
-   * DEFECT. This is a STOP-AND-REPORT surfaced in the reportback, not a
-   * quietly-relaxed number. Read this before changing anything here.
-   *
-   * The brief pins "median 0 and p95 <= 2 points" over all fixtures, on the
-   * hypothesis that a miss means "the step enumerator is wrong, NOT the
-   * concept". The enumerator is NOT wrong: INV-7 proves every roll is MAXIMAL
-   * (no legal affordable step remains), and the oracle is a true upper bound
-   * (no measured gap is ever negative). What the measurement shows is that the
-   * gap splits cleanly along ONE axis — whether Badge Slots bound:
-   *
-   *   CAPACITY FREE  (points were the binding limit)  median 0 · p95 1
-   *   CAPACITY BOUND (the roll filled every Badge Slot) median 1 · p95 4
-   *
-   * Where capacity does not bind, the specified threshold holds EXACTLY. Where
-   * it does, an irreversible uniform Badge Slot commitment can spend the slot
-   * on a badge with a low legal ceiling. A measured example: capacity 3, pool
-   * 16, Finishing at attributes 72 — the roll bought three cost-1 Bronzes and
-   * one Silver upgrade for a spend of 5, leaving 11 points, and it is MAXIMAL
-   * because none of those three badges qualifies at any higher level.
-   *
-   * CLOSING THAT GAP WOULD REQUIRE PREFERRING BADGES WITH HIGHER CEILINGS —
-   * which is precisely the stop-condition the brief itself names ("a small
-   * preference for badges you nearly qualify for is a quality heuristic wearing
-   * an affordability costume"). INV-14 and INV-9 are in genuine tension, and
-   * resolving it is Architect's call, not an implementer's. The engine design
-   * already contains the seed of the answer: it observes that "a capacity-bound
-   * category can legitimately leave 40% of its pool unspent" — that insight
-   * simply did not make it into this threshold.
-   *
-   * So this test pins BOTH regimes: the specified threshold where the concept
-   * applies, and the MEASURED distribution where it does not, so the number
-   * cannot drift unnoticed while the ruling is pending.
-   */
-  interface Sample {
-    gap: number;
-    capacityBound: boolean;
-  }
-
-  function sweep(): Sample[] {
-    const samples: Sample[] = [];
-    for (let index = 0; index < 200; index += 1) {
-      // A deterministic, realistic spread of pools, capacities and builds.
-      const points = 4 + (index % 17);
-      const equipSlots = 1 + (index % 5);
-      const attrs = 60 + (index % 35);
-      const category = CATEGORIES[index % CATEGORIES.length] as Category;
-      const state = stateOf({ budgets: budgets(points, equipSlots) });
-      const build = makeBuild(78, attrs);
-      const optimal = optimalAddedSpend(state, build, category, dataset);
-      for (let seed = 0; seed < 5; seed += 1) {
+describe("F8-E3 FIRST PROOF — the worked case that triggered the E2 escalation", () => {
+  it(
+    "capacity 3, pool 16, Finishing at attrs 72: within 2 points of the achievable optimum, over 50 seeds",
+    { timeout: 20000 },
+    () => {
+      const state = stateOf({ budgets: budgets(16, 3) });
+      const build = makeBuild(78, 72);
+      const optimal = optimalAddedSpend(state, build, "Finishing", dataset);
+      const misses: string[] = [];
+      for (let seed = 0; seed < 50; seed += 1) {
         const report = rollCategory(
-          requestOf({ state, build, seed: `oracle-${index}-${seed}` }),
-          category,
+          requestOf({ state, build, seed: `worked-${seed}` }),
+          "Finishing",
           dataset,
         );
-        if (report.outcome === "declined") continue;
-        samples.push({
-          gap: optimal - grossSpendOf(report.proposedEntries, category, dataset),
-          capacityBound: report.after.equipSlotsUsed >= equipSlots,
-        });
+        const spend = grossSpendOf(
+          report.proposedEntries,
+          "Finishing",
+          dataset,
+        );
+        if (optimal - spend > 2)
+          misses.push(
+            `seed ${seed}: spent ${spend} of an achievable ${optimal}`,
+          );
       }
+      expect(
+        misses,
+        `${misses.length}/50 seeds left more than 2 points on the table :: ${misses.slice(0, 5).join(" | ")}`,
+      ).toEqual([]);
+    },
+  );
+});
+
+/* ========================================================== F8-E3 sweep === */
+
+/**
+ * THE SHARED SWEEP behind INV-14 and INV-20. Run once, read three ways.
+ *
+ * TWO FAMILIES, REPORTED SEPARATELY. F8-E2's 200 fixtures were all
+ * `makeBuild(78, attrs)` — twenty equal attributes at one height — and a
+ * distribution measured only there speaks for builds nobody makes. The second
+ * family carries per-attribute spreads across seven heights.
+ *
+ * NEITHER FAMILY CARRIES PINS, EXCLUSIONS OR A STARTING LOADOUT, and that is a
+ * PRECONDITION rather than an accident: `optimalAddedSpend` solves the
+ * unconstrained problem, so a fixture that gained a pin would leave the oracle
+ * solving a DIFFERENT problem and every gap below would be contaminated. The
+ * precondition is asserted, not trusted.
+ */
+interface Sample {
+  family: SweepFixture["family"];
+  index: number;
+  seed: string;
+  category: Category;
+  points: number;
+  equipSlots: number;
+  optimal: number;
+  spend: number;
+  gap: number;
+  capacityBound: boolean;
+  exchanges: number;
+  iterations: number;
+  /** Capacity-free only: is the result byte-identical to the two-move walk? */
+  matchesTwoMoveWalk: boolean | null;
+}
+
+function runSweep(): Sample[] {
+  const samples: Sample[] = [];
+  for (const fixtureSpec of [
+    ...equalAttributeFamily(),
+    ...spreadAttributeFamily(),
+  ]) {
+    const { index, family, points, equipSlots, category, build } = fixtureSpec;
+    const state = stateOf({ budgets: budgets(points, equipSlots) });
+    const optimal = optimalAddedSpend(state, build, category, dataset);
+    for (let seed = 0; seed < 5; seed += 1) {
+      const seedString = `oracle-${family}-${index}-${seed}`;
+      const report = rollCategory(
+        requestOf({ state, build, seed: seedString }),
+        category,
+        dataset,
+      );
+      if (report.outcome === "declined") continue;
+      const spend = grossSpendOf(report.proposedEntries, category, dataset);
+      const capacityBound = report.after.equipSlotsUsed >= equipSlots;
+      samples.push({
+        family,
+        index,
+        seed: seedString,
+        category,
+        points,
+        equipSlots,
+        optimal,
+        spend,
+        gap: optimal - spend,
+        capacityBound,
+        exchanges: exchangesIn(report.steps).length,
+        // The walk runs one extra iteration to see the empty candidate set.
+        iterations: report.steps.length + 1,
+        matchesTwoMoveWalk: capacityBound
+          ? null
+          : JSON.stringify(report.proposedEntries) ===
+            JSON.stringify(
+              twoMoveWalk(seedString, state, build, category, dataset),
+            ),
+      });
     }
-    return samples;
   }
+  return samples;
+}
 
-  function quantile(values: number[], fraction: number): number {
-    const sorted = [...values].sort((a, b) => a - b);
-    return sorted[Math.floor(sorted.length * fraction)] as number;
-  }
+const sweepSamples = runSweep();
 
-  const samples = sweep();
-  const free = samples.filter((sample) => !sample.capacityBound).map((sample) => sample.gap);
-  const bound = samples.filter((sample) => sample.capacityBound).map((sample) => sample.gap);
+function quantile(values: number[], fraction: number): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length * fraction)] as number;
+}
 
-  it("the sweep is the size the brief specifies and both regimes are populated", { timeout: 20000 }, () => {
-    expect(samples.length).toBeGreaterThan(500);
-    expect(free.length).toBeGreaterThan(100);
-    expect(bound.length).toBeGreaterThan(100);
+interface Stats {
+  n: number;
+  median: number;
+  p90: number;
+  p95: number;
+  max: number;
+  exactShare: number;
+}
+
+function statsOf(subset: Sample[]): Stats {
+  const gaps = subset.map((sample) => sample.gap);
+  return {
+    n: subset.length,
+    median: gaps.length === 0 ? 0 : quantile(gaps, 0.5),
+    p90: gaps.length === 0 ? 0 : quantile(gaps, 0.9),
+    p95: gaps.length === 0 ? 0 : quantile(gaps, 0.95),
+    max: gaps.length === 0 ? 0 : Math.max(...gaps),
+    exactShare:
+      gaps.length === 0
+        ? 1
+        : gaps.filter((gap) => gap === 0).length / gaps.length,
+  };
+}
+
+const bySlice = (
+  family: SweepFixture["family"] | "both",
+  regime: "bound" | "free" | "all",
+) =>
+  sweepSamples.filter(
+    (sample) =>
+      (family === "both" || sample.family === family) &&
+      (regime === "all" ||
+        (regime === "bound" ? sample.capacityBound : !sample.capacityBound)),
+  );
+
+const worstFive = () =>
+  [...sweepSamples]
+    .sort((a, b) => b.gap - a.gap)
+    .slice(0, 5)
+    .map(
+      (sample) =>
+        `${sample.family}#${sample.index} ${sample.category} pool ${sample.points} ` +
+        `slots ${sample.equipSlots} seed ${sample.seed}: spent ${sample.spend} of ` +
+        `${sample.optimal} (gap ${sample.gap})`,
+    );
+
+describe("INV-14 — the unspent gap against the exact-DP oracle, over TWO fixture families", () => {
+  /**
+   * THE E2 ESCALATION IS RULED AND CLOSED. scope.md §0.1 A4 ruled it 2026-08-26:
+   * ENLARGE THE MOVE SET, DO NOT ADD A PREFERENCE. E2 measured capacity-bound
+   * median 1 / p95 4, with a case at capacity 3 / pool 16 / Finishing that spent
+   * 5 of an achievable 11 and was MAXIMAL — no badge it had bought qualified at
+   * any higher level. The enumerator was never wrong; a Badge Slot commitment
+   * was IRREVERSIBLE, and F8-E3's exchange move makes it reversible without any
+   * comparator, argmax or weight entering the file.
+   *
+   * A headroom "fair-share" admission filter was the other candidate and it was
+   * MEASURED AND REJECTED: it only reached median 0 / p95 3, it has cliff
+   * behaviour exactly where the worst fixtures live, and it costs a real
+   * weakening of the equiprobability claim for a partial gain.
+   *
+   * The thresholds below are the ruled ones. There is no pending adjudication
+   * and nothing here is provisional. A miss is a STOP-AND-REPORT with the five
+   * worst fixtures — never a relaxed number, and never a preference, a weight
+   * or a tie-break reached for to close the remainder.
+   */
+  it("the sweep's shape, and the ORACLE PRECONDITION that makes its numbers mean anything", () => {
+    const fixtures = [...equalAttributeFamily(), ...spreadAttributeFamily()];
+    expect(
+      fixtures.filter((one) => one.family === "equal-attributes").length,
+    ).toBe(200);
+    expect(
+      fixtures.filter((one) => one.family === "spread-attributes").length,
+    ).toBeGreaterThanOrEqual(200);
+    // The second family is genuinely a different slice of the input space.
+    const heights = new Set(fixtures.map((one) => one.build.heightInches));
+    expect(heights.size).toBe(7);
+    const spread = fixtures.find(
+      (one) => one.family === "spread-attributes",
+    ) as SweepFixture;
+    expect(
+      new Set(Object.values(spread.build.attributes)).size,
+    ).toBeGreaterThan(1);
+
+    // THE PRECONDITION. `optimalAddedSpend` passes pinnedBadgeIds: NONE and
+    // excludedBadgeIds: NONE, which is the SAME problem the roll solves only
+    // while no fixture carries pins, exclusions or a starting loadout.
+    const request = requestOf({ state: stateOf({ budgets: budgets(16, 3) }) });
+    expect(request.pins).toEqual({});
+    expect(request.excludedBadgeIds).toEqual([]);
+    expect(request.state.loadout).toEqual([]);
+
+    expect(bySlice("both", "all").length).toBeGreaterThan(1500);
+    expect(bySlice("both", "bound").length).toBeGreaterThan(200);
+    expect(bySlice("both", "free").length).toBeGreaterThan(200);
   });
 
-  it("the oracle is a true UPPER bound — no gap is ever negative", { timeout: 20000 }, () => {
+  it("the oracle is a true UPPER bound — no gap is ever negative, in EITHER family", () => {
     // A negative gap would mean the roller beat the exact optimum, i.e. the
     // oracle is wrong and every number in this file is meaningless.
-    expect(Math.min(...samples.map((sample) => sample.gap))).toBeGreaterThanOrEqual(0);
+    for (const family of ["equal-attributes", "spread-attributes"] as const) {
+      const gaps = bySlice(family, "all").map((sample) => sample.gap);
+      expect(
+        Math.min(...gaps),
+        `${family} produced a negative gap`,
+      ).toBeGreaterThanOrEqual(0);
+    }
   });
 
-  it("CAPACITY FREE: the specified threshold holds exactly — median 0, p95 <= 2", { timeout: 20000 }, () => {
-    expect(quantile(free, 0.5), `median ${quantile(free, 0.5)}`).toBe(0);
-    expect(quantile(free, 0.95), `p95 ${quantile(free, 0.95)}`).toBeLessThanOrEqual(2);
+  it("CAPACITY BOUND: median 0, p95 <= 1, max <= 2 — the regime E3 exists for", () => {
+    for (const family of ["equal-attributes", "spread-attributes"] as const) {
+      const stats = statsOf(bySlice(family, "bound"));
+      const label = `${family} bound n=${stats.n} median ${stats.median} p95 ${stats.p95} max ${stats.max}`;
+      expect(stats.median, label).toBe(0);
+      expect(stats.p95, label).toBeLessThanOrEqual(1);
+      expect(stats.max, label).toBeLessThanOrEqual(2);
+    }
   });
 
-  it("CAPACITY BOUND: the MEASURED distribution, pinned pending Architect's ruling", { timeout: 20000 }, () => {
-    // NOT the specified threshold. Pinned so a regression is still caught while
-    // the INV-14 vs INV-9 tension is adjudicated. Tightening these numbers by
-    // adding a preference is a stop-and-report, not a fix.
-    expect(quantile(bound, 0.5), `median ${quantile(bound, 0.5)}`).toBeLessThanOrEqual(1);
-    expect(quantile(bound, 0.95), `p95 ${quantile(bound, 0.95)}`).toBeLessThanOrEqual(5);
+  it("CAPACITY FREE: median 0, p95 <= 1, max <= 2 — must not regress", () => {
+    for (const family of ["equal-attributes", "spread-attributes"] as const) {
+      const stats = statsOf(bySlice(family, "free"));
+      const label = `${family} free n=${stats.n} median ${stats.median} p95 ${stats.p95} max ${stats.max}`;
+      expect(stats.median, label).toBe(0);
+      expect(stats.p95, label).toBeLessThanOrEqual(1);
+      expect(stats.max, label).toBeLessThanOrEqual(2);
+    }
   });
 
-  it("the roll is exactly optimal on a large share of rolls — the gap is a tail, not a bias", { timeout: 20000 }, () => {
-    const exact = samples.filter((sample) => sample.gap === 0).length / samples.length;
-    expect(exact, `exactly-optimal share ${exact.toFixed(3)}`).toBeGreaterThan(0.4);
+  it("THE HARD CAP: no single roll in either family is more than 2 points short", () => {
+    // "Spend the pool as fully as it can", made mechanical. A distributional
+    // gate alone would let the 11-points-unspent tail survive as a statistic,
+    // which is the whole reason this gate is per-roll and not per-quantile.
+    const over = sweepSamples.filter((sample) => sample.gap > 2);
+    expect(
+      over.length,
+      `${over.length} rolls over the cap :: ${worstFive().join(" | ")}`,
+    ).toBe(0);
+  });
+
+  it("exactly-optimal on at least 90% of rolls overall — the gap is a thin tail", () => {
+    const share = statsOf(bySlice("both", "all")).exactShare;
+    expect(
+      share,
+      `exactly-optimal share ${share.toFixed(4)}`,
+    ).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it("prints the full table, both families, split by regime", () => {
+    const rows: string[] = [];
+    for (const family of [
+      "equal-attributes",
+      "spread-attributes",
+      "both",
+    ] as const) {
+      for (const regime of ["bound", "free", "all"] as const) {
+        const stats = statsOf(bySlice(family, regime));
+        rows.push(
+          `${family.padEnd(18)} ${regime.padEnd(6)} n=${String(stats.n).padStart(5)} ` +
+            `median ${stats.median} p90 ${stats.p90} p95 ${stats.p95} max ${stats.max} ` +
+            `exact ${(stats.exactShare * 100).toFixed(1)}%`,
+        );
+      }
+    }
+    const iterations = Math.max(
+      ...sweepSamples.map((sample) => sample.iterations),
+    );
+    const exchanges = sweepSamples.reduce(
+      (total, sample) => total + sample.exchanges,
+      0,
+    );
+    rows.push(
+      `max iterations observed ${iterations}, exchanges applied ${exchanges}`,
+    );
+    rows.push(`five worst :: ${worstFive().join(" | ")}`);
+    // eslint-disable-next-line no-console
+    console.log(["INV-14 TABLE", ...rows].join("\n"));
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
+  it("the walk stays far inside its termination guard", () => {
+    const iterations = Math.max(
+      ...sweepSamples.map((sample) => sample.iterations),
+    );
+    expect(iterations, `max iterations observed ${iterations}`).toBeLessThan(
+      40,
+    );
   });
 });
+
+/**
+ * Six capacity-free fixtures, pinned byte-for-byte. Generated FROM THIS
+ * IMPLEMENTATION at ROLL_ALGORITHM_VERSION 2 and labelled as such — see the
+ * golden test below for why an E2-era golden cannot exist at version 2.
+ */
+const CAPACITY_FREE_GOLDEN: {
+  seed: string;
+  category: Category;
+  points: number;
+  equipSlots: number;
+  attrs: number;
+  entries: LoadoutEntry[];
+}[] = [
+  {
+    seed: "golden-1",
+    category: "Shooting",
+    points: 4,
+    equipSlots: 6,
+    attrs: 70,
+    entries: [
+      { badgeId: "synthetic-and-mid-null-gap", purchasedLevel: "bronze" },
+      { badgeId: "set-and-fire", purchasedLevel: "bronze" },
+    ],
+  },
+  {
+    seed: "golden-2",
+    category: "Finishing",
+    points: 5,
+    equipSlots: 6,
+    attrs: 68,
+    entries: [
+      { badgeId: "paint-prodigy", purchasedLevel: "bronze" },
+      { badgeId: "physical-finisher", purchasedLevel: "bronze" },
+      { badgeId: "hook-specialist", purchasedLevel: "bronze" },
+      { badgeId: "aerial-wizard", purchasedLevel: "bronze" },
+    ],
+  },
+  {
+    seed: "golden-3",
+    category: "Playmaking",
+    points: 6,
+    equipSlots: 6,
+    attrs: 72,
+    entries: [
+      { badgeId: "pace", purchasedLevel: "bronze" },
+      { badgeId: "handles-for-days", purchasedLevel: "bronze" },
+      { badgeId: "versatile-visionary", purchasedLevel: "bronze" },
+    ],
+  },
+  {
+    seed: "golden-4",
+    category: "Rebounding",
+    points: 4,
+    equipSlots: 5,
+    attrs: 75,
+    entries: [{ badgeId: "synthetic-twin-a", purchasedLevel: "silver" }],
+  },
+  {
+    seed: "golden-5",
+    category: "Defense",
+    points: 5,
+    equipSlots: 6,
+    attrs: 66,
+    entries: [
+      { badgeId: "post-lockdown", purchasedLevel: "bronze" },
+      { badgeId: "ankle-braces", purchasedLevel: "bronze" },
+      { badgeId: "off-ball-pest", purchasedLevel: "bronze" },
+    ],
+  },
+  {
+    seed: "golden-6",
+    category: "Physicals",
+    points: 6,
+    equipSlots: 6,
+    attrs: 71,
+    entries: [
+      { badgeId: "synthetic-dear-bronze-only", purchasedLevel: "bronze" },
+      { badgeId: "slippery-off-ball", purchasedLevel: "bronze" },
+      { badgeId: "pogo-stick", purchasedLevel: "bronze" },
+    ],
+  },
+];
+
+describe("INV-20 — CAPACITY-FREE INERTNESS: the theorem, not a measurement", () => {
+  /**
+   * No move ever DECREASES the entry count, and exchanges are offered only at
+   * `equipSlotsUsed >= equipSlots`. So a walk that ENDS below capacity was below
+   * capacity at every iteration, was never offered an exchange, and is the
+   * two-move walk verbatim. That is a proof; the tests below are the mechanical
+   * check that the code implements the proof.
+   */
+  it("ZERO exchange steps in 100% of capacity-free rolls, over the full sweep", () => {
+    const offenders = bySlice("both", "free").filter(
+      (sample) => sample.exchanges > 0,
+    );
+    expect(
+      offenders.length,
+      `${offenders.length} capacity-free rolls saw an exchange :: ${offenders
+        .slice(0, 5)
+        .map((sample) => sample.seed)
+        .join(", ")}`,
+    ).toBe(0);
+  });
+
+  it("every capacity-free roll is BYTE-IDENTICAL to the two-move walk at the same seed", () => {
+    const free = bySlice("both", "free");
+    const diverged = free.filter(
+      (sample) => sample.matchesTwoMoveWalk !== true,
+    );
+    expect(
+      `${free.length - diverged.length}/${free.length} identical`,
+      diverged
+        .slice(0, 5)
+        .map((sample) => sample.seed)
+        .join(", "),
+    ).toBe(`${free.length}/${free.length} identical`);
+  });
+
+  it("GOLDEN: six capacity-free fixtures, pinned byte-for-byte", () => {
+    // Checked in from THIS implementation, and labelled as such. Goldens copied
+    // from the E2 run cannot be used: ROLL_ALGORITHM_VERSION rides in the
+    // per-category RNG seed string precisely so a version bump changes the
+    // stream, so literal E2 output cannot match at version 2 BY CONSTRUCTION —
+    // that is the mechanism working. The theorem is carried by the differential
+    // test above; this golden is the regression pin.
+    expect(ROLL_ALGORITHM_VERSION).toBe(2);
+    const golden = CAPACITY_FREE_GOLDEN;
+    for (const row of golden) {
+      const state = stateOf({ budgets: budgets(row.points, row.equipSlots) });
+      const report = rollCategory(
+        requestOf({ state, build: makeBuild(78, row.attrs), seed: row.seed }),
+        row.category,
+        dataset,
+      );
+      expect(
+        report.after.equipSlotsUsed,
+        `${row.seed} is not capacity-free`,
+      ).toBeLessThan(row.equipSlots);
+      expect(exchangesIn(report.steps)).toEqual([]);
+      expect(report.proposedEntries, row.seed).toEqual(row.entries);
+    }
+  });
+});
+
+describe("INV-21 — an exchange NEVER drops a pin and NEVER touches a user entry", () => {
+  it("over the sweep, every outBadgeId was created by an EARLIER step of the same walk", () => {
+    // Asserted directly rather than inferred from INV-5 passing.
+    let checked = 0;
+    for (const fixtureSpec of spreadAttributeFamily(120)) {
+      const state = stateOf({
+        budgets: budgets(fixtureSpec.points, fixtureSpec.equipSlots),
+      });
+      for (let seed = 0; seed < 3; seed += 1) {
+        const report = rollCategory(
+          requestOf({
+            state,
+            build: fixtureSpec.build,
+            seed: `inv21-${fixtureSpec.index}-${seed}`,
+          }),
+          fixtureSpec.category,
+          dataset,
+        );
+        const created = new Set<string>();
+        for (const step of report.steps) {
+          if (isExchangeStep(step)) {
+            expect(
+              created.has(step.outBadgeId),
+              `${step.outBadgeId} was exchanged out without this walk having created it`,
+            ).toBe(true);
+            created.delete(step.outBadgeId);
+            created.add(step.badgeId);
+            checked += 1;
+          } else if (step.fromLevel === null) {
+            created.add(step.badgeId);
+          }
+        }
+      }
+    }
+    expect(
+      checked,
+      "no exchange fired at all — the assertion above proved nothing",
+    ).toBeGreaterThan(50);
+  });
+
+  it(
+    "with pins, exclusions, a synergy role and a stale entry all live, none is EVER exchanged out",
+    { timeout: 20000 },
+    () => {
+      const loadout: LoadoutEntry[] = [
+        { badgeId: "deadeye", purchasedLevel: "hof" }, // synergy-role holder
+        { badgeId: "static-middy", purchasedLevel: "bronze" }, // user-pinned
+        { badgeId: "limitless-range", purchasedLevel: "hof" }, // stale at attrs 72
+      ];
+      const synergySlots: SynergySlot[] = createDefaultSynergySlots().map(
+        (synergySlot) =>
+          synergySlot.id === 5
+            ? { ...synergySlot, unlocked: true, fuseBadgeId: "deadeye" }
+            : synergySlot,
+      );
+      const build = makeBuild(78, 72);
+      const state = stateOf({ loadout, synergySlots, budgets: budgets(40, 6) });
+      const protectedIds = new Set(loadout.map((entry) => entry.badgeId));
+
+      // The protections really are live, or the assertion below proves nothing.
+      expect(synergyRoleFor(synergySlots, "deadeye")).not.toBeNull();
+      expect(
+        entryIsStale(
+          badgeById(dataset, "limitless-range") as NonNullable<
+            ReturnType<typeof badgeById>
+          >,
+          build,
+          "hof",
+        ),
+      ).toBe(true);
+
+      let exchanges = 0;
+      for (let seed = 0; seed < 200; seed += 1) {
+        for (const mode of ["fill", "reroll"] as const) {
+          const report = rollCategory(
+            requestOf({
+              state,
+              build,
+              pins: { "static-middy": "exact" },
+              excludedBadgeIds: ["quick-trigger"],
+              seed: `inv21g-${seed}`,
+              mode,
+            }),
+            "Shooting",
+            dataset,
+          );
+          for (const step of exchangesIn(report.steps)) {
+            exchanges += 1;
+            expect(
+              protectedIds.has(step.outBadgeId),
+              `${step.outBadgeId} — a badge the USER placed — was exchanged out`,
+            ).toBe(false);
+            expect(step.outBadgeId).not.toBe("quick-trigger");
+            expect(step.badgeId).not.toBe("quick-trigger");
+          }
+          // …and every protected entry is still there afterwards.
+          for (const original of loadout) {
+            expect(
+              report.proposedEntries.some(
+                (entry) => entry.badgeId === original.badgeId,
+              ),
+              `${original.badgeId} vanished in ${mode}`,
+            ).toBe(true);
+          }
+        }
+      }
+      expect(
+        exchanges,
+        "no exchange fired — the guarded fixture proved nothing",
+      ).toBeGreaterThan(0);
+    },
+  );
+});
+
+describe("INV-22 — an exchange is slot-neutral and overflow-safe", () => {
+  it("every exchange the sweep applied is structurally slot-free", () => {
+    const fired = sweepSamples.reduce(
+      (total, sample) => total + sample.exchanges,
+      0,
+    );
+    expect(fired, "no exchange fired anywhere in the sweep").toBeGreaterThan(
+      100,
+    );
+    for (const fixtureSpec of equalAttributeFamily(60)) {
+      const state = stateOf({
+        budgets: budgets(fixtureSpec.points, fixtureSpec.equipSlots),
+      });
+      const report = rollCategory(
+        requestOf({
+          state,
+          build: fixtureSpec.build,
+          seed: `inv22-${fixtureSpec.index}`,
+        }),
+        fixtureSpec.category,
+        dataset,
+      );
+      for (const step of exchangesIn(report.steps)) {
+        expect(step.requiresNewBadgeSlot).toBe(false);
+      }
+      // One out, one in: the entry count can only ever be moved by an `add`.
+      const adds = report.steps.filter(
+        (step) => !isExchangeStep(step) && step.fromLevel === null,
+      ).length;
+      expect(report.after.equipSlotsUsed - report.before.equipSlotsUsed).toBe(
+        adds,
+      );
+    }
+  });
+
+  it("applying exchanges leaves equipSlotsUsed exactly where it was", () => {
+    const isolated = datasetOf(
+      fixture("synthetic-cheap-bronze-only"),
+      fixture("synthetic-exchange-plus-one"),
+      fixture("synthetic-exchange-plus-four"),
+    );
+    let saw = 0;
+    for (let seed = 0; seed < 200; seed += 1) {
+      const report = rollCategory(
+        requestOf({
+          state: stateOf({ budgets: budgets(5, 1) }),
+          build: makeBuild(78, 90),
+          seed: `inv22n-${seed}`,
+        }),
+        "Physicals",
+        isolated,
+      );
+      if (exchangesIn(report.steps).length === 0) continue;
+      saw += 1;
+      expect(report.after.equipSlotsUsed).toBe(1);
+      expect(report.proposedEntries.length).toBe(1);
+    }
+    expect(saw).toBeGreaterThan(0);
+  });
+
+  it("a PRE-EXISTING overflow is never made worse: `fill`, 5 entries against capacity 1", () => {
+    const loadout: LoadoutEntry[] = [
+      { badgeId: "deadeye", purchasedLevel: "bronze" },
+      { badgeId: "static-middy", purchasedLevel: "bronze" },
+      { badgeId: "quick-trigger", purchasedLevel: "bronze" },
+      { badgeId: "smooth-operator", purchasedLevel: "bronze" },
+      { badgeId: "limitless-range", purchasedLevel: "bronze" },
+    ];
+    const pins = Object.fromEntries(
+      loadout.map((entry) => [entry.badgeId, "include" as PinMode]),
+    );
+    for (let seed = 0; seed < 60; seed += 1) {
+      const report = rollCategory(
+        requestOf({
+          state: stateOf({ loadout, budgets: budgets(60, 1) }),
+          build: makeBuild(78, 99),
+          pins,
+          seed: `overflow-${seed}`,
+          mode: "fill",
+        }),
+        "Shooting",
+        dataset,
+      );
+      const overflowBefore =
+        report.before.equipSlotsUsed - report.equipSlotCapacity;
+      const overflowAfter =
+        report.after.equipSlotsUsed - report.equipSlotCapacity;
+      expect(overflowAfter).toBeLessThanOrEqual(overflowBefore);
+      // The walk created nothing, so it has nothing it is allowed to trade —
+      // INV-5 by construction, visible in the one state where it matters most.
+      expect(exchangesIn(report.steps)).toEqual([]);
+    }
+  });
+});
+
+describe("INV-23 — an exchange is NOT a cost preference, of either sign", () => {
+  /**
+   * The fixture is built so the measurement cannot be anything else. Physicals,
+   * capacity 1, pool 5, exactly three badges each legal at exactly one level:
+   * the C-tier Bronze `cheap` at 1, a B-tier Bronze at 2, and a C-tier HOF at 5.
+   *
+   * A walk that opens on `cheap` is instantly at capacity with 4 points left and
+   * EXACTLY TWO admissible exchanges: +1 and +4. Four-fold difference in delta,
+   * one uniform draw, nothing else in the fixture able to skew it. Any weighting
+   * by delta — "spend more where you can", or "churn less" — fails this.
+   */
+  it(
+    "a +1 and a +4 exchange are drawn at parity, within +/-1.5%",
+    { timeout: 20000 },
+    () => {
+      const isolated = datasetOf(
+        fixture("synthetic-cheap-bronze-only"),
+        fixture("synthetic-exchange-plus-one"),
+        fixture("synthetic-exchange-plus-four"),
+      );
+      const seeds = 40000;
+      let plusOne = 0;
+      let plusFour = 0;
+      for (let seed = 0; seed < seeds; seed += 1) {
+        const report = rollCategory(
+          requestOf({
+            state: stateOf({ budgets: budgets(5, 1) }),
+            build: makeBuild(78, 90),
+            seed: `inv23-${seed}`,
+          }),
+          "Physicals",
+          isolated,
+        );
+        const first = report.steps[0];
+        const second = report.steps[1];
+        if (first === undefined || second === undefined) continue;
+        if (
+          isExchangeStep(first) ||
+          first.badgeId !== "synthetic-cheap-bronze-only"
+        )
+          continue;
+        if (!isExchangeStep(second)) continue;
+        // The candidate set at this point is EXACTLY these two.
+        expect(second.outBadgeId).toBe("synthetic-cheap-bronze-only");
+        if (second.badgeId === "synthetic-exchange-plus-one") {
+          expect(second.netCost).toBe(1);
+          plusOne += 1;
+        } else {
+          expect(second.badgeId).toBe("synthetic-exchange-plus-four");
+          expect(second.netCost).toBe(4);
+          plusFour += 1;
+        }
+      }
+      const observations = plusOne + plusFour;
+      const share = plusOne / observations;
+      const label =
+        `n=${observations} of ${seeds} seeds — delta+1 ${plusOne} (${(share * 100).toFixed(2)}%), ` +
+        `delta+4 ${plusFour}`;
+      // eslint-disable-next-line no-console
+      console.log(`INV-23 ${label}`);
+      expect(observations, label).toBeGreaterThan(10000);
+      // Parity relative to the candidate-set size: two candidates, so 1/2 each.
+      expect(share, label).toBeGreaterThan(0.5 - 0.015);
+      expect(share, label).toBeLessThan(0.5 + 0.015);
+    },
+  );
+});
+
+describe("INV-24 — INV-8's equivariance survives the third move kind", () => {
+  const twinA = fixture("synthetic-twin-a");
+  const twinB = fixture("synthetic-twin-b");
+  // Capacity 1 with a pool of 6 puts the walk at capacity after ONE add and
+  // leaves every higher level of the OTHER twin affordable as an exchange, so
+  // exchanges genuinely fire here — which is the whole point of re-running
+  // INV-8 on this fixture rather than on E2's capacity-free one.
+  const bound = () => stateOf({ budgets: budgets(6, 1), loadout: [] });
+
+  it("exchanges actually fire on this fixture, or (a) and (b) below prove nothing", () => {
+    let exchanges = 0;
+    for (let seed = 0; seed < 60; seed += 1) {
+      const report = rollCategory(
+        requestOf({ state: bound(), seed: `inv24-${seed}` }),
+        "Rebounding",
+        datasetOf(twinA, twinB),
+      );
+      exchanges += exchangesIn(report.steps).length;
+    }
+    expect(exchanges).toBeGreaterThan(0);
+  });
+
+  it("(a) RELABEL, capacity-bound: renaming a badge changes nothing but the label", () => {
+    const renamedA: RawBadge = {
+      ...twinA,
+      id: "synthetic-twin-a-renamed",
+      name: "Totally Different",
+    };
+    for (let seed = 0; seed < 60; seed += 1) {
+      const original = rollBuild(
+        requestOf({
+          state: bound(),
+          categories: ["Rebounding"],
+          seed: `inv24a-${seed}`,
+        }),
+        datasetOf(twinA, twinB),
+      );
+      const relabelled = rollBuild(
+        requestOf({
+          state: bound(),
+          categories: ["Rebounding"],
+          seed: `inv24a-${seed}`,
+        }),
+        datasetOf(renamedA, twinB),
+      );
+      const substitute = (id: string) => (id === twinA.id ? renamedA.id : id);
+      expect(relabelled.proposedLoadout).toEqual(
+        original.proposedLoadout.map((entry) => ({
+          ...entry,
+          badgeId: substitute(entry.badgeId),
+        })),
+      );
+    }
+  });
+
+  it("(b) SWAP, capacity-bound: swapping two indistinguishable badges mirrors the result", () => {
+    const sawBoth = new Set<string>();
+    for (let seed = 0; seed < 60; seed += 1) {
+      const straight = rollBuild(
+        requestOf({
+          state: bound(),
+          categories: ["Rebounding"],
+          seed: `inv24b-${seed}`,
+        }),
+        datasetOf(twinA, twinB),
+      );
+      const swapped = rollBuild(
+        requestOf({
+          state: bound(),
+          categories: ["Rebounding"],
+          seed: `inv24b-${seed}`,
+        }),
+        datasetOf(twinB, twinA),
+      );
+      const mirror = (id: string) => (id === twinA.id ? twinB.id : twinA.id);
+      expect(swapped.proposedLoadout.map((entry) => entry.badgeId)).toEqual(
+        straight.proposedLoadout.map((entry) => mirror(entry.badgeId)),
+      );
+      for (const entry of straight.proposedLoadout) sawBoth.add(entry.badgeId);
+    }
+    expect(sawBoth.size).toBe(2);
+  });
+});
+
+describe("the adversarial fixture, disclosed — a KNOWN capacity-free limit of randomized greedy", () => {
+  /**
+   * H8's habit applied to a measurement: DISCLOSE, DO NOT REPAIR.
+   *
+   * INV-23's `synthetic-exchange-plus-four` is legal ONLY at HOF — a shape no
+   * shipped badge has — and it exists to make a four-fold delta observable in a
+   * three-badge dataset. Merged into the full Physicals category it turns a
+   * capacity-free pool of 12 into an exact-cover problem, and randomized greedy
+   * can then finish 4 points short.
+   *
+   * THIS IS NOT SOMETHING THE EXCHANGE MOVE CAUSED OR COULD FIX. The roll below
+   * is CAPACITY-FREE, so by INV-20 it is byte-identical to the two-move walk at
+   * the same seed: F8-E2's engine produces exactly this result. Recorded here so
+   * that (a) the reason the sweep dataset is a named set is testable rather than
+   * a comment, and (b) nobody re-splats the barrel into it without seeing this.
+   */
+  it("with the HOF-only fixture in the category, a capacity-free roll can finish 4 short", () => {
+    const contaminated = loadDataset({
+      ...shippedRawDataset,
+      badges: [
+        ...shippedRawDataset.badges,
+        syntheticDearBronzeOnly,
+        syntheticCheapBronzeOnly,
+        syntheticThresholdBoundary,
+        syntheticExchangePlusOne,
+        syntheticExchangePlusFour,
+      ],
+    });
+    const fixtureSpec = spreadAttributeFamily().find(
+      (one) => one.index === 47,
+    ) as SweepFixture;
+    const state = stateOf({ budgets: budgets(fixtureSpec.points, fixtureSpec.equipSlots) });
+    const report = rollCategory(
+      requestOf({ state, build: fixtureSpec.build, seed: "oracle-spread-attributes-47-2" }),
+      "Physicals",
+      contaminated,
+    );
+    const optimal = optimalAddedSpend(state, fixtureSpec.build, "Physicals", contaminated);
+    const spend = grossSpendOf(report.proposedEntries, "Physicals", contaminated);
+    expect(optimal - spend).toBe(4);
+    // Capacity-free, therefore exchange-free, therefore E2's own result.
+    expect(report.after.equipSlotsUsed).toBeLessThan(fixtureSpec.equipSlots);
+    expect(exchangesIn(report.steps)).toEqual([]);
+    expect(report.proposedEntries).toEqual(
+      twoMoveWalk(
+        "oracle-spread-attributes-47-2",
+        state,
+        fixtureSpec.build,
+        "Physicals",
+        contaminated,
+      ),
+    );
+  });
+});
+

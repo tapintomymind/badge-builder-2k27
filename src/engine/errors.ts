@@ -90,8 +90,8 @@ export class MalformedSavedBuildError extends Error {
 export class RollDidNotTerminateError extends Error {
   constructor(category: string, bound: number) {
     super(
-      `Roll of ${category} exceeded its ${bound}-step lattice bound. Every step must raise ` +
-        "either the entry count or an entry's level index; one did not.",
+      `Roll of ${category} exceeded its ${bound}-step lattice bound. Every move must raise ` +
+        "the entry count, an entry's level index, or the category's net spend; one did not.",
     );
     this.name = "RollDidNotTerminateError";
   }
