@@ -1,0 +1,306 @@
+F8-E2 VERIFICATION LOG — badge-builder-2k27
+Branch: f8-engine   E1 base: 90dee30
+Date: 2026-08-25T19:33:43Z
+
+===========================================================================
+FIRST PROOF, STEP 1 of 3 - the H3 gap assertion, RED BEFORE THE WALK EXISTS
+===========================================================================
+$ ls src/engine/randomize.ts src/engine/random.ts
+ls: src/engine/random.ts: No such file or directory
+ls: src/engine/randomize.ts: No such file or directory
+
+$ npx vitest run tests/randomize.test.ts
+
+ RUN  v4.1.11 /private/tmp/bb-f8e
+
+ ❯ tests/randomize.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/randomize.test.ts [ tests/randomize.test.ts ]
+Error: Cannot find module '../src/engine/randomize' imported from /private/tmp/bb-f8e/tests/randomize.test.ts
+ ❯ tests/randomize.test.ts:14:1
+     12| import { loadDataset, shippedRawDataset } from "../src/engine/dataset";
+     13| import { syntheticBadges } from "../src/engine/__fixtures__/synthetic-…
+     14| import { rollBuild } from "../src/engine/randomize";
+       | ^
+     15| import type { RollRequest } from "../src/engine/randomize";
+     16| import { createDefaultSynergySlots } from "../src/engine/synergy";
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  15:33:44
+   Duration  146ms (transform 35ms, setup 17ms, import 0ms, tests 0ms, environment 0ms)
+
+
+RED FOR THE RIGHT REASON: the module does not exist. Not a fixture bug -
+the fixture (synthetic-and-mid-null-gap) already loads and is exercised by
+tests/steps.test.ts 2.1, which is GREEN on this same tree.
+
+===========================================================================
+FIRST PROOF, STEP 2 of 3 - the gap assertion GREEN over 500 seeds
+===========================================================================
+ RUN  v4.1.11 /private/tmp/bb-f8e
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 42 skipped (43)
+   Start at  15:49:59
+   Duration  710ms (transform 181ms, setup 23ms, import 378ms, tests 214ms, environment 0ms)
+
+
+===========================================================================
+FIRST PROOF, STEP 3 of 3 - ONE printed rollBuild, and the SAME SEED twice
+===========================================================================
+--- RUN 1  (seed 7F3A-91C2) ---
+token: seed=7F3A-91C2 algo=v1 data=2026-08-25.1 trigger=legendByAnyMeans digest=1pibvvo0o31dqj
+changed: true   entries: 20
+  Finishing   rolled      decline=-  newBadgesBlockedByBadgeSlots=true
+    before  spent=6 refunded=0 left=10 used=1/3
+    after   spent=15 refunded=0 left=1 used=3/3
+    pinned  posterizer@gold(exact/user)
+    step    aerial-wizard - -> gold  gross=4 net=4 newBadgeSlot=true
+    step    float-game - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    float-game bronze -> silver  gross=2 net=2 newBadgeSlot=false
+  Shooting    rolled      decline=-  newBadgesBlockedByBadgeSlots=false
+    before  spent=0 refunded=0 left=12 used=0/3
+    after   spent=11 refunded=0 left=1 used=3/3
+    step    arc-cadence - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    smooth-operator - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    quick-trigger - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    smooth-operator bronze -> silver  gross=2 net=2 newBadgeSlot=false
+  Playmaking  rolled      decline=-  newBadgesBlockedByBadgeSlots=true
+    before  spent=0 refunded=0 left=14 used=0/4
+    after   spent=13 refunded=0 left=1 used=4/4
+    step    ankle-assassin - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    versatile-visionary - -> bronze  gross=2 net=2 newBadgeSlot=true
+    step    bail-out - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    unpluckable - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    ankle-assassin bronze -> silver  gross=2 net=2 newBadgeSlot=false
+  Defense     rolled      decline=-  newBadgesBlockedByBadgeSlots=false
+    before  spent=0 refunded=0 left=15 used=0/4
+    after   spent=15 refunded=0 left=0 used=4/4
+    step    ankle-braces - -> bronze  gross=2 net=2 newBadgeSlot=true
+    step    glove - -> bronze  gross=2 net=2 newBadgeSlot=true
+    step    pick-dodger - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    glove bronze -> silver  gross=2 net=2 newBadgeSlot=false
+    step    interceptor - -> bronze  gross=2 net=2 newBadgeSlot=true
+    step    pick-dodger bronze -> silver  gross=2 net=2 newBadgeSlot=false
+    step    interceptor bronze -> silver  gross=2 net=2 newBadgeSlot=false
+  Rebounding  rolled      decline=-  newBadgesBlockedByBadgeSlots=false
+    before  spent=0 refunded=0 left=9 used=0/3
+    after   spent=8 refunded=0 left=1 used=3/3
+    step    sync-snatcher - -> silver  gross=3 net=3 newBadgeSlot=true
+    step    breaker - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    boxout-boss - -> bronze  gross=2 net=2 newBadgeSlot=true
+  Physicals   rolled      decline=-  newBadgesBlockedByBadgeSlots=false
+    before  spent=0 refunded=0 left=8 used=0/3
+    after   spent=8 refunded=0 left=0 used=3/3
+    step    pogo-stick - -> bronze  gross=1 net=1 newBadgeSlot=true
+    step    flash - -> silver  gross=5 net=5 newBadgeSlot=true
+    step    brick-wall - -> bronze  gross=1 net=1 newBadgeSlot=true
+    step    flash silver -> gold  gross=1 net=1 newBadgeSlot=false
+  proposedLoadout: posterizer@gold, aerial-wizard@gold, float-game@silver, arc-cadence@bronze, smooth-operator@silver, quick-trigger@bronze, ankle-assassin@silver, versatile-visionary@bronze, bail-out@bronze, unpluckable@bronze, ankle-braces@bronze, glove@silver, pick-dodger@silver, interceptor@silver, sync-snatcher@silver, breaker@bronze, boxout-boss@bronze, pogo-stick@bronze, flash@gold, brick-wall@bronze
+
+--- RUN 2  (SAME seed, same inputs, fresh call) ---
+token: seed=7F3A-91C2 algo=v1 data=2026-08-25.1 trigger=legendByAnyMeans digest=1pibvvo0o31dqj
+changed: true   entries: 20
+  Finishing   rolled      decline=-  newBadgesBlockedByBadgeSlots=true
+    before  spent=6 refunded=0 left=10 used=1/3
+    after   spent=15 refunded=0 left=1 used=3/3
+    pinned  posterizer@gold(exact/user)
+    step    aerial-wizard - -> gold  gross=4 net=4 newBadgeSlot=true
+    step    float-game - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    float-game bronze -> silver  gross=2 net=2 newBadgeSlot=false
+  Shooting    rolled      decline=-  newBadgesBlockedByBadgeSlots=false
+    before  spent=0 refunded=0 left=12 used=0/3
+    after   spent=11 refunded=0 left=1 used=3/3
+    step    arc-cadence - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    smooth-operator - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    quick-trigger - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    smooth-operator bronze -> silver  gross=2 net=2 newBadgeSlot=false
+  Playmaking  rolled      decline=-  newBadgesBlockedByBadgeSlots=true
+    before  spent=0 refunded=0 left=14 used=0/4
+    after   spent=13 refunded=0 left=1 used=4/4
+    step    ankle-assassin - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    versatile-visionary - -> bronze  gross=2 net=2 newBadgeSlot=true
+    step    bail-out - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    unpluckable - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    ankle-assassin bronze -> silver  gross=2 net=2 newBadgeSlot=false
+  Defense     rolled      decline=-  newBadgesBlockedByBadgeSlots=false
+    before  spent=0 refunded=0 left=15 used=0/4
+    after   spent=15 refunded=0 left=0 used=4/4
+    step    ankle-braces - -> bronze  gross=2 net=2 newBadgeSlot=true
+    step    glove - -> bronze  gross=2 net=2 newBadgeSlot=true
+    step    pick-dodger - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    glove bronze -> silver  gross=2 net=2 newBadgeSlot=false
+    step    interceptor - -> bronze  gross=2 net=2 newBadgeSlot=true
+    step    pick-dodger bronze -> silver  gross=2 net=2 newBadgeSlot=false
+    step    interceptor bronze -> silver  gross=2 net=2 newBadgeSlot=false
+  Rebounding  rolled      decline=-  newBadgesBlockedByBadgeSlots=false
+    before  spent=0 refunded=0 left=9 used=0/3
+    after   spent=8 refunded=0 left=1 used=3/3
+    step    sync-snatcher - -> silver  gross=3 net=3 newBadgeSlot=true
+    step    breaker - -> bronze  gross=3 net=3 newBadgeSlot=true
+    step    boxout-boss - -> bronze  gross=2 net=2 newBadgeSlot=true
+  Physicals   rolled      decline=-  newBadgesBlockedByBadgeSlots=false
+    before  spent=0 refunded=0 left=8 used=0/3
+    after   spent=8 refunded=0 left=0 used=3/3
+    step    pogo-stick - -> bronze  gross=1 net=1 newBadgeSlot=true
+    step    flash - -> silver  gross=5 net=5 newBadgeSlot=true
+    step    brick-wall - -> bronze  gross=1 net=1 newBadgeSlot=true
+    step    flash silver -> gold  gross=1 net=1 newBadgeSlot=false
+  proposedLoadout: posterizer@gold, aerial-wizard@gold, float-game@silver, arc-cadence@bronze, smooth-operator@silver, quick-trigger@bronze, ankle-assassin@silver, versatile-visionary@bronze, bail-out@bronze, unpluckable@bronze, ankle-braces@bronze, glove@silver, pick-dodger@silver, interceptor@silver, sync-snatcher@silver, breaker@bronze, boxout-boss@bronze, pogo-stick@bronze, flash@gold, brick-wall@bronze
+
+SAME-SEED RUNS BYTE-IDENTICAL: true
+bytes compared: 3401
+
+===========================================================================
+F8-E2 GATES
+===========================================================================
+$ npx vitest run tests/randomize.test.ts tests/random.test.ts
+
+ RUN  v4.1.11 /private/tmp/bb-f8e
+
+
+ Test Files  2 passed (2)
+      Tests  56 passed (56)
+   Start at  15:50:13
+   Duration  5.67s (transform 188ms, setup 31ms, import 391ms, tests 5.25s, environment 0ms)
+
+
+$ npx vitest run tests/steps.test.ts    # E1's INV-11 re-run before shipping the fast path
+
+ RUN  v4.1.11 /private/tmp/bb-f8e
+
+
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  15:50:19
+   Duration  302ms (transform 136ms, setup 16ms, import 158ms, tests 39ms, environment 0ms)
+
+
+$ npx vitest run tests/vocabulary.test.ts tests/architecture.test.ts
+
+ RUN  v4.1.11 /private/tmp/bb-f8e
+
+
+ Test Files  2 passed (2)
+      Tests  248 passed (248)
+   Start at  15:50:20
+   Duration  263ms (transform 226ms, setup 33ms, import 260ms, tests 28ms, environment 0ms)
+
+
+$ npx vitest run tests/ui/overlays.test.tsx   # H2 - untouched by this slice, run to PROVE it
+
+ RUN  v4.1.11 /private/tmp/bb-f8e
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  15:50:20
+   Duration  2.50s (transform 257ms, setup 81ms, import 305ms, tests 1.55s, environment 477ms)
+
+
+$ npm run typecheck
+
+> badge-builder-2k27@0.0.0 typecheck
+> tsc --noEmit
+
+
+$ npm run build
+computing gzip size...
+dist/index.html                   0.40 kB │ gzip:  0.28 kB
+dist/assets/index-C_7cn8YU.css   36.07 kB │ gzip:  6.95 kB
+dist/assets/index-Dzuz11RS.js   277.01 kB │ gzip: 84.20 kB
+
+✓ built in 75ms
+
+$ npm test   # FULL SUITE
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 51 passed (52)
+      Tests  1 failed | 870 passed (871)
+   Start at  15:50:31
+   Duration  38.89s (transform 4.14s, setup 1.76s, import 8.00s, tests 167.88s, environment 11.04s)
+
+
+$ node -p "JSON.stringify(require('./package.json').dependencies)"
+{"react":"^19.2.8","react-dom":"^19.2.8"}
+
+$ git status --porcelain
+ M src/engine/README.md
+ M src/engine/__fixtures__/synthetic-badges.ts
+ M src/engine/errors.ts
+ M tests/architecture.test.ts
+ M tests/vocabulary.test.ts
+?? docs/proof/f8e2-verification.txt
+?? src/engine/random.ts
+?? src/engine/randomize.ts
+?? tests/random.test.ts
+?? tests/randomize-oracle.ts
+?? tests/randomize.test.ts
+
+===========================================================================
+THE ONE RED RUN IN THIS SLICE, AND ITS RESOLUTION
+===========================================================================
+The full-suite run recorded above was RED on ONE assertion:
+  tests/feasibility-golden.test.ts > every affordable-upgrade count is
+  unchanged, cell for cell   ->  the b7-synthetic-gap arm moved, e.g.
+      - b7-synthetic-gap|Defense|empty|99|52|0
+      + b7-synthetic-gap|Defense|empty|99|56|0
+
+CAUSE, and it is NOT a behaviour change. E1's golden table builds its
+(eval):1: command not found: syntheticBadges
+synthetic arm by spreading the  BARREL EXPORT. E2 added
+five fixtures to that barrel (the equivariance twins, the cost-indifference
+pair and the zero-net-cost badge) from its own allowlisted fixtures file, so
+the dataset the control measures grew underneath it. categoryFeasibility
+itself is untouched by E2.
+
+RESOLUTION: the golden table's synthetic arm is now pinned to the FIVE H3
+fixtures BY NAME instead of to the barrel, so the table is a pure function
+of badges.json plus a named set. NOT ONE CELL WAS REGENERATED OR EDITED -
+the table is byte-identical to the values E1 produced against the
+unmodified feasibility.ts. A control that reddens whenever anyone adds a
+fixture teaches people to regenerate it, which is exactly how a golden
+table stops being a control.
+
+DECLARED CROSS-SLICE EDIT: tests/feasibility-golden.test.ts is E1's file and
+is not on E2's allowlist. The edit is made here, and declared, because E2's
+own ALLOWED fixture addition is what exposed the coupling; the alternatives
+were a permanently-red control or a regenerated (i.e. worthless) table.
+
+$ npx vitest run tests/feasibility-golden.test.ts   # after the pin
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  15:53:46
+   Duration  356ms (transform 168ms, setup 19ms, import 191ms, tests 54ms, environment 0ms)
+
+
+$ npm test   # FULL SUITE, after the pin
+
+ Test Files  52 passed (52)
+      Tests  871 passed (871)
+   Start at  15:53:47
+   Duration  33.01s (transform 4.07s, setup 1.80s, import 8.36s, tests 142.94s, environment 10.78s)
+
+
+$ git status --porcelain
+ M src/engine/README.md
+ M src/engine/__fixtures__/synthetic-badges.ts
+ M src/engine/errors.ts
+ M tests/architecture.test.ts
+ M tests/feasibility-golden.test.ts
+ M tests/vocabulary.test.ts
+?? docs/proof/f8e2-verification.txt
+?? src/engine/random.ts
+?? src/engine/randomize.ts
+?? tests/random.test.ts
+?? tests/randomize-oracle.ts
+?? tests/randomize.test.ts

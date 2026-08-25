@@ -100,10 +100,102 @@ export const syntheticThresholdBoundary: RawBadge = {
   },
 };
 
+/* -------------------------------------------------------------- F8-E2 -- */
+
+/**
+ * THE EQUIVARIANCE PAIR (INV-8). Two badges IDENTICAL in tier and in every
+ * requirement, differing only in id and name, adjacent in dataset order.
+ *
+ * This pair is the real quality-blindness argument. A statistic can only say
+ * "we did not observe a preference"; swapping two indistinguishable badges and
+ * getting the mirror-image result for the same seed says the roller CANNOT
+ * express one, because nothing it reads distinguishes them. `badge.name` is
+ * never read and `badge.id` is used only as a map key.
+ */
+export const syntheticTwinA: RawBadge = {
+  id: "synthetic-twin-a",
+  name: "Synthetic Twin A",
+  tier: "B",
+  category: "Rebounding",
+  requirements: {
+    heightMinInches: 69,
+    heightMaxInches: 88,
+    logic: "single",
+    attrs: [{ attr: "offReb", perLevel: [60, 70, 80, 90] }],
+  },
+};
+
+export const syntheticTwinB: RawBadge = {
+  ...syntheticTwinA,
+  id: "synthetic-twin-b",
+  name: "Synthetic Twin B",
+};
+
+/**
+ * THE COST-INDIFFERENCE PAIR (INV-9). One A-tier badge and one C-tier badge,
+ * each legal at BRONZE ONLY, so the only thing that can distinguish them is
+ * price: 3 points against 1. With a pool of 3 and capacity 2 both fit, and a
+ * cost preference OF EITHER SIGN — cheap-first to fit more, or dear-first to
+ * "spend well" — shows up as a skewed first pick.
+ */
+export const syntheticDearBronzeOnly: RawBadge = {
+  id: "synthetic-dear-bronze-only",
+  name: "Synthetic Dear Bronze Only",
+  tier: "A",
+  category: "Physicals",
+  requirements: {
+    heightMinInches: 69,
+    heightMaxInches: 88,
+    logic: "single",
+    attrs: [{ attr: "strength", perLevel: [60, null, null, null] }],
+  },
+};
+
+export const syntheticCheapBronzeOnly: RawBadge = {
+  id: "synthetic-cheap-bronze-only",
+  name: "Synthetic Cheap Bronze Only",
+  tier: "C",
+  category: "Physicals",
+  requirements: {
+    heightMinInches: 69,
+    heightMaxInches: 88,
+    logic: "single",
+    attrs: [{ attr: "strength", perLevel: [60, null, null, null] }],
+  },
+};
+
+/**
+ * THE ZERO-NET-COST FIXTURE (INV-17). Legal at every level, so under the
+ * selectable `hofOrAbove` refund trigger a purchase straight to HOF is
+ * NET-FREE — gross cost paid, full amount refunded — and an upgrade from
+ * Bronze to HOF is net-NEGATIVE.
+ *
+ * This is why termination is bounded by the LATTICE and not by the budget: a
+ * budget-based bound assumes every step consumes points, and this one does not.
+ * The case is reachable TODAY on a shipped config value, not hypothetically.
+ */
+export const syntheticFreeAtHof: RawBadge = {
+  id: "synthetic-free-at-hof",
+  name: "Synthetic Free At HOF",
+  tier: "C",
+  category: "Defense",
+  requirements: {
+    heightMinInches: 69,
+    heightMaxInches: 88,
+    logic: "single",
+    attrs: [{ attr: "block", perLevel: [10, 20, 30, 40] }],
+  },
+};
+
 export const syntheticBadges: readonly RawBadge[] = [
   syntheticAndTrailingNull,
   syntheticAndMidNullGap,
   syntheticOrBothNull,
   syntheticHeightBoundary,
   syntheticThresholdBoundary,
+  syntheticTwinA,
+  syntheticTwinB,
+  syntheticDearBronzeOnly,
+  syntheticCheapBronzeOnly,
+  syntheticFreeAtHof,
 ];

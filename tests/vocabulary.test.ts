@@ -100,3 +100,112 @@ describe("F8 — display labels are free of the dataset's parse keys", () => {
     expect(differing.length).toBe(15); // all but Close, Layup, Mid, Steal, Block
   });
 });
+
+/* --------------------------------------------- F8-E2: containment class 2 -- */
+
+/**
+ * CLASS 2 — the roll's containment lint (design-spec §14.8, containment rule 3).
+ *
+ * The randomizer ships under a NARROW carve-out from a ratified "Never":
+ * scope.md §1 cuts ranking / scoring / "best loadout" / "recommended" /
+ * "optimal" outright. The carve-out is for a roll that is quality-blind, and
+ * the price of the carve-out is that the containment stays MECHANICAL rather
+ * than cultural. A helpful comment, a variable named `bestStep`, or a
+ * "recommended" in a decline string is how a ratified Never erodes.
+ *
+ * SUBSTRING-MATCHED, DELIBERATELY UNLIKE CLASS 1. Class 1 uses word boundaries
+ * because there the compounds are the SANCTIONED form — `equipSlots` must pass
+ * while a bare `slots` must fail. Class 2 is the MIRROR IMAGE: the compounds
+ * ARE the violation. `bestStep`, `scoreCandidate` and `rankedSteps` are exactly
+ * the identifiers a well-meaning implementer reaches for, and every one of them
+ * walks straight through a boundary-anchored pattern.
+ *
+ * SCOPED to the roll's own modules. A repo-wide class 2 would be nonsense —
+ * "quality" and "better" are ordinary English everywhere else — and a lint that
+ * fires on correct code gets weakened, which is worse than no lint. F8-R2 adds
+ * `src/ui/summary/RollPanel.tsx` to this list when that file exists.
+ */
+const CLASS_2 = /scor(?:e|ing)|rank|weight|quality|meta|best|optimal|recommend|suggest|prefer|better/i;
+
+const CLASS_2_SCOPE = ["/src/engine/randomize.ts", "/src/engine/random.ts"];
+
+describe("F8-E2 containment lint, class 2: no ranking vocabulary in the roll engine", () => {
+  for (const file of CLASS_2_SCOPE) {
+    it(`${file} contains no ranking, scoring or quality token`, () => {
+      const source = srcSources[file];
+      expect(source, `${file} is missing — the class-2 scope drifted`).toBeDefined();
+      const code = stripComments(source as string);
+      const match = CLASS_2.exec(code);
+      expect(
+        match,
+        `"${match?.[0]}" found in ${file} — the randomizer ships under a narrow ` +
+          "carve-out from a ratified Never, and this lint IS the price of it",
+      ).toBeNull();
+    });
+  }
+
+  it("POSITIVE CANARY: strings that SHOULD fail class 2 do fail it", () => {
+    // A lint that cannot fail on its own canary is worse than no lint
+    // [memory/lessons-learned.md 2026-05-19 "Self-bypassing regex on its own canary"].
+    expect(CLASS_2.test("const bestStep = candidates[0];")).toBe(true);
+    expect(CLASS_2.test("function scoreCandidate() {}")).toBe(true);
+    expect(CLASS_2.test("const rankedSteps = steps.sort();")).toBe(true);
+    expect(CLASS_2.test("const stepWeights = [1, 2, 3];")).toBe(true);
+    expect(CLASS_2.test('return "recommended for your build";')).toBe(true);
+    expect(CLASS_2.test('label = "the optimal loadout"')).toBe(true);
+    expect(CLASS_2.test("const suggestion = pick();")).toBe(true);
+    expect(CLASS_2.test("const preferred = cheap;")).toBe(true);
+    expect(CLASS_2.test('copy = "a better fit"')).toBe(true);
+    expect(CLASS_2.test("const badgeQuality = 3;")).toBe(true);
+    expect(CLASS_2.test("const metaTier = 1;")).toBe(true);
+  });
+
+  it("the substring form closes a miss the boundary form would have shipped", () => {
+    const BOUNDED = /\b(?:best|scor(?:e|ing)|rank)\b/i;
+    expect(BOUNDED.test("const bestStep = x;")).toBe(false); // the miss, demonstrated
+    expect(CLASS_2.test("const bestStep = x;")).toBe(true); // and closed
+  });
+
+  it("negative canary: the roll engine's OWN legitimate vocabulary passes", () => {
+    expect(CLASS_2.test("const candidates = legalSteps(input, category);")).toBe(false);
+    expect(CLASS_2.test("const chosen = pickUniform(rng, candidates);")).toBe(false);
+    expect(CLASS_2.test("maximal by construction")).toBe(false);
+    expect(CLASS_2.test("const bound = rollIterationBound(used, equipSlots);")).toBe(false);
+    expect(CLASS_2.test("const applied: LegalStep[] = [];")).toBe(false);
+    expect(CLASS_2.test("newBadgesBlockedByBadgeSlots")).toBe(false);
+  });
+
+  it("AJ-4: the two KNOWN collisions are documented here, not discovered later", () => {
+    // `meta` matches Vite's `import.meta`, and `prefer` matches
+    // `prefers-reduced-motion`. Substring matching makes BOTH live rather than
+    // theoretical — the right trade for a two-file scope. NEITHER appears in
+    // the class-2 scope today, and when one is genuinely needed it must surface
+    // as a LOUD FAILURE and a deliberate scope decision, never as a quiet
+    // weakening of the pattern.
+    expect(CLASS_2.test("import.meta.glob('/src/**')")).toBe(true);
+    expect(CLASS_2.test("@media (prefers-reduced-motion: reduce)")).toBe(true);
+    for (const file of CLASS_2_SCOPE) {
+      const code = stripComments(srcSources[file] as string);
+      expect(code.includes("import.meta"), `${file} now uses import.meta`).toBe(false);
+      expect(code.includes("prefers-reduced-motion")).toBe(false);
+    }
+  });
+
+  it("the ONE selection primitive: no sort, no comparator, no extremum over candidates", () => {
+    // The structural half of the containment. Class 2 catches the vocabulary;
+    // this catches the MECHANISM, which is what actually ranks things.
+    const code = stripComments(srcSources["/src/engine/randomize.ts"] as string);
+    expect(code).not.toMatch(/\.sort\s*\(/);
+    expect(code).not.toMatch(/\.reduce\s*\(/);
+    // `badge.name` is NEVER read — the equivariance argument depends on it.
+    expect(code).not.toMatch(/\.name\b/);
+    // pickUniform is the only selection, and it appears exactly once.
+    expect(code.match(/pickUniform\s*\(/g)?.length).toBe(1);
+    // EXACTLY ONE extremum is permitted, and it is the LATTICE BOUND rather
+    // than a choice between candidates. Pinned by its arguments, so a future
+    // `Math.max` over steps cannot hide behind the exemption.
+    expect(code.match(/Math\.(?:max|min)\s*\([^)]*\)/g) ?? []).toEqual([
+      "Math.max(entriesAtStart, equipSlots)",
+    ]);
+  });
+});

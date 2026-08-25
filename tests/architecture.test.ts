@@ -127,6 +127,11 @@ const PURE_ENGINE_MODULES = [
   "/src/engine/steps.ts",
   "/src/engine/summary.ts",
   "/src/engine/summary-text.ts",
+  // F8-E2 appended these two rather than adding a second group. `random.ts` is
+  // the point of the whole rule: the seeded PRNG is the ONLY randomness, and
+  // `crypto` is banned here precisely because seed GENERATION is the UI's job.
+  "/src/engine/random.ts",
+  "/src/engine/randomize.ts",
 ];
 
 /**

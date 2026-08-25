@@ -35,7 +35,13 @@
 
 import { describe, expect, it } from "vitest";
 import { loadDataset, shippedDataset, shippedRawDataset } from "../src/engine/dataset";
-import { syntheticBadges } from "../src/engine/__fixtures__/synthetic-badges";
+import {
+  syntheticAndMidNullGap,
+  syntheticAndTrailingNull,
+  syntheticHeightBoundary,
+  syntheticOrBothNull,
+  syntheticThresholdBoundary,
+} from "../src/engine/__fixtures__/synthetic-badges";
 import { categoryFeasibility } from "../src/ui/grid/feasibility";
 import { createDefaultSynergySlots } from "../src/engine/synergy";
 import type { SynergyLedgerState } from "../src/engine/synergy-ledger";
@@ -76,11 +82,28 @@ function budgetsFor(points: number): Record<Category, Budget> {
 // The matrix.
 // ---------------------------------------------------------------------------
 
-/** The synthetic dataset: everything shipped, plus the H3 fixtures — the ONLY
- * way to pin gap behaviour, since badges.json cannot express a gap. */
+/**
+ * The synthetic dataset: everything shipped, plus the H3 fixtures — the ONLY
+ * way to pin gap behaviour, since badges.json cannot express a gap.
+ *
+ * THE FIVE FIXTURES ARE NAMED INDIVIDUALLY, NOT SPLATTED FROM `syntheticBadges`.
+ * That barrel export grows: F8-E2 added five more fixtures to it, and had this
+ * arm spread the barrel, the golden table would have reddened on a slice that
+ * changed no behaviour whatsoever. A control that cries wolf whenever anyone
+ * adds a fixture teaches people to regenerate it, which is precisely how a
+ * golden table stops being a control. Pinned to a named set, this table is a
+ * pure function of badges.json plus these five.
+ */
 const syntheticDataset: BadgeDataset = loadDataset({
   ...shippedRawDataset,
-  badges: [...shippedRawDataset.badges, ...syntheticBadges],
+  badges: [
+    ...shippedRawDataset.badges,
+    syntheticAndTrailingNull,
+    syntheticAndMidNullGap,
+    syntheticOrBothNull,
+    syntheticHeightBoundary,
+    syntheticThresholdBoundary,
+  ],
 });
 
 interface BuildCase {
