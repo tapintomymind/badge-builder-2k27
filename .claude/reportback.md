@@ -777,3 +777,104 @@ F2 complete on dev. Awaiting UI/UX Reviewer re-pass (P0-1/P0-2 verification +
 sticky-budget re-measure at 390) and QE runtime smoke; OQ-A4 note — `host: true`
 is already in vite.config.ts, so the phone test is unblocked from the config side.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-25 — F2.1 complete: reverify follow-ups — stranded-ref heal re-ruling, load-route disclosure, drift-report exports wired (518 tests green, +11)
+Type: milestone-complete
+Actor: Tier-2 fix implementer (constrained mode, Tier-1 dispatched) / Claude Fable 5
+Slice: F2.1 (ENGINE + PERSIST + UI)
+
+WHAT
+All three fix-wave code-lane verified findings fixed, each with pinning tests
+verified failing on pre-fix code (11 fail pre-change).
+
+1 [HIGH — re-ruling] Stranded synergy refs heal, never destroy. F1's
+validateSynergyShape classified a fuse/reaction badge id not in the loadout as
+MalformedSavedBuildError — but the PRE-F2 app wrote exactly that state in normal
+use (purchase removal did not clear synergy roles until F2), so a real pre-fix
+autosave was rejected at first post-upgrade boot, swallowed into null by
+readAutosaveWithReport, and immediately OVERWRITTEN by the mount autosave: silent
+total plan loss through the overwrite side channel. Re-ruled per the docket: a
+WELL-TYPED reference to a badge outside the loadout is now a HEALABLE condition —
+the stale assignment is cleared into a new clearedSynergyRefs report field
+(ClearedSynergyRef {synergySlotId, role, badgeId}, alongside droppedEntries) and
+deserialization proceeds; MalformedSavedBuildError remains for genuinely untyped
+shapes (non-string/null role refs — pinned). Dataset-drift ref clears stay
+disclosed via droppedEntries only (no double-report — pinned). The heal is
+disclosed on the existing DriftBanner strip surface ("N synergy assignment(s)
+referenced a badge not in this build's loadout: Synergy Slot 5 Fuse → <name> —
+cleared."), with or without a dataVersion mismatch. The same heal rescues legacy
+NAMED builds (previously silently un-loadable via readNamedBuild's null) and
+pre-fix JSON exports on the import route. The prior serializer pin ("rejects a
+synergy reference NOT in the loadout") was deliberately re-ruled to pin the heal.
+
+2 [MEDIUM] Load-route disclosure + stale-state clear. New persist surface
+readNamedBuildWithReport carries the full strip/heal report; App.loadBuild now
+uses it and REPLACES the disclosure state (droppedEntries + clearedSynergyRefs)
+on every route transition — so the named-build LOAD route discloses strips/heals
+exactly like boot and import (previously silent), and loading a clean build
+clears a stale boot-time banner (previously the DriftBanner kept asserting drops
+about a build it did not describe). DriftBanner is additionally keyed by a
+disclosure epoch (bumped on load + import confirm) so its internal re-check
+output can never linger across a build switch either.
+
+3 [LOW] Dead exports wired as the real path (not removed): DriftBanner's
+Re-check eligibility now merges driftFromDroppedEntries(droppedEntries) into
+recheckEligibility's recomputed list — a post-strip re-check no longer claims
+"Every purchased badge still qualifies" directly under a removed-badge line —
+and driftLine consumes droppedFromDataset to render the stronger "removed from
+the dataset" wording the eligibility doc comment always promised. Both exports
+now have production consumers; the engine surface is no longer decorative.
+
+EVIDENCE
+- Commit 830d64c on dev (this entry's chore commit follows), pushed to origin/dev.
+- Suite: 518 passed / 0 failed, 35 files — `npm test`; `npm run typecheck` and
+  `npm run build` (tsc --noEmit + vite build) clean.
+- Pre-fix pinning proof: the edited tests/serialization.test.ts + new
+  tests/ui/f21-reverify.test.tsx run against pre-fix src → 11 tests FAIL / 27
+  pass (the passes are deliberate invariant guards: untyped-ref rejection,
+  dataset-drift strip behavior, recomputed re-check wording), captured in this
+  session's transcript before any src change landed.
+- Vocabulary lint (no bare "slot") and architecture lint green over the new
+  copy and the engine→UI type flow; runtime deps still exactly {react, react-dom}.
+
+CONSTRAINED-MODE REPORTBACK (required for M1-M4 completions)
+changed_files: src/engine/serialization.ts (heal partition + ClearedSynergyRef),
+  src/engine/errors.ts (doc), src/persist/local-storage.ts
+  (readNamedBuildWithReport), src/App.tsx (load/import route disclosure state +
+  epoch), src/ui/shell/DriftBanner.tsx (heal line + merged re-check +
+  droppedFromDataset wording), src/ui/summary/SummaryPanel.tsx
+  (ImportDialogState carries clearedSynergyRefs),
+  tests/serialization.test.ts (re-ruled + heal-partition pins),
+  tests/ui/f21-reverify.test.tsx (new)
+denied_paths_checked: src/data/** untouched (no invented 2K27 data);
+  src/config/** untouched; engine/UI separation held (UI imports engine types/
+  functions only; engine imports nothing from ui/persist); no new deps
+first_proof_result: pre-change run — 11 pinning tests fail (6 serialization,
+  5 f21-reverify) with the exact pre-fix failure modes (MalformedSavedBuildError
+  on the stranded-ref envelope; missing disclosure text on load; stale banner
+  surviving a clean load; "Every purchased badge still qualifies" after a strip)
+second_proof_result: post-fix 518/518 green; tsc --noEmit clean; vite build clean
+verification_evidence: vitest pre-change fail list + post-change tails, npm run
+  build tail (this session)
+heartbeats_emitted: n/a (single-session slice)
+stop_conditions_triggered: none
+
+SCOPE / PLAN IMPACT
+One deliberate re-ruling, per the dispatch docket: the H6/H4-at-the-boundary
+classification of a stranded synergy reference moves from MALFORMED to HEALABLE
+(H8's never-destroy-silently doctrine outranks boundary strictness for a state
+the shipped app itself wrote). scope.md §3's H6/H8 notes should record this when
+next revised. No schema change (clearedSynergyRefs is report-side only, never
+persisted); sourceId-in-envelope stays deferred. Observed adjacent behavior left
+as-is (same pre-existing class, out of docket): renameNamedBuild/duplicateBuild
+round-trip through the deserializer, so a rename/duplicate of a drifted or
+stranded stored build persists the strip/heal without disclosure — worth a P3 on
+the next hygiene pass.
+
+NEXT
+F2.1 complete on dev. The fix-wave reverify's remaining unclaimed P2 (raw
+JSON.parse error message copy on the import dialog) stays open. Natural next
+dispatch: QE runtime smoke over the three routes (boot-heal, load-disclosure,
+re-check merge) on a real browser profile with a genuine pre-F2 localStorage.
+─────────────────────────────────────────────
