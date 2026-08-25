@@ -7,8 +7,9 @@ levels, what they cost, and how your badge points and synergy slots add up.
 Single user, single machine. The whole point is that the numbers reconcile with
 what the game actually shows you.
 
-> **Status: skeleton.** Toolchain only — no dataset, no engine, no UI yet.
-> Implementation begins after the plan is approved.
+> **Status: M1 — data + cost + eligibility engine.** The 53-badge dataset, the
+> cost and eligibility engines, and the full correctness test suite are in.
+> No UI yet (M3); no synergy behavior yet (M2).
 
 ---
 
@@ -59,8 +60,44 @@ npm run build    # typecheck + production bundle
 | `npm run build` | `tsc --noEmit` then `vite build` |
 | `npm run preview` | Serve the built bundle locally |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Vitest, single run |
+| `npm run generate:badges` | Regenerate `src/data/badges.json` from the source text |
+| `npm test` | Vitest, single run — the entire correctness surface |
 | `npm run test:watch` | Vitest in watch mode |
+
+## The dataset and how to refresh it
+
+`src/data/badges.json` is **generated, never hand-edited**. The pipeline:
+
+```
+src/data/badges.source.txt   the seed's 53-badge listing, checked in VERBATIM —
+                             the one file where a game number may be typed
+scripts/generate-badges.ts   the parser (pure; unit-tested)
+scripts/generate-badges-cli.ts  the fs shell — the repo's ONLY fs consumer
+src/data/badges.json         the generated output, with provenance fields
+```
+
+**When 2K publishes or patches badge data** (launch day, title updates):
+
+1. Edit `src/data/badges.source.txt` with the new values — nothing else.
+2. Bump `DATA_VERSION` / `AS_OF` (and `GAME_VERSION` / `CONFIDENCE` once known)
+   in `scripts/generate-badges.ts`.
+3. `npm run generate:badges` — then review the `badges.json` diff; it
+   enumerates every changed number.
+4. `npm test` — the data-integrity suite re-validates the dataset. A
+   **TRIPWIRE** failure (assertions 7–14) means 2K published something the
+   tool never assumed; the right response is to re-read the data, not to
+   force the test green.
+
+Guard rails you will hit if you stray:
+
+- A test asserts `generate(badges.source.txt)` reproduces `badges.json`
+  byte-for-byte, so hand edits to the JSON cannot survive.
+- A 13-badge spot-check asserts hand-transcribed literals from the sealed
+  requirements doc, and the parser's alias map is asserted to be a bijection
+  onto the 20 canonical attributes — so a wrong abbreviation cannot ship
+  silently.
+- The parser throws on anything it does not recognize. Unknown values stay
+  `null`; nothing is guessed.
 
 ## Layout
 
@@ -69,7 +106,9 @@ src/engine/   pure TypeScript. Every rule. No DOM, no React, no I/O.
 src/data/     the dataset. Generated, read-only at runtime.
 src/config/   seams for game mechanics that are not yet published.
 src/ui/       React. Renders engine output. Zero rules.
-tests/        the suite.
+scripts/      the badge generator (build-time only).
+tests/        the suite. tests/ui/ carries a jsdom docblock; all else runs node.
+docs/         vocabulary.md (the glossary) and proof artifacts.
 ```
 
 Each directory carries a `README.md` describing its contract. The engine/UI

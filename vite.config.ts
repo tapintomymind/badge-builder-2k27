@@ -16,8 +16,11 @@ export default defineConfig({
   },
 
   test: {
-    // Default node environment. UI work adds a DOM environment when it needs one.
+    // Default node environment. UI work adds a DOM environment when it needs one
+    // via a per-file `// @vitest-environment jsdom` docblock (tests/ui/** convention).
     environment: "node",
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx", "src/**/*.test.ts", "src/**/*.test.tsx"],
+    // Guarded DOM setup — inert under the node environment (see tests/setup-dom.ts).
+    setupFiles: ["tests/setup-dom.ts"],
   },
 });

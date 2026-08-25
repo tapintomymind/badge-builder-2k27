@@ -1,0 +1,1481 @@
+{
+  "dataVersion": "2026-08-25.1",
+  "source": "Official 2K material + NBA2KLab, as transcribed in the sealed project seed 2026-08-25",
+  "asOf": "2026-08-25",
+  "gameVersion": null,
+  "confidence": "pre-release",
+  "levels": [
+    "bronze",
+    "silver",
+    "gold",
+    "hof",
+    "legend"
+  ],
+  "tierCosts": {
+    "A": [
+      3,
+      5,
+      6,
+      7
+    ],
+    "B": [
+      2,
+      4,
+      5,
+      6
+    ],
+    "C": [
+      1,
+      3,
+      4,
+      5
+    ]
+  },
+  "badges": [
+    {
+      "id": "aerial-wizard",
+      "name": "Aerial Wizard",
+      "tier": "C",
+      "category": "Finishing",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "or",
+        "attrs": [
+          {
+            "attr": "drivingDunk",
+            "perLevel": [
+              60,
+              70,
+              80,
+              94
+            ]
+          },
+          {
+            "attr": "standingDunk",
+            "perLevel": [
+              60,
+              70,
+              80,
+              93
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "float-game",
+      "name": "Float Game",
+      "tier": "A",
+      "category": "Finishing",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "or",
+        "attrs": [
+          {
+            "attr": "close",
+            "perLevel": [
+              65,
+              80,
+              90,
+              96
+            ]
+          },
+          {
+            "attr": "layup",
+            "perLevel": [
+              65,
+              85,
+              93,
+              95
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ghost-stepper",
+      "name": "Ghost Stepper",
+      "tier": "C",
+      "category": "Finishing",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "or",
+        "attrs": [
+          {
+            "attr": "close",
+            "perLevel": [
+              55,
+              77,
+              86,
+              94
+            ]
+          },
+          {
+            "attr": "postControl",
+            "perLevel": [
+              55,
+              77,
+              86,
+              94
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "hook-specialist",
+      "name": "Hook Specialist",
+      "tier": "C",
+      "category": "Finishing",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "close",
+            "perLevel": [
+              60,
+              75,
+              87,
+              94
+            ]
+          },
+          {
+            "attr": "postControl",
+            "perLevel": [
+              55,
+              65,
+              80,
+              90
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "layup-mixmaster",
+      "name": "Layup Mixmaster",
+      "tier": "A",
+      "category": "Finishing",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 84,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "layup",
+            "perLevel": [
+              70,
+              83,
+              90,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "paint-prodigy",
+      "name": "Paint Prodigy",
+      "tier": "C",
+      "category": "Finishing",
+      "requirements": {
+        "heightMinInches": 75,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "close",
+            "perLevel": [
+              60,
+              85,
+              90,
+              96
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "physical-finisher",
+      "name": "Physical Finisher",
+      "tier": "B",
+      "category": "Finishing",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "layup",
+            "perLevel": [
+              60,
+              80,
+              90,
+              96
+            ]
+          },
+          {
+            "attr": "strength",
+            "perLevel": [
+              60,
+              70,
+              80,
+              90
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "post-powerhouse",
+      "name": "Post Powerhouse",
+      "tier": "C",
+      "category": "Finishing",
+      "requirements": {
+        "heightMinInches": 77,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "postControl",
+            "perLevel": [
+              60,
+              75,
+              85,
+              95
+            ]
+          },
+          {
+            "attr": "strength",
+            "perLevel": [
+              65,
+              79,
+              86,
+              95
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "post-spin-catalyst",
+      "name": "Post Spin Catalyst",
+      "tier": "C",
+      "category": "Finishing",
+      "requirements": {
+        "heightMinInches": 73,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "postControl",
+            "perLevel": [
+              65,
+              83,
+              91,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "posterizer",
+      "name": "Posterizer",
+      "tier": "A",
+      "category": "Finishing",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "drivingDunk",
+            "perLevel": [
+              73,
+              87,
+              93,
+              99
+            ]
+          },
+          {
+            "attr": "vertical",
+            "perLevel": [
+              65,
+              75,
+              80,
+              90
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "rise-up",
+      "name": "Rise Up",
+      "tier": "C",
+      "category": "Finishing",
+      "requirements": {
+        "heightMinInches": 77,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "standingDunk",
+            "perLevel": [
+              60,
+              81,
+              90,
+              99
+            ]
+          },
+          {
+            "attr": "vertical",
+            "perLevel": [
+              55,
+              62,
+              66,
+              70
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "arc-cadence",
+      "name": "Arc Cadence",
+      "tier": "A",
+      "category": "Shooting",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 83,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "threePt",
+            "perLevel": [
+              70,
+              86,
+              91,
+              98
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "deadeye",
+      "name": "Deadeye",
+      "tier": "A",
+      "category": "Shooting",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "or",
+        "attrs": [
+          {
+            "attr": "mid",
+            "perLevel": [
+              65,
+              85,
+              92,
+              99
+            ]
+          },
+          {
+            "attr": "threePt",
+            "perLevel": [
+              65,
+              85,
+              92,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "limitless-range",
+      "name": "Limitless Range",
+      "tier": "A",
+      "category": "Shooting",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "threePt",
+            "perLevel": [
+              83,
+              89,
+              93,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mini-marksman",
+      "name": "Mini Marksman",
+      "tier": "C",
+      "category": "Shooting",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 76,
+        "logic": "or",
+        "attrs": [
+          {
+            "attr": "mid",
+            "perLevel": [
+              60,
+              79,
+              94,
+              99
+            ]
+          },
+          {
+            "attr": "threePt",
+            "perLevel": [
+              60,
+              79,
+              94,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "post-fade-phenom",
+      "name": "Post Fade Phenom",
+      "tier": "B",
+      "category": "Shooting",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "mid",
+            "perLevel": [
+              60,
+              71,
+              84,
+              91
+            ]
+          },
+          {
+            "attr": "postControl",
+            "perLevel": [
+              55,
+              74,
+              84,
+              93
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "quick-trigger",
+      "name": "Quick Trigger",
+      "tier": "A",
+      "category": "Shooting",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "or",
+        "attrs": [
+          {
+            "attr": "mid",
+            "perLevel": [
+              80,
+              88,
+              95,
+              99
+            ]
+          },
+          {
+            "attr": "threePt",
+            "perLevel": [
+              80,
+              88,
+              95,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "set-and-fire",
+      "name": "Set and Fire",
+      "tier": "B",
+      "category": "Shooting",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "threePt",
+            "perLevel": [
+              60,
+              78,
+              89,
+              97
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "smooth-operator",
+      "name": "Smooth Operator",
+      "tier": "A",
+      "category": "Shooting",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "mid",
+            "perLevel": [
+              70,
+              87,
+              93,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "static-middy",
+      "name": "Static Middy",
+      "tier": "A",
+      "category": "Shooting",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "mid",
+            "perLevel": [
+              55,
+              75,
+              85,
+              95
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ankle-assassin",
+      "name": "Ankle Assassin",
+      "tier": "A",
+      "category": "Playmaking",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 82,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "ballHandle",
+            "perLevel": [
+              75,
+              86,
+              93,
+              96
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bail-out",
+      "name": "Bail Out",
+      "tier": "A",
+      "category": "Playmaking",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "passAcc",
+            "perLevel": [
+              85,
+              93,
+              96,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "break-starter",
+      "name": "Break Starter",
+      "tier": "C",
+      "category": "Playmaking",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "passAcc",
+            "perLevel": [
+              65,
+              77,
+              89,
+              97
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "dimer",
+      "name": "Dimer",
+      "tier": "C",
+      "category": "Playmaking",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "passAcc",
+            "perLevel": [
+              50,
+              70,
+              86,
+              95
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "handles-for-days",
+      "name": "Handles for Days",
+      "tier": "B",
+      "category": "Playmaking",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 84,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "ballHandle",
+            "perLevel": [
+              71,
+              81,
+              90,
+              95
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "lightning-launch",
+      "name": "Lightning Launch",
+      "tier": "A",
+      "category": "Playmaking",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 83,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "speedWithBall",
+            "perLevel": [
+              68,
+              75,
+              86,
+              91
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "pace",
+      "name": "Pace",
+      "tier": "B",
+      "category": "Playmaking",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 82,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "speedWithBall",
+            "perLevel": [
+              70,
+              80,
+              88,
+              93
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "strong-handle",
+      "name": "Strong Handle",
+      "tier": "B",
+      "category": "Playmaking",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 83,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "ballHandle",
+            "perLevel": [
+              60,
+              67,
+              73,
+              78
+            ]
+          },
+          {
+            "attr": "strength",
+            "perLevel": [
+              75,
+              82,
+              89,
+              95
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "unpluckable",
+      "name": "Unpluckable",
+      "tier": "A",
+      "category": "Playmaking",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "or",
+        "attrs": [
+          {
+            "attr": "postControl",
+            "perLevel": [
+              65,
+              86,
+              96,
+              null
+            ]
+          },
+          {
+            "attr": "ballHandle",
+            "perLevel": [
+              65,
+              80,
+              92,
+              97
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "versatile-visionary",
+      "name": "Versatile Visionary",
+      "tier": "B",
+      "category": "Playmaking",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "passAcc",
+            "perLevel": [
+              65,
+              80,
+              90,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ankle-braces",
+      "name": "Ankle Braces",
+      "tier": "B",
+      "category": "Defense",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 81,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "perimeterDef",
+            "perLevel": [
+              60,
+              86,
+              93,
+              95
+            ]
+          },
+          {
+            "attr": "agility",
+            "perLevel": [
+              65,
+              82,
+              89,
+              92
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "challenger",
+      "name": "Challenger",
+      "tier": "A",
+      "category": "Defense",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 83,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "perimeterDef",
+            "perLevel": [
+              71,
+              82,
+              92,
+              98
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "glove",
+      "name": "Glove",
+      "tier": "B",
+      "category": "Defense",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 84,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "steal",
+            "perLevel": [
+              70,
+              83,
+              93,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "high-flying-denier",
+      "name": "High-Flying Denier",
+      "tier": "C",
+      "category": "Defense",
+      "requirements": {
+        "heightMinInches": 75,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "block",
+            "perLevel": [
+              68,
+              78,
+              88,
+              92
+            ]
+          },
+          {
+            "attr": "vertical",
+            "perLevel": [
+              60,
+              74,
+              80,
+              83
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "immovable-enforcer",
+      "name": "Immovable Enforcer",
+      "tier": "C",
+      "category": "Defense",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "perimeterDef",
+            "perLevel": [
+              62,
+              72,
+              84,
+              91
+            ]
+          },
+          {
+            "attr": "strength",
+            "perLevel": [
+              71,
+              82,
+              85,
+              92
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "interceptor",
+      "name": "Interceptor",
+      "tier": "B",
+      "category": "Defense",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "steal",
+            "perLevel": [
+              60,
+              77,
+              90,
+              97
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "off-ball-pest",
+      "name": "Off-Ball Pest",
+      "tier": "B",
+      "category": "Defense",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "or",
+        "attrs": [
+          {
+            "attr": "interiorDef",
+            "perLevel": [
+              60,
+              76,
+              85,
+              93
+            ]
+          },
+          {
+            "attr": "perimeterDef",
+            "perLevel": [
+              55,
+              68,
+              80,
+              89
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "paint-patroller",
+      "name": "Paint Patroller",
+      "tier": "A",
+      "category": "Defense",
+      "requirements": {
+        "heightMinInches": 77,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "interiorDef",
+            "perLevel": [
+              60,
+              71,
+              77,
+              84
+            ]
+          },
+          {
+            "attr": "block",
+            "perLevel": [
+              70,
+              84,
+              93,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "pick-dodger",
+      "name": "Pick Dodger",
+      "tier": "A",
+      "category": "Defense",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 82,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "perimeterDef",
+            "perLevel": [
+              73,
+              83,
+              90,
+              97
+            ]
+          },
+          {
+            "attr": "agility",
+            "perLevel": [
+              71,
+              81,
+              88,
+              91
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "post-lockdown",
+      "name": "Post Lockdown",
+      "tier": "C",
+      "category": "Defense",
+      "requirements": {
+        "heightMinInches": 77,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "interiorDef",
+            "perLevel": [
+              65,
+              82,
+              88,
+              93
+            ]
+          },
+          {
+            "attr": "strength",
+            "perLevel": [
+              65,
+              74,
+              80,
+              88
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "seatbelt",
+      "name": "Seatbelt",
+      "tier": "A",
+      "category": "Defense",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 81,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "perimeterDef",
+            "perLevel": [
+              75,
+              85,
+              91,
+              99
+            ]
+          },
+          {
+            "attr": "agility",
+            "perLevel": [
+              70,
+              77,
+              80,
+              86
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "wall-up",
+      "name": "Wall Up",
+      "tier": "A",
+      "category": "Defense",
+      "requirements": {
+        "heightMinInches": 77,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "interiorDef",
+            "perLevel": [
+              80,
+              85,
+              95,
+              99
+            ]
+          },
+          {
+            "attr": "strength",
+            "perLevel": [
+              75,
+              80,
+              90,
+              92
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "boxout-boss",
+      "name": "Boxout Boss",
+      "tier": "B",
+      "category": "Rebounding",
+      "requirements": {
+        "heightMinInches": 75,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "defReb",
+            "perLevel": [
+              65,
+              75,
+              90,
+              98
+            ]
+          },
+          {
+            "attr": "strength",
+            "perLevel": [
+              60,
+              76,
+              88,
+              94
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "breaker",
+      "name": "Breaker",
+      "tier": "A",
+      "category": "Rebounding",
+      "requirements": {
+        "heightMinInches": 75,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "offReb",
+            "perLevel": [
+              65,
+              82,
+              92,
+              98
+            ]
+          },
+          {
+            "attr": "strength",
+            "perLevel": [
+              70,
+              79,
+              90,
+              96
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "crasher",
+      "name": "Crasher",
+      "tier": "A",
+      "category": "Rebounding",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "offReb",
+            "perLevel": [
+              60,
+              80,
+              93,
+              99
+            ]
+          },
+          {
+            "attr": "vertical",
+            "perLevel": [
+              60,
+              65,
+              67,
+              70
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "possession-closer",
+      "name": "Possession Closer",
+      "tier": "A",
+      "category": "Rebounding",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "defReb",
+            "perLevel": [
+              67,
+              87,
+              95,
+              99
+            ]
+          },
+          {
+            "attr": "vertical",
+            "perLevel": [
+              60,
+              65,
+              67,
+              70
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "sync-snatcher",
+      "name": "Sync Snatcher",
+      "tier": "C",
+      "category": "Rebounding",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "or",
+        "attrs": [
+          {
+            "attr": "offReb",
+            "perLevel": [
+              55,
+              70,
+              82,
+              90
+            ]
+          },
+          {
+            "attr": "defReb",
+            "perLevel": [
+              55,
+              70,
+              82,
+              90
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "brick-wall",
+      "name": "Brick Wall",
+      "tier": "C",
+      "category": "Physicals",
+      "requirements": {
+        "heightMinInches": 77,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "strength",
+            "perLevel": [
+              75,
+              83,
+              95,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bruiser",
+      "name": "Bruiser",
+      "tier": "B",
+      "category": "Physicals",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "strength",
+            "perLevel": [
+              71,
+              84,
+              93,
+              99
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "flash",
+      "name": "Flash",
+      "tier": "A",
+      "category": "Physicals",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "speed",
+            "perLevel": [
+              70,
+              82,
+              87,
+              95
+            ]
+          },
+          {
+            "attr": "agility",
+            "perLevel": [
+              60,
+              78,
+              81,
+              91
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "pogo-stick",
+      "name": "Pogo Stick",
+      "tier": "C",
+      "category": "Physicals",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "single",
+        "attrs": [
+          {
+            "attr": "vertical",
+            "perLevel": [
+              63,
+              70,
+              80,
+              90
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "slippery-off-ball",
+      "name": "Slippery Off-Ball",
+      "tier": "B",
+      "category": "Physicals",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 81,
+        "logic": "and",
+        "attrs": [
+          {
+            "attr": "speed",
+            "perLevel": [
+              57,
+              73,
+              85,
+              94
+            ]
+          },
+          {
+            "attr": "agility",
+            "perLevel": [
+              57,
+              65,
+              77,
+              90
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "work-horse",
+      "name": "Work Horse",
+      "tier": "B",
+      "category": "Physicals",
+      "requirements": {
+        "heightMinInches": 69,
+        "heightMaxInches": 88,
+        "logic": "or",
+        "attrs": [
+          {
+            "attr": "agility",
+            "perLevel": [
+              60,
+              75,
+              85,
+              95
+            ]
+          },
+          {
+            "attr": "strength",
+            "perLevel": [
+              60,
+              75,
+              85,
+              95
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

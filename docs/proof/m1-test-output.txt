@@ -1,0 +1,167 @@
+
+> badge-builder-2k27@0.0.0 test
+> vitest run --reporter=verbose
+
+
+ RUN  v4.1.11 /Users/tapandesai/App Development/badge-builder-2k27
+
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Aerial Wizard: full parsed record matches the hand transcription 1ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Float Game: full parsed record matches the hand transcription 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Unpluckable: full parsed record matches the hand transcription 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Deadeye: full parsed record matches the hand transcription 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Physical Finisher: full parsed record matches the hand transcription 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Lightning Launch: full parsed record matches the hand transcription 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Ankle Braces: full parsed record matches the hand transcription 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Paint Patroller: full parsed record matches the hand transcription 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Glove: full parsed record matches the hand transcription 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Sync Snatcher: full parsed record matches the hand transcription 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Bail Out: full parsed record matches the hand transcription 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Flash: full parsed record matches the hand transcription 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > Posterizer: full parsed record matches the hand transcription 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > meta: the 13 badges' attribute lines union to ALL 20 canonical attrs 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > meta: the set spans all 3 tiers, all 3 logic modes, and all 6 categories 0ms
+ ✓ tests/spot-check.test.ts > 13-badge verbatim spot-check against hand-transcribed seed literals (H7 ship gate) > meta: the set includes four non-default height ranges 0ms
+ ✓ tests/generate-badges.test.ts > generate(badges.source.txt) vs the checked-in badges.json > deep-equals the checked-in dataset (a data refresh is: edit source, re-run generator, review diff) 4ms
+ ✓ tests/generate-badges.test.ts > generate(badges.source.txt) vs the checked-in badges.json > serializes byte-for-byte to the checked-in file (no hand edits to badges.json can survive) 1ms
+ ✓ tests/generate-badges.test.ts > the generator never guesses — malformed input throws, always > throws on an unknown attribute label instead of guessing a canonical attr 1ms
+ ✓ tests/generate-badges.test.ts > the generator never guesses — malformed input throws, always > throws on a threshold count other than 4 0ms
+ ✓ tests/generate-badges.test.ts > the generator never guesses — malformed input throws, always > throws on an unparseable threshold token instead of coercing 0ms
+ ✓ tests/generate-badges.test.ts > the generator never guesses — malformed input throws, always > throws on an unrecognized line instead of skipping it 0ms
+ ✓ tests/generate-badges.test.ts > the generator never guesses — malformed input throws, always > throws when a category header's promised count does not match the badges listed 0ms
+ ✓ tests/generate-badges.test.ts > the generator never guesses — malformed input throws, always > max-split-1 on the em dash: a null token inside the attr spec does NOT break the name/attr split (the Unpluckable hazard) 0ms
+ ✓ tests/data-integrity.test.ts > data-integrity: CONTRACT assertions 1-6 (seed: Data-integrity tests) > 1. contains exactly 53 badges 1ms
+ ✓ tests/data-integrity.test.ts > data-integrity: CONTRACT assertions 1-6 (seed: Data-integrity tests) > 2. per-category counts are 11 / 9 / 10 / 12 / 5 / 6 0ms
+ ✓ tests/data-integrity.test.ts > data-integrity: CONTRACT assertions 1-6 (seed: Data-integrity tests) > 3. tier distribution is 22 A / 15 B / 16 C 0ms
+ ✓ tests/data-integrity.test.ts > data-integrity: CONTRACT assertions 1-6 (seed: Data-integrity tests) > 4. every badge has requirements 1ms
+ ✓ tests/data-integrity.test.ts > data-integrity: CONTRACT assertions 1-6 (seed: Data-integrity tests) > 5. all heights are within 69-88 inches 1ms
+ ✓ tests/data-integrity.test.ts > data-integrity: CONTRACT assertions 1-6 (seed: Data-integrity tests) > 6. exactly one badge (unpluckable) contains a null threshold 0ms
+ ✓ tests/data-integrity.test.ts > data-integrity: TRIPWIRE assertions 7-14 (properties 2K never promised) > 7. arity: logic single has 1 attr line; and/or have exactly 2 2ms
+ ✓ tests/data-integrity.test.ts > data-integrity: TRIPWIRE assertions 7-14 (properties 2K never promised) > 8. arity counts: exactly 22 single-attr and 31 dual-attr badges 0ms
+ ✓ tests/data-integrity.test.ts > data-integrity: TRIPWIRE assertions 7-14 (properties 2K never promised) > 9. attr union: every attr is a member of the canonical 20-value Attr union 1ms
+ ✓ tests/data-integrity.test.ts > data-integrity: TRIPWIRE assertions 7-14 (properties 2K never promised) > 10. category union: every category is a member of the canonical capitalized 6-value Category union 0ms
+ ✓ tests/data-integrity.test.ts > data-integrity: TRIPWIRE assertions 7-14 (properties 2K never promised) > 10b. cross-group badges exist: Physical Finisher is category Finishing but requires strength (a Physicals attribute) — Category must NEVER be derived from AttrGroup 0ms
+ ✓ tests/data-integrity.test.ts > data-integrity: TRIPWIRE assertions 7-14 (properties 2K never promised) > 11. nulls are suffix-only: once a line goes null, all higher levels are null (badges.json ONLY — the H3 fixtures deliberately violate this and stay loadable) 3ms
+ ✓ tests/data-integrity.test.ts > data-integrity: TRIPWIRE assertions 7-14 (properties 2K never promised) > 12. thresholds non-decreasing: per line, every non-null threshold >= the previous non-null one (badges.json ONLY) 3ms
+ ✓ tests/data-integrity.test.ts > data-integrity: TRIPWIRE assertions 7-14 (properties 2K never promised) > 13. provenance present: dataVersion / source / asOf non-empty; gameVersion null-or-string (never guessed); confidence in {pre-release, launch, patched} 0ms
+ ✓ tests/data-integrity.test.ts > data-integrity: TRIPWIRE assertions 7-14 (properties 2K never promised) > 14. structural: ids unique + kebab-case of name; heightMin <= heightMax; levels = canonical 5-tuple; every tierCosts and perLevel array has length 4 1ms
+ ✓ tests/ledger.test.ts > ledger: spent / remainingPoints / totalCost are derived from state > spent(category) sums total-to-own costs in that category only 2ms
+ ✓ tests/ledger.test.ts > ledger: spent / remainingPoints / totalCost are derived from state > remainingPoints = pool − spent + refunds (the seed's formula) 0ms
+ ✓ tests/ledger.test.ts > ledger: spent / remainingPoints / totalCost are derived from state > remainingPoints may go NEGATIVE — overspend is a SOFT violation (H4), warned, never blocked 0ms
+ ✓ tests/ledger.test.ts > ledger: spent / remainingPoints / totalCost are derived from state > totalCost sums the whole loadout across categories 0ms
+ ✓ tests/ledger.test.ts > ledger: spent / remainingPoints / totalCost are derived from state > equipSlotsUsed counts loadout entries per category — purchased ≡ equipped (H1) 0ms
+ ✓ tests/ledger.test.ts > ledger: spent / remainingPoints / totalCost are derived from state > recomputing from the same state yields identical numbers (pure, no accumulator) 0ms
+ ✓ tests/ledger.test.ts > ledger: spent / remainingPoints / totalCost are derived from state > a downgrade is a state change, not a transaction: the ledger of the resulting state stands alone (double-count impossible by construction) 0ms
+ ✓ tests/ledger.test.ts > ledger: refunds behind the refundTrigger config seam (seed Open item #1) > default legendByAnyMeans: no refund fires in M1 — purchased levels cannot reach Legend and no synergy behavior exists yet 0ms
+ ✓ tests/ledger.test.ts > ledger: refunds behind the refundTrigger config seam (seed Open item #1) > hofOrAbove: a purchased-HOF badge refunds its full spent cost to its OWN category pool 0ms
+ ✓ tests/ledger.test.ts > ledger: refunds behind the refundTrigger config seam (seed Open item #1) > the effectiveLevelFor seam lets M2 wire synergy-boosted Legend without changing the ledger: injected legend fires legendByAnyMeans 0ms
+ ✓ tests/ledger.test.ts > ledger: refunds behind the refundTrigger config seam (seed Open item #1) > the seam defaults to the purchased level when absent 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > scans a non-trivial set of source files 1ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > /src/App.tsx has no bare slot identifiers or copy 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > /src/config/index.ts has no bare slot identifiers or copy 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > /src/engine/__fixtures__/synthetic-badges.ts has no bare slot identifiers or copy 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > /src/engine/cost.ts has no bare slot identifiers or copy 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > /src/engine/dataset.ts has no bare slot identifiers or copy 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > /src/engine/eligibility.ts has no bare slot identifiers or copy 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > /src/engine/errors.ts has no bare slot identifiers or copy 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > /src/engine/ledger.ts has no bare slot identifiers or copy 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > /src/engine/serialization.ts has no bare slot identifiers or copy 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > /src/engine/types.ts has no bare slot identifiers or copy 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > /src/engine/vocabulary.ts has no bare slot identifiers or copy 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > /src/main.tsx has no bare slot identifiers or copy 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > POSITIVE CANARY: strings that SHOULD fail the regex do fail it 0ms
+ ✓ tests/vocabulary.test.ts > H1 vocabulary lint: bare `slot` banned in src/** > negative canary: the canonical prefixed vocabulary passes 0ms
+ ✓ tests/eligibility.test.ts > H3 synthetic fixtures (the shipped dataset cannot exercise these) > fixture isolation: synthetic ids ∩ badges.json ids = ∅ — synthetic data can NEVER leak into the shipped dataset 1ms
+ ✓ tests/eligibility.test.ts > H3 synthetic fixtures (the shipped dataset cannot exercise these) > and + trailing null: attrs 99 give max GOLD, not HOF — null on any `and` line makes the level unreachable 0ms
+ ✓ tests/eligibility.test.ts > H3 synthetic fixtures (the shipped dataset cannot exercise these) > and + MID null (gap): attrs 99 give max HOF — levels are evaluated INDEPENDENTLY; a first-failure scan would return Bronze 0ms
+ ✓ tests/eligibility.test.ts > H3 synthetic fixtures (the shipped dataset cannot exercise these) > or + both null at a level: attrs 99 give max SILVER — an `or` level with every line null is unreachable 0ms
+ ✓ tests/eligibility.test.ts > H3 synthetic fixtures (the shipped dataset cannot exercise these) > height boundary (range exactly 78–78): 78 passes; 77 and 79 are FULLY blocked 0ms
+ ✓ tests/eligibility.test.ts > H3 synthetic fixtures (the shipped dataset cannot exercise these) > threshold boundary: threshold 83 with attribute exactly 83 PASSES (>=, not >); 82 fails 0ms
+ ✓ tests/eligibility.test.ts > eligibility against the real dataset > Unpluckable (the shipped null): Post Ctrl 99 alone gives max GOLD — HOF is null on that line and the Ball Hdl line is unmet 0ms
+ ✓ tests/eligibility.test.ts > eligibility against the real dataset > Unpluckable: Ball Hdl 97 reaches HOF via the or-line that is non-null there 0ms
+ ✓ tests/eligibility.test.ts > eligibility against the real dataset > height gates use the badge's own range: Paint Patroller (6'5–7'4) blocks a 6'4 build entirely 0ms
+ ✓ tests/eligibility.test.ts > eligibility against the real dataset > and-logic on real data: Flash needs BOTH Spd and Aglty at each level 0ms
+ ✓ tests/eligibility.test.ts > eligibility against the real dataset > reasons name the failing requirement with the level, e.g. `needs N <Attr> for <Level>` 0ms
+ ✓ tests/eligibility.test.ts > eligibility against the real dataset > a build meeting every threshold has no reasons and max HOF (Glove, Steal 99 at 6'6) 0ms
+ ✓ tests/serialization.test.ts > SavedBuild serializer: pure string ↔ object > createSavedBuild stamps schemaVersion 1 and the dataset's dataVersion (H8) 2ms
+ ✓ tests/serialization.test.ts > SavedBuild serializer: pure string ↔ object > round-trips to an identical object 1ms
+ ✓ tests/serialization.test.ts > SavedBuild serializer: pure string ↔ object > round-trips synergy OPAQUELY — the M1 serializer applies zero synergy behavior, unknown future fields included 0ms
+ ✓ tests/serialization.test.ts > SavedBuild serializer: pure string ↔ object > throws UnsupportedSchemaVersionError on a FUTURE schemaVersion — never auto-migrates silently 0ms
+ ✓ tests/serialization.test.ts > SavedBuild serializer: pure string ↔ object > throws UnsupportedSchemaVersionError on an UNKNOWN past version with no registered migration 0ms
+ ✓ tests/serialization.test.ts > SavedBuild serializer: pure string ↔ object > throws on a non-envelope payload 0ms
+ ✓ tests/serialization.test.ts > recheckEligibility (H8 drift action, engine half — consumed by M3's DriftBanner) > returns [] when the saved plan still holds against the current dataset 0ms
+ ✓ tests/serialization.test.ts > recheckEligibility (H8 drift action, engine half — consumed by M3's DriftBanner) > RECOMPUTES against the current dataset (no diff against the old one): a raised threshold surfaces the badge with its new max 0ms
+ ✓ tests/serialization.test.ts > recheckEligibility (H8 drift action, engine half — consumed by M3's DriftBanner) > reports a now-height-blocked badge with heightBlocked: true 0ms
+ ✓ tests/serialization.test.ts > recheckEligibility (H8 drift action, engine half — consumed by M3's DriftBanner) > reports a badge id that vanished from the current dataset (it no longer qualifies at any level) 0ms
+ ✓ tests/architecture.test.ts > architecture: engine purity (a) > scans a non-trivial engine 1ms
+ ✓ tests/architecture.test.ts > architecture: engine purity (a) > /src/engine/__fixtures__/synthetic-badges.ts imports nothing from src/ui/ and nothing from react 0ms
+ ✓ tests/architecture.test.ts > architecture: engine purity (a) > /src/engine/cost.ts imports nothing from src/ui/ and nothing from react 0ms
+ ✓ tests/architecture.test.ts > architecture: engine purity (a) > /src/engine/dataset.ts imports nothing from src/ui/ and nothing from react 0ms
+ ✓ tests/architecture.test.ts > architecture: engine purity (a) > /src/engine/eligibility.ts imports nothing from src/ui/ and nothing from react 0ms
+ ✓ tests/architecture.test.ts > architecture: engine purity (a) > /src/engine/errors.ts imports nothing from src/ui/ and nothing from react 0ms
+ ✓ tests/architecture.test.ts > architecture: engine purity (a) > /src/engine/ledger.ts imports nothing from src/ui/ and nothing from react 0ms
+ ✓ tests/architecture.test.ts > architecture: engine purity (a) > /src/engine/serialization.ts imports nothing from src/ui/ and nothing from react 0ms
+ ✓ tests/architecture.test.ts > architecture: engine purity (a) > /src/engine/types.ts imports nothing from src/ui/ and nothing from react 0ms
+ ✓ tests/architecture.test.ts > architecture: engine purity (a) > /src/engine/vocabulary.ts imports nothing from src/ui/ and nothing from react 0ms
+ ✓ tests/architecture.test.ts > architecture: runtime dependency allowlist (b) > package.json dependencies are a subset of {react, react-dom} 0ms
+ ✓ tests/architecture.test.ts > architecture: zero network egress (c) > /src/App.tsx contains no fetch / XMLHttpRequest / WebSocket 0ms
+ ✓ tests/architecture.test.ts > architecture: zero network egress (c) > /src/config/index.ts contains no fetch / XMLHttpRequest / WebSocket 0ms
+ ✓ tests/architecture.test.ts > architecture: zero network egress (c) > /src/engine/__fixtures__/synthetic-badges.ts contains no fetch / XMLHttpRequest / WebSocket 0ms
+ ✓ tests/architecture.test.ts > architecture: zero network egress (c) > /src/engine/cost.ts contains no fetch / XMLHttpRequest / WebSocket 0ms
+ ✓ tests/architecture.test.ts > architecture: zero network egress (c) > /src/engine/dataset.ts contains no fetch / XMLHttpRequest / WebSocket 0ms
+ ✓ tests/architecture.test.ts > architecture: zero network egress (c) > /src/engine/eligibility.ts contains no fetch / XMLHttpRequest / WebSocket 0ms
+ ✓ tests/architecture.test.ts > architecture: zero network egress (c) > /src/engine/errors.ts contains no fetch / XMLHttpRequest / WebSocket 0ms
+ ✓ tests/architecture.test.ts > architecture: zero network egress (c) > /src/engine/ledger.ts contains no fetch / XMLHttpRequest / WebSocket 0ms
+ ✓ tests/architecture.test.ts > architecture: zero network egress (c) > /src/engine/serialization.ts contains no fetch / XMLHttpRequest / WebSocket 0ms
+ ✓ tests/architecture.test.ts > architecture: zero network egress (c) > /src/engine/types.ts contains no fetch / XMLHttpRequest / WebSocket 0ms
+ ✓ tests/architecture.test.ts > architecture: zero network egress (c) > /src/engine/vocabulary.ts contains no fetch / XMLHttpRequest / WebSocket 0ms
+ ✓ tests/architecture.test.ts > architecture: zero network egress (c) > /src/main.tsx contains no fetch / XMLHttpRequest / WebSocket 0ms
+ ✓ tests/architecture.test.ts > architecture: no runtime filesystem access (d) > /src/App.tsx has no fs / path imports and no process.cwd() 0ms
+ ✓ tests/architecture.test.ts > architecture: no runtime filesystem access (d) > /src/config/index.ts has no fs / path imports and no process.cwd() 0ms
+ ✓ tests/architecture.test.ts > architecture: no runtime filesystem access (d) > /src/engine/__fixtures__/synthetic-badges.ts has no fs / path imports and no process.cwd() 0ms
+ ✓ tests/architecture.test.ts > architecture: no runtime filesystem access (d) > /src/engine/cost.ts has no fs / path imports and no process.cwd() 0ms
+ ✓ tests/architecture.test.ts > architecture: no runtime filesystem access (d) > /src/engine/dataset.ts has no fs / path imports and no process.cwd() 0ms
+ ✓ tests/architecture.test.ts > architecture: no runtime filesystem access (d) > /src/engine/eligibility.ts has no fs / path imports and no process.cwd() 0ms
+ ✓ tests/architecture.test.ts > architecture: no runtime filesystem access (d) > /src/engine/errors.ts has no fs / path imports and no process.cwd() 0ms
+ ✓ tests/architecture.test.ts > architecture: no runtime filesystem access (d) > /src/engine/ledger.ts has no fs / path imports and no process.cwd() 0ms
+ ✓ tests/architecture.test.ts > architecture: no runtime filesystem access (d) > /src/engine/serialization.ts has no fs / path imports and no process.cwd() 0ms
+ ✓ tests/architecture.test.ts > architecture: no runtime filesystem access (d) > /src/engine/types.ts has no fs / path imports and no process.cwd() 0ms
+ ✓ tests/architecture.test.ts > architecture: no runtime filesystem access (d) > /src/engine/vocabulary.ts has no fs / path imports and no process.cwd() 0ms
+ ✓ tests/architecture.test.ts > architecture: no runtime filesystem access (d) > /src/main.tsx has no fs / path imports and no process.cwd() 0ms
+ ✓ tests/cost.test.ts > costForLevel: total-to-own costs (seed table, hand-transcribed) > tier A: 3/5/6/7 1ms
+ ✓ tests/cost.test.ts > costForLevel: total-to-own costs (seed table, hand-transcribed) > tier B: 2/4/5/6 0ms
+ ✓ tests/cost.test.ts > costForLevel: total-to-own costs (seed table, hand-transcribed) > tier C: 1/3/4/5 0ms
+ ✓ tests/cost.test.ts > costForLevel: total-to-own costs (seed table, hand-transcribed) > THROWS LegendNotPurchasableError on Legend, for all three tiers — never null, never NaN, never ?? 0 0ms
+ ✓ tests/cost.test.ts > costForLevelOrNull: the ONE explicitly-named nullable variant (locked-pip preview) > returns null on Legend instead of throwing 0ms
+ ✓ tests/cost.test.ts > costForLevelOrNull: the ONE explicitly-named nullable variant (locked-pip preview) > agrees with costForLevel on every purchasable level 0ms
+ ✓ tests/cost.test.ts > whatIf: cost delta of moving a badge to a target level > upgrade pays only the difference: A Silver → Gold = 6 − 5 = 1 (seed's own example) 0ms
+ ✓ tests/cost.test.ts > whatIf: cost delta of moving a badge to a target level > downgrade returns the difference: A Gold → Silver = −1 0ms
+ ✓ tests/cost.test.ts > whatIf: cost delta of moving a badge to a target level > first purchase from unowned costs the full total-to-own 0ms
+ ✓ tests/cost.test.ts > whatIf: cost delta of moving a badge to a target level > removal (target null) returns the full amount spent 0ms
+ ✓ tests/cost.test.ts > whatIf: cost delta of moving a badge to a target level > no-op move costs 0 0ms
+ ✓ tests/cost.test.ts > whatIf: cost delta of moving a badge to a target level > throws UnknownBadgeError on an id not in the dataset — never a silent 0 0ms
+ ✓ tests/loader.test.ts > loader: positional → keyed conversion (H6) > keys [BRZ, SLV, GLD, HOF] by purchasable level 1ms
+ ✓ tests/loader.test.ts > loader: positional → keyed conversion (H6) > keys tierCosts so Legend indexing is a compile error, not a runtime undefined 0ms
+ ✓ tests/loader.test.ts > loader: positional → keyed conversion (H6) > loads all 53 shipped badges with keyed attr lines 0ms
+ ✓ tests/loader.test.ts > loader: ARITY guards only > throws DatasetArityError on a perLevel array of length 3 0ms
+ ✓ tests/loader.test.ts > loader: ARITY guards only > throws DatasetArityError on a perLevel array of length 5 0ms
+ ✓ tests/loader.test.ts > loader: ARITY guards only > throws DatasetArityError on a tierCosts array of length != 4 0ms
+ ✓ tests/loader.test.ts > loader: ARITY guards only > POSITIVE PAIRED TEST (NB-5): the loader ACCEPTS the mid-array-null fixture — suffix-only nulls is a DATASET test, never a loader guard 0ms
+ ✓ tests/loader.test.ts > loader: ARITY guards only > the loader also accepts non-monotonic thresholds (assertion 12 is a dataset test too) 0ms
+ ✓ tests/alias-bijection.test.ts > alias-map bijection onto the 20-value Attr union (H7 ship gate) > has exactly the 20 source labels as keys 1ms
+ ✓ tests/alias-bijection.test.ts > alias-map bijection onto the 20-value Attr union (H7 ship gate) > every alias maps to a DISTINCT Attr (injective) 0ms
+ ✓ tests/alias-bijection.test.ts > alias-map bijection onto the 20-value Attr union (H7 ship gate) > every one of the 20 Attr values is reachable from some alias (surjective) 0ms
+ ✓ tests/alias-bijection.test.ts > alias-map bijection onto the 20-value Attr union (H7 ship gate) > is the exact inverse of the engine's independently-transcribed ATTR_LABELS (two transcriptions, one truth) 0ms
+ ✓ tests/config.test.ts > config seams for the three unpublished 2K facts > refundTrigger defaults to legendByAnyMeans — EXACTLY the seed's stated default (Open item #1) 1ms
+ ✓ tests/config.test.ts > config seams for the three unpublished 2K facts > plusTwoSlotIds is null — which two synergy slots are +2 is unpublished and NEVER guessed (Open item #2) 0ms
+ ✓ tests/config.test.ts > config seams for the three unpublished 2K facts > budget strategy defaults to manual (Open item #3) 0ms
+ ✓ tests/config.test.ts > config seams for the three unpublished 2K facts > deriveBudget manual strategy returns the user's manual per-category inputs untouched 0ms
+ ✓ tests/config.test.ts > config seams for the three unpublished 2K facts > deriveBudget derived strategy throws NotYetPublishedError — the M5 drop-in seam, stubbed, never guessed 0ms
+ ✓ tests/smoke.test.ts > toolchain smoke > runs a test and evaluates TypeScript 1ms
+ ✓ tests/ui/dom-env.test.tsx > DOM environment groundwork (jsdom docblock + RTL + setup-dom cleanup) > renders a trivial element with RTL and finds it in the document 13ms
+ ✓ tests/ui/dom-env.test.tsx > DOM environment groundwork (jsdom docblock + RTL + setup-dom cleanup) > runs alongside node-env tests in the same run (document exists here only) 0ms
+
+ Test Files  14 passed (14)
+      Tests  154 passed (154)
+   Start at  02:54:22
+   Duration  694ms (transform 584ms, setup 223ms, import 645ms, tests 75ms, environment 452ms)
+
