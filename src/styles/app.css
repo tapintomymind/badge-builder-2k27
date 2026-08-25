@@ -122,14 +122,20 @@ ul {
   }
 }
 
-/* L (≥1280): three columns 248 / fluid / 192 with a 12px gap — the §5.1
- * rev-2 re-cut. RAILS ARE THE FREE VARIABLE, cards stay ≥240px: at 1280 the
- * centre column is ~769px (scrollbar counted), which holds 3×240px cards +
- * 2×12px gaps (744px). Rev 1's 320/340 rails left 524px — the instrument's
- * main gauge was the smallest region on screen (design-review §10 D1). */
+/* L (≥1280): three columns 280 / fluid / 176 with a 12px gap — the §5.1
+ * rev-5 re-cut. RAILS ARE STILL THE FREE VARIABLE, cards still ≥240px, and
+ * page padding + gaps are UNCHANGED (rev 2 bought width from the density
+ * preference and said so in dissent; rev 5 does not).
+ *
+ * Rev 2's 248/192 sized the columns and never sized their CONTENTS: the
+ * 6-option Position control needs 266px in a 214px box (invariant I8), which
+ * is the horizontal scrollbar the user reported. 280/176 = 456px of rail,
+ * leaving a 751px centre at 1280 with a 17px scrollbar — 3×240 cards + 2×12
+ * gaps is 744px, so 3-up survives with 7px to spare. Derivation: §0.1 + §11.3.
+ * Re-derived mechanically by tests/layout-arithmetic.test.ts. */
 @media (min-width: 1280px) {
   .layout {
-    grid-template-columns: 248px minmax(0, 1fr) 192px;
+    grid-template-columns: 280px minmax(0, 1fr) 176px;
     column-gap: var(--space-3);
     padding: var(--space-4);
   }
@@ -1131,8 +1137,9 @@ ul {
 
 .ledger-overview__row {
   display: flex;
+  flex-wrap: wrap; /* §11.5 ④: degrade by wrapping, never by scrolling */
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-1) var(--space-4);
   font-size: var(--text-sm);
   padding: var(--space-1) 0;
 }
@@ -1140,6 +1147,7 @@ ul {
 /* Per-metric status (P0-1): each metric span carries its own over-state, so
  * one over metric can never redden its in-budget neighbour. */
 .ledger-overview__metrics {
+  margin-left: auto; /* §11.5 ④ — stays right-aligned when wrapped */
   text-align: right;
 }
 
@@ -1780,8 +1788,13 @@ ul {
 }
 
 /* Container-driven arrangement: numeric stacks below the track,
- * right-aligned, when the cell is narrower than 224px (the L rail). */
-@container (max-width: 223px) {
+ * right-aligned, when side-by-side would leave the track unusable.
+ * DERIVED, not chosen (invariant I9): side-by-side track = cell − 8 (gap)
+ * − 56 (numeric field), and the usable-track floor is 224px, so side-by-side
+ * starts at 288px. Rev 3 reused the 224px CELL floor here, which meant
+ * widening the rail past 224px of content HALVED the track. 768 and 390 are
+ * unaffected (their cells are 320px and 298px — side-by-side either way). */
+@container (max-width: 287px) {
   .attr-slider__row {
     flex-wrap: wrap;
   }
@@ -1828,4 +1841,35 @@ ul {
 
 .height-field__notice-mark {
   color: var(--warning);
+}
+
+/* §11.5 rev 5 — the Position SegmentedControl is 6 options and measures
+ * ~266px as one inline-flex row; even the widened rail gives it 246px. In a
+ * rail it is laid out as an auto-fit grid (2 rows of 3 at 246px). Scoped to
+ * .rail-left at L on purpose: at M/S the control lives in a full-width panel
+ * (≥298px of content) where one row fits, and .segmented is shared with the
+ * tier filter and the +1/+2 magnitude control, which must NOT become grids.
+ *
+ * Gap-as-separator: a 1px grid gap over the track's --border background
+ * paints clean 1px rules in BOTH axes, with none of the dangling/doubled-edge
+ * cases that border-right has once the track wraps. */
+@media (min-width: 1280px) {
+  .rail-left .segmented__track {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    gap: 1px;
+    background: var(--border);
+  }
+
+  .rail-left .segmented__track > span,
+  .rail-left .segmented__track > span:last-of-type {
+    border-right: 0;
+    background: var(--bg-surface);
+  }
+
+  .rail-left .segmented label {
+    display: block;
+    text-align: center;
+    padding: var(--space-1) var(--space-2);
+  }
 }

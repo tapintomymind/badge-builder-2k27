@@ -1036,7 +1036,10 @@ export default function App() {
                 validation={validation}
                 dataset={shippedDataset}
               />
-              <ExportImportControls onExport={exportNow} onImportFile={importFile} />
+              {/* §11.5 ⑤ (rev 5): the right-rail Export/Import pair is GONE —
+                  a ratified rev-2 §3.6 clause that never shipped (~198px of
+                  min-content in a 142px rail box). The header pair above is
+                  the only one; tests/layout-arithmetic.test.ts pins this. */}
             </Section>
           </div>
         </aside>

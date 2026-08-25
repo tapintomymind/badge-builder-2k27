@@ -67,14 +67,16 @@ describe("E — sticky chrome budget (§5.3 rev 2): digest sticky, lede scrolls"
 describe("E — §5.1 rev-2 rail re-cut: rails are the free variable", () => {
   const css = read("src/styles/app.css");
 
-  it("L layout uses 248px / fluid / 192px columns", () => {
-    // PRE-FIX: 320px / fluid / 340px — 660px of rail left the badge grid
-    // (the reason the app exists) 524px, forcing 2-up at 1280 and 1-up at
-    // 768 against the spec's 3-up / 2-up.
-    expect(css).toContain("grid-template-columns: 248px minmax(0, 1fr) 192px");
-    expect(css).not.toContain("grid-template-columns: 320px");
-    // M: no rail — the 280px column is gone (single column below 1280).
-    expect(css).not.toContain("grid-template-columns: 280px");
+  it("L layout uses the rev-5 280px / fluid / 176px columns", () => {
+    // rev 2 (248/192) sized the columns without sizing their contents and
+    // overflowed the left rail; rev 5 re-cut to 280/176. The ARITHMETIC is
+    // re-derived in tests/layout-arithmetic.test.ts — this is only the
+    // literal-drift guard.
+    expect(css).toContain("grid-template-columns: 280px minmax(0, 1fr) 176px");
+    expect(css).not.toContain("grid-template-columns: 320px"); // rev 1's rails
+    expect(css).not.toContain("grid-template-columns: 248px"); // rev 2's rails
+    // M: still no rail — single column below 1280 (§5.2, unchanged by rev 5).
+    expect(css).toContain("grid-template-columns: minmax(0, 1fr)");
   });
 
   it("cards keep the ≥240px floor", () => {
