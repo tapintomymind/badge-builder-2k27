@@ -91,7 +91,9 @@ ul {
   flex-direction: column;
 }
 
-/* S (default, <768): single column in DOM order (§5.3). */
+/* S + M (default, <1280): SINGLE COLUMN in DOM order — §5.2 rev 2: both
+ * rails dissolve below L; M and S share one structure, differing only in
+ * how many cards fit per row. */
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -114,18 +116,22 @@ ul {
   display: none;
 }
 
-/* M (768–1279): two columns, right rail dissolves (§5.2). */
 @media (min-width: 768px) {
   .layout {
-    grid-template-columns: 280px minmax(0, 1fr);
-    padding: var(--space-6);
+    padding: var(--space-4);
   }
 }
 
-/* L (≥1280): three columns 320 / fluid / 340 (§5.1). */
+/* L (≥1280): three columns 248 / fluid / 192 with a 12px gap — the §5.1
+ * rev-2 re-cut. RAILS ARE THE FREE VARIABLE, cards stay ≥240px: at 1280 the
+ * centre column is ~769px (scrollbar counted), which holds 3×240px cards +
+ * 2×12px gaps (744px). Rev 1's 320/340 rails left 524px — the instrument's
+ * main gauge was the smallest region on screen (design-review §10 D1). */
 @media (min-width: 1280px) {
   .layout {
-    grid-template-columns: 320px minmax(0, 1fr) 340px;
+    grid-template-columns: 248px minmax(0, 1fr) 192px;
+    column-gap: var(--space-3);
+    padding: var(--space-4);
   }
 
   .rail-right {
@@ -137,16 +143,16 @@ ul {
   }
 }
 
-@media (min-width: 768px) {
+/* Rails are sticky only at L — below 1280 there are no rails (§5.2 rev 2):
+ * the Build panel is a full-width collapsible <details> in flow. */
+@media (min-width: 1280px) {
   .rail-left {
     position: sticky;
     top: var(--space-3);
     max-height: calc(100vh - var(--space-6));
     overflow-y: auto;
   }
-}
 
-@media (min-width: 1280px) {
   .rail-right {
     position: sticky;
     top: var(--space-3);
@@ -776,6 +782,10 @@ ul {
 
 /* ---------------------------------------------------- category ledger -- */
 
+/* §5.3 rev-2 sticky budget: ONLY the digest (title + one compact row) is
+ * sticky — layer 2 of the global two-layer cap, ≤88px. The meter, refunded,
+ * feasibility, hint and projection live in .category-ledger__lede and
+ * scroll away. */
 .category-ledger {
   position: sticky;
   top: 44px; /* below the jump nav — two sticky layers max (§5.3) */
@@ -788,6 +798,19 @@ ul {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+}
+
+.category-ledger__lede {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4) 0;
+}
+
+/* The 0 = unset neutral hint: informational, never a warning. */
+.category-ledger__hint {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
 }
 
 .category-ledger--over {
@@ -818,6 +841,28 @@ ul {
   font-weight: 600;
 }
 
+/* S (<768) sticky budget (§5.3: two layers ≤104px total; jump nav is 44px,
+ * leaving ≤60px for the digest): compact type + tight padding keep the
+ * title and the metrics row to ONE line each at 390 (~58px measured). The
+ * over-state's extra `over by N ⚠` tokens may wrap a second line — an
+ * overspend is exactly the state that has earned the extra chrome. */
+@media (max-width: 767px) {
+  .category-ledger {
+    padding: var(--space-2) var(--space-3);
+    gap: 2px;
+  }
+
+  .category-ledger h2 {
+    font-size: var(--text-sm);
+    line-height: 20px;
+  }
+
+  .category-ledger__row {
+    font-size: var(--text-xs);
+    gap: var(--space-1) var(--space-3);
+  }
+}
+
 .ledger-over {
   color: var(--danger);
   font-weight: 600;
@@ -836,13 +881,10 @@ ul {
   margin-top: var(--space-3);
 }
 
-/* Card columns adapt to the space the center column actually has.
- * NOTE (flagged in the M3 reportback): design-spec §3.4 asks for 3 cards at
- * ≥1280 with a 280px card minimum AND 320/340px rails — at exactly 1280 the
- * center column is ~524px, which cannot hold three 280px cards; the fixed
- * 3-column grid overflowed under the right rail. auto-fill with a 240px
- * floor keeps every pip row intact and never overlaps: 2-up at 1280,
- * 3-up from ~1600. */
+/* Card columns adapt to the space the centre column actually has (§5.1/§5.2
+ * rev 2): auto-fill with the 240px card floor. With the rails re-cut to
+ * 248/192 (rails were the free variable, not the cards) this yields 2-up at
+ * 768 and 3-up at 1280 — the design-review D1 verdict. */
 @media (min-width: 768px) {
   .grid-section__cards {
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -865,9 +907,18 @@ ul {
   background: var(--bg-raised);
 }
 
+/* Blocked treatment (design-review P1-1): NO container opacity — a 0.55
+ * multiplier dropped the reason string (the card's entire informational
+ * payload) to 2.67:1 against AA's 4.5:1. Text stays at its declared tokens;
+ * "blocked" is signalled by the canvas fill + subtle border + the reason
+ * string itself, with opacity applied ONLY to the non-text pip glyph row. */
 .badge-card--blocked {
-  opacity: 0.55;
   background: var(--bg-canvas);
+  border-color: var(--border-subtle);
+}
+
+.badge-card--blocked .pip-row {
+  opacity: 0.55;
 }
 
 .badge-card__title-row {
@@ -896,6 +947,12 @@ ul {
 .badge-card__eligibility {
   font-size: var(--text-xs);
   color: var(--fg-muted);
+}
+
+/* Stale-purchase disclosure line: warning-toned (6.8:1 on --bg-surface —
+ * AA), paired with the flagged pip so it is never color alone. */
+.badge-card__eligibility--stale {
+  color: var(--warning);
 }
 
 /* ---- M4 card synergy states (§3.4): each carries a TEXT label too. ---- */
@@ -986,6 +1043,22 @@ ul {
   cursor: not-allowed;
 }
 
+/* Stale purchase (eligibility disclosure): the purchased level no longer
+ * passes the attribute gate. Filled like a current pip but flagged with the
+ * warning ring + a ⚠ cost glyph — never color alone, and the card renders
+ * the engine's failing-requirement string alongside. */
+.pip--stale .pip__dot {
+  background: var(--pip-color);
+  color: var(--bg-canvas);
+  border-color: var(--warning);
+  box-shadow: 0 0 0 2px var(--warning);
+}
+
+.pip--stale .pip__cost {
+  color: var(--warning);
+  font-weight: 600;
+}
+
 .pip--legend {
   cursor: default;
 }
@@ -1062,6 +1135,12 @@ ul {
   gap: var(--space-4);
   font-size: var(--text-sm);
   padding: var(--space-1) 0;
+}
+
+/* Per-metric status (P0-1): each metric span carries its own over-state, so
+ * one over metric can never redden its in-budget neighbour. */
+.ledger-overview__metrics {
+  text-align: right;
 }
 
 /* ------------------------------------------------------ build manager -- */
@@ -1464,6 +1543,16 @@ ul {
   gap: var(--space-2);
   font-size: var(--text-xs);
   color: var(--warning);
+}
+
+/* HardViolation list (H4 invariant class): engine errors, rendered — an
+ * imported invariant-breaking state must never display silently. */
+.summary__errors {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
 .summary__table {

@@ -66,7 +66,10 @@ describe("zero state (design-spec §5.4)", () => {
 });
 
 describe("the M3 outcome: build → gate → buy → ledger → save → reload", () => {
-  it("walks the whole first-value path", () => {
+  // Generous timeout: this whole-app walk renders App three times and sits
+  // near the 5s default when the suite runs fully parallel (the F2 files
+  // grew the worker pool's load); alone it runs in ~4s.
+  it("walks the whole first-value path", { timeout: 20000 }, () => {
     const { unmount } = render(<App />);
 
     // Enter a real attribute: Close 90 gates Float Game to Gold (HOF needs 96).

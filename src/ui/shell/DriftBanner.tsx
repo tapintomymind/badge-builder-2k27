@@ -13,7 +13,7 @@ import { useState } from "react";
 import { badgeById } from "../../engine/dataset";
 import { recheckEligibility } from "../../engine/eligibility";
 import type { EligibilityDrift } from "../../engine/eligibility";
-import type { BadgeDataset, SavedBuild } from "../../engine/types";
+import type { BadgeDataset, LoadoutEntry, SavedBuild } from "../../engine/types";
 import { LEVEL_LABELS } from "../../engine/vocabulary";
 import { Banner } from "../primitives/Banner";
 import { Button } from "../primitives/Button";
@@ -21,6 +21,12 @@ import { Button } from "../primitives/Button";
 export interface DriftBannerProps {
   saved: SavedBuild;
   currentDataset: BadgeDataset;
+  /** H8 drift disclosure (F1's deserializer report): loadout entries whose
+   * badge id no longer exists in the current dataset — stripped at the
+   * deserialize boundary, DISCLOSED here, never silently gone. Renders even
+   * without a dataVersion mismatch (a hand-edited same-version import can
+   * carry an unknown id too). */
+  droppedEntries?: readonly LoadoutEntry[];
 }
 
 function driftLine(drift: EligibilityDrift, dataset: BadgeDataset): string {
@@ -34,10 +40,35 @@ function driftLine(drift: EligibilityDrift, dataset: BadgeDataset): string {
   return `${name} (planned ${planned}, now ${LEVEL_LABELS[drift.maxPurchasableLevel]})`;
 }
 
-export function DriftBanner({ saved, currentDataset }: DriftBannerProps) {
+/** The dropped-entries disclosure line: names (ids — the badge left the
+ * dataset, so no name exists to look up) plus what happened to them. */
+function droppedLine(droppedEntries: readonly LoadoutEntry[], dataset: BadgeDataset): string {
+  const labels = droppedEntries.map((entry) => {
+    const badge = badgeById(dataset, entry.badgeId);
+    return badge?.name ?? entry.badgeId;
+  });
+  const n = droppedEntries.length;
+  return (
+    `${n} badge${n === 1 ? "" : "s"} from this build no longer exist${n === 1 ? "s" : ""} ` +
+    `in the dataset: ${labels.join(", ")} — removed from the plan.`
+  );
+}
+
+export function DriftBanner({ saved, currentDataset, droppedEntries = [] }: DriftBannerProps) {
   const [drift, setDrift] = useState<EligibilityDrift[] | null>(null);
 
-  if (saved.dataVersion === currentDataset.dataVersion) return null;
+  const versionDrift = saved.dataVersion !== currentDataset.dataVersion;
+  if (!versionDrift && droppedEntries.length === 0) return null;
+
+  if (!versionDrift) {
+    // Dropped entries WITHOUT a version mismatch (hand-edited import): the
+    // disclosure still renders; the recheck action is version-drift-only.
+    return (
+      <Banner variant="warning" role="status">
+        <span className="drift-banner__dropped">{droppedLine(droppedEntries, currentDataset)}</span>
+      </Banner>
+    );
+  }
 
   return (
     <Banner
@@ -58,6 +89,13 @@ export function DriftBanner({ saved, currentDataset }: DriftBannerProps) {
       Planned against dataset <span className="num">{saved.dataVersion}</span>; current is{" "}
       <span className="num">{currentDataset.dataVersion}</span>. Requirements may have changed —
       re-check eligibility.
+      {droppedEntries.length > 0 ? (
+        <div className="drift-banner__list">
+          <span className="drift-banner__dropped">
+            {droppedLine(droppedEntries, currentDataset)}
+          </span>
+        </div>
+      ) : null}
       {drift !== null ? (
         drift.length === 0 ? (
           <div className="drift-banner__list">

@@ -28,7 +28,12 @@ import { useId } from "react";
 import { costForLevelOrNull, whatIf } from "../../engine/cost";
 import { levelPasses } from "../../engine/eligibility";
 import type { BadgeEligibility } from "../../engine/types";
-import { effectiveLevel, synergyRoleFor, synergySlotById } from "../../engine/synergy";
+import {
+  effectiveLevel,
+  synergyRoleFor,
+  synergySlotById,
+  synergySlotDisabledByPreview,
+} from "../../engine/synergy";
 import type { SynergyState } from "../../engine/synergy";
 import type { Badge, BadgeDataset, Build, OverlayState, SynergyRole } from "../../engine/types";
 import type { Level, PurchasableLevel } from "../../engine/vocabulary";
@@ -82,7 +87,9 @@ function reasonsFor(level: PurchasableLevel, reasons: string[]): string[] {
 
 interface PipModel {
   level: PurchasableLevel;
-  state: "owned" | "current" | "upgrade" | "unaffordable" | "locked";
+  /** `stale` = the PURCHASED level no longer passes the attribute gate —
+   * disclosed, never auto-removed (H8: the tool never destroys the plan). */
+  state: "owned" | "current" | "stale" | "upgrade" | "unaffordable" | "locked";
   costText: string;
   ariaLabel: string;
 }
@@ -102,22 +109,37 @@ function pipModel(
   const purchased = entry?.purchasedLevel ?? null;
   const passes = !heightBlocked && levelPasses(badge.requirements, build, level);
   const totalCost = costForLevelOrNull(badge.tier, level, dataset);
+  const failReasonText = heightBlocked
+    ? eligibility.reasons.join("; ")
+    : reasonsFor(level, eligibility.reasons).join("; ");
 
-  if (purchased !== null && levelIndex(level) < levelIndex(purchased)) {
+  if (purchased === level) {
+    if (passes) {
+      return { level, state: "current", costText: "✓", ariaLabel: `${label}, current level` };
+    }
+    // Stale purchase: purchased above the cap the current attributes allow.
+    // Disclosed (flagged pip + the engine's failing-requirement string), never
+    // auto-removed — the pip control (Escape) is the destructive affordance.
+    return {
+      level,
+      state: "stale",
+      costText: "⚠",
+      ariaLabel:
+        `${label}, current level — no longer meets requirements` +
+        (failReasonText === "" ? "" : `, ${failReasonText}`),
+    };
+  }
+  if (purchased !== null && levelIndex(level) < levelIndex(purchased) && passes) {
     return { level, state: "owned", costText: "✓", ariaLabel: `${label}, owned` };
   }
-  if (purchased === level) {
-    return { level, state: "current", costText: "✓", ariaLabel: `${label}, current level` };
-  }
   if (!passes) {
-    const reasonText = heightBlocked
-      ? eligibility.reasons.join("; ")
-      : reasonsFor(level, eligibility.reasons).join("; ");
+    // Covers unpurchased ineligible levels AND ineligible gap levels below a
+    // purchase: an H3-legal gap level that fails is NOT one-click purchasable.
     return {
       level,
       state: "locked",
       costText: "—",
-      ariaLabel: `${label}, locked${reasonText === "" ? "" : `, ${reasonText}`}`,
+      ariaLabel: `${label}, locked${failReasonText === "" ? "" : `, ${failReasonText}`}`,
     };
   }
   const delta = whatIf(synergyState.loadout, badge.id, level, dataset);
@@ -253,8 +275,8 @@ function statusText(
   if (role === null) return `Now ${LEVEL_LABELS[effective]}`;
   const synergySlot = synergySlotById(synergyState.synergySlots, role.synergySlotId);
   if (synergySlot === undefined) return `Now ${LEVEL_LABELS[effective]}`;
-  const previewDisabled =
-    overlay.seasonReset && synergySlot.permanence === "temporary" && synergySlot.unlocked;
+  // THE canonical predicate (engine): never hand-negate synergySlotActive.
+  const previewDisabled = synergySlotDisabledByPreview(synergySlot, overlay);
   if (previewDisabled) {
     return `Now ${LEVEL_LABELS[purchased]} · Synergy Slot ${synergySlot.id} disabled by preview`;
   }
@@ -297,6 +319,13 @@ export function BadgeCard(props: BadgeCardProps) {
       );
   const nextLockedReasons = nextLocked ? reasonsFor(nextLocked, eligibility.reasons) : [];
 
+  /** Stale purchase (eligibility disclosure): the purchased level itself no
+   * longer passes — the engine's failing-requirement string renders on the
+   * card, and the purchase is never auto-removed. */
+  const stalePurchase =
+    purchased !== null && !heightBlocked && !levelPasses(badge.requirements, props.build, purchased);
+  const staleReasons = stalePurchase ? reasonsFor(purchased, eligibility.reasons) : [];
+
   return (
     <div
       className={`badge-card${heightBlocked ? " badge-card--blocked" : ""}${roleClass}`}
@@ -307,9 +336,17 @@ export function BadgeCard(props: BadgeCardProps) {
       <div className="badge-card__title-row">
         <span className="badge-card__name">{badge.name}</span>
         {role !== null ? (
+          // Compact on-card form (design-review P1-5): the H1-correct long
+          // form stays the ACCESSIBLE name; the visible chip abbreviates.
           <Chip variant={role.kind === "fuse" ? "accent" : "info"}>
-            {role.kind === "fuse" ? "⚡ Fuse" : "↺ Reaction"} · Synergy Slot {role.synergySlotId}{" "}
-            +{role.magnitude}
+            <span aria-hidden="true">
+              {role.kind === "fuse" ? "⚡ Fuse" : "↺ Reaction"} · SS{role.synergySlotId} +
+              {role.magnitude}
+            </span>
+            <span className="sr-only">
+              {role.kind === "fuse" ? "Fuse" : "Reaction"} · Synergy Slot {role.synergySlotId} +
+              {role.magnitude}
+            </span>
           </Chip>
         ) : null}
         {effective === "legend" ? (
@@ -317,7 +354,7 @@ export function BadgeCard(props: BadgeCardProps) {
             LEGEND
           </Chip>
         ) : null}
-        {overBadgeSlotsIfBought ? <Chip variant="warning">Over Badge Slots</Chip> : null}
+        {overBadgeSlotsIfBought ? <Chip variant="warning">Would go over Badge Slots</Chip> : null}
         <Chip variant="tier">{badge.tier}</Chip>
       </div>
       <div className="badge-card__meta">
@@ -329,6 +366,12 @@ export function BadgeCard(props: BadgeCardProps) {
       <div className="badge-card__status">
         {statusText(badge, synergyState, overlay, role, purchased, effective)}
       </div>
+      {stalePurchase && purchased !== null ? (
+        <div className="badge-card__eligibility badge-card__eligibility--stale">
+          Purchased at {LEVEL_LABELS[purchased]} — no longer meets requirements
+          {staleReasons.length > 0 ? `: ${staleReasons.join("; ")}` : ""}
+        </div>
+      ) : null}
       {heightBlocked ? (
         <div className="badge-card__eligibility">Blocked — {eligibility.reasons.join("; ")}</div>
       ) : nextLockedReasons.length > 0 ? (

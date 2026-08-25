@@ -67,7 +67,10 @@ describe("fuse state", () => {
       synergySlots: patchedSynergySlots({ 5: { unlocked: true, fuseBadgeId: "float-game" } }),
     });
     expect(document.querySelector(".badge-card--fuse")).not.toBeNull();
-    expect(screen.getByText(/⚡ Fuse · Synergy Slot 5 \+1/)).toBeTruthy();
+    // Compact visible chip (design-review P1-5) + the H1-correct long form
+    // as the accessible name (sr-only).
+    expect(screen.getByText(/⚡ Fuse · SS5 \+1/)).toBeTruthy();
+    expect(screen.getByText("Fuse · Synergy Slot 5 +1")).toBeTruthy();
     expect(screen.getByText("Now Gold · Fused to HOF")).toBeTruthy();
     // Purchased pip keeps its ring; the effective (HOF) pip carries the
     // halo. That pip is LOCKED for purchase (Close 90 caps at Gold) — the
@@ -83,7 +86,8 @@ describe("fuse state", () => {
       loadout: [{ badgeId: "float-game", purchasedLevel: "gold" }],
       synergySlots: patchedSynergySlots({ 5: { unlocked: false, fuseBadgeId: "float-game" } }),
     });
-    expect(screen.getByText(/⚡ Fuse · Synergy Slot 5/)).toBeTruthy();
+    expect(screen.getByText(/⚡ Fuse · SS5/)).toBeTruthy();
+    expect(screen.getByText("Fuse · Synergy Slot 5 +1")).toBeTruthy();
     expect(screen.getByText("Now Gold")).toBeTruthy();
     expect(document.querySelector(".pip--halo-fuse")).toBeNull();
   });
@@ -98,7 +102,8 @@ describe("reaction state", () => {
   it("reactions OFF: dashed info edge + chip + base level plus `activates to X`", () => {
     renderCard(requireBadge("aerial-wizard"), { loadout, synergySlots });
     expect(document.querySelector(".badge-card--reaction")).not.toBeNull();
-    expect(screen.getByText(/↺ Reaction · Synergy Slot 5 \+1/)).toBeTruthy();
+    expect(screen.getByText(/↺ Reaction · SS5 \+1/)).toBeTruthy();
+    expect(screen.getByText("Reaction · Synergy Slot 5 +1")).toBeTruthy();
     expect(screen.getByText("Now Bronze — activates to Silver")).toBeTruthy();
     expect(document.querySelector(".pip--halo-reaction")).toBeNull();
   });

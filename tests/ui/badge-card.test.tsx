@@ -174,7 +174,7 @@ describe("BadgeCard — pips as the canonical control, cycle on top", () => {
 });
 
 describe("BadgeCard — H4 soft class: warn, never disable", () => {
-  it("Over Badge Slots shows the warning chip and every pip stays enabled", () => {
+  it("Would-go-over Badge Slots shows the warning chip and every pip stays enabled", () => {
     const badge = requireBadge("float-game");
     const build = makeBuild(78, 0, { close: 90 });
     const handlers = renderCard(
@@ -183,7 +183,8 @@ describe("BadgeCard — H4 soft class: warn, never disable", () => {
       { loadout: [], synergySlots: createDefaultSynergySlots(null) },
       true,
     );
-    expect(screen.getByText("Over Badge Slots")).toBeTruthy();
+    // Unpurchased card: buying WOULD go over — the phrasing says so.
+    expect(screen.getByText("Would go over Badge Slots")).toBeTruthy();
     const card = screen.getByRole("radiogroup", { name: "Float Game — purchase level" });
     for (const radio of within(card).getAllByRole("radio")) {
       expect((radio as HTMLInputElement).disabled).toBe(false);

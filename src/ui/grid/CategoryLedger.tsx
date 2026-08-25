@@ -1,22 +1,34 @@
 /**
- * CategoryLedger (design-spec §3.4) — the per-category status bar, which IS
- * the grid group's sticky header (one component, not two).
+ * CategoryLedger (design-spec §3.4, §5.3 rev 2) — the per-category status
+ * surface. TWO pieces now, per the rev-2 sticky budget:
+ *
+ *  - `.category-ledger` (the DIGEST): title + one compact row — Badge Points
+ *    spent/pool with left/over-by, Badge Slots used/capacity with over-by.
+ *    THIS is the sticky layer (layer 2 of the global two-layer cap).
+ *  - `.category-ledger__lede`: the meter, `refunded N` (suppressed at zero),
+ *    the feasibility line, the "capacity not set" hint, and the H2 projection
+ *    row. Lede content SCROLLS AWAY — that is what makes the sticky budget
+ *    achievable.
  *
  * H4 (scope.md §3): points overspend and Badge Slots overflow are the SOFT
  * budget class — `over by N` renders in danger red with a ⚠ glyph and a
  * hatched meter overflow (never color alone), and NO control anywhere
- * becomes disabled because of it.
+ * becomes disabled because of it. The over-by STRINGS are built here by
+ * `overByBadgePoints` / `overByBadgeSlots` and exported so every other
+ * surface (rail Ledger overview) renders the SAME text — two surfaces
+ * cannot drift again (design-review P0-1).
+ *
+ * "0 = unset" Badge Slots capacity (orchestrator-ratified ruling): a
+ * capacity of 0 means "not entered" → NO overflow warning fires anywhere;
+ * instead ONE neutral per-category hint ("Badge Slots capacity not set")
+ * renders in the lede. A genuinely-entered 0 is indistinguishable and
+ * acceptable for this planner. `overByBadgeSlots` encodes the rule, so all
+ * four consuming surfaces stay uniform.
  *
  * H2 (M4): the PRIMARY rows always render the "current"-basis readout the
  * App computed — `projection` is a SEPARATE postSeasonReset readout that is
  * provided only while the season-reset preview is on and renders as a
- * SECOND, EXPLICITLY-LABELLED row. It NEVER replaces the primary numbers: a
- * number never changes meaning without changing label. The projection row
- * appears only when it actually differs from the primary (categories that do
- * not change show nothing — the PreviewModeStrip states the count).
- *
- * M4 feasibility line (design-spec §3.6): a pre-aggregated count over engine
- * outputs — see src/ui/grid/feasibility.ts. No arithmetic rule lives here.
+ * SECOND, EXPLICITLY-LABELLED row. It NEVER replaces the primary numbers.
  *
  * Every number is an engine readout (synergy-ledger's categoryLedgerAt);
  * this component contains zero arithmetic beyond formatting.
@@ -42,16 +54,42 @@ export function projectionDiffers(
   );
 }
 
+/** Is this category's Badge Slots capacity unset (the ruled 0 = unset)? */
+export function badgeSlotsCapacityUnset(budget: Budget): boolean {
+  return budget.equipSlots === 0;
+}
+
+/** The canonical Badge Points over-by string, or null when within budget.
+ * SHARED by the in-grid digest and the rail Ledger overview (P0-1: one
+ * builder, two surfaces, zero drift). */
+export function overByBadgePoints(readout: CategoryLedgerReadout): string | null {
+  return readout.remainingPoints < 0 ? `over by ${-readout.remainingPoints} ⚠` : null;
+}
+
+/** The canonical Badge Slots over-by string, or null when within capacity —
+ * and ALWAYS null while the capacity is unset (0 = unset ruling). */
+export function overByBadgeSlots(
+  readout: CategoryLedgerReadout,
+  budget: Budget,
+): string | null {
+  if (badgeSlotsCapacityUnset(budget)) return null;
+  return readout.equipSlotsUsed > budget.equipSlots
+    ? `over by ${readout.equipSlotsUsed - budget.equipSlots} ⚠`
+    : null;
+}
+
 /** The §3.6 feasibility phrasing — upgrade COUNTS, never tier-cost
- * arithmetic and never a recommendation. */
+ * arithmetic and never a recommendation. An unset capacity constrains
+ * nothing (0 = unset ruling). */
 function feasibilityText(
   readout: CategoryLedgerReadout,
   budget: Budget,
   feasibility: CategoryFeasibility,
 ): string {
   const pts = readout.remainingPoints;
+  const capacityUnset = badgeSlotsCapacityUnset(budget);
   const equipSlotsLeft = budget.equipSlots - readout.equipSlotsUsed;
-  if (equipSlotsLeft <= 0) {
+  if (!capacityUnset && equipSlotsLeft <= 0) {
     if (feasibility.affordableOwnedUpgrades > 0) {
       const n = feasibility.affordableOwnedUpgrades;
       return `${pts} pts · 0 Badge Slots left → ${n} upgrade${n === 1 ? "" : "s"} to badges you already own; new badges would go over Badge Slots.`;
@@ -62,6 +100,9 @@ function feasibilityText(
     return `${pts} pts left → nothing else fits at these prices.`;
   }
   const n = feasibility.affordableUpgrades;
+  if (capacityUnset) {
+    return `${pts} pts left → ${n} upgrade${n === 1 ? "" : "s"} still affordable`;
+  }
   return `${pts} pts · ${equipSlotsLeft} Badge Slot${equipSlotsLeft === 1 ? "" : "s"} left → ${n} upgrade${n === 1 ? "" : "s"} still affordable`;
 }
 
@@ -86,61 +127,69 @@ export function CategoryLedger({
   feasibility,
   projection,
 }: CategoryLedgerProps) {
-  const pointsOver = readout.remainingPoints < 0;
-  const equipSlotsOver = readout.equipSlotsUsed > budget.equipSlots;
-  const over = pointsOver || equipSlotsOver;
+  const pointsOverText = overByBadgePoints(readout);
+  const equipSlotsOverText = overByBadgeSlots(readout, budget);
+  const capacityUnset = badgeSlotsCapacityUnset(budget);
+  const over = pointsOverText !== null || equipSlotsOverText !== null;
   const showProjection = projection !== undefined && projectionDiffers(readout, projection);
   const projectionOver = projection !== undefined && projection.remainingPoints < 0;
 
   return (
-    <div className={`category-ledger${over ? " category-ledger--over" : ""}`}>
-      <h2 id={headingId}>{category}</h2>
-      <div className="category-ledger__row">
-        <span>
-          Badge Points{" "}
-          <span className="num">
-            {readout.spent} / {budget.points}
-          </span>
-        </span>
-        {pointsOver ? (
-          <span className="ledger-over num">over by {-readout.remainingPoints} ⚠</span>
-        ) : (
+    <>
+      <div className={`category-ledger${over ? " category-ledger--over" : ""}`}>
+        <h2 id={headingId}>{category}</h2>
+        <div className="category-ledger__row">
           <span>
-            left <span className="num">{readout.remainingPoints}</span>
+            Badge Points{" "}
+            <span className="num">
+              {readout.spent} / {budget.points}
+            </span>
           </span>
-        )}
-        <span>
-          refunded <span className="num">{readout.refunded}</span>
-        </span>
+          {pointsOverText !== null ? (
+            <span className="ledger-over num">{pointsOverText}</span>
+          ) : (
+            <span>
+              left <span className="num">{readout.remainingPoints}</span>
+            </span>
+          )}
+          <span>
+            Badge Slots{" "}
+            <span className="num">
+              {capacityUnset ? readout.equipSlotsUsed : `${readout.equipSlotsUsed} / ${budget.equipSlots}`}
+            </span>
+          </span>
+          {equipSlotsOverText !== null ? (
+            <span className="ledger-over num">{equipSlotsOverText}</span>
+          ) : null}
+        </div>
       </div>
-      <Meter label={`${category} Badge Points`} value={readout.spent} max={budget.points} />
-      <div className="category-ledger__row">
-        <span>
-          Badge Slots{" "}
-          <span className="num">
-            {readout.equipSlotsUsed} / {budget.equipSlots}
-          </span>
-        </span>
-        {equipSlotsOver ? (
-          <span className="ledger-over num">
-            over by {readout.equipSlotsUsed - budget.equipSlots} ⚠
-          </span>
+      <div className="category-ledger__lede">
+        <Meter label={`${category} Badge Points`} value={readout.spent} max={budget.points} />
+        {readout.refunded > 0 ? (
+          <div className="category-ledger__row">
+            <span>
+              refunded <span className="num">{readout.refunded}</span>
+            </span>
+          </div>
+        ) : null}
+        {capacityUnset ? (
+          <p className="category-ledger__hint">Badge Slots capacity not set</p>
+        ) : null}
+        {feasibility !== undefined ? (
+          <p className="category-ledger__feasibility num">
+            {feasibilityText(readout, budget, feasibility)}
+          </p>
+        ) : null}
+        {showProjection ? (
+          <p className="category-ledger__projection num">
+            ⟳ After season reset · Badge Points {projection.spent} / {budget.points} ·{" "}
+            {projectionOver
+              ? `over by ${-projection.remainingPoints} ⚠`
+              : `left ${projection.remainingPoints}`}{" "}
+            · refunded {projection.refunded}
+          </p>
         ) : null}
       </div>
-      {feasibility !== undefined ? (
-        <p className="category-ledger__feasibility num">
-          {feasibilityText(readout, budget, feasibility)}
-        </p>
-      ) : null}
-      {showProjection ? (
-        <p className="category-ledger__projection num">
-          ⟳ After season reset · Badge Points {projection.spent} / {budget.points} ·{" "}
-          {projectionOver
-            ? `over by ${-projection.remainingPoints} ⚠`
-            : `left ${projection.remainingPoints}`}{" "}
-          · refunded {projection.refunded}
-        </p>
-      ) : null}
-    </div>
+    </>
   );
 }

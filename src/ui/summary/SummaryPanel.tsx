@@ -24,7 +24,7 @@ import { useEffect, useRef } from "react";
 import { badgeById } from "../../engine/dataset";
 import { defaultOverlay, effectiveLevel, synergyRoleFor } from "../../engine/synergy";
 import type { CategoryLedgerReadout } from "../../engine/synergy-ledger";
-import type { LoadoutValidation } from "../../engine/validate-loadout";
+import type { HardViolation, LoadoutValidation } from "../../engine/validate-loadout";
 import type {
   BadgeDataset,
   Budget,
@@ -34,9 +34,42 @@ import type {
 } from "../../engine/types";
 import type { Category, Level } from "../../engine/vocabulary";
 import { CATEGORIES, LEVELS, LEVEL_LABELS } from "../../engine/vocabulary";
+import { badgeSlotsCapacityUnset } from "../grid/CategoryLedger";
 import { Banner } from "../primitives/Banner";
 import { Button } from "../primitives/Button";
 import { Chip } from "../primitives/Chip";
+
+/** Human-readable rendering of one engine HardViolation (H4 invariant
+ * class). Copy only — the classification is entirely the engine's. Exported
+ * so the pinning test can assert every kind has a rendering. */
+export function hardViolationText(error: HardViolation, dataset: BadgeDataset): string {
+  const nameOf = (badgeId: string) => badgeById(dataset, badgeId)?.name ?? badgeId;
+  switch (error.kind) {
+    case "synergyTargetNotPurchased":
+      return (
+        `Synergy Slot ${error.synergySlotId} ${error.role === "fuse" ? "Fuse" : "Reaction"} ` +
+        `references ${nameOf(error.badgeId)}, which is not purchased.`
+      );
+    case "badgeHoldsMultipleSynergyRoles":
+      return (
+        `${nameOf(error.badgeId)} holds ${error.occurrences.length} synergy roles: ` +
+        error.occurrences
+          .map(
+            (occurrence) =>
+              `${occurrence.role === "fuse" ? "Fuse" : "Reaction"} in Synergy Slot ${occurrence.synergySlotId}`,
+          )
+          .join(", ") +
+        ". A badge holds at most one."
+      );
+    case "sameBadgeBothRolesInOneSynergySlot":
+      return `${nameOf(error.badgeId)} is both Fuse and Reaction in Synergy Slot ${error.synergySlotId}.`;
+    case "tooManyPlusTwoSynergySlots":
+      return (
+        `${error.plusTwoSynergySlotIds.length} Synergy Slots are designated +2 ` +
+        `(Synergy Slots ${error.plusTwoSynergySlotIds.join(", ")}) — at most ${error.maxAllowed} allowed.`
+      );
+  }
+}
 
 export interface SummaryPanelProps {
   loadout: readonly LoadoutEntry[];
@@ -70,8 +103,12 @@ export function SummaryPanel({
   const totalPool = CATEGORIES.reduce((sum, category) => sum + budgets[category].points, 0);
 
   // H4/NB-3: over-capacity categories that hold a synergy-role badge.
+  // 0 = unset RULING: an unset capacity (equipSlots 0) warns nowhere — the
+  // per-category ledger renders the neutral hint instead, so the summary
+  // chip is suppressed uniformly with the other three surfaces.
   const overCapacityWithSynergyRole = validation.warnings.flatMap((warning) => {
     if (warning.kind !== "equipSlotOverflow") return [];
+    if (badgeSlotsCapacityUnset(budgets[warning.category])) return [];
     const holdsRole = loadout.some(
       (entry) =>
         badgeById(dataset, entry.badgeId)?.category === warning.category &&
@@ -82,6 +119,17 @@ export function SummaryPanel({
 
   return (
     <div className="summary">
+      {validation.errors.length > 0 ? (
+        <Banner variant="danger">
+          <strong>Invalid loadout state</strong> — this can only come from an externally
+          edited or imported build:
+          <ul className="summary__errors">
+            {validation.errors.map((error, index) => (
+              <li key={index}>{hardViolationText(error, dataset)}</li>
+            ))}
+          </ul>
+        </Banner>
+      ) : null}
       {overCapacityWithSynergyRole.map((warning) => (
         <p key={warning.category} className="summary__warning">
           <Chip variant="warning">Over Badge Slots</Chip>{" "}
@@ -185,7 +233,14 @@ export function ExportImportControls({ onExport, onImportFile }: ExportImportCon
 // ---------------------------------------------------------------------------
 
 export type ImportDialogState =
-  | { kind: "confirm"; saved: SavedBuild }
+  | {
+      kind: "confirm";
+      saved: SavedBuild;
+      /** H8 drift report from the deserializer: entries stripped because
+       * their badge id left the dataset — disclosed post-confirm via the
+       * DriftBanner path. */
+      droppedEntries: LoadoutEntry[];
+    }
   | { kind: "error"; message: string };
 
 export interface ImportDialogProps {

@@ -54,14 +54,20 @@ function renderLedger(finishingBudget: Budget) {
 }
 
 describe("CategoryLedger — engine readouts rendered", () => {
-  it("renders spent / pool, left, refunded, and Badge Slots used", () => {
+  it("renders spent / pool, left, and Badge Slots used; `refunded 0` is suppressed", () => {
     renderLedger({ points: 16, equipSlots: 3 });
     expect(screen.getByRole("heading", { name: "Finishing" })).toBeTruthy();
     expect(screen.getByText("7 / 16")).toBeTruthy(); // spent / pool
     expect(screen.getByText("9")).toBeTruthy(); // left = 16 − 7 + 0
-    expect(screen.getByText("0")).toBeTruthy(); // refunded
+    // `refunded 0` is noise (design-review P2) — the token renders only when
+    // a refund exists.
+    expect(screen.queryByText(/refunded/)).toBeNull();
     expect(screen.getByText("2 / 3")).toBeTruthy(); // Badge Slots
     expect(document.querySelector(".category-ledger--over")).toBeNull();
+    // §5.3 rev 2: the sticky digest is title + one row; meter and
+    // feasibility live in the scrolling lede.
+    expect(document.querySelector(".category-ledger .category-ledger__lede")).toBeNull();
+    expect(document.querySelector(".category-ledger__lede [role='meter']")).not.toBeNull();
   });
 
   it("meter reflects spent against the pool", () => {

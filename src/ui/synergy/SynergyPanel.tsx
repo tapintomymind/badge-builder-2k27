@@ -27,6 +27,7 @@ import {
   clearSynergy,
   effectiveLevel,
   synergyRoleFor,
+  synergySlotDisabledByPreview,
 } from "../../engine/synergy";
 import type {
   BadgeDataset,
@@ -125,8 +126,8 @@ export function SynergySlotRow({
   onMagnitudeChange,
   onPick,
 }: SynergySlotRowProps) {
-  const previewDisabled =
-    overlay.seasonReset && synergySlot.permanence === "temporary" && synergySlot.unlocked;
+  // THE canonical predicate (engine): never hand-negate synergySlotActive.
+  const previewDisabled = synergySlotDisabledByPreview(synergySlot, overlay);
   const plusTwoBlocked = designatedCount >= 2 && synergySlot.magnitude !== 2;
 
   const state = { loadout, synergySlots: allSynergySlots };

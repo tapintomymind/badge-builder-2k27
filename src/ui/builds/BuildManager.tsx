@@ -20,6 +20,9 @@ export interface BuildSwitcherProps {
   currentName: string;
   /** The named build the working state came from, if any. */
   currentSourceId: string | null;
+  /** Has the working state been edited since it was loaded/saved? Drives the
+   * ghost-pair disambiguation: "… — unsaved changes" vs "… — saved". */
+  currentDirty?: boolean;
   onSelect: (id: string) => void;
   onOpenManager: () => void;
 }
@@ -28,9 +31,16 @@ export function BuildSwitcher({
   builds,
   currentName,
   currentSourceId,
+  currentDirty = false,
   onSelect,
   onOpenManager,
 }: BuildSwitcherProps) {
+  // The reload ghost pair (design-review P1-6): a boot-restored autosave has
+  // no sourceId, so a same-named saved build sits right next to it. The two
+  // labels must not be near-identical — the working entry says what it is
+  // ("unsaved changes"), the stored entries say what they are ("saved").
+  const workingLabel =
+    currentSourceId === null || currentDirty ? `${currentName} — unsaved changes` : currentName;
   return (
     <div className="build-switcher">
       <label className="sr-only" htmlFor="build-switcher-select">
@@ -44,12 +54,12 @@ export function BuildSwitcher({
           if (event.currentTarget.value !== "") onSelect(event.currentTarget.value);
         }}
       >
-        <option value="">{currentSourceId === null ? `${currentName} (unsaved)` : currentName}</option>
+        <option value="">{workingLabel}</option>
         {builds
           .filter((build) => build.id !== currentSourceId)
           .map((build) => (
             <option key={build.id} value={build.id}>
-              {build.name}
+              {build.name} — saved
             </option>
           ))}
       </select>

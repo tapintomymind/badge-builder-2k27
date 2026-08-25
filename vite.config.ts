@@ -20,6 +20,12 @@ export default defineConfig({
     // Default node environment. UI work adds a DOM environment when it needs one
     // via a per-file `// @vitest-environment jsdom` docblock (tests/ui/** convention).
     environment: "node",
+    // Without this, vitest stubs EVERY *.css import (including `?raw`) to an
+    // empty string — which silently un-pins the stylesheet lints in
+    // tests/ui/f2-source-pins.test.ts (a lint asserting against '' passes
+    // no matter what the stylesheet says). Scoped to src/styles/ so only the
+    // app's own stylesheets flow through Vite's pipeline. No runtime surface.
+    css: { include: [/\/src\/styles\//] },
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx", "src/**/*.test.ts", "src/**/*.test.tsx"],
     // Guarded DOM setup — inert under the node environment (see tests/setup-dom.ts).
     setupFiles: ["tests/setup-dom.ts"],

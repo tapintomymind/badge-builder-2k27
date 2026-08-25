@@ -19,14 +19,14 @@
  * basis type has no representation for it.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { defaultAppConfig, deriveBudget } from "./config";
 import { shippedDataset } from "./engine/dataset";
 import { levelPasses, validateBadge } from "./engine/eligibility";
 import { whatIf } from "./engine/cost";
 import {
   SAVED_BUILD_SCHEMA_VERSION,
-  deserializeSavedBuild,
+  deserializeSavedBuildWithReport,
   serializeSavedBuild,
 } from "./engine/serialization";
 import { createDefaultSynergySlots, defaultOverlay } from "./engine/synergy";
@@ -49,7 +49,7 @@ import { ATTRS, CATEGORIES, PURCHASABLE_LEVELS, levelIndex } from "./engine/voca
 import {
   listNamedBuilds,
   newBuildId,
-  readAutosave,
+  readAutosaveWithReport,
   readNamedBuild,
   renameNamedBuild,
   saveNamedBuild,
@@ -62,7 +62,13 @@ import type { Position } from "./ui/build/BuildPanel";
 import { BuildManagerDialog, BuildSwitcher } from "./ui/builds/BuildManager";
 import { BadgeCard } from "./ui/grid/BadgeCard";
 import { BadgeGridSection } from "./ui/grid/BadgeGridSection";
-import { CategoryLedger, projectionDiffers } from "./ui/grid/CategoryLedger";
+import {
+  CategoryLedger,
+  badgeSlotsCapacityUnset,
+  overByBadgePoints,
+  overByBadgeSlots,
+  projectionDiffers,
+} from "./ui/grid/CategoryLedger";
 import { EmptyResults } from "./ui/grid/EmptyResults";
 import { categoryFeasibility } from "./ui/grid/feasibility";
 import type { CategoryFeasibility } from "./ui/grid/feasibility";
@@ -162,6 +168,58 @@ function toEnvelope(working: WorkingState, savedAt: string = new Date().toISOStr
   };
 }
 
+/** First name in `base`, `base 2`, `base 3`, … not already taken. Duplicate /
+ * save-as-new / rename all route through this, so the switcher can never
+ * grow two indistinguishable same-named builds. */
+function uniqueBuildName(base: string, takenNames: ReadonlySet<string>): string {
+  if (!takenNames.has(base)) return base;
+  for (let n = 2; ; n += 1) {
+    const candidate = `${base} ${n}`;
+    if (!takenNames.has(candidate)) return candidate;
+  }
+}
+
+/** Is there anything in this working state worth guarding? Used by the
+ * switcher guard so a boot-restored autosave (sourceId is null after reload —
+ * the envelope carries no sourceId, a deferred schema change) still gets a
+ * confirm before being replaced. */
+function workingHasContent(working: WorkingState): boolean {
+  return (
+    working.loadout.length > 0 ||
+    Object.values(working.build.attributes).some((value) => value > 0) ||
+    CATEGORIES.some(
+      (category) =>
+        working.budgets[category].points > 0 || working.budgets[category].equipSlots > 0,
+    ) ||
+    working.synergy.some(
+      (synergySlot) =>
+        synergySlot.unlocked ||
+        synergySlot.fuseBadgeId !== null ||
+        synergySlot.reactionBadgeId !== null,
+    )
+  );
+}
+
+/** Removing a badge from the loadout clears any synergy role it held —
+ * otherwise the removal strands a `synergyTargetNotPurchased` HardViolation
+ * (a state the engine refuses to create) and a later re-purchase silently
+ * re-attaches a boost the user believed cleared. */
+function clearSynergyReferencesTo(
+  synergy: readonly SynergySlot[],
+  badgeId: string,
+): SynergySlot[] {
+  return synergy.map((synergySlot) =>
+    synergySlot.fuseBadgeId === badgeId || synergySlot.reactionBadgeId === badgeId
+      ? {
+          ...synergySlot,
+          fuseBadgeId: synergySlot.fuseBadgeId === badgeId ? null : synergySlot.fuseBadgeId,
+          reactionBadgeId:
+            synergySlot.reactionBadgeId === badgeId ? null : synergySlot.reactionBadgeId,
+        }
+      : synergySlot,
+  );
+}
+
 /** File download of the current build — export + the AutosaveWarning escape
  * hatch. A Blob + <a download>, no network, no storage (tech-strategy §9). */
 function downloadBuildJson(envelope: SavedBuild): void {
@@ -176,10 +234,22 @@ function downloadBuildJson(envelope: SavedBuild): void {
 }
 
 export default function App() {
-  const [working, setWorking] = useState<WorkingState>(() => {
-    const autosaved = readAutosave();
-    return autosaved === null ? freshWorkingState() : fromSaved(autosaved, null);
-  });
+  /** Boot read happens ONCE, with the H8 drift report: `droppedEntries`
+   * lists loadout entries the deserializer stripped because their badge id
+   * left the dataset — disclosed below, never a crash (F1 boot backstop). */
+  const [boot] = useState(() => readAutosaveWithReport());
+  const [working, setWorkingState] = useState<WorkingState>(() =>
+    boot === null ? freshWorkingState() : fromSaved(boot.saved, null),
+  );
+  /** Write-through mirror of `working`: updated SYNCHRONOUSLY by every
+   * mutation, so the pagehide/visibilitychange flush can persist the very
+   * last edit without waiting on a React render. */
+  const workingRef = useRef<WorkingState>(working);
+  /** Has the user edited the working build this session? Drives the switcher
+   * guard and the "— unsaved changes" label. Ref + state pair: the ref is
+   * read synchronously inside handlers, the state re-renders the label. */
+  const dirtyRef = useRef(false);
+  const [dirty, setDirty] = useState(false);
   const [autosaveFailed, setAutosaveFailed] = useState(false);
   const [autosaveDismissed, setAutosaveDismissed] = useState(false);
   const [managerOpen, setManagerOpen] = useState(false);
@@ -189,13 +259,73 @@ export default function App() {
   const [overlay, setOverlay] = useState<OverlayState>(defaultOverlay);
   const [filters, setFilters] = useState<FilterState>(defaultFilterState);
   const [importState, setImportState] = useState<ImportDialogState | null>(null);
+  /** H8 disclosure: loadout entries stripped at the deserialize boundary
+   * because their badge id no longer exists in the current dataset. */
+  const [droppedEntries, setDroppedEntries] = useState<readonly LoadoutEntry[]>(
+    boot?.droppedEntries ?? [],
+  );
+
+  /** EVERY working-state mutation flows through here (write-through ref). */
+  const applyWorking = useCallback(
+    (update: WorkingState | ((prev: WorkingState) => WorkingState)) => {
+      const next = typeof update === "function" ? update(workingRef.current) : update;
+      workingRef.current = next;
+      setWorkingState(next);
+    },
+    [],
+  );
+
+  /** A user EDIT (as opposed to a load/import/save): marks the state dirty.
+   * An updater returning `prev` unchanged is a no-op and marks nothing. */
+  const applyEdit = useCallback((update: (prev: WorkingState) => WorkingState) => {
+    const prev = workingRef.current;
+    const next = update(prev);
+    if (next === prev) return;
+    workingRef.current = next;
+    setWorkingState(next);
+    dirtyRef.current = true;
+    setDirty(true);
+  }, []);
+
+  const markClean = useCallback(() => {
+    dirtyRef.current = false;
+    setDirty(false);
+  }, []);
 
   // ---- autosave: every change writes; a throwing setItem surfaces the
-  // role="alert" banner and never crashes (tech-strategy §9). ----
+  // role="alert" banner and never crashes (tech-strategy §9). A SUCCESSFUL
+  // write re-arms the dismissed banner: dismissal is per failure epoch,
+  // never per session. ----
   useEffect(() => {
     const result = writeAutosave(toEnvelope(working));
     setAutosaveFailed(!result.ok);
+    if (result.ok) setAutosaveDismissed(false);
   }, [working]);
+
+  // ---- tail-edit flush: committing happens on field blur, so a reload or
+  // tab-hide mid-edit would lose the pending value. Blurring the active
+  // element runs the field's commit synchronously (through applyWorking's
+  // write-through ref), then the autosave writes synchronously too. ----
+  useEffect(() => {
+    const flush = () => {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && typeof active.blur === "function") {
+        active.blur();
+      }
+      writeAutosave(toEnvelope(workingRef.current));
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
 
   // ---- derived, all engine-side ----
   const budgets = deriveBudget(working.build, working.budgets, working.config.budgetStrategy);
@@ -225,68 +355,118 @@ export default function App() {
 
   // ---- purchase actions (selection logic only — gating comes from the
   // engine's levelPasses / validateBadge) ----
-  const setLevel = useCallback((badgeId: string, level: PurchasableLevel | null) => {
-    setWorking((prev) => {
-      const rest = prev.loadout.filter((entry) => entry.badgeId !== badgeId);
-      return {
-        ...prev,
-        loadout: level === null ? rest : [...rest, { badgeId, purchasedLevel: level }],
-      };
-    });
-  }, []);
+  const setLevel = useCallback(
+    (badgeId: string, level: PurchasableLevel | null) => {
+      applyEdit((prev) => {
+        const rest = prev.loadout.filter((entry) => entry.badgeId !== badgeId);
+        if (level === null) {
+          // Removal also clears any synergy role the badge held — never
+          // strand a synergyTargetNotPurchased HardViolation.
+          return {
+            ...prev,
+            loadout: rest,
+            synergy: clearSynergyReferencesTo(prev.synergy, badgeId),
+          };
+        }
+        return { ...prev, loadout: [...rest, { badgeId, purchasedLevel: level }] };
+      });
+    },
+    [applyEdit],
+  );
 
-  const cycleBadge = useCallback((badgeId: string) => {
-    setWorking((prev) => {
-      const badge = shippedDataset.badges.find((candidate) => candidate.id === badgeId);
-      if (badge === undefined) return prev;
-      const eligibility = validateBadge(badge, prev.build);
-      if (!eligibility.allowed) return prev;
-      const purchasable = PURCHASABLE_LEVELS.filter((level) =>
-        levelPasses(badge.requirements, prev.build, level),
-      );
-      if (purchasable.length === 0) return prev;
-      const sequence: (PurchasableLevel | null)[] = [null, ...purchasable];
-      const current = prev.loadout.find((entry) => entry.badgeId === badgeId)?.purchasedLevel ?? null;
-      const nextIndex = (sequence.indexOf(current) + 1) % sequence.length;
-      const next = sequence[nextIndex] ?? null;
-      const rest = prev.loadout.filter((entry) => entry.badgeId !== badgeId);
-      return {
-        ...prev,
-        loadout: next === null ? rest : [...rest, { badgeId, purchasedLevel: next }],
-      };
-    });
-  }, []);
+  const cycleBadge = useCallback(
+    (badgeId: string) => {
+      applyEdit((prev) => {
+        const badge = shippedDataset.badges.find((candidate) => candidate.id === badgeId);
+        if (badge === undefined) return prev;
+        const eligibility = validateBadge(badge, prev.build);
+        if (!eligibility.allowed) return prev;
+        const purchasable = PURCHASABLE_LEVELS.filter((level) =>
+          levelPasses(badge.requirements, prev.build, level),
+        );
+        if (purchasable.length === 0) return prev;
+        const current =
+          prev.loadout.find((entry) => entry.badgeId === badgeId)?.purchasedLevel ?? null;
+        // A STALE purchase (purchased level no longer passes) is never in the
+        // cycle sequence — a card-body tap must not remove it. Destructive
+        // transitions on stale purchases require the pip control (Escape).
+        if (current !== null && !purchasable.includes(current)) return prev;
+        const sequence: (PurchasableLevel | null)[] = [null, ...purchasable];
+        const nextIndex = (sequence.indexOf(current) + 1) % sequence.length;
+        const next = sequence[nextIndex] ?? null;
+        const rest = prev.loadout.filter((entry) => entry.badgeId !== badgeId);
+        if (next === null) {
+          return {
+            ...prev,
+            loadout: rest,
+            synergy: clearSynergyReferencesTo(prev.synergy, badgeId),
+          };
+        }
+        return { ...prev, loadout: [...rest, { badgeId, purchasedLevel: next }] };
+      });
+    },
+    [applyEdit],
+  );
 
   // ---- synergy (M4): all invariant checks live in the engine ----
-  const setSynergySlots = useCallback((synergySlots: SynergySlot[]) => {
-    setWorking((prev) => ({ ...prev, synergy: synergySlots }));
-  }, []);
+  const setSynergySlots = useCallback(
+    (synergySlots: SynergySlot[]) => {
+      applyEdit((prev) => ({ ...prev, synergy: synergySlots }));
+    },
+    [applyEdit],
+  );
 
   // ---- named builds ----
   const refreshNamedBuilds = useCallback(() => {
     setNamedBuilds(listNamedBuilds());
   }, []);
 
-  const loadBuild = useCallback((id: string) => {
-    const saved = readNamedBuild(id);
-    if (saved !== null) {
-      setWorking(fromSaved(saved, id));
+  /** Names already in use (for the collision auto-suffix). */
+  const takenNames = useCallback(
+    (excludeId?: string) =>
+      new Set(namedBuilds.filter((build) => build.id !== excludeId).map((build) => build.name)),
+    [namedBuilds],
+  );
+
+  const loadBuild = useCallback(
+    (id: string) => {
+      const saved = readNamedBuild(id);
+      if (saved === null) return;
+      // Switcher guard: replacing a dirty working build — or a boot-restored
+      // autosave that never got a sourceId — destroys the only copy (the
+      // autosave is overwritten on the next commit). Confirm first; the
+      // passive default stays the user's work.
+      const current = workingRef.current;
+      const guarded =
+        dirtyRef.current || (current.sourceId === null && workingHasContent(current));
+      if (guarded) {
+        const proceed = window.confirm(
+          `Replace the working build "${current.name}" with "${saved.name}"? ` +
+            "Unsaved changes will be lost.",
+        );
+        if (!proceed) return;
+      }
+      applyWorking(fromSaved(saved, id));
+      markClean();
       setManagerOpen(false);
-    }
-  }, []);
+    },
+    [applyWorking, markClean],
+  );
 
   const saveAsNew = useCallback(
     (name: string) => {
       const id = newBuildId();
-      const result = saveNamedBuild(id, toEnvelope({ ...working, name }));
+      const finalName = uniqueBuildName(name, takenNames());
+      const result = saveNamedBuild(id, toEnvelope({ ...workingRef.current, name: finalName }));
       if (result.ok) {
-        setWorking((prev) => ({ ...prev, name, sourceId: id }));
+        applyWorking((prev) => ({ ...prev, name: finalName, sourceId: id }));
+        markClean();
       } else {
         setAutosaveFailed(true);
       }
       refreshNamedBuilds();
     },
-    [working, refreshNamedBuilds],
+    [applyWorking, markClean, refreshNamedBuilds, takenNames],
   );
 
   const duplicateBuild = useCallback(
@@ -296,48 +476,62 @@ export default function App() {
       const copyId = newBuildId();
       const result = saveNamedBuild(copyId, {
         ...saved,
-        name: `${saved.name} copy`,
+        name: uniqueBuildName(`${saved.name} copy`, takenNames()),
         savedAt: new Date().toISOString(),
       });
       if (!result.ok) setAutosaveFailed(true);
       refreshNamedBuilds();
     },
-    [refreshNamedBuilds],
+    [refreshNamedBuilds, takenNames],
   );
 
   const removeBuild = useCallback(
     (id: string) => {
-      deleteNamedBuild(id);
-      if (working.sourceId === id) {
-        setWorking((prev) => ({ ...prev, sourceId: null }));
+      // PersistResult surfaced (every-write-surfaced mandate): a failed
+      // delete keeps the entry and raises the banner instead of lying.
+      const result = deleteNamedBuild(id);
+      if (!result.ok) {
+        setAutosaveFailed(true);
+      } else if (workingRef.current.sourceId === id) {
+        applyWorking((prev) => ({ ...prev, sourceId: null }));
       }
       refreshNamedBuilds();
     },
-    [working.sourceId, refreshNamedBuilds],
+    [applyWorking, refreshNamedBuilds],
   );
 
   const renameBuild = useCallback(
     (id: string, name: string) => {
-      renameNamedBuild(id, name);
-      if (working.sourceId === id) {
-        setWorking((prev) => ({ ...prev, name }));
+      const finalName = uniqueBuildName(name, takenNames(id));
+      const result = renameNamedBuild(id, finalName);
+      if (!result.ok) {
+        // No optimistic header rename over a failed write.
+        setAutosaveFailed(true);
+      } else if (workingRef.current.sourceId === id) {
+        applyWorking((prev) => ({ ...prev, name: finalName }));
       }
       refreshNamedBuilds();
     },
-    [working.sourceId, refreshNamedBuilds],
+    [applyWorking, refreshNamedBuilds, takenNames],
   );
 
   const exportNow = useCallback(() => {
-    downloadBuildJson(toEnvelope(working));
-  }, [working]);
+    downloadBuildJson(toEnvelope(workingRef.current));
+  }, []);
 
-  // ---- import (M4): file → engine deserializer → confirm dialog ----
+  // ---- import (M4): file → engine deserializer → confirm dialog. The
+  // deserializer's H8 drift report rides along so the disclosure banner can
+  // name what was stripped. ----
   const importFile = useCallback((file: File) => {
     void file.text().then(
       (text) => {
         try {
-          const saved = deserializeSavedBuild(text);
-          setImportState({ kind: "confirm", saved });
+          const report = deserializeSavedBuildWithReport(text);
+          setImportState({
+            kind: "confirm",
+            saved: report.saved,
+            droppedEntries: report.droppedEntries,
+          });
         } catch (error) {
           setImportState({
             kind: "error",
@@ -351,10 +545,19 @@ export default function App() {
     );
   }, []);
 
-  const confirmImport = useCallback((saved: SavedBuild) => {
-    setWorking(fromSaved(saved, null));
-    setImportState(null);
-  }, []);
+  const confirmImport = useCallback(
+    (saved: SavedBuild) => {
+      applyWorking(fromSaved(saved, null));
+      // An import is unsaved-as-named work: guard it like any other edit.
+      dirtyRef.current = true;
+      setDirty(true);
+      setDroppedEntries(
+        importState?.kind === "confirm" ? importState.droppedEntries : [],
+      );
+      setImportState(null);
+    },
+    [applyWorking, importState],
+  );
 
   // ---- render-time readouts ----
   // PRIMARY ledger: ALWAYS the "current" basis (H2). Never overlay-derived.
@@ -477,6 +680,7 @@ export default function App() {
           builds={namedBuilds}
           currentName={working.name}
           currentSourceId={working.sourceId}
+          currentDirty={dirty}
           onSelect={loadBuild}
           onOpenManager={() => {
             setManagerOpen(true);
@@ -491,7 +695,11 @@ export default function App() {
       />
 
       <div className="app-banners">
-        <DriftBanner saved={toEnvelope(working)} currentDataset={shippedDataset} />
+        <DriftBanner
+          saved={toEnvelope(working)}
+          currentDataset={shippedDataset}
+          droppedEntries={droppedEntries}
+        />
         {autosaveFailed && !autosaveDismissed ? (
           <AutosaveWarning
             onExport={exportNow}
@@ -509,28 +717,46 @@ export default function App() {
             budgets={budgets}
             heightRange={HEIGHT_RANGE}
             onHeightCommit={(heightInches) => {
-              setWorking((prev) => ({ ...prev, build: { ...prev.build, heightInches } }));
+              // Fields commit on EVERY blur — a no-change commit is a no-op
+              // (returning prev), so tabbing through never marks dirty.
+              applyEdit((prev) =>
+                prev.build.heightInches === heightInches
+                  ? prev
+                  : { ...prev, build: { ...prev.build, heightInches } },
+              );
             }}
             onPositionChange={(position: Position) => {
-              setWorking((prev) => ({ ...prev, build: { ...prev.build, position } }));
+              applyEdit((prev) =>
+                prev.build.position === position
+                  ? prev
+                  : { ...prev, build: { ...prev.build, position } },
+              );
             }}
             onAttributeCommit={(attr: Attr, value: number) => {
-              setWorking((prev) => ({
-                ...prev,
-                build: {
-                  ...prev.build,
-                  attributes: { ...prev.build.attributes, [attr]: value },
-                },
-              }));
+              applyEdit((prev) =>
+                prev.build.attributes[attr] === value
+                  ? prev
+                  : {
+                      ...prev,
+                      build: {
+                        ...prev.build,
+                        attributes: { ...prev.build.attributes, [attr]: value },
+                      },
+                    },
+              );
             }}
             onBudgetCommit={(category, field, value) => {
-              setWorking((prev) => ({
-                ...prev,
-                budgets: {
-                  ...prev.budgets,
-                  [category]: { ...prev.budgets[category], [field]: value },
-                },
-              }));
+              applyEdit((prev) =>
+                prev.budgets[category][field] === value
+                  ? prev
+                  : {
+                      ...prev,
+                      budgets: {
+                        ...prev.budgets,
+                        [category]: { ...prev.budgets[category], [field]: value },
+                      },
+                    },
+              );
             }}
           />
         </aside>
@@ -590,11 +816,11 @@ export default function App() {
                             dataset={shippedDataset}
                             remainingPoints={readout.remainingPoints}
                             overBadgeSlotsIfBought={
-                              // Warn only against an ENTERED capacity (0 = unset
-                              // — warning about exceeding an unset budget is
-                              // noise, not disclosure).
+                              // 0 = unset RULING (uniform across all four
+                              // surfaces): warn only against an ENTERED
+                              // capacity — see badgeSlotsCapacityUnset.
                               !purchased &&
-                              budget.equipSlots > 0 &&
+                              !badgeSlotsCapacityUnset(budget) &&
                               readout.equipSlotsUsed >= budget.equipSlots
                             }
                             onSetLevel={setLevel}
@@ -617,14 +843,38 @@ export default function App() {
                 {CATEGORIES.map((category) => {
                   const readout = readouts[category];
                   const budget = budgets[category];
-                  const over =
-                    readout.remainingPoints < 0 || readout.equipSlotsUsed > budget.equipSlots;
+                  // PER-METRIC status via the in-grid ledger's OWN string
+                  // builders (design-review P0-1): danger + "over by N ⚠"
+                  // land ONLY on the metric that is genuinely over — never
+                  // color alone, never a red in-budget number.
+                  const pointsOverText = overByBadgePoints(readout);
+                  const equipSlotsOverText = overByBadgeSlots(readout, budget);
+                  const capacityUnset = badgeSlotsCapacityUnset(budget);
                   return (
                     <div key={category} className="ledger-overview__row">
                       <span>{category}</span>
-                      <span className={`num${over ? " ledger-over" : ""}`}>
-                        {readout.spent}/{budget.points} · {readout.equipSlotsUsed}/
-                        {budget.equipSlots}
+                      <span className="num ledger-overview__metrics">
+                        <span
+                          className={
+                            pointsOverText !== null
+                              ? "ledger-over ledger-overview__points"
+                              : "ledger-overview__points"
+                          }
+                        >
+                          {readout.spent}/{budget.points}
+                          {pointsOverText !== null ? ` ${pointsOverText}` : ""}
+                        </span>
+                        {" · "}
+                        <span
+                          className={
+                            equipSlotsOverText !== null
+                              ? "ledger-over ledger-overview__capacity"
+                              : "ledger-overview__capacity"
+                          }
+                        >
+                          {readout.equipSlotsUsed}/{capacityUnset ? "—" : budget.equipSlots}
+                          {equipSlotsOverText !== null ? ` ${equipSlotsOverText}` : ""}
+                        </span>
                       </span>
                     </div>
                   );

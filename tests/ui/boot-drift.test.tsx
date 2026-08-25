@@ -62,8 +62,17 @@ describe("boot with a drifted autosave (H8): strip + report, never crash-loop", 
     expect(screen.getByRole("heading", { name: "Badge Builder — 2K27" })).toBeTruthy();
     // The surviving purchase still renders at its planned level.
     expect(screen.getByText("Now Gold")).toBeTruthy();
-    // The vanished id is fully gone from the rendered plan.
-    expect(document.body.textContent).not.toContain("vanished-badge");
+    // The vanished id is gone from the PLAN (no card, no synergy reference)…
+    for (const card of document.querySelectorAll(".badge-card")) {
+      expect(card.textContent).not.toContain("vanished-badge");
+    }
+    // …but the strip is DISCLOSED, never silent (F2 wiring of F1's
+    // droppedEntries report into the DriftBanner path).
+    expect(
+      screen.getByText(
+        "1 badge from this build no longer exists in the dataset: vanished-badge — removed from the plan.",
+      ),
+    ).toBeTruthy();
     // The H8 drift banner (dataVersion mismatch) renders, non-blocking.
     expect(screen.getByText(/Planned against dataset/)).toBeTruthy();
   });

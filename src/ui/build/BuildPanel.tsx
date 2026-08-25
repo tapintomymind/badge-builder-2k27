@@ -8,14 +8,23 @@
  * ledger number moves. That silence is intentional (seed: position is
  * display metadata only; it gates nothing).
  *
- * On mobile (<768px) the whole panel collapses into one <details> whose
- * summary carries a live digest (§5.3).
+ * Below the L breakpoint (<1280px — §5.2 rev 2: BOTH rails dissolve at M,
+ * so M and S share one structure) the whole panel collapses into one
+ * <details> whose summary carries a live digest (§5.3).
+ *
+ * AUTO-COLLAPSE (§5.3, design-review P0-2) — a LATCH, not a computation:
+ * default-open at zero state; collapses automatically EXACTLY ONCE the
+ * first time the build has non-zero values (evaluated on commit — fields
+ * commit on blur, so this never fires mid-keystroke — or on the next
+ * mount); the user's open/closed choice is persisted thereafter and never
+ * overridden again.
  */
 
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 import type { Budget, Build } from "../../engine/types";
 import type { Attr, Category } from "../../engine/vocabulary";
 import { CATEGORIES, formatHeightInches } from "../../engine/vocabulary";
+import { readUiSectionOpen, writeUiSectionOpen } from "../../persist/local-storage";
 import { Chip } from "../primitives/Chip";
 import { HeightField } from "../primitives/HeightField";
 import { Hint } from "../primitives/Hint";
@@ -24,6 +33,10 @@ import { SegmentedControl } from "../primitives/SegmentedControl";
 import { useMediaQuery } from "../useMediaQuery";
 import { AttributeGrid } from "./AttributeGrid";
 import { BudgetGrid } from "./BudgetGrid";
+
+/** Section open/closed preference key + the one-shot auto-collapse latch. */
+const BUILD_PANEL_SECTION_KEY = "section-build-panel";
+const BUILD_PANEL_AUTO_COLLAPSED_KEY = "section-build-panel.auto-collapsed";
 
 const POSITIONS = ["PG", "SG", "SF", "PF", "C"] as const;
 export type Position = (typeof POSITIONS)[number];
@@ -75,13 +88,34 @@ export function PhysiqueSection({
 
 export function BuildPanel(props: BuildPanelProps) {
   const { build, budgets, onAttributeCommit, onBudgetCommit } = props;
-  const isMobile = useMediaQuery("(max-width: 767px)");
+  // <1280: both rails dissolve (§5.2 rev 2) — the panel is a full-width
+  // collapsible <details> at M AND S, with the same auto-collapse rule.
+  const isCompact = useMediaQuery("(max-width: 1279px)");
+  const [autoCollapsed, setAutoCollapsed] = useState<boolean>(
+    () => readUiSectionOpen(BUILD_PANEL_AUTO_COLLAPSED_KEY) === true,
+  );
 
   const totalPoints = CATEGORIES.reduce((sum, category) => sum + budgets[category].points, 0);
   const totalEquipSlots = CATEGORIES.reduce(
     (sum, category) => sum + budgets[category].equipSlots,
     0,
   );
+
+  const hasValues =
+    totalPoints > 0 ||
+    totalEquipSlots > 0 ||
+    Object.values(build.attributes).some((value) => value > 0);
+
+  // The one-shot latch (§5.3): first zero → non-zero transition (or first
+  // mount with values) writes open=false ONCE and latches. `hasValues` only
+  // moves on commit (fields commit on blur), so this never fires
+  // mid-keystroke. Once latched, the user's own toggle is never overridden.
+  useEffect(() => {
+    if (!isCompact || !hasValues || autoCollapsed) return;
+    writeUiSectionOpen(BUILD_PANEL_SECTION_KEY, false);
+    writeUiSectionOpen(BUILD_PANEL_AUTO_COLLAPSED_KEY, true);
+    setAutoCollapsed(true);
+  }, [isCompact, hasValues, autoCollapsed]);
 
   const sections = (
     <div className="build-panel">
@@ -95,7 +129,7 @@ export function BuildPanel(props: BuildPanelProps) {
     </div>
   );
 
-  if (!isMobile) return sections;
+  if (!isCompact) return sections;
 
   const digest = [
     formatHeightInches(build.heightInches),
@@ -104,15 +138,14 @@ export function BuildPanel(props: BuildPanelProps) {
     `${totalEquipSlots} Badge Slots`,
   ].join(" · ");
 
-  const hasValues =
-    totalPoints > 0 ||
-    totalEquipSlots > 0 ||
-    Object.values(build.attributes).some((value) => value > 0);
-
   return (
     <Section
+      // Remount on the latch flip so the Section re-reads the stored
+      // open=false and actually closes; afterwards the stored preference
+      // rules and this key never changes again.
+      key={autoCollapsed ? "build-panel-latched" : "build-panel-initial"}
       title="Build"
-      storageKey="section-build-panel"
+      storageKey={BUILD_PANEL_SECTION_KEY}
       defaultOpen={!hasValues}
       digest={<span className="num">{digest}</span>}
     >
