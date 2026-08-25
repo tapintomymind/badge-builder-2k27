@@ -1105,3 +1105,142 @@ region (judgment call 4); design-spec §3.4's Build-panel-digest stale count (`�
 was NOT implemented — it is not in the F3 brief's deliverables and reads as F4/BadgeCard-
 adjacent scope.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-26 — F5 complete: 2K-inspired dark + metallic visual identity (with F5.0 geometry re-cut), 623 tests green
+Type: slice-complete
+Actor: Tier-2 implementer (constrained mode, Tier-1 dispatched) / Claude Fable 5
+Slice: F5 (two commits: F5.0 geometry + F5 restyle)
+
+WHAT
+Two deliberately separate commits, per the mid-slice orchestrator ruling adopting
+design-spec rev 5 §11.6 ("geometry is an INPUT to the restyle; a whole-file restyle
+makes a later bisect unable to separate geometry from paint"):
+
+F5.0 `3a12f64` fix — §11 rev-5 L geometry re-cut (the user's left-rail scrollbar):
+- L columns 248/192 → `280px minmax(0,1fr) 176px`; page padding, column gap, card
+  gap untouched (density preference protected); 3-up at 1280 survives (+7px at the
+  worst-case 17px scrollbar, §11.3).
+- Slider arrangement threshold 223 → 287px, DERIVED from what it protects
+  (224 usable track + 8 gap + 56 numeric — invariant I9). Shipping the rail widening
+  alone would have HALVED the L track 214→182px; 768/390 arrangements bit-identical.
+- Position SegmentedControl becomes an auto-fit grid (2 rows of 3) scoped
+  `.rail-left` at L only — tier filter and +1/+2 magnitude segments stay inline.
+- `.ledger-overview__row` wraps with right-anchored metrics (degrade by wrapping,
+  never by scrolling). No overflow-x masking anywhere — ruled out by §11.1.
+- Deleted the duplicate right-rail `ExportImportControls` (App.tsx) — the ratified
+  rev-2 §3.6 clause that never shipped; header pair is the only one.
+- NEW `tests/layout-arithmetic.test.ts` parses the shipped CSS and re-derives
+  I3/I4/I8/I9 (12 assertions; 4 failed pre-change). The f2-source-pins rail pin
+  moved to the rev-5 literals — the one expected casualty, per §11.5 ⑥ verbatim.
+
+F5 `ad4d382` feat — §2.7 token layer + §10 restyle, PRESENTATION ONLY:
+- tokens.css: additive §2.7 metallic layer. `--metal-*` base tones are ALIASES of
+  `--lvl-*` (structural guarantee a metal never drifts from its level colour);
+  new `-hi`/`-lo` stops; `--metal-face-*` hi→base gradients ONLY (§2.7.2: `-lo`
+  never under a glyph); static glows/bevels/`--rule-gold`; `--fg-on-accent`
+  materialized (aliases `--bg-canvas`). ZERO existing token values changed.
+- §10.1 pip ladder: locked pips keep metal identity (letter restored via CSS
+  content keyed to data-level + demoted lock glyph, bevel-inset well, `-lo` rim);
+  affordable wells rimmed base, unaffordable dashed; owned/current take the
+  struck-metal face + bevel + `--fg-on-accent` glyph; current keeps its ring.
+- §10.4 stale = TARNISH: flat `-lo`, no gradient, no highlight, `--fg-primary`
+  letter + retained ring; cost line reads `⚠ stale` (CSS ::after on the
+  aria-hidden cost span). The rev-3 warning-hatch (amber-on-amber with gold) is
+  gone by derivation, not by promise.
+- §10.2 medallions: debossed achromatic wells, rank by size/rim weight (A 24px
+  2px --fg-primary · B 22px · C 20px), letter --text-xs at all sizes.
+- §10.3 cards: 16px names; purchased lift + 2px metal top edge keyed to
+  data-purchased-level; blocked cards keep rev 2's de-opacified recipe exactly;
+  eligibility lines prefixed 🔒/⊘ with empty alternative text.
+- §10.5 chrome: gold=identity (title, rule-gold hairlines under header/section
+  headers/atop the sticky digest, gold-faced primary Button 9.72:1 — D2's
+  dark-on-fill substance preserved and improved from 5.81:1), blue=interaction
+  (focus/filters unchanged), semantics=state (danger/warning/info untouched;
+  ledger numerals untouched per §2.7.4's forbidden list); Synergy Slot permanence
+  rims (gold-lo Permanent / silver-lo Temporary — decorative, chips remain the
+  carriers); inset ledger-overview well; +2 designator banner gains its well.
+- §10.6: `forced-colors: active` companion block shipped (required deliverable) —
+  faces reset to Canvas/CanvasText, 1px CanvasText rims, current/stale keep a
+  heavier rim; `prefers-contrast: more` collapses faces to flat base tones.
+  Asset budget spent: ZERO new SVG, zero images; deps stay {react, react-dom}.
+- data-* hooks (orchestrator-ratified §10.7 ruling): data-level + data-state on
+  pips, data-purchased-level / data-tier / data-stale on the card root,
+  data-permanence on Synergy Slot rows. Zero logic — every value is a field the
+  component already rendered, and every one is overlay-INVARIANT.
+
+EVIDENCE
+Commits 3a12f64 + ad4d382 on `dev`, pushed (`main` untouched). npm test: 40 files /
+623 tests ALL PASS (pre-slice baseline 39/610; +12 layout-arithmetic, +1 contrast
+pairing). npm run build: tsc --noEmit clean + vite build clean. H2 ship gates run
+EXPLICITLY post-restyle: tests/ui/overlays.test.tsx 4/4 green (ledger DOM
+bit-identity under all 4 overlay combos). Pre-change failure proofs: the layout
+test failed 4/12 against the pre-F5.0 tree; the contrast pairing assertion failed
+against pre-F5 tokens.css ("token not declared: --fg-on-accent"). Contrast:
+docs/proof/f5-contrast.txt — 18 WCAG 2.1 ratios, bronze-calibrated (I1), worst
+pairing 5.64:1 vs AA 4.5:1. Screenshots (headless Chrome/CDP, seeded rig with
+owned/current/locked/unaffordable/stale pips, fuse→Legend, over-budget ledger):
+docs/proof/f5-before-{1280,390}.png · f5-after-{1280,390}.png ·
+f5-after-1280-header.png. Full gate log: docs/proof/f5-verification.txt.
+
+CONSTRAINED-MODE REPORTBACK
+changed_files (F5.0):
+  src/styles/app.css · src/App.tsx (one deletion + tombstone comment) ·
+  tests/layout-arithmetic.test.ts (NEW) · tests/ui/f2-source-pins.test.ts —
+  all four within the §11.8 allowlist as amended by the orchestrator mid-slice.
+changed_files (F5):
+  src/styles/tokens.css (§2.7 additive only) · src/styles/app.css (ONE appended
+  delimited block, zero deletions) · src/ui/grid/BadgeCard.tsx +
+  src/ui/synergy/SynergyPanel.tsx (data attributes only) ·
+  tests/ui/f2-source-pins.test.ts (the ONE allowed pairing assertion) ·
+  docs/proof/f5-*.{png,txt} — all within the F5 allowlist.
+denied_paths_checked:
+  No engine/data/config/persist/scripts file touched; package*.json, tsconfig,
+  *.config.*, .env* untouched; no test outside the two named files touched;
+  `git status --porcelain` empty after each commit. Tree verified CLEAN before
+  the slice started (concurrency rule) — and the mid-slice F5.0 ruling was
+  absorbed by stashing the restyle WIP, landing geometry first, then re-applying
+  paint on top (one writer, no interleave).
+stop_conditions_triggered: none — no new dependency, no existing token value
+  changed, no new conditional/handler/state in any .tsx, no styling keyed to
+  overlay state (the legend pip's overlay-derived state stays on its
+  PRE-EXISTING class; the new data-level attribute is static).
+
+SCOPE / PLAN IMPACT
+None to scope.md / H-rulings. Judgment calls inside Tier-2 latitude, recorded:
+(1) §10.5's two-tone title ("Badge Builder" gold, "— 2K27" muted) needs a static
+    span wrapper inside the h1 — MARKUP, which the "className + data-attribute
+    changes ONLY" allowlist excludes. Shipped the whole title in --metal-gold
+    (9.72:1; the load-bearing half of the clause). The split is a one-line F4/
+    follow-up markup change if wanted — flagging now per the M4 lesson, not at
+    self-check.
+(2) §10.3's "the level word takes its flat --lvl-{x}" on the status line: the
+    status is a single text node and the level word is often the EFFECTIVE level
+    ("Fused to Legend"), so per-word colour needs markup and whole-line colour
+    keyed to purchasedLevel would paint the wrong word. Shipped weight 600 only;
+    per-word tint routes to a slice that may touch markup.
+(3) §10.1's Legend-pip glyph column says "—" but §2.7.4 carrier 2 says every
+    level pip keeps its letter and §6 forbids colour-alone: kept the existing L
+    letter (spec-internal contradiction resolved toward the a11y rule).
+(4) F4 has NOT shipped: no description element exists, so §10.3's clamp/
+    description rows have no target. No dead CSS authored for it; F4 should
+    bring `.badge-card__description` styling with its own slice (noted so the
+    F4 brief carries it).
+(5) The locked-pip letter is CSS ::before content keyed to data-level (aria-
+    hidden decorative span; accessible names unchanged). Changing the TSX glyph
+    text would have been a content edit outside the allowlist.
+(6) `--shadow-none` token (collaborative session edit, kept): declared for
+    shared box-shadow list composition; currently unconsumed.
+Concurrency note: the F5.0 ruling arrived mid-restyle; sequence honored via
+stash → F5.0 commit → pop → restyle commit. One stash-pop conflict in app.css
+(both edited the file tail) resolved keeping both blocks, geometry first.
+
+NEXT
+F4 (descriptions) rebases on this tip and should carry: the description reveal
+control (§10.8 #1, routed to F4), `.badge-card__description` presentation
+(§10.3 row), and optionally the h1 two-tone split (judgment call 1). Rev-5's
+named trigger stands: if any later addition pushes the right rail's min-content
+above 142px or the left's above 246px, the answer is the §11.8 IA re-cut, not
+another shave — tests/layout-arithmetic.test.ts will say so. M5 stays
+data-blocked. User's live acceptance pass on the restyled UI is the real DoD.
+─────────────────────────────────────────────
