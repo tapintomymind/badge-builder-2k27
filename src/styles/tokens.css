@@ -157,10 +157,10 @@
    * deuteranope, and is not asked to be. */
   --cat-finishing: #3d93e9;
   --cat-shooting: #1caf61;
-  --cat-playmaking: #c9ab19;
+  --cat-playmaking: #f58236;
   --cat-defense: #ef5a64;
   --cat-rebounding: #e467bb;
-  --cat-physicals: #a582ec;
+  --cat-physicals: #beb448;
 
   /* The fallback when no category is in scope — today's single-accent
    * behaviour, so an un-keyed surface degrades to what F3 shipped. */

@@ -1,5 +1,13 @@
 F7 — category identity colour layer (§2.8) — contrast + separation evidence
-Date: 2026-08-25 (session) · branch dev
+Date: 2026-08-25 (session) · branch dev · REGENERATED for design-spec §12.12
+
+== What changed and why (design-spec §12.12) ==
+Two user-directed hue substitutions, on the authority of the user's own NBA 2K
+HQ build-sheet screenshot: Physicals takes GOLD, so Playmaking vacates gold and
+returns to the screenshot's ORANGE. Nothing else in the layer moves — not the
+channel rule, not the selectors, not the four consuming surfaces.
+  Playmaking  #c9ab19 (gold)   ->  #f58236 (orange)
+  Physicals   #a582ec (violet) ->  #beb448 (gold/brass)
 
 == Method ==
 WCAG 2.1 relative luminance; CIE76 ΔE in Lab; CVD via the Viénot (1999) LMS
@@ -8,32 +16,77 @@ shortcut. Calibrated the way docs/proof/f5-contrast.txt was: the published
 any new value was derived. tests/category-colors.test.ts recomputes the
 contrast column from the shipped hex, so this file cannot drift from source.
 
+== Method calibration (invariant I1) — reproduced BEFORE any substitution ==
+  --lvl-bronze    vs --bg-canvas   6.65   (spec 6.65)
+  --danger        vs --bg-canvas   5.65   (spec 5.6458)
+  --warning       vs --bg-canvas   7.50   (spec 7.50)
+  --border-strong vs --bg-surface  3.77   (spec 3.77)
+None of these four moves under the substitution. If one does, the substitution
+touched a token it must not (§10.8 item 6).
+
 == Provenance (what is 2K's, what is ours) ==
   finishing   blue    user-stated anchor + 2K convention
   shooting    green   2K convention
-  playmaking  gold    2K convention (2K's yellow)
+  playmaking  orange  the user's 2K HQ screenshot (§12.1 observed mapping)
   defense     red     user-stated anchor + 2K convention
   rebounding  magenta NO 2K PRECEDENT — 2K files Rebounding under Defense's
                       red; this dataset splits them, so the hue is ours
-  physicals   violet  NO 2K PRECEDENT — Physicals is not a 2K badge
-                      category; the hue is entirely ours
+  physicals   gold    the user's 2K HQ screenshot, which colour-codes
+                      Physicals gold/tan. Physicals is not a 2K BADGE
+                      category; the hue follows the screenshot, not 2K data.
 Requested as "match as closely as possible". Nothing here is presented as
 published 2K27 data, per the standing rule in tokens.css §2.
 
-== Contrast and separation ==
-name        hex      canvas   inset   nearest state      nearest level
-  Finishing   #3d93e9  5.90    6.40    --info    ΔE  7    --lvl-hof    ΔE 45
-  Shooting    #1caf61  6.63    7.19    --success ΔE 14    --lvl-silver ΔE 67
-  Playmaking  #c9ab19  8.40    9.12    --warning ΔE 15    --lvl-gold   ΔE 12
-  Defense     #ef5a64  5.69    6.18    --danger  ΔE 16    --lvl-legend ΔE 38
-  Rebounding  #e467bb  6.27    6.80    --accent  ΔE 59    --lvl-legend ΔE 11
-  Physicals   #a582ec  6.31    6.85    --accent  ΔE 25    --lvl-hof    ΔE 17
+== Contrast — every background the identity layer is painted on ==
+surface / raised / danger-quiet are NEW columns. §2.8.1 puts a category hue on
+TYPE (the digest title), so --bg-surface is a shipped text pairing and
+--danger-quiet is the digest fill at overspend. A canvas-only proof file does
+not cover either. All thirty pairings are listed so none is taken on trust.
 
-  contrast spread: 5.69 – 8.40 (tight spread = no category shouts louder than another)
-  mutual worst: Finishing vs Physicals ΔE 32.9
-  protan  Finishing vs Physicals     ΔE 5.0
-  deutan  Shooting vs Defense        ΔE 6.4
-  tritan  Playmaking vs Defense      ΔE 1.4
+name        hex      canvas  surface  raised  inset   danger-quiet   nearest state      nearest level
+  Finishing  #3d93e9  5.90    5.39     5.05    6.40    4.97           --info    ΔE 7     --lvl-hof    ΔE 45
+  Shooting   #1caf61  6.63    6.06     5.67    7.19    5.58           --success ΔE 14    --lvl-silver ΔE 67
+  Playmaking #f58236  7.33    6.70     6.26    7.95    6.17           --warning ΔE 28    --lvl-bronze ΔE 24
+  Defense    #ef5a64  5.69    5.20     4.87    6.18    4.79           --danger  ΔE 16    --lvl-legend ΔE 38
+  Rebounding #e467bb  6.27    5.73     5.36    6.80    5.28           --accent  ΔE 59    --lvl-legend ΔE 11
+  Physicals  #beb448  8.84    8.08     7.56    9.59    7.44           --warning ΔE 24    --lvl-gold   ΔE 18
+
+  contrast spread: 5.69 – 8.84 on --bg-canvas (tight spread = no category shouts louder than another)
+  AA text bar 4.5:1 — all 30 pairings above clear it.
+  worst on --bg-surface:    Defense 5.20
+  worst on --danger-quiet:  Defense 4.79   <- worst text pairing anywhere in the layer
+
+== Mutual separation (CIE76 ΔE), all 15 pairs ==
+  Finishing   vs Shooting    ΔE 98.8
+  Finishing   vs Playmaking  ΔE 115.1
+  Finishing   vs Defense     ΔE 94.0
+  Finishing   vs Rebounding  ΔE 62.8
+  Finishing   vs Physicals   ΔE 107.0
+  Shooting    vs Playmaking  ΔE 97.4
+  Shooting    vs Defense     ΔE 112.4
+  Shooting    vs Rebounding  ΔE 123.4
+  Shooting    vs Physicals   ΔE 51.7
+  Playmaking  vs Defense     ΔE 38.8
+  Playmaking  vs Rebounding  ΔE 81.8
+  Playmaking  vs Physicals   ΔE 49.2
+  Defense     vs Rebounding  ΔE 46.5
+  Defense     vs Physicals   ΔE 75.1
+  Rebounding  vs Physicals   ΔE 102.4
+
+  mutual worst: Playmaking vs Defense ΔE 38.8
+  Pre-substitution this floor was Finishing vs Physicals ΔE 32.9 — the binding
+  pair was Finishing-blue against Physicals-VIOLET, and moving Physicals out of
+  the blue-violet quadrant deletes it. The floor RISES 32.9 -> 38.8 (+18%) and
+  the binding pair is now Playmaking vs Defense (orange against red).
+
+== Separation metric: ΔE, not hue-degrees (design-spec §12.12.5) ==
+The palette is gated on ΔE and on nothing else. A "pairwise >= 30 degrees of
+hue" rule was considered and RETIRED, because it mis-ranks provably here:
+  Playmaking vs Defense   27.9 deg of hue  ->  ΔE 38.8
+  Finishing vs Physicals  49.8 deg of hue  ->  ΔE 32.9   (the pre-substitution palette)
+A 27.9-degree gap here is perceptually WIDER than a 49.8-degree gap there. Hue
+degrees are perceptually non-uniform. Hue-distance survives below purely as a
+collision-audit tool against non-category tokens, never as a palette gate.
 
 == Why the contrast spread is not flat ==
 Each hue sits where it still READS as its named colour at full saturation,
@@ -42,12 +95,21 @@ without turning pink — which is exactly why --danger ships at 5.65:1 — and
 a yellow cannot go below ~8:1 without turning olive. An earlier cut forced
 one register and produced a salmon Defense and a teal Shooting, which fails
 the actual requirement. The spread is bounded (<3.5) and asserted, not
-eliminated.
+eliminated. Physicals-gold now sets the ceiling for the same reason the
+displaced Playmaking-gold used to: brass cannot go dark without turning olive.
 
-== The collisions that remain, and why they are safe ==
-Nearest state colour is --info for Finishing (ΔE 7) — both blues. Nearest
-level colours are --lvl-legend/Rebounding (ΔE 11), --lvl-gold/Playmaking
-(ΔE 12), --lvl-hof/Physicals (ΔE 17).
+== Collision audit vs non-category tokens (ΔE < 33) ==
+  category     token           Δhue    ΔE
+  Finishing    --info          2.0     7.3
+  Rebounding   --lvl-legend    9.1     11.1
+  Finishing    --accent        7.1     12.9
+  Defense      --danger        6.8     16.1
+  Physicals    --lvl-gold      12.7    17.8
+  Playmaking   --lvl-bronze    6.6     24.1
+  Physicals    --warning       14.3    24.1
+  Playmaking   --warning       16.7    28.1
+  Playmaking   --danger        21.1    30.8
+  Physicals    --lvl-bronze    24.5    31.1
 
 None of these pairs ever share a surface. §2.8.1 confines the identity
 layer to four places — attribute slider fill, attribute group legend,
@@ -59,10 +121,49 @@ state-bearing surface. Two are load-bearing and pinned by test:
 The level palette lives on pips and medallions INSIDE cards; the identity
 layer lives on the chrome around them.
 
+The two the substitution changes, both on the gold side:
+  · Physicals-brass vs --lvl-gold is the metal adjacency, and it REPLACES a
+    tighter one: Physicals-violet sat Δhue 2.6 / ΔE 16.7 from --lvl-hof. The
+    substitution deletes the palette's tightest metal collision outright.
+    A gold <h2> heads a section containing Gold-level pips; separation is
+    carrier + chroma, not luminance — a flat unenclosed word at heading
+    weight against a convex beveled disc enclosing a letter.
+  · Playmaking-orange vs --lvl-bronze is hue-inseparable and always was;
+    it is resolved by chroma (+33 saturation points) and the same carrier
+    split. Re-audit if a card's purchase-level edge ever becomes a flat
+    unenclosed top rule.
+
 == Colour-vision deficiency ==
+  protan  Shooting vs Playmaking        ΔE 13.4
+  deutan  Shooting vs Defense           ΔE 6.4
+  tritan  Defense vs Physicals          ΔE 0.5
+
+Per-axis movement under the substitution, stated separately because the three
+axes do NOT move together:
+  protan  5.0 -> 13.4  IMPROVES. The old worst (Finishing vs Physicals-violet)
+                       was a blue/violet pair the gold deletes outright.
+  deutan  6.4 -> 6.4   UNCHANGED. Shooting vs Defense is a PR #2 survivor and
+                       neither substituted hue is involved. (design-spec
+                       §12.12.7's red-green proxy scores the same move
+                       2.8 -> 6.4, i.e. an improvement, because it ranked the
+                       deleted violet pair worst; both methods agree the
+                       post-substitution figure is 6.4.)
+  tritan  1.4 -> 0.5   WORSENS, and this is recorded rather than smoothed over.
+                       design-spec §12.12.7 checked only the red-green axis, so
+                       this movement is not in the spec. It does not change the
+                       conclusion: 1.4 and 0.5 are both far below the ~2.3 JND,
+                       so the palette's tightest tritan pair was already
+                       indistinguishable before the substitution and is merely a
+                       DIFFERENT indistinguishable pair after it (Playmaking vs
+                       Defense -> Defense vs Physicals). No pair crosses from
+                       separable to inseparable; Defense vs Rebounding is 2.4
+                       before and after. Under tritanopia a red/gold pair is
+                       exactly as unresolvable as the red/magenta pair the
+                       shipped file already recorded.
+
 The simulated worst pairs above are real and are NOT designed away: a
 six-hue palette containing both red and green cannot be separated by hue
-under deuteranopia, and a red/magenta pair cannot under tritanopia.
+under deuteranopia, and a red/gold pair cannot under tritanopia.
 §6 is the mitigation, and it is structural rather than a promise — all
 four consuming surfaces render the category NAME as text:
   slider fill      inside a <fieldset> whose <legend> is the group name

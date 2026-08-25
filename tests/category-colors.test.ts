@@ -19,6 +19,11 @@
  *     apart by hue by a deuteranope, and are never asked to be.
  *  3. Contrast. Recomputed here from the shipped hex, not copied from the
  *     proof file, so the two cannot drift.
+ *  4. Mutual separation, as ΔE and ONLY as ΔE (§12.12.5). A "pairwise >= 30
+ *     degrees of hue" rule was considered and RETIRED: it mis-ranks provably
+ *     on this palette — Playmaking vs Defense is 27.9 degrees of hue but
+ *     ΔE 38.8, while the pre-substitution worst pair was 49.8 degrees of hue
+ *     at only ΔE 32.9. Do not add a hue-gap assertion here.
  */
 
 import { describe, expect, it } from "vitest";
@@ -53,6 +58,25 @@ function luminance(value: string): number {
 function contrast(a: string, b: string): number {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
   return (hi + 0.05) / (lo + 0.05);
+}
+/** CIE76 ΔE*ab, D65 — the palette's one separation metric (§12.12.5). */
+function lab(value: string): [number, number, number] {
+  const linear = (c: number) => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const [r, g, b] = channels(value).map(linear) as [number, number, number];
+  const x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047;
+  const y = 0.2126729 * r + 0.7151522 * g + 0.072175 * b;
+  const z = (0.0193339 * r + 0.119192 * g + 0.9503041 * b) / 1.08883;
+  const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (841 / 108) * t + 4 / 29);
+  const [fx, fy, fz] = [f(x), f(y), f(z)];
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+function deltaE(a: string, b: string): number {
+  const [al, aa, ab] = lab(a);
+  const [bl, ba, bb] = lab(b);
+  return Math.hypot(al - bl, aa - ba, ab - bb);
 }
 
 /* ------------------------------------------------------ parsed from source -- */
@@ -171,6 +195,26 @@ describe("I1 — every identity colour can carry text", () => {
     }
   });
 
+  it("pins the two §12.12 substitutions and the range they move", () => {
+    // Physicals took GOLD on the user's direction (their own 2K HQ build-sheet
+    // screenshot colour-codes it gold/tan), so Playmaking vacated gold and
+    // returned to the screenshot's orange. Pinned, not barred: these two are
+    // the values a future palette edit is most likely to disturb silently.
+    //   Playmaking  #c9ab19 gold   -> #f58236 orange   canvas 8.40 -> 7.33
+    //   Physicals   #a582ec violet -> #beb448 brass    canvas 6.31 -> 8.84
+    expect(tokenValue("cat-playmaking")).toBe("#f58236");
+    expect(tokenValue("cat-physicals")).toBe("#beb448");
+    const at = (key: string) => Number(contrast(tokenValue(`cat-${key}`), BG_CANVAS).toFixed(2));
+    expect(at("playmaking")).toBe(7.33);
+    expect(at("physicals")).toBe(8.84);
+
+    // The floor does not move (Defense, untouched); only the ceiling does,
+    // because brass is lighter than the violet it replaces.
+    const ratios = CATEGORY_KEYS.map((key) => Number(contrast(tokenValue(`cat-${key}`), BG_CANVAS).toFixed(2)));
+    expect(Math.min(...ratios)).toBe(5.69);
+    expect(Math.max(...ratios)).toBe(8.84); // was 8.40 pre-substitution
+  });
+
   it("keeps the six in one register — none shouts louder than the rest", () => {
     // A category that is far brighter than its neighbours reads as selected
     // or as a warning. Yellow sits highest by physics (it cannot go dark
@@ -183,5 +227,44 @@ describe("I1 — every identity colour can carry text", () => {
     // Same guard f5-contrast.txt used: reproduce a published §2.1 ratio
     // before trusting any number derived by this method.
     expect(contrast("#cd8b47", BG_CANVAS)).toBeCloseTo(6.65, 1);
+  });
+});
+
+/* ------------------------------------------------------------------ ΔE -- */
+
+describe("§12.12.4 — mutual separation, measured as ΔE", () => {
+  /** All 15 unordered pairs, hex read from the shipped stylesheet. */
+  function pairs(): { a: string; b: string; d: number }[] {
+    const out: { a: string; b: string; d: number }[] = [];
+    for (let i = 0; i < CATEGORY_KEYS.length; i += 1) {
+      for (let j = i + 1; j < CATEGORY_KEYS.length; j += 1) {
+        const a = CATEGORY_KEYS[i] as string;
+        const b = CATEGORY_KEYS[j] as string;
+        out.push({ a, b, d: deltaE(tokenValue(`cat-${a}`), tokenValue(`cat-${b}`)) });
+      }
+    }
+    return out.sort((x, y) => x.d - y.d);
+  }
+
+  /**
+   * The asserted floor. PRE-SUBSTITUTION THIS WAS 32.9, bound by
+   * Finishing-blue vs Physicals-VIOLET. Moving Physicals out of the
+   * blue-violet quadrant deleted that pair outright and the floor ROSE to
+   * 38.8 (+18%). Recorded so that a regression back toward 32.9 shows up as
+   * a deliberate edit to this number rather than as a silent drift.
+   */
+  const DELTA_E_FLOOR = 38.8;
+
+  it("no two identity colours are closer than the asserted floor", () => {
+    const worst = pairs()[0] as { a: string; b: string; d: number };
+    expect(Number(worst.d.toFixed(1)), `${worst.a} vs ${worst.b}`).toBe(DELTA_E_FLOOR);
+  });
+
+  it("the binding pair is Playmaking vs Defense", () => {
+    // Not Finishing vs Physicals — that was the pre-substitution binding pair
+    // and it no longer exists. The pair NAME is the half of this assertion
+    // most likely to be left stale when only the number is updated.
+    const worst = pairs()[0] as { a: string; b: string; d: number };
+    expect([worst.a, worst.b].sort()).toEqual(["defense", "playmaking"]);
   });
 });
