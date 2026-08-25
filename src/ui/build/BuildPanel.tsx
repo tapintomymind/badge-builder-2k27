@@ -73,6 +73,16 @@ export interface BuildPanelProps {
   onPositionChange: (position: Position | undefined) => void;
   onAttributeCommit: (attr: Attr, value: number) => void;
   onBudgetCommit: (category: Category, field: keyof Budget, value: number) => void;
+  /** F5.3/C — open the `Reset build` confirm. The button NEVER resets
+   * directly; the dialog is mandatory (assertion 18). */
+  onResetRequest: () => void;
+  /** `playerHasContent(working)` — the DEFAULT RESET'S OWN SCOPE, and
+   * deliberately not `workingHasContent`. The latter answers the switcher
+   * guard's question and returns true for budgets-only and unlocks-only
+   * states, neither of which the default reset touches: a user who has
+   * entered budgets and nothing else would get an enabled control whose
+   * confirm, with zero rows suppressed, lists nothing. */
+  canReset: boolean;
 }
 
 export function PhysiqueSection({
@@ -143,7 +153,8 @@ export function PhysiqueSection({
 }
 
 export function BuildPanel(props: BuildPanelProps) {
-  const { build, budgets, onAttributeCommit, onBudgetCommit } = props;
+  const { build, budgets, onAttributeCommit, onBudgetCommit, onResetRequest, canReset } = props;
+  const resetReasonId = useId();
   // <1280: both rails dissolve (§5.2 rev 2) — the panel is a full-width
   // collapsible <details> at M AND S, with the same auto-collapse rule.
   const isCompact = useMediaQuery("(max-width: 1279px)");
@@ -209,6 +220,43 @@ export function BuildPanel(props: BuildPanelProps) {
       <Section title="Badge Points & Badge Slots" storageKey="section-budget">
         <BudgetGrid budgets={budgets} onCommit={onBudgetCommit} />
       </Section>
+      {/* F5.3/C — `Reset build`, at the foot of the panel.
+       *
+       * PLACEMENT IS ONE RULING FOR EVERY WIDTH, and it is deliberate. At
+       * >=1280 this is the foot of a long sticky, scrolling rail: reaching it
+       * is an act, and a mis-click is not available. Below 1280 there is no
+       * rail at all and the whole panel is a collapsible <details> — so the
+       * button sits INSIDE the collapsible at M/S, which keeps the same
+       * property by a different mechanism (an expanded panel rather than a
+       * long scroll). One placement, one behaviour.
+       *
+       * Text only, NO GLYPH: `↺` already means *Reaction* on the badge cards,
+       * and re-using a glyph that means something else is H1's doctrine broken
+       * by a symbol. Flat, never metallic (§2.7.4: metals are enclosed faces
+       * with a bevel; semantics are flat). No --cat — §12.5/§12.12's placement
+       * law permits four surfaces and this is none of them.
+       *
+       * `disabled` here is NOT the H4 class. H4 forbids disabling BECAUSE OF
+       * an overspend; this is a control with no object. The reason rides an
+       * aria-describedby sibling rather than a title tooltip, which is
+       * unreachable by keyboard and by touch — Button.tsx's own idiom, spelled
+       * out here because this control needs a className the primitive cannot
+       * carry. */}
+      <button
+        type="button"
+        className="btn btn--danger-ghost btn--sm build-panel__reset"
+        onClick={onResetRequest}
+        disabled={!canReset}
+        aria-describedby={canReset ? undefined : resetReasonId}
+      >
+        Reset build
+      </button>
+      {canReset ? null : (
+        <span id={resetReasonId} className="hint">
+          Nothing to reset — no attributes, purchased badges, Synergy Slot assignments, height
+          or position are set.
+        </span>
+      )}
     </div>
   );
 

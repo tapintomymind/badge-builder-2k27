@@ -11,7 +11,7 @@ the view — stop, and extend the engine contract instead. Do not compute it her
 - `primitives/` — Button, Toggle, NumberField, HeightField, SegmentedControl,
   Chip, Section, Banner, Hint, Meter (design-spec §3.1)
 - `shell/` — AppHeader, ProvenanceChip, DriftBanner, AutosaveWarning (§3.2)
-- `build/` — BuildPanel (+ PhysiqueSection), AttributeGrid, BudgetGrid
+- `build/` — BuildPanel (+ PhysiqueSection), AttributeGrid, BudgetGrid, ResetBuildDialog
   (+ BudgetTotalRow) (§3.3)
 - `grid/` — JumpNav, CategoryLedgerDigest, CategoryLedgerLede, BadgeGridSection, BadgeCard
   (+ LevelPipRow) (§3.4)

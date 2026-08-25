@@ -816,3 +816,176 @@ describe("F5.3/B — collapsible categories, checked structurally", () => {
     expect(summary).toContain("badgeSlotsCapacityUnset");
   });
 });
+
+describe("F5.3/C — `Reset build`: the scope, pinned where it is written", () => {
+  // Stripped, for the same reason as the collapse block above: handleReset's
+  // rationale comment NAMES every writer it must not call, which is the point
+  // of the comment and would be the death of the assertion.
+  const appTsx = stripComments(srcSources["/src/App.tsx"] as string);
+  const buildPanel = stripComments(srcSources["/src/ui/build/BuildPanel.tsx"] as string);
+  const dialog = srcSources["/src/ui/build/ResetBuildDialog.tsx"] as string;
+
+  /** The reset handler's body — `handleReset` only. `handleSaveCopyAndReset`
+   *  is a DIFFERENT path and is allowed exactly one thing this one is not. */
+  const handleReset = appTsx.slice(
+    appTsx.indexOf("const handleReset = useCallback("),
+    appTsx.indexOf("const handleSaveCopyAndReset"),
+  );
+  const saveCopy = appTsx.slice(
+    appTsx.indexOf("const handleSaveCopyAndReset"),
+    appTsx.indexOf("const duplicateBuild"),
+  );
+
+  const NAMED_BUILD_WRITERS = [
+    "saveNamedBuild",
+    "deleteNamedBuild",
+    "renameNamedBuild",
+    "duplicateNamedBuild",
+    "clearAllPersistedData",
+    "clearAutosave",
+  ];
+
+  it("15 — the reset path cannot reach the named-builds store, the quarantine, or the autosave", () => {
+    expect(handleReset).not.toBe("");
+    for (const writer of [...NAMED_BUILD_WRITERS, "saveAsNew"]) {
+      expect(handleReset).not.toContain(writer);
+    }
+    // `saveAsNew` is reachable from EXACTLY ONE place: the durable
+    // `Save a copy and reset` action, where it MINTS A NEW ENTRY and
+    // overwrites nothing.
+    expect(saveCopy).toContain("saveAsNew");
+    for (const writer of NAMED_BUILD_WRITERS) {
+      expect(saveCopy).not.toContain(writer);
+    }
+    // POSITIVE CANARY: the banned identifiers are still detectable, so this
+    // assertion cannot pass by looking at the wrong string.
+    expect("clearAllPersistedData();").toContain("clearAllPersistedData");
+  });
+
+  it("16 — the reset path touches NO UI preference: collapse state and the latch both survive", () => {
+    expect(handleReset).not.toContain("writeUiSectionOpen");
+    expect(saveCopy).not.toContain("writeUiSectionOpen");
+    // A2: re-arming the Build panel's auto-collapse latch WOULD need exactly
+    // that call, which is why the latch is out of this slice's scope entirely
+    // rather than "handled". It is also persisted in the same ui-state blob,
+    // so the two rulings are one ruling.
+    expect(buildPanel).toContain("writeUiSectionOpen(BUILD_PANEL_AUTO_COLLAPSED_KEY, true)");
+    expect(handleReset).not.toContain("fireLatch");
+    expect(handleReset).not.toContain("autoCollapsed");
+  });
+
+  it("17 — the handler clears the PLAYER and writes neither unlock nor +2 designation", () => {
+    expect(handleReset).toContain("loadout: []");
+    expect(handleReset).toContain("fuseBadgeId: null");
+    expect(handleReset).toContain("reactionBadgeId: null");
+    expect(handleReset).toContain("zeroAttributes()");
+    expect(handleReset).toContain("DEFAULT_HEIGHT_INCHES");
+    // T15: createDefaultSynergySlots() looks like the way to clear the
+    // assignments and is not — it also resets `unlocked` and the +2
+    // designation, eight toggles the user would re-enter for nothing.
+    expect(handleReset).not.toContain("createDefaultSynergySlots");
+    expect(handleReset).not.toContain("unlocked");
+    expect(handleReset).not.toContain("plusTwoSlotIds");
+    // The budgets are written ONLY on the checkbox branch.
+    expect(handleReset).toContain("alsoBudgets ? { budgets: zeroBudgets() } : {}");
+    // A fixture that writes `unlocked` must FAIL the check above.
+    expect("synergy: createDefaultSynergySlots(null)").toContain("createDefaultSynergySlots");
+    // T16: never through handlePositionChange — it would announce a clamp
+    // that did not happen (Position → Any restores 69–88 and 78 sits inside).
+    expect(handleReset).not.toContain("handlePositionChange");
+    expect(handleReset).toContain("setClampNotice(null)");
+    // A reset is not a load ROUTE, so the route-scoped disclosures stay put.
+    for (const routeOnly of [
+      "setDroppedEntries",
+      "setClearedSynergyRefs",
+      "setDisclosureEpoch",
+      "setRatifiedMagnitudeNormalized",
+    ]) {
+      expect(handleReset).not.toContain(routeOnly);
+    }
+  });
+
+  it("18 — the button opens the confirm and never resets directly", () => {
+    expect(buildPanel).toContain("onClick={onResetRequest}");
+    expect(buildPanel).not.toContain("handleReset");
+    expect(buildPanel).not.toContain("zeroAttributes");
+    // …and `canReset` is the NEW predicate over the default reset's own
+    // scope, not F2.2's switcher guard (A4).
+    expect(appTsx).toContain("canReset={playerHasContent(working)}");
+    expect(appTsx).toContain("function playerHasContent");
+    // `workingHasContent` is NOT modified — it is a shipped data-loss guard,
+    // and one predicate answering two questions breaks silently the moment
+    // either question's scope moves.
+    expect(appTsx).toContain("function workingHasContent");
+    expect(appTsx).not.toContain("canReset={workingHasContent");
+  });
+
+  it("19 — the confirm names real counts and carries the guarantee verbatim", () => {
+    expect(dialog).toContain("saved builds are not touched");
+    for (const count of [
+      "counts.attributesTotal",
+      "counts.attributesSet",
+      "counts.purchased",
+      "counts.synergyAssigned",
+      "counts.budgetFieldsSet",
+    ]) {
+      expect(dialog).toContain(count);
+    }
+    // T14: the id convention this slice introduces. There are three <dialog>s
+    // now and `querySelector("dialog")` returns the wrong one.
+    expect(dialog).toContain('id="reset-build-dialog"');
+    // No undo, by ruling. The file EXPLAINS the ruling at length, so the
+    // check is against the rendered surface, not the prose: no control and no
+    // copy offers one.
+    expect(stripComments(dialog).toLowerCase()).not.toContain("undo");
+  });
+
+  it("20 — the control clears the I6 touch floor at S", () => {
+    // SCOPED here on purpose: the app-wide `.btn--sm` 28 / `.btn--md` 36
+    // defect is F9's, because raising it reflows six surfaces this slice does
+    // not own. C must simply not arrive below the floor itself.
+    expect(app).toMatch(
+      /@media \(max-width: 767px\) \{\s*\.build-panel__reset \{\s*min-height: 44px;/,
+    );
+  });
+
+  it("21 — it is a danger-ghost, never a gold primary", () => {
+    expect(buildPanel).toContain("btn--danger-ghost");
+    expect(buildPanel).toContain("build-panel__reset");
+    const buttonTag = buildPanel.slice(
+      buildPanel.indexOf('className="btn btn--danger-ghost'),
+    );
+    expect(buttonTag.slice(0, buttonTag.indexOf(">"))).not.toContain("btn--primary");
+    // Text only — `↺` already means *Reaction* on the badge cards, and
+    // re-using a glyph that means something else is H1 broken by a symbol.
+    expect(buildPanel).not.toContain("↺ Reset");
+  });
+
+  it("22 — no token, no --cat, no metal, and tokens.css gained nothing", () => {
+    const surfaces = [
+      cssBlock(app, ".build-panel__reset"),
+      cssBlock(app, ".reset-dialog"),
+      cssBlock(app, ".reset-dialog__list"),
+      cssBlock(app, ".reset-dialog__opt-in"),
+    ];
+    for (const block of surfaces) {
+      expect(block).not.toContain("var(--cat");
+      expect(block).not.toContain("--metal");
+      expect(block).not.toContain("--bevel");
+      // Consume, never define: no literal colour anywhere in the new chrome.
+      expect(block).not.toMatch(/#[0-9a-fA-F]{3,6}/);
+    }
+    // §12.5/§12.12's placement law permits FOUR --cat surfaces and this is
+    // none of them; the four are pinned by tests/category-colors.test.ts.
+    // tokens.css defines no F5.3 token — the slice consumes the existing
+    // scale end to end. (The byte-identity of the file itself is checked by
+    // hand with `git diff --stat src/styles/tokens.css`, which cannot be
+    // expressed here without filesystem access.)
+    expect(tokens).not.toContain("F5.3");
+    expect(tokens).not.toContain("--reset");
+    // The reset dialog does not duplicate .import-dialog's recipe — it JOINS
+    // its selector lists, so the two can never drift apart.
+    expect(app).toContain(".import-dialog,\n.reset-dialog {");
+    expect(app).toContain(".import-dialog__actions,\n.reset-dialog__actions {");
+  });
+});

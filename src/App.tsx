@@ -73,6 +73,8 @@ import {
 import type { NamedBuildSummary, PersistResult } from "./persist/local-storage";
 import { BuildPanel } from "./ui/build/BuildPanel";
 import type { HeightClampNotice } from "./ui/build/BuildPanel";
+import { ResetBuildDialog } from "./ui/build/ResetBuildDialog";
+import type { ResetBlastRadius } from "./ui/build/ResetBuildDialog";
 import { BuildManagerDialog, BuildSwitcher } from "./ui/builds/BuildManager";
 import { BadgeCard } from "./ui/grid/BadgeCard";
 import { BadgeGridSection } from "./ui/grid/BadgeGridSection";
@@ -266,6 +268,69 @@ function workingHasContent(working: WorkingState): boolean {
   );
 }
 
+/**
+ * F5.3/C — the DEFAULT RESET'S OWN SCOPE, as a predicate.
+ *
+ * NOT `workingHasContent`. That one answers the switcher guard's question and
+ * returns true for `budgets`-only and `unlocked`-only states, NEITHER of which
+ * the default reset touches — so a user who has entered budgets and nothing
+ * else would get an enabled `Reset build` whose confirm, with zero-count rows
+ * suppressed, shows an empty "Will be cleared" list.
+ *
+ * `workingHasContent` is deliberately left alone: it is F2.2's shipped
+ * data-loss guard, and making one predicate answer two questions breaks
+ * silently the moment either question's scope moves.
+ *
+ * Consequence, stated so it is a decision and not an oversight: a
+ * budgets-only build cannot be reset. That is correct — the budgets are the
+ * most tedious block in the app and a user re-spreading a player almost
+ * always keeps them.
+ */
+function playerHasContent(working: WorkingState): boolean {
+  return (
+    working.loadout.length > 0 ||
+    Object.values(working.build.attributes).some((value) => value > 0) ||
+    working.build.heightInches !== DEFAULT_HEIGHT_INCHES ||
+    working.build.position !== undefined ||
+    working.synergy.some(
+      (synergySlot) =>
+        synergySlot.fuseBadgeId !== null || synergySlot.reactionBadgeId !== null,
+    )
+  );
+}
+
+/**
+ * F5.3/C — what a reset would actually destroy, counted.
+ *
+ * PURE COUNTING over WorkingState: no engine call, no rule, no cost, no
+ * eligibility. Same local-helper precedent as `stalePurchaseCount` and
+ * `workingHasContent`. If this function ever derives a cost or a level, the
+ * diagnosis is wrong.
+ *
+ * `budgetFieldsSet` drives the CHECKBOX LABEL only — the default reset keeps
+ * every one of those fields.
+ */
+function resetBlastRadius(working: WorkingState): ResetBlastRadius {
+  return {
+    attributesTotal: ATTRS.length,
+    attributesSet: Object.values(working.build.attributes).filter((value) => value > 0).length,
+    purchased: working.loadout.length,
+    synergyAssigned: working.synergy.filter(
+      (synergySlot) =>
+        synergySlot.fuseBadgeId !== null || synergySlot.reactionBadgeId !== null,
+    ).length,
+    budgetFieldsSet: CATEGORIES.reduce(
+      (count, category) =>
+        count +
+        (working.budgets[category].points > 0 ? 1 : 0) +
+        (working.budgets[category].equipSlots > 0 ? 1 : 0),
+      0,
+    ),
+    heightChanged: working.build.heightInches !== DEFAULT_HEIGHT_INCHES,
+    positionSet: working.build.position !== undefined,
+  };
+}
+
 /** Removing a badge from the loadout clears any synergy role it held —
  * otherwise the removal strands a `synergyTargetNotPurchased` HardViolation
  * (a state the engine refuses to create) and a later re-purchase silently
@@ -436,6 +501,8 @@ export default function App() {
    * attribute commits that CHANGED the stale-purchase count — never one
    * announcement per drag frame or per keyboard step. */
   const [buildAnnouncement, setBuildAnnouncement] = useState("");
+  /** F5.3/C — the `Reset build` confirm. The button never resets directly. */
+  const [resetOpen, setResetOpen] = useState(false);
 
   /** EVERY working-state mutation flows through here (write-through ref). */
   const applyWorking = useCallback(
@@ -745,6 +812,93 @@ export default function App() {
       refreshNamedBuilds();
     },
     [applyWorking, armPersistence, markClean, refreshNamedBuilds, takenNames],
+  );
+
+  /**
+   * F5.3/C — the reset itself.
+   *
+   * WRITES THE BUILD WHOLESALE THROUGH `applyEdit`, and deliberately NOT
+   * through `handlePositionChange`: that path would emit a clamp announcement
+   * for a clamp that did not happen. Position → Any restores the dataset's
+   * full 69–88 range and height 78 sits inside it, so nothing clamps.
+   *
+   * WHAT IS CLEARED — the PLAYER: the 20 attributes, height, position, the
+   * loadout, and the Synergy Slot ASSIGNMENTS.
+   *
+   * WHAT SURVIVES — the PLAN CONTAINER: Badge Points, Badge Slots, Synergy
+   * Slot `unlocked` flags, the +2 designation, the build name, `sourceId`,
+   * `dataVersion` and `config`. The unlocks and the +2 designation are
+   * account-progression facts, not properties of an attribute spread — eight
+   * toggles the user would have to re-enter for no reason. Keeping `sourceId`
+   * means the switcher honestly reads "— unsaved changes" rather than
+   * silently detaching.
+   *
+   * SYNERGY ASSIGNMENTS ARE FORCED, not chosen: they reference badges that
+   * will no longer be in the loadout, which is `synergyTargetNotPurchased` —
+   * a HardViolation the engine refuses to create. Every other removal path
+   * already clears them via `clearSynergyReferencesTo`; reset cannot be the
+   * one path that strands them. `.map()` and NOT `createDefaultSynergySlots()`,
+   * which would also reset `unlocked` and the +2 designation.
+   *
+   * The reset touches NO named build, NO quarantine and NO UI preference. It
+   * calls none of saveNamedBuild / deleteNamedBuild / renameNamedBuild /
+   * duplicateNamedBuild / clearAllPersistedData / clearAutosave, and no
+   * `writeUiSectionOpen` — so the six category collapse states AND the Build
+   * panel's auto-collapse latch both survive it.
+   *
+   * `applyEdit` marks the build dirty and arms persistence, so the autosave
+   * writes and the switcher tells the truth. H8 is satisfied loudly: a counted
+   * confirm, a live-region announcement, and a durable save path.
+   */
+  const handleReset = useCallback(
+    (alsoBudgets: boolean) => {
+      const before = resetBlastRadius(workingRef.current);
+      applyEdit((current) => ({
+        ...current,
+        // Constructed exactly as freshWorkingState() does, `position` omitted
+        // rather than set to undefined, so the post-reset envelope is
+        // byte-identical to the boot zero state.
+        build: { heightInches: DEFAULT_HEIGHT_INCHES, attributes: zeroAttributes() },
+        loadout: [],
+        synergy: current.synergy.map((synergySlot) => ({
+          ...synergySlot,
+          fuseBadgeId: null,
+          reactionBadgeId: null,
+        })),
+        ...(alsoBudgets ? { budgets: zeroBudgets() } : {}),
+      }));
+      // A reset is not a load ROUTE: droppedEntries, clearedSynergyRefs and
+      // ratifiedMagnitudeNormalized are route-scoped disclosures and are
+      // deliberately left alone. The clamp notice belongs to an edit gesture,
+      // and this ends it — same discipline as loadBuild and confirmImport.
+      setClampNotice(null);
+      // §6 live region 2, the EXISTING role="status" region. No fourth one.
+      setBuildAnnouncement(
+        `Build reset. ${before.attributesTotal} attributes cleared, ` +
+          `${before.purchased} purchased ${before.purchased === 1 ? "badge" : "badges"} removed, ` +
+          `${before.synergyAssigned} Synergy Slot ` +
+          `${before.synergyAssigned === 1 ? "assignment" : "assignments"} cleared. ` +
+          `Height ${formatHeightInches(DEFAULT_HEIGHT_INCHES)}, Position Any.` +
+          (alsoBudgets ? " Badge Points and Badge Slots cleared." : ""),
+      );
+      setResetOpen(false);
+    },
+    [applyEdit],
+  );
+
+  /**
+   * F5.3/C — the durable alternative to the undo that is ruled out.
+   *
+   * This is the ONLY route by which the reset flow reaches the named-builds
+   * store, and it reaches it to WRITE A NEW ENTRY, never to remove one.
+   * `saveAsNew` mints a fresh id and a unique name, so nothing is overwritten.
+   */
+  const handleSaveCopyAndReset = useCallback(
+    (alsoBudgets: boolean) => {
+      saveAsNew(workingRef.current.name);
+      handleReset(alsoBudgets);
+    },
+    [handleReset, saveAsNew],
   );
 
   const duplicateBuild = useCallback(
@@ -1133,6 +1287,10 @@ export default function App() {
                 }}
                 onPositionChange={handlePositionChange}
                 onAttributeCommit={handleAttributeCommit}
+                onResetRequest={() => {
+                  setResetOpen(true);
+                }}
+                canReset={playerHasContent(working)}
                 onBudgetCommit={(category, field, value) => {
                   applyEdit((prev) =>
                     prev.budgets[category][field] === value
@@ -1288,6 +1446,18 @@ export default function App() {
         onSaveAsNew={saveAsNew}
         unreadableCount={namedBuildListing.unreadableCount}
       />
+
+      {resetOpen ? (
+        <ResetBuildDialog
+          counts={resetBlastRadius(working)}
+          defaultHeightText={formatHeightInches(DEFAULT_HEIGHT_INCHES)}
+          onCancel={() => {
+            setResetOpen(false);
+          }}
+          onConfirm={handleReset}
+          onSaveCopyAndReset={handleSaveCopyAndReset}
+        />
+      ) : null}
 
       {importState !== null ? (
         <ImportDialog

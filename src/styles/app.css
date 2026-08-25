@@ -1766,7 +1766,8 @@ ul {
   box-shadow: var(--ring-focus);
 }
 
-.import-dialog {
+.import-dialog,
+.reset-dialog {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
@@ -1776,18 +1777,21 @@ ul {
   box-shadow: var(--shadow-overlay);
 }
 
-.import-dialog::backdrop {
+.import-dialog::backdrop,
+.reset-dialog::backdrop {
   background: rgba(1, 4, 9, 0.7);
 }
 
-.import-dialog__body {
+.import-dialog__body,
+.reset-dialog__body {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   padding: var(--space-4);
 }
 
-.import-dialog__body h2 {
+.import-dialog__body h2,
+.reset-dialog__body h2 {
   font-size: var(--text-lg);
   color: var(--fg-primary);
 }
@@ -1809,7 +1813,8 @@ ul {
   color: var(--fg-primary);
 }
 
-.import-dialog__actions {
+.import-dialog__actions,
+.reset-dialog__actions {
   display: flex;
   gap: var(--space-2);
 }
@@ -2791,4 +2796,58 @@ ul {
 .chip--accent {
   border: 1px solid var(--accent);
   color: var(--accent);
+}
+
+/* C — the reset control. Text only, flat, no --cat, no metal: §2.7.4's channel
+ * rule says metals are enclosed faces with a bevel and semantics are flat, and
+ * §12.5/§12.12's placement law permits four --cat surfaces of which this is
+ * none. The S override is SCOPED to this control on purpose — the app-wide
+ * button touch-floor defect (.btn--sm 28px and .btn--md 36px at every width,
+ * both under I6's 44px floor) is real, is an AA target-size failure on every
+ * phone screen, and is SPLIT OUT as F9 because raising it reflows six surfaces
+ * this slice does not own. C must simply not arrive below the floor itself. */
+.build-panel__reset {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 767px) {
+  .build-panel__reset {
+    min-height: 44px;
+  }
+}
+
+/* C — the dialog's own layout. Its chrome (surface, border, backdrop, body,
+ * heading, action row) is NOT duplicated: `.reset-dialog` was joined to
+ * `.import-dialog`'s existing selector lists in place, which is the fourth
+ * surgical edit (S4). Only what is genuinely new lives here. --danger on
+ * --bg-surface is 5.16:1, AA with margin. */
+.reset-dialog__subhead {
+  font-size: var(--text-sm);
+  color: var(--fg-primary);
+  margin-bottom: var(--space-1);
+}
+
+.reset-dialog__list {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--fg-secondary);
+}
+
+.reset-dialog__kept {
+  font-size: var(--text-sm);
+  color: var(--fg-secondary);
+}
+
+.reset-dialog__opt-in {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--fg-secondary);
+  cursor: pointer;
 }
