@@ -91,9 +91,12 @@ ul {
   flex-direction: column;
 }
 
-/* S + M (default, <1280): SINGLE COLUMN in DOM order — §5.2 rev 2: both
- * rails dissolve below L; M and S share one structure, differing only in
- * how many cards fit per row. */
+/* SINGLE COLUMN in DOM order — §5.2 rev 2: M and S share one structure,
+ * differing only in how many cards fit per row.
+ *
+ * §13: this is now the structure at EVERY width. All ≥1280 adds is a rail
+ * beside the grid. Nothing re-parents, nothing teleports out of page flow at
+ * a breakpoint, and the below-grid panels stay below the grid all the way up. */
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -102,18 +105,23 @@ ul {
   align-items: start;
 }
 
-/* S + M (<1280): the rail's Synergy/Summary panels become full-width
- * sections BELOW the grid (§5.2/§5.3) — nothing is removed at mobile. Only
- * the Ledger overview dissolves (the per-category headers carry it). */
-.rail-right {
+/* The Synergy Slots and Summary panels: full width below the grid, at every
+ * breakpoint (§13.5). A flat rule on purpose — nothing may wrap it in a media
+ * or container query. */
+.panel-below {
   grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
 }
 
-.rail-right__overview {
+/* The overview dissolves below L — the per-category sticky digests carry it,
+ * exactly as the old rail wrapper did (§5.2, unchanged behaviour). */
+.rail-ledger {
   display: none;
+}
+
+@media (min-width: 1280px) {
+  .rail-ledger {
+    display: block;
+  }
 }
 
 @media (min-width: 768px) {
@@ -122,76 +130,71 @@ ul {
   }
 }
 
-/* L (1280–1439): three columns 258 / fluid / 204 with a 12px gap — the §5.1
- * rev-6 re-cut. RAILS ARE STILL THE FREE VARIABLE, cards still ≥240px, and
- * page padding + gaps are UNCHANGED (rev 2 bought width from the density
- * preference and said so in dissent; rev 5 and rev 6 do not).
+/* L (≥1280): TWO columns — one rail beside the grid, and that is the whole
+ * tier list. There is no second fixed-rail tier above this one.
  *
- * Rev 5's 280/176 sized the right rail against a 142px content box — and
- * then the F5 paint slice gave .ledger-overview an inset well with 12px of
- * horizontal padding, leaving the rows 118px. Every ledger row has wrapped
- * onto two lines since, INCLUDING the empty state: that is the "too skinny,
- * items not next to each other" the user reported. Rev 6 fixes both halves —
- * the well's padding is now part of the derived arithmetic (I8b), and the
- * rail is re-cut to the ceiling I3 allows.
+ * Every three-column cut this repo shipped sized its third column against a
+ * box that could not hold one ledger category on one line, and each re-cut
+ * bought a few more pixels back from the centre to try again. The arithmetic
+ * forecloses it: with 3-up at 1280 held fixed, the width a one-line-per-
+ * category column needs does not exist at any price the grid can pay
+ * (§13.2). So the column was REMOVED rather than widened, and the ledger
+ * moved to the top of the one remaining rail — where it gets a 266px content
+ * box instead of 170, and sits above the fold instead of in a second
+ * scroller.
  *
- * 258 is the LEFT rail's derived floor, not a preference: 258 − 34 chrome =
- * 224 = the §3.1 usable slider track (I9). 258/204 = 462px of rail, leaving
- * a 745px centre at 1280 with a 17px scrollbar — 3×240 cards + 2×12 gaps is
- * 744px, so 3-up survives. That 1px is the whole remaining margin at 1280,
- * which is why the comfortable geometry lives at XL below rather than here.
- * Derivation: §0.1 + §11.3. Re-derived by tests/layout-arithmetic.test.ts. */
+ * Removing it returns a whole rail AND a gap to the centre, which is why the
+ * rail below is chosen WITH MARGIN rather than derived down to a floor:
+ * 300 − 34 chrome = 266, against a binding demand of 239 for a real 3-digit
+ * ledger row inside its well (I11 + I12). 3-up at 1280 now clears by 175px
+ * instead of 1, and 4-up arrives at 1357 instead of 1637.
+ *
+ * Re-derived by tests/layout-arithmetic.test.ts (I3 · I8 · I11 · I12). */
 @media (min-width: 1280px) {
   .layout {
-    grid-template-columns: 258px minmax(0, 1fr) 204px;
+    grid-template-columns: 300px minmax(0, 1fr);
     column-gap: var(--space-3);
     padding: var(--space-4);
   }
-
-  .rail-right {
-    grid-column: auto;
-  }
-
-  .rail-right__overview {
-    display: block;
-  }
 }
 
-/* Rails are sticky only at L — below 1280 there are no rails (§5.2 rev 2):
- * the Build panel is a full-width collapsible <details> in flow. */
+/* The rail is sticky only at L — below 1280 there is no rail (§5.2 rev 2):
+ * the Build panel is a full-width collapsible <details> in flow.
+ *
+ * The flex column is what stacks the two §4.5 landmarks the rail now holds,
+ * in causal order — the Ledger overview you glance at constantly while
+ * reconciling, then the tall Build panel you scroll WITHIN (§13.4).
+ *
+ * Those declarations live in THIS rule and not in a new base one on purpose:
+ * tests/layout-arithmetic.test.ts locates the FIRST `.rail-left {` in the
+ * file and inspects it for the overflow guard, so a second rule above this
+ * one would silently re-point that guard at a block which never had
+ * overflow-y — and it would pass forever without checking anything. */
 @media (min-width: 1280px) {
   .rail-left {
     position: sticky;
     top: var(--space-3);
     max-height: calc(100vh - var(--space-6));
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
   }
 
-  .rail-right {
-    position: sticky;
-    top: var(--space-3);
-    max-height: calc(100vh - var(--space-6));
-    overflow-y: auto;
-  }
-}
-
-/* XL (≥1440): the comfortable geometry — 300 / fluid / 268 (§5.1 rev 6).
- *
- * 1280 is the WORST case for the rails, not the normal one, and rev 5 made
- * every wider viewport pay 1280's bill: the rails stayed pinned at their
- * 1280 sizes while the centre column absorbed all the extra width. The
- * ledger rows kept wrapping on a 1728px display for a shortfall that only
- * exists at 1280.
- *
- * At 1440 the I3 ceiling is 1440 − 17 − 32 − 24 − 744 = 623px of rail, so
- * 300/268 = 568 clears it with 55px to spare and the grid stays 3-up (4-up
- * needs 996px of centre; there is 807px). The right rail's content box is
- * 268 − 34 chrome − 24 well = 210px, which clears the widest ledger row —
- * "Rebounding" 76 + 16 gap + metrics 76 = 168 — with room for real numbers
- * rather than the empty state. Both relaxations below are undone at L. */
-@media (min-width: 1440px) {
-  .layout {
-    grid-template-columns: 300px minmax(0, 1fr) 268px;
+  /* .rail-column is the grid ITEM; .rail-left is the sticky box inside it,
+   * and this one declaration is what stops the rail escaping the grid.
+   *
+   * A sticky grid item is constrained by the grid CONTAINER's content box,
+   * NOT by its own row — so now that the two panels occupy rows 2 and 3, a
+   * sticky .rail-left placed directly in .layout slides straight past the
+   * badge grid and paints on top of them. Measured: it reached doc-y 4660
+   * against a grid that ends at 4644. Stretching this wrapper to fill row 1
+   * gives the sticky box a containing block that ends where the grid ends,
+   * and it then clamps at 3768 exactly as intended.
+   *
+   * .layout sets align-items: start, so the stretch has to be asked for. */
+  .rail-column {
+    align-self: stretch;
   }
 }
 
@@ -1157,29 +1160,62 @@ ul {
 
 /* -------------------------------------------------- ledger overview rail -- */
 
+/* The six rows share ONE grid so their columns actually align — which is the
+ * whole of "items laying next to each other smoothly". `display: contents`
+ * promotes each row's children into the parent grid; the row div carries no
+ * role, no border and no background, so nothing is lost.
+ *
+ * WHAT THIS REPLACES, and why it was wrong: flex + justify-content:
+ * space-between + margin-left:auto + flex-wrap. On wrap that combination put
+ * the label alone flush-left on line 1 and the metrics alone flush-right on
+ * line 2 — six rows of zigzag with no column alignment anywhere. The §11.5 ④
+ * flex-wrap was written as an OVER-BUDGET escape hatch and was in fact
+ * rendering the base case (§13.1). It goes.
+ *
+ * The column-gap here is the label↔metrics separation, and I12 makes it
+ * geometry: tests/layout-arithmetic.test.ts parses it off THIS rule. */
 .ledger-overview {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+  align-items: baseline;
+  font-size: var(--text-sm);
 }
 
-/* The column gap is the label↔metrics separation, and at L it is the last
- * few pixels between "one line" and "two". --space-2 at L, restored to
- * --space-4 at XL where the width exists (I8b derives both). */
 .ledger-overview__row {
-  display: flex;
-  flex-wrap: wrap; /* §11.5 ④: degrade by wrapping, never by scrolling */
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-2);
-  font-size: var(--text-sm);
-  padding: var(--space-1) 0;
+  display: contents;
+}
+
+/* The label column must never be crushed by the metrics column — I11, on the
+ * axis it is easiest to get backwards. `1fr auto` sizes the auto track from
+ * its content FIRST, so a single over-budget row ("62/53 over by 2 ⚠ · …",
+ * ~303px of max-content) takes the entire track box and the fr track, whose
+ * automatic minimum a `min-width: 0` here would have removed, resolves to
+ * ZERO. Every label then overflows a 0px column and abuts its own numbers —
+ * which renders almost-plausibly, so nothing but a measurement catches it.
+ *
+ * Pinning the label's own max-content as its floor is what keeps "the label
+ * stays on line 1" true no matter how long the annotation beside it grows. */
+.ledger-overview__label {
+  min-width: max-content;
 }
 
 /* Per-metric status (P0-1): each metric span carries its own over-state, so
- * one over metric can never redden its in-budget neighbour. */
+ * one over metric can never redden its in-budget neighbour.
+ *
+ * NOT right-aligned. The metrics are a composite string ("10/16 · 2/3"), so
+ * right-aligning aligns the LAST number and misaligns the first; left in an
+ * `auto` column aligns the FIRST number — the one being reconciled — across
+ * all six rows.
+ *
+ * min-width:0 lets this column fall back toward min-content and wrap INSIDE
+ * ITSELF when an over-by annotation lengthens it: the label stays on line 1,
+ * the annotation stacks beneath the numbers it belongs to, and P0-1 is
+ * untouched because the over-by string is still inside the span of the
+ * metric that is over. */
 .ledger-overview__metrics {
-  margin-left: auto; /* §11.5 ④ — stays right-aligned when wrapped */
-  text-align: right;
+  min-width: 0;
 }
 
 /* ------------------------------------------------------ build manager -- */
@@ -1450,13 +1486,6 @@ ul {
   color: var(--fg-muted);
 }
 
-/* Panel jump chips only exist below L — at ≥1280 the rail is visible. */
-@media (min-width: 1280px) {
-  .jump-nav__panel {
-    display: none;
-  }
-}
-
 /* -------------------------------------------------- empty results (M4) -- */
 
 .empty-results {
@@ -1492,10 +1521,35 @@ ul {
 
 /* ---------------------------------------------- synergy panel (§3.5) -- */
 
+/* Below the grid the panel has real width for the first time, so the rows
+ * become a grid instead of a single tall column (§13.5).
+ *
+ * The 426px track floor is ONE DERIVED NUMBER USED TWICE — here, and as the
+ * container-query threshold below — so a row can never be handed less width
+ * than the arrangement it is about to attempt. It is
+ * max(pickers 2×180 + 12 + 32 = 404, header 426), and the header currently
+ * binds: title + Permanent chip + the +1/+2 control + the Unlocked toggle
+ * + 3 gaps + 2 row paddings. That header is what stranded its toggle on its
+ * own line in a rail, and no rail width could have fixed it.
+ *
+ * The `min(426px, 100%)` is §11.5 ③'s established idiom, and it is load
+ * bearing rather than decorative: a bare `minmax(426px, 1fr)` floor is
+ * ABSOLUTE, so at S the single track stays 426px inside a 366px box and the
+ * whole document grows a horizontal scrollbar. min() lets the one column
+ * fall to the container width, which is what §13.5's own 390 row ("366,
+ * stacked") describes. The floor still binds at every width that can fund
+ * it, and 426 is still one derived number used twice — here and as the
+ * container-query threshold beside the pickers. */
 .synergy-panel {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(426px, 100%), 1fr));
   gap: var(--space-3);
+  align-items: start;
+}
+
+/* The +2 designator banner spans the row of columns. */
+.synergy-panel > .banner {
+  grid-column: 1 / -1;
 }
 
 .plus-two-counter {
@@ -1512,6 +1566,7 @@ ul {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  container-type: inline-size;
 }
 
 .synergy-row--dimmed {
@@ -1553,6 +1608,30 @@ ul {
   width: 100%;
 }
 
+/* The pickers go side by side exactly when the row is wide enough to hold
+ * two of them — the same derived 426 the track floor uses, asked of the row
+ * ITSELF rather than of the viewport, so a row is never handed less width
+ * than the arrangement it is about to attempt. Below it they stack, which is
+ * the correct degradation and the only one that happens at S.
+ *
+ * This block must stay BELOW `.synergy-row__pickers`'s base rule. A
+ * container query carries no specificity of its own, so placed above it the
+ * base `flex-direction: column` simply wins on source order and the query
+ * evaluates true while changing nothing — green, silent, and wrong.
+ *
+ * `.select` is the <label> (the flex item); `.select__control` above is the
+ * <select> inside it. Both rules are needed and they compose. */
+@container (min-width: 426px) {
+  .synergy-row__pickers {
+    flex-direction: row;
+  }
+
+  .synergy-row__pickers .select {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
 .synergy-row__effect {
   font-size: var(--text-xs);
   color: var(--fg-secondary);
@@ -1570,10 +1649,24 @@ ul {
 
 /* -------------------------------------------------- summary (§3.6 M4) -- */
 
+/* Full width is the opposite problem from a 142px rail, not the absence of
+ * one: .summary__table is width:100%, so across a 1231px below-grid box it
+ * puts the label at the far left of the screen and the figure at the far
+ * right. Cap the tracks and sit them side by side, left-aligned — the
+ * table's own max-content is ~196px, so a 280 floor is comfortable and a 380
+ * cap keeps two of them readable. .summary__table's width:100% is untouched;
+ * the cap is what tames it. */
 .summary {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 380px));
+  gap: var(--space-4) var(--space-6);
+  justify-content: start;
+  align-items: start;
+}
+
+.summary > .banner,
+.summary__warning {
+  grid-column: 1 / -1;
 }
 
 .summary__warning {
@@ -2244,29 +2337,22 @@ ul {
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
 
-/* The L-rail ledger overview reads as an instrument well.
+/* The rail's ledger overview reads as an instrument well.
  *
  * ITS HORIZONTAL PADDING IS RAIL GEOMETRY, NOT PAINT. F5 shipped this well
- * with --space-3 sides, which took 24px out of a 142px content box that the
- * F5.0 geometry slice had already spent — every ledger row has wrapped since,
- * empty state included. --space-1 sides at L is what the rail can actually
- * fund; XL restores --space-3. tests/layout-arithmetic.test.ts (I8b) now
- * parses this value, so the next paint slice cannot spend it invisibly. */
+ * with --space-3 sides, which took 24px out of a content box the geometry
+ * slice had already spent — every ledger row wrapped from that commit on,
+ * empty state included. The squeeze to --space-1 that followed was what a
+ * 204px rail could fund, and §10.5's --bevel-inset instrument well reads
+ * wrong at 4px sides. A 266px content box funds the full --space-3, so the
+ * squeeze is reverted — uniformly, at every width, with no tier left to
+ * restore it in. tests/layout-arithmetic.test.ts (I12) parses this value, so
+ * the next paint slice cannot spend it invisibly. */
 .ledger-overview {
   background: var(--bg-inset);
   box-shadow: var(--bevel-inset);
   border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-1);
-}
-
-@media (min-width: 1440px) {
-  .ledger-overview {
-    padding: var(--space-2) var(--space-3);
-  }
-
-  .ledger-overview__row {
-    column-gap: var(--space-4);
-  }
+  padding: var(--space-2) var(--space-3);
 }
 
 /* ================================================ category identity (§2.8) ==

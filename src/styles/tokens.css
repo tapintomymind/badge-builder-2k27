@@ -142,8 +142,9 @@
    * target — a saturated red cannot reach 6.6:1 on this canvas without
    * turning pink (which is why --danger is 5.65:1), and a yellow cannot go
    * below ~8:1 without turning olive. Forcing one register washes both out.
-   * Range is 5.69:1–8.40:1 on --bg-canvas; the AA text bar is 4.5:1, so
-   * every one of these may carry text. Mutual separation is ΔE >= 32.9.
+   * Range is 5.69:1–8.84:1 on --bg-canvas; the AA text bar is 4.5:1, so
+   * every one of these may carry text. Mutual separation is ΔE >= 38.8
+   * (Playmaking↔Defense, the closest pair).
    *
    * THE CHANNEL RULE (§2.8.1), which is what makes red-next-to-red safe:
    * these are IDENTITY, never state. They appear on the attribute slider
