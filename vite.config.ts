@@ -13,6 +13,7 @@ export default defineConfig({
     // strictPort makes a collision fail loudly instead.
     port: 5173,
     strictPort: true,
+    host: true,
   },
 
   test: {

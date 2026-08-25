@@ -1,0 +1,91 @@
+/*
+ * Design tokens — design-spec.md §2 (BINDING). All tokens are CSS custom
+ * properties declared once on :root. No component may introduce a raw hex,
+ * a raw px spacing value, or a raw duration.
+ *
+ * Dark, single theme (§2.1): the tool is used beside a console in a dim room.
+ * Level colors are a conventional metal/tier palette — a design choice, NOT
+ * 2K27 data (none exists and none is invented).
+ */
+
+:root {
+  /* ---- Surfaces and text (§2.1) ---- */
+  --bg-canvas: #0d1117;
+  --bg-surface: #161b22;
+  --bg-raised: #1c2128;
+  --bg-inset: #010409;
+  --fg-primary: #e6edf3;
+  --fg-secondary: #c9d1d9;
+  --fg-muted: #8b949e;
+  --border-subtle: #30363d;
+  --border: #484f58;
+  --border-strong: #6e7681;
+
+  /* ---- Semantic (§2.1) ---- */
+  --accent: #4c8df6;
+  --accent-quiet: #1f3a66;
+  --success: #3fb950;
+  --warning: #d29922;
+  --danger: #f85149;
+  --danger-quiet: #3d1517;
+  --info: #58a6ff;
+
+  /* ---- Level colors (§2.1) — labelled B/S/G/H/L, never color alone ---- */
+  --lvl-bronze: #cd8b47;
+  --lvl-silver: #c9d1d9;
+  --lvl-gold: #e3b341;
+  --lvl-hof: #a371f7;
+  --lvl-legend: #f778ba;
+
+  /* ---- Typography (§2.2) — system stack only, zero network egress ---- */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-num: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 20px;
+  --text-xl: 26px;
+
+  /* ---- Spacing (§2.3) — 4px base ---- */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-3-5: 14px; /* carries the user's py-3.5 row-padding preference */
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* ---- Radius (§2.4) ---- */
+  --radius-none: 0;
+  --radius-sm: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  /* ---- Elevation (§2.5) ---- */
+  --shadow-raised: 0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 2px 6px rgba(0, 0, 0, 0.45);
+  --shadow-overlay: 0 12px 32px rgba(0, 0, 0, 0.65);
+  --ring-focus: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--accent);
+
+  /* ---- Motion (§2.6) ---- */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 260ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* All motion is decorative (§2.6). Nothing is lost when it collapses. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 1ms;
+    --dur-base: 1ms;
+    --dur-slow: 1ms;
+  }
+}

@@ -1,0 +1,13 @@
+
+> badge-builder-2k27@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /Users/tapandesai/App Development/badge-builder-2k27
+
+
+ Test Files  23 passed (23)
+      Tests  380 passed (380)
+   Start at  03:42:32
+   Duration  4.06s (transform 1.02s, setup 688ms, import 1.36s, tests 3.53s, environment 2.94s)
+
