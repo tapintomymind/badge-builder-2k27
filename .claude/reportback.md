@@ -2210,3 +2210,268 @@ above. Fallback if ever needed is still a one-line delete of the
 installSharedLabelIndex() call, which the guard file's install check will
 report loudly.
 ─────────────────────────────────────────────
+F4.1 — official-2K-page data adoption   [slice complete]
+2026-08-25 · branch `f4-official-data` (worktree-isolated, NOT `dev`) · commit bf02019
+impl-briefs/f4-official-data-adoption.md · constrained mode
+
+WHAT SHIPPED
+All five parts of the brief, plus the two blocking amendments A1 and A2.
+
+A — 53 descriptions + 19 isNew flags through the dataset pipeline. A SECOND
+    source file (src/data/badges.enrichment.source.txt); badges.source.txt's
+    sealed-verbatim contract is untouched. generate(source, enrichment) is the
+    single entry point; roster parses FIRST, then enrichment, then a name join
+    that throws on every mismatch. dataVersion → 2026-08-26.1, asOf 2026-08-26,
+    source extended, gameVersion STILL null. description/isNew REQUIRED on
+    RawBadge and Badge. badges.json regenerated, never hand-edited.
+B — disciplineLock on SynergySlot, enforced HARD in assignSynergy AND
+    validateLoadout (one violation per POSITION), surfaced in the Synergy Slot 7
+    picker as disabled options with the reason in the label. Nothing is ever
+    auto-cleared.
+C — The 20-Badge-Slot default on BudgetTotalRow, four ruled states, unset guard
+    FIRST. H4 SOFT permanently.
+D — onFuse as DEFAULT_REFUND_TRIGGER; isFusedFor seam injected per basis via
+    synergySlotActive(s, overlayForBasis(basis)).
+E — Synergy Slot 7 = ratified +2, engine-enforced via isRatifiedPlusTwo, load-
+    normalized by applyRatifiedMagnitudes and DISCLOSED at all three routes.
+
+EVIDENCE
+npm test            849 passed / 849, 52 files, 0 failed (baseline 694)
+npx tsc --noEmit    exit 0
+npm run build       exit 0 — 65 modules, dist 282.84 kB / 85.90 kB gzip
+npm run generate:badges   53 badges at dataVersion 2026-08-26.1; re-running
+                    leaves badges.json byte-identical (regen is idempotent)
+tests/architecture.test.ts   FIVE groups observed, (a)–(e), all green, UNEDITED
+tests/vocabulary.test.ts     green, unedited
+Runtime dependencies still exactly {react, react-dom}. tokens.css untouched.
+Full record + browser proof: docs/proof/f4-verification.txt
+
+CONSTRAINED-MODE REPORTBACK
+changed_files:
+  src/data/{badges.enrichment.source.txt (NEW), badges.json (REGENERATED), README.md}
+  scripts/{generate-badges.ts, generate-badges-cli.ts}
+  src/engine/{types,synergy,synergy-ledger,ledger,validate-loadout,serialization}.ts
+  src/engine/__fixtures__/synthetic-badges.ts
+  src/engine/dataset.ts   ← SEE SCOPE DEVIATION 1 BELOW (a DENIED path)
+  src/config/{index.ts, README.md} · src/App.tsx · src/styles/app.css
+  src/ui/grid/BadgeCard.tsx · src/ui/synergy/SynergyPanel.tsx
+  src/ui/summary/SummaryPanel.tsx · src/ui/build/BudgetGrid.tsx (BudgetTotalRow ONLY)
+  tests/{generate-badges,data-integrity,spot-check,config,synergy,synergy-ledger,
+  ledger,validate-loadout,serialization}.test.ts
+  tests/enrichment-spot-check.test.ts (NEW)
+  tests/ui/{f4-badge-card-description,f4-budget-total-baseline,f4-dataversion-drift,
+  f4-slot7,f4-plus-two-roundtrip}.test.tsx (all NEW)
+  tests/ui/{m4-rig.ts, app.test.tsx, position-height-clamp.test.tsx}  (A4 re-homing)
+  tests/ui/{synergy-panel,f2-disclosure-surfaces}.test.tsx  (copy re-cuts, see below)
+  docs/proof/f4-* (5 screenshots + f4-verification.txt) · this file
+denied_paths_checked:
+  UNTOUCHED, verified by `git diff HEAD --` per path: src/data/badges.source.txt ·
+  src/engine/eligibility.ts · src/engine/validate-build.ts (the near-name trap —
+  the discipline lock went into validate-loadout.ts) · src/engine/{vocabulary,
+  cost,errors}.ts · src/data/position-heights.ts · src/styles/tokens.css ·
+  src/persist/** (0 changes — F2.2's raw-string patchStoredEntry route in
+  renameNamedBuild/duplicateNamedBuild is intact and was never routed back
+  through the deserializer) · src/ui/shell/** · src/ui/builds/** ·
+  src/ui/primitives/** · src/ui/build/BuildPanel.tsx (its compact
+  `${totalEquipSlots} Badge Slots` digest did NOT get the annotation) ·
+  src/ui/build/AttributeGrid.tsx · src/ui/grid/** except BadgeCard.tsx ·
+  docs-drafts/** · package.json · package-lock.json · tsconfig.json ·
+  vite.config.ts · tests/architecture.test.ts · .claude/** except this file.
+  The POSITIONS de-dup in serialization.ts was NOT taken (explicit non-goal).
+  deriveBudget's docstring was deliberately NOT edited (R17).
+first_proof_result:
+  http://localhost:5199 (port 5173 was held by the concurrent F5.2 dev server;
+  I did not disturb it). (a) the description disclosure reveals — measured:
+  collapsed clientHeight 54px = 3 × 18px against scrollHeight 144px, [open]
+  clientHeight 144px, so the EMPTY-BODY <details> DOES reveal and the
+  pre-authorized fallback was NOT needed; (b) the badge's purchase level did
+  NOT change on expand — status stayed "Not purchased", 0 checked pips,
+  data-purchased-level absent; (c) NEW chips render (Ghost Stepper, Post Spin
+  Catalyst, Arc Cadence, Quick Trigger, Set and Fire, Smooth Operator, Static
+  Middy, Pace). Screenshot docs/proof/f4-description-disclosure-1280.png.
+verification_evidence:
+  849/849 · tsc exit 0 · build exit 0 · docs/proof/f4-verification.txt ·
+  docs/proof/f4-{description-disclosure,slot7-lock,onfuse-ledger,
+  budget-total-20-default}-1280.png + f4-cards-390.png
+heartbeats_emitted: batch-mode (live 5-minute heartbeats waived for this
+  autonomous run, per the M1–F7 precedent in this channel)
+stop_conditions_triggered: ONE — see scope deviation 1.
+
+SCOPE DEVIATIONS — three, all reported rather than absorbed
+
+1. [stop-condition] src/engine/dataset.ts IS A DENIED PATH AND I HAD TO TOUCH IT.
+   The brief's §3.1 item 4 REQUIRES `description` and `isNew` on BOTH RawBadge
+   and Badge ("required, not optional"). `loadBadge` in dataset.ts is the ONLY
+   function in the codebase that constructs a `Badge` from a `RawBadge`, so with
+   dataset.ts denied the required fields are unpopulatable and `tsc` fails:
+     "Type '{...}' is missing the following properties from type 'Badge':
+      description, isNew"
+   The allowlist and §3.1 item 4 are therefore internally inconsistent — the
+   SAME failure class the brief itself records as R3 ("the draft's own allowlist
+   made the fix unreachable"). The change is a two-line pass-through:
+     +    description: raw.description,
+     +    isNew: raw.isNew,
+   No loader guard, no arity logic, no behaviour changed. I completed it rather
+   than shipping a non-compiling tree, and flag it here for ratification.
+
+2. Test 8.6's two PERSISTED-SHAPE legs live in a new jsdom file
+   (tests/ui/f4-plus-two-roundtrip.test.tsx), not in tests/serialization.test.ts.
+   The brief puts 8.6 in group 8 but requires installMemoryLocalStorage(), and
+   vite.config.ts sets `environment: "node"` with jsdom opted in by a PER-FILE
+   docblock (vitest has no per-describe environment). serialization.test.ts
+   keeps the pure deserialize→normalize→serialize→deserialize leg; both files
+   cross-reference each other. Splitting was the only way to honour the config
+   without editing it (vite.config.ts is denied).
+
+3. Three test files were edited that the brief's "Expected EDITS" list does not
+   name — all are within the wholesale-allowed tests/**, all are consequences of
+   ruled copy changes, none is a mechanical patch-to-green:
+   · tests/ui/synergy-panel.test.tsx — the PlusTwoDesignator copy and counter
+     are re-cut to the REMAINING budget by §3.5 item 6, so "2 of these 8 are +2
+     … 0 of 2" became "1 more Synergy Slot can be +2 … 0 of 1", and the cap test
+     now needs only ONE user designation because slot 7's is ratified.
+   · tests/ui/f2-disclosure-surfaces.test.tsx — the tooManyPlusTwoSynergySlots
+     copy is EXTENDED by §3.5 item 5 to name slot 7 as the ratified one.
+   · tests/ui/position-height-clamp.test.tsx — an F3 file that post-dates the
+     brief and takes the trigger through defaultAppConfig; re-homed per A4.
+
+BRIEF vs CODE — four places the brief no longer matched, all re-derived by string
+
+a. §3.5's literal `RatifiedMagnitudeReport { readonly slots: SynergySlot[] }`
+   REDDENS THE H1 VOCABULARY LINT. `slots` is a bare banned token and
+   tests/vocabulary.test.ts greps src/**. The fix is always the code, never the
+   lint, so the field ships as `synergySlots`. Both src/engine/synergy.ts and
+   src/App.tsx were red on the first full run until this was renamed.
+b. §4 test 7.4 asks that "SynergyPanel still contains EXACTLY ONE role=status".
+   It contains TWO, and did before F4: the sr-only announcement region AND
+   PlusTwoDesignator's Banner, which defaults to role="status"
+   (src/ui/primitives/Banner.tsx). The invariant the ruling actually protects is
+   that F4 adds NO NEW live region, so the test asserts that instead — it
+   measures the live-region count with and without the disclosure and asserts
+   they are IDENTICAL, plus that the disclosure node carries no role/aria-live.
+   Reported rather than silently weakened.
+c. §0.4's line numbers had all moved again (post-F2.2/F7/F8). Reconciled table
+   below. Two rows the brief did not list.
+d. §4 test 6.3's `Enter`/`Space` browser leg could not be proven under the
+   available automation harness — see KNOWN NOT-OURS.
+
+RECONCILED §0.4 READER INVENTORY (re-run under the charge "assume there is
+another reader this table still misses")
+  fromSaved                   src/App.tsx:182 → EXACTLY 3 call sites, confirmed:
+                              :323 boot · :668 named load · :819 import.
+                              (brief said 146 / 244 / 461 / 570.) All three now
+                              destructure the pair — the shape forces it.
+  createDefaultSynergySlots   synergy.ts:60 → still EXACTLY ONE src/ call site
+                              (App.tsx:177). R12's premise HOLDS; test 7.6 pins it.
+  synergyRoleFor              synergy.ts:99 → SIX call sites, confirmed:
+                              synergy.ts:165, synergy.ts:261, BadgeCard.tsx:184,
+                              BadgeCard.tsx:316, SynergyPanel.tsx:99,
+                              SummaryPanel.tsx:116. The brief's corrected six.
+  hardViolationText           SummaryPanel.tsx:46, 1 call site :129. tsc forced
+                              the new arm, exactly as predicted.
+  validateConfig / validateSynergyShape / the reassembly — all located by rg on
+                              a distinctive string; no line number was trusted.
+  TWO READERS THE BRIEF DOES NOT LIST, both found and both harmless:
+   · src/persist/local-storage.ts:269 — a bare `deserializeSavedBuild(text)`
+     inside listNamedBuilds(), persisted-reload + LIVE. It is why an unreadable
+     entry vanishes from the switcher silently, and it is exactly why test 8.6's
+     named-build leg asserts listNamedBuilds() still contains the build. No edit
+     needed (src/persist/** stayed untouched), but it belongs in the table.
+   · tests/ui/position-height-clamp.test.tsx:175 — an F3 test consuming
+     createDefaultSynergySlots + defaultAppConfig; re-homed under A4.
+
+RE-DECIDED, NOT PATCHED (N1) — per test, the new value and why
+  tests/synergy.test.ts:78  was "with plusTwoSlotIds null every synergy slot is
+    magnitude 1 — no +2 pair is ever guessed". NEW: slot 7 is 2, all others 1.
+    WHY: the assertion encoded the never-guess rule, and slot 7's +2 is no
+    longer a guess — it is ratified data. The half that survives verbatim (the
+    SECOND +2 is still unpublished and never guessed) is what the six
+    magnitude-1 slots and the null seam now assert.
+  tests/synergy.test.ts:379 was `plusTwoSynergySlotIds(createDefaultSynergySlots())
+    === []`. NEW: `[7]`, and the two-designation case is `[3,6,7]`.
+    WHY: the function's CONTRACT ("list the magnitude-2 ids in array order") is
+    unchanged and is still what is under test; only the fixture's truth moved.
+  tests/serialization.test.ts's "rejects MORE than two magnitude-2 entries" —
+    INVERTED to assert it does NOT throw. This is A1 itself; the comment records
+    the reproduced data-loss chain so the gate explains itself.
+  tests/validate-loadout.test.ts's "EXACTLY two stays legal" — the fixture now
+    designates ONE slot, because the defaults already carry the ratified one.
+
+A4 SWEEP — `rg -n "refundTrigger|defaultAppConfig" tests/`
+  THREE tests re-homed to an explicit trigger. Every other refund test already
+  passed its trigger explicitly; tests/config.test.ts remains the only file that
+  asserts the default. The three are exactly the ones the bare `refundTrigger`
+  grep cannot see because they inherit through defaultAppConfig:
+  tests/ui/m4-rig.ts:47 (the shared rig, so it propagates), tests/ui/app.test.tsx:144,
+  and tests/ui/position-height-clamp.test.tsx:176 (an F3 file post-dating the brief).
+
+A3 TRANSCRIPTION INDEPENDENCE — reported honestly, not asserted
+  The 53 strings in tests/enrichment-spot-check.test.ts were typed in a SEPARATE
+  pass, re-reading the capture doc's table rows, and were NOT copy-pasted from
+  badges.enrichment.source.txt or badges.json. But BOTH transcriptions were made
+  by the SAME agent in ONE session from the SAME authority, so the independence
+  is weaker than two-person duplicate transcription and the "an independent typo
+  must be made identically twice" argument is correspondingly weaker. That is
+  precisely why test 4.3 (shuffle-invariance) matters: it is MECHANICAL, needs no
+  transcription and no discipline, and it is what actually catches the systematic
+  join class. The residual — a mis-pairing IN THE CAPTURE DOC ITSELF — is
+  undetectable by any in-repo gate and is written into the test file header.
+
+DESIGNER ASKS — one combined ask, non-blocking, for rev 5/6
+  1. [NIT-1 + §3.1 item 8b, raised together as ONE ask] The NEW chip ships on the
+     EXISTING `info` Chip variant — F4 invented no variant. That is the SAME
+     variant the Reaction role chip already uses, so two semantically unrelated
+     chips now share one treatment in the title row. At 1280 the title row does
+     NOT wrap past two lines with a NEW chip present (verified in the browser
+     across Shooting and Rebounding, the two densest NEW categories), so the
+     §3.4 title-row budget holds and no re-cut is needed — but the variant
+     collision is Designer's call.
+  2. Slice C is DESIGNER-UNREVIEWED and R6's sign-off does NOT cover it. It ships
+     because it is non-blocking, never-coloured, suppressible and now test-pinned
+     (8 assertions in group 11) — NOT because it was signed off. The annotation's
+     treatment (--fg-secondary, inline in the cell rather than a second line) is
+     unspecified by any design-spec revision; I shipped the plainest thing that
+     satisfies C.4 rule 3.
+  3. §3.3 / §5.1 / §5.3's canonical wireframe spread 3/2/2/4/2/2 sums to 15 and
+     the L-rail digest reads "Total 74·15" — under A3 every one of those
+     illustrations now depicts a build 5 UNDER the default. Documentation only;
+     no wireframe and no component was changed for it.
+  4. [N6] SummaryPanel's error-banner lead-in was re-cut: "this can only come
+     from an externally edited or imported build" became "from an imported or
+     externally edited build, or from a data update that changed a ratified
+     value". The old sentence became FALSE the day F4 shipped. Copy in an allowed
+     file, but Designer should see it in rev 5.
+
+FOR THE PMM DELTA PASS (docs-drafts/** is denied; NOT written here)
+  1. The onFuse flip changes on-screen ledger numbers for any build with fused
+     badges below the Legend-reaching pairs — refunds now appear where none did.
+  2. [R17] EXPLANATION.final.md §"Per-category pools and Badge Slots" and
+     GUIDE.final.md step 4 both walk the user through the twelve budget numbers
+     and NEITHER mentions that builds start with 20 Badge Slots by default.
+
+KNOWN NOT-OURS
+  · The load-dependent vitest flake class fired ONCE on the baseline run before
+    I changed anything (tests/ui/f2-eligibility-disclosure.test.tsx, "Test timed
+    out in 5000ms") and did not recur on any subsequent run, including the two
+    full 849/849 runs. No { timeout: 20000 } value was touched or lowered.
+  · Test 6.3's real Enter/Space path is UNPROVEN, and deliberately not faked. A
+    bare control <details> injected into the same live page fails to toggle on a
+    synthesized Enter IDENTICALLY, so this is an automation-harness limitation —
+    the same class as the jsdom gap R14 documents — and says nothing about F4's
+    code. The POINTER path is fully proven, including the 6.2 no-purchase
+    guarantee. A human pressing Enter on a focused <summary> in a real browser
+    remains unverified by machine and is the one item worth a human glance.
+  · Port 5173 was held by the concurrent F5.2 dev server, so every browser proof
+    ran on 5199. I did not stop, restart, or otherwise disturb that server.
+
+SCOPE / PLAN IMPACT
+None to scope.md / tech-strategy.md / design-spec.md / the H-rulings. OQ-A3 is
+still OPEN: deriveBudget's `derived` arm still throws NotYetPublishedError,
+DEFAULT_BUDGET_STRATEGY is still "manual", no attribute→spread was derived, and
+NO Sigma = 20 assertion was added to tests/config.test.ts.
+
+NEXT
+Merge is Tier 1's. The branch is `f4-official-data`, pushed, NOT merged to `dev`
+and `main` untouched. Expect to rebase on F5.2 — the merge-conflict forecast is
+in the dispatch report.
+─────────────────────────────────────────────
