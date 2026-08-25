@@ -4,10 +4,26 @@
 **Project:** `badge-builder-2k27`
 **Tier 1 workspace:** `<framework-root>/.claude/workspace/badge-builder-2k27/`
 **Established:** 2026-08-25
-**Tier 2 shape:** **A — bare.** This file plus `db-register.md` are the entire `.claude/` set. There
-are no project agents, no project hooks, and no `settings.json`. Tier 1 dispatches implementers
-directly against `workspace/badge-builder-2k27/impl-briefs/m<N>-*.md`
-(`tech-strategy.md` §7, ratified 2026-08-25).
+**Tier 2 shape:** **B — lean team** (as of **2026-08-26**). `.claude/agents/` carries three contracts —
+`tier2-conductor.md`, `tier2-engine-implementer.md`, `tier2-ui-implementer.md` — alongside this
+channel and `db-register.md`. There are still **no project hooks and no `settings.json`**: the
+`badges-json-gate.py` deferral stands with its revisit trigger unmet (`tech-strategy.md` §7). Tier 1
+may still dispatch implementers directly against
+`workspace/badge-builder-2k27/impl-briefs/*.md`; the in-repo conductor is the alternative route, and
+routes against the same briefs. See the 2026-08-26 supersession entry under `## Entries`.
+
+> **Superseded 2026-08-26 — the original header claim, kept visible rather than erased:**
+>
+> ~~**Tier 2 shape:** **A — bare.** This file plus `db-register.md` are the entire `.claude/` set.
+> There are no project agents, no project hooks, and no `settings.json`. Tier 1 dispatches
+> implementers directly against `workspace/badge-builder-2k27/impl-briefs/m<N>-*.md`
+> (`tech-strategy.md` §7, ratified 2026-08-25).~~
+>
+> Superseded by user directive 2026-08-26 ("Upgrade to Shape B at the morning session"), executed the
+> same day by Architect via Tier 1 orchestrator dispatch. The Option-B rejection rationale recorded at
+> the `planned` checkpoint (`tech-strategy.md` §7, `critic-review §NB-8`) is **unchanged on the
+> merits** — it was overridden by user directive, and its cost argument (new agents are not
+> dispatchable until a session restart) is knowingly accepted.
 
 ---
 
