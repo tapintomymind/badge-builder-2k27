@@ -14,10 +14,25 @@
  * ARRANGEMENT threshold (I9), which would have made a wider rail produce a
  * NARROWER track. Both are now derived here.
  *
- * The two content-minimum constants are MEASURED-ON-PAPER numbers, not
- * parsed. They are pinned deliberately: if a label, a font size or a field
- * width moves, someone has to come here and move them by hand. That is the
- * point, not a shortcoming.
+ * Rev 6 adds the third way to get this wrong, which is the one that shipped:
+ * I8 compared the rail against `RAIL_RIGHT - SECTION_CHROME` and stopped
+ * there, so it never saw that the F5 PAINT slice had given .ledger-overview
+ * an inset well with 12px sides. 24px of a 142px content box went to a
+ * decoration the geometry did not know about, and every ledger row wrapped
+ * onto two lines from that commit on — the empty state included. A number a
+ * paint slice can spend is geometry, so I8b now PARSES the well's padding
+ * and the row's own column gap and re-derives the fit from them.
+ *
+ * I8b also corrects WHICH demand I8 checked. `LEDGER_ROW_MIN = 137` was a
+ * MIN-content number ("Playmaking" + "10/16"): the width below which the
+ * text itself breaks, not the width at which the row stops wrapping. The
+ * row is a flex line — it wraps at label + gap + metrics MAX-content. The
+ * old constant could not have caught this defect even with the well counted.
+ *
+ * The measured-on-paper constants are MEASURED, not parsed. They are pinned
+ * deliberately: if a label, a font size or a field width moves, someone has
+ * to come here and move them by hand. That is the point, not a shortcoming.
+ * Every one of them was re-measured in headless Chrome at the rev-6 cut.
  */
 
 import { describe, expect, it } from "vitest";
@@ -40,28 +55,141 @@ function px(source: string, pattern: RegExp): number {
 
 /* ---------------------------------------------------- parsed from source -- */
 
+const SPACE_1 = px(tokens, /--space-1:\s*(\d+)px/); //  4 — ledger row padding
 const SPACE_2 = px(tokens, /--space-2:\s*(\d+)px/); //  8 — slider row gap
 const SPACE_3 = px(tokens, /--space-3:\s*(\d+)px/); // 12 — column gap, card gap, S page padding
 const SPACE_4 = px(tokens, /--space-4:\s*(\d+)px/); // 16 — page padding ≥768, section padding
 
-const L_COLUMNS = /grid-template-columns:\s*(\d+)px\s+minmax\(0,\s*1fr\)\s+(\d+)px/.exec(app);
-if (L_COLUMNS === null) throw new Error("layout arithmetic: L three-column declaration not found");
-const RAIL_LEFT = Number.parseInt(L_COLUMNS[1] as string, 10);
-const RAIL_RIGHT = Number.parseInt(L_COLUMNS[2] as string, 10);
+const TIER_COLUMNS = [
+  ...app.matchAll(/grid-template-columns:\s*(\d+)px\s+minmax\(0,\s*1fr\)\s+(\d+)px/g),
+];
+if (TIER_COLUMNS.length !== 2) {
+  throw new Error(
+    `layout arithmetic: expected exactly 2 fixed-rail tiers (L + XL), found ${TIER_COLUMNS.length}`,
+  );
+}
+/** L (1280–1439) — the tight cut. Source order is the breakpoint order. */
+const RAIL_LEFT = Number.parseInt(TIER_COLUMNS[0]![1] as string, 10);
+const RAIL_RIGHT = Number.parseInt(TIER_COLUMNS[0]![2] as string, 10);
+/** XL (≥1440) — the comfortable cut. */
+const XL_RAIL_LEFT = Number.parseInt(TIER_COLUMNS[1]![1] as string, 10);
+const XL_RAIL_RIGHT = Number.parseInt(TIER_COLUMNS[1]![2] as string, 10);
+/** The breakpoint at which the XL tier takes over. Both tiers declare
+ *  `.layout { grid-template-columns: … }` inside a min-width query, so this
+ *  takes the WIDER of the two rather than the first one in source order. */
+const TIER_BREAKPOINTS = [
+  ...app.matchAll(
+    /@media \(min-width:\s*(\d+)px\)\s*\{\s*\.layout\s*\{\s*grid-template-columns:\s*\d+px\s+minmax\(0,\s*1fr\)\s+\d+px/g,
+  ),
+].map((match) => Number.parseInt(match[1] as string, 10));
+if (TIER_BREAKPOINTS.length !== 2) {
+  throw new Error(
+    `layout arithmetic: expected 2 fixed-rail breakpoints, found ${TIER_BREAKPOINTS.length}`,
+  );
+}
+const L_BREAKPOINT = Math.min(...TIER_BREAKPOINTS);
+const XL_BREAKPOINT = Math.max(...TIER_BREAKPOINTS);
+
+/** The ledger well's own sides, and the row's label↔metrics gap — BOTH
+ *  tiers. These are rail geometry (see the header note), so they are parsed
+ *  from source rather than assumed. */
+function spaceToken(name: string): number {
+  return px(tokens, new RegExp(`--${name}:\\s*(\\d+)px`));
+}
+
+/** Every `{ … }` body declared for `selector` in `source`, in source order.
+ *  A selector legitimately appears more than once (the layout cut, then the
+ *  F5 paint block, then the XL relaxation) — the caller says which
+ *  DECLARATION it wants, not which occurrence, so a re-ordered stylesheet
+ *  does not silently change the answer. */
+function blocksFor(source: string, selector: string): string[] {
+  const out: string[] = [];
+  const needle = `${selector} {`;
+  for (let at = source.indexOf(needle); at !== -1; at = source.indexOf(needle, at + 1)) {
+    const open = at + needle.length;
+    const close = source.indexOf("}", open);
+    if (close === -1) continue;
+    out.push(source.slice(open, close));
+  }
+  if (out.length === 0) throw new Error(`layout arithmetic: no block for ${selector}`);
+  return out;
+}
+
+/** The `index`-th space token in the one block of `selector` that declares
+ *  `property`. Throws if two blocks declare it — an ambiguous cascade here
+ *  means the derivation below is guessing, and it must not guess. */
+function spaceIn(source: string, selector: string, property: string, index: number): number {
+  const decls = blocksFor(source, selector)
+    .map((block) => new RegExp(`(?:^|;)\\s*${property}:\\s*([^;]+)`).exec(block))
+    .filter((match): match is RegExpExecArray => match !== null);
+  if (decls.length !== 1) {
+    throw new Error(
+      `layout arithmetic: expected exactly 1 "${selector} { ${property} }", found ${decls.length}`,
+    );
+  }
+  const parts = (decls[0]![1] as string).trim().split(/\s+/);
+  const chosen = parts[Math.min(index, parts.length - 1)] as string;
+  const token = /var\(--([a-z0-9-]+)\)/.exec(chosen);
+  if (token === null) {
+    throw new Error(`layout arithmetic: ${selector} ${property} is a literal, not a token`);
+  }
+  return spaceToken(token[1] as string);
+}
+
+/** Split the stylesheet into what applies at L and what only applies at XL.
+ *  The XL relaxations are spread over more than one @media block, so this
+ *  walks braces rather than assuming a single contiguous region. */
+function splitAtBreakpoint(source: string, breakpoint: number): { below: string; atOrAbove: string } {
+  const needle = `@media (min-width: ${breakpoint}px)`;
+  let below = "";
+  const atOrAbove: string[] = [];
+  let cursor = 0;
+  for (let at = source.indexOf(needle); at !== -1; at = source.indexOf(needle, cursor)) {
+    below += source.slice(cursor, at);
+    let depth = 0;
+    let scan = source.indexOf("{", at);
+    do {
+      if (source[scan] === "{") depth += 1;
+      else if (source[scan] === "}") depth -= 1;
+      scan += 1;
+    } while (depth > 0 && scan < source.length);
+    atOrAbove.push(source.slice(at, scan));
+    cursor = scan;
+  }
+  return { below: below + source.slice(cursor), atOrAbove: atOrAbove.join("\n") };
+}
+
+const { below: L_SOURCE, atOrAbove: XL_SOURCE } = splitAtBreakpoint(app, XL_BREAKPOINT);
+
+/** L: `.ledger-overview { padding: <y> <x> }` — the x half. */
+const WELL_PAD_X = spaceIn(L_SOURCE, ".ledger-overview", "padding", 1);
+/** L: `.ledger-overview__row { gap: <row> <column> }` — the column half. */
+const ROW_GAP_X = spaceIn(L_SOURCE, ".ledger-overview__row", "gap", 1);
+/** XL restores both. */
+const XL_WELL_PAD_X = spaceIn(XL_SOURCE, ".ledger-overview", "padding", 1);
+const XL_ROW_GAP_X = spaceIn(XL_SOURCE, ".ledger-overview__row", "column-gap", 0);
 
 const CARD_FLOOR = px(app, /repeat\(auto-fill,\s*minmax\((\d+)px,\s*1fr\)\)/);
 const ATTR_CELL_FLOOR = px(app, /repeat\(auto-fill,\s*minmax\(min\((\d+)px,\s*100%\),\s*1fr\)\)/);
 const STACK_MAX = px(app, /@container \(max-width:\s*(\d+)px\)/);
 const NUMERIC_W = px(app, /\.number-field input \{[^}]*width:\s*(\d+)px/);
 
-/* --------------------------- measured on paper (design-spec §0.1, rev 5) -- */
+/* --------------------------- measured on paper (design-spec §0.1, rev 6) -- */
 
 /** BudgetGrid <table> min-content: "Playmaking" ~79 + 8 cell padding, then
  *  two NumberField cells of 56 + 8. The binding demand in the LEFT rail. */
 const BUDGET_GRID_MIN = 215;
-/** .ledger-overview__row min-content: "Playmaking" ~79 + 16 gap + the
- *  metrics span's own min-content ("10/16" ~42). Binding in the RIGHT rail. */
-const LEDGER_ROW_MIN = 137;
+/** Widest category label at --text-sm: "Rebounding". MAX-content, because a
+ *  single word has no break opportunity — its min and max are the same. */
+const LEDGER_LABEL_MAX = 76;
+/** .ledger-overview__metrics MAX-content in the EMPTY state, "0/0 · 0/—".
+ *
+ *  The empty state is the floor the rail must clear, not the ceiling: real
+ *  numbers ("112/116 · 13/15") and the over-budget strings ("12/5 over by
+ *  1 ⚠ · …") are wider than any rail this layout can afford, and wrap by
+ *  design (§11.5 ④). What I8b forbids is a rail so narrow that a ledger with
+ *  NOTHING in it already wraps — which is exactly what rev 5 + F5 shipped. */
+const LEDGER_METRICS_MAX = 76;
 /** A 0–99 slider narrower than this is not a control (design-spec §3.1). */
 const USABLE_TRACK = 224;
 /** <details class="section">: 1px border + --space-4 padding, both sides. */
@@ -69,8 +197,13 @@ const SECTION_CHROME = 2 + 2 * SPACE_4;
 /** Plausible classic-scrollbar widths, plus macOS overlay. Derive at ALL. */
 const SCROLLBARS = [0, 15, 17];
 
-function centreColumn(viewport: number, scrollbar: number): number {
-  return viewport - scrollbar - 2 * SPACE_4 - 2 * SPACE_3 - RAIL_LEFT - RAIL_RIGHT;
+function centreColumn(viewport: number, scrollbar: number, left = RAIL_LEFT, right = RAIL_RIGHT): number {
+  return viewport - scrollbar - 2 * SPACE_4 - 2 * SPACE_3 - left - right;
+}
+/** What the right rail must be for a ledger row to sit on ONE line: the row
+ *  box it needs, plus the well it sits in, plus the section around that. */
+function ledgerRailNeeded(gap: number, wellPadX: number): number {
+  return LEDGER_LABEL_MAX + gap + LEDGER_METRICS_MAX + 2 * wellPadX + SECTION_CHROME;
 }
 function cardsPerRow(track: number): number {
   return Math.max(1, Math.floor((track + SPACE_3) / (CARD_FLOOR + SPACE_3)));
@@ -101,6 +234,52 @@ describe("I3 — the L columns sum, and the card count that follows", () => {
       1280 - Math.max(...SCROLLBARS) - 2 * SPACE_4 - 2 * SPACE_3 - (3 * CARD_FLOOR + 2 * SPACE_3);
     expect(RAIL_LEFT + RAIL_RIGHT).toBeLessThanOrEqual(ceiling);
   });
+
+  it("the L cut spends the ceiling it is allowed, and no more", () => {
+    // rev 6 sits ON the I3 ceiling on purpose: the right rail could not
+    // clear I8b otherwise, and the left rail is already at its I9 floor.
+    // Documented so the next re-cut knows there is nothing left to take at
+    // 1280 — the only way to widen a rail there is to move a floor.
+    const ceiling =
+      1280 - Math.max(...SCROLLBARS) - 2 * SPACE_4 - 2 * SPACE_3 - (3 * CARD_FLOOR + 2 * SPACE_3);
+    expect(ceiling - (RAIL_LEFT + RAIL_RIGHT)).toBeLessThanOrEqual(SPACE_1);
+    expect(RAIL_LEFT - SECTION_CHROME).toBe(USABLE_TRACK); // the I9 floor, exactly
+  });
+});
+
+/* ----------------------------------------------------------------- I3-XL -- */
+
+describe("I3 at XL — the second tier buys width without costing cards", () => {
+  it("is still 3-up at its own breakpoint, at every scrollbar width", () => {
+    for (const scrollbar of SCROLLBARS) {
+      expect(
+        cardsPerRow(centreColumn(XL_BREAKPOINT, scrollbar, XL_RAIL_LEFT, XL_RAIL_RIGHT)),
+        `scrollbar ${scrollbar}px`,
+      ).toBe(3);
+    }
+  });
+
+  it("both rails are wider at XL than at L — that is the whole point", () => {
+    expect(XL_RAIL_LEFT).toBeGreaterThan(RAIL_LEFT);
+    expect(XL_RAIL_RIGHT).toBeGreaterThan(RAIL_RIGHT);
+  });
+
+  it("XL cannot start below the width its own rails can afford", () => {
+    // The centre column DOES step down when the rails take their cut — that
+    // is what buying width means, and it is fine while 3-up survives. What
+    // must not happen is XL engaging at a viewport too narrow to fund it.
+    // Stated as a floor on the BREAKPOINT rather than on the rails, because
+    // raising the breakpoint is the cheap fix and shrinking the rails is not.
+    const needed = 3 * CARD_FLOOR + 2 * SPACE_3;
+    const earliest =
+      needed + Math.max(...SCROLLBARS) + 2 * SPACE_4 + 2 * SPACE_3 + XL_RAIL_LEFT + XL_RAIL_RIGHT;
+    expect(XL_BREAKPOINT).toBeGreaterThan(earliest);
+  });
+
+  it("L stops exactly where XL starts — no gap, no overlap", () => {
+    expect(L_BREAKPOINT).toBeLessThan(XL_BREAKPOINT);
+    expect(app).toContain(`@media (min-width: ${XL_BREAKPOINT}px)`);
+  });
 });
 
 /* ------------------------------------------------------------------ I8 -- */
@@ -110,8 +289,35 @@ describe("I8 — each rail is wider than its own contents", () => {
     expect(RAIL_LEFT - SECTION_CHROME).toBeGreaterThanOrEqual(BUDGET_GRID_MIN);
   });
 
-  it("the RIGHT rail clears the ledger row's min-content", () => {
-    expect(RAIL_RIGHT - SECTION_CHROME).toBeGreaterThanOrEqual(LEDGER_ROW_MIN);
+  it("the RIGHT rail clears the ledger row's MAX-content, well included", () => {
+    // rev 6. Three things this replaces, all of which rev 5 got wrong:
+    //   · it checked min-content, so it measured "does the text break",
+    //     not "does the row wrap" — the row is a flex line and wraps first;
+    //   · it stopped at SECTION_CHROME, so the well's 12px sides were free;
+    //   · it therefore passed at 142px while the rows had 118px.
+    expect(RAIL_RIGHT).toBeGreaterThanOrEqual(ledgerRailNeeded(ROW_GAP_X, WELL_PAD_X));
+  });
+
+  it("I8b — the ledger well's sides are GEOMETRY: spent, they must be funded", () => {
+    // The regression this test exists for. F5 added the well's padding as a
+    // paint decision; nothing re-derived the rail, and the rows lost 24px.
+    // Whatever the well takes, the rail has to have handed it over first.
+    const rowBox = RAIL_RIGHT - SECTION_CHROME - 2 * WELL_PAD_X;
+    expect(rowBox).toBeGreaterThanOrEqual(LEDGER_LABEL_MAX + ROW_GAP_X + LEDGER_METRICS_MAX);
+
+    // And the pre-rev-6 tree must NOT satisfy it — the canary that proves
+    // this assertion has teeth rather than merely being true today.
+    const shippedBroken = 176 - SECTION_CHROME - 2 * SPACE_3;
+    expect(shippedBroken).toBeLessThan(LEDGER_LABEL_MAX + SPACE_4 + LEDGER_METRICS_MAX);
+  });
+
+  it("I8b — XL funds the well and the gap it restores", () => {
+    const rowBox = XL_RAIL_RIGHT - SECTION_CHROME - 2 * XL_WELL_PAD_X;
+    expect(rowBox).toBeGreaterThanOrEqual(LEDGER_LABEL_MAX + XL_ROW_GAP_X + LEDGER_METRICS_MAX);
+    // XL is the COMFORTABLE tier: it is not allowed to be as tight as L.
+    expect(XL_RAIL_RIGHT - ledgerRailNeeded(XL_ROW_GAP_X, XL_WELL_PAD_X)).toBeGreaterThan(
+      RAIL_RIGHT - ledgerRailNeeded(ROW_GAP_X, WELL_PAD_X),
+    );
   });
 
   it("the duplicate right-rail Export/Import pair stays deleted (rev 2 §3.6)", () => {

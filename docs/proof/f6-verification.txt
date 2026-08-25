@@ -1,0 +1,100 @@
+F6 — right-rail width re-cut (§11 rev 6) — verification evidence
+Date: 2026-08-25 (session) · branch claude/right-sidebar-width-62di4r (off dev)
+
+== The defect, as measured ==
+User report: the right rail is "a bit too skinny, and items are not laying next
+to each other as smoothly."
+
+Measured in headless Chrome at 1280 against the F5 tip, BEFORE any change:
+  .rail-right                    176px
+  .section content box           142px   (176 − 2 border − 2×16 padding)
+  .ledger-overview content box   118px   (142 − 2×12 well padding)   <-- here
+  .ledger-overview__row demand   168px   ("Rebounding" 76 + 16 gap + "0/0 · 0/—" 76)
+
+All 6 ledger rows wrapped onto two lines — in the EMPTY state, with no build
+loaded. Row height 54px against a 29px single line; the Ledger overview section
+stood 450px tall to show 6 numbers.
+
+Root cause is a seam between two commits, not a bad number in either:
+  F5.0 (3a12f64) derived the right rail against a 142px content box.
+  F5   (ad4d382) then styled .ledger-overview as an inset "instrument well"
+       with `padding: var(--space-2) var(--space-3)` — 24px of sides.
+The geometry slice had already spent that 24px. Nothing re-derived the rail,
+because tests/layout-arithmetic.test.ts I8 compared RAIL_RIGHT − SECTION_CHROME
+and stopped there: the well was invisible to it. I8's constant was also the
+wrong QUANTITY — LEDGER_ROW_MIN = 137 is min-content ("Playmaking" + "10/16"),
+the width at which the text breaks, while a flex row wraps at MAX-content. I8
+would have passed at 142px even with the well counted.
+
+This is precisely the escalation the F5 reportback named: "if any later addition
+pushes the right rail's min-content above 142px [...] the answer is the §11.8 IA
+re-cut, not another shave." F5's own paint slice was that addition.
+
+== The re-cut ==
+L (1280–1439): 280/176 → 258/204 · well sides --space-3 → --space-1 ·
+               ledger row column gap --space-4 → --space-2
+XL (≥1440), NEW: 300/268 · well sides and row gap both restored to F5's values
+
+258 is the LEFT rail's derived floor, not a preference: 258 − 34 chrome = 224 =
+the §3.1 usable slider track (I9). 258 + 204 = 462 sits ON the I3 ceiling — the
+centre column is 745px at 1280 with a 17px scrollbar against a 744px 3-up
+minimum. There is nothing left to take at 1280; moving either rail further now
+requires moving a floor, and the arithmetic test says so in its own words.
+
+XL exists because 1280 is the WORST case for the rails and rev 5 made every
+wider viewport pay its bill — the rails stayed pinned at their 1280 sizes while
+the centre absorbed all the extra width, so a 1728px display wrapped its ledger
+rows for a shortfall that only existed at 1280.
+
+== Measured after (headless Chrome, http://localhost:5173) ==
+viewport  railL  railR  ledger box  row box  wrapped rows  row h  overview h  cards
+   1280     258    204        170      162       0 of 6      29        300      3
+   1366     258    204        170      162       0 of 6      29        300      3
+   1440     300    268        234      210       0 of 6      29        300      3
+   1512     300    268        234      210       0 of 6      29        300      3
+   1728     300    268        234      210       0 of 6      29        300      4
+No horizontal scrollbar on the document or either rail at any width; no element
+in either rail has scrollWidth > clientWidth (visually-hidden legends excluded).
+
+Degradation with real numbers — still by WRAPPING, never by scrolling (§11.5 ④),
+and the metrics span never overflows its row:
+  metrics string          1280        1440
+  "0/0 · 0/—"    (empty)  0 wrapped   0 wrapped
+  "12/16 · 3/5"  (typical) 2 wrapped  0 wrapped
+  "112/116 · 13/15"        6 wrapped  2 wrapped
+  "12/5 over by 1 ⚠ · …"   6 wrapped  6 wrapped
+The over-budget string is ~230px of text; no rail this layout can afford holds
+it, and it is not meant to — I8b's floor is the EMPTY state, deliberately.
+
+The Synergy Slot rows also stop stacking at XL: title + permanence chip share a
+line, and Boost +1/+2 sits beside the Unlocked toggle (f6-after-1440.png). At L
+that header still wraps — it holds four controls (~420px of content) and no rail
+width fixes it; that is §11.8 IA territory, not geometry.
+
+== Pre-change failure proofs (the new assertions have teeth) ==
+Each reverted in isolation against the rev-6 tree:
+  restore F5's --space-3 well sides   → 2 failed (I8 right-rail, I8b)
+  restore rev-5's 280/176 rails       → 3 failed (I3 ceiling, I8 right-rail, I8b)
+  restore rev-5's 16px row gap        → 2 failed (I8 right-rail, I8b)
+I8b additionally pins the pre-rev-6 arithmetic as a canary inside the test, so
+the assertion cannot quietly become vacuous.
+
+== Test/build gates ==
+tests/layout-arithmetic.test.ts:  12 → 19 assertions, all pass
+npm test:      40 files / 631 tests — 629 pass, 2 FAIL (see below)
+npm run build: tsc --noEmit clean + vite build clean (34.84 kB css / 272.84 kB js)
+
+PRE-EXISTING FAILURES, NOT THIS SLICE'S:
+  tests/ui/f2-builds-persistence.test.tsx
+    > "save-as-new writes a second build" — Test timed out in 5000ms
+    > "save-as-new with a taken name auto-suffixes" — Test timed out in 5000ms
+  Both reproduce identically on the clean origin/dev tip with this slice's three
+  files stashed (2 failed | 8 passed). They are 5s vitest timeouts on a slow
+  container, not assertion failures. Left alone — out of this slice's scope.
+
+== §10.7 stop-condition self-check ==
+new dependency: NONE (runtime deps exactly {react, react-dom})
+existing token value changed: NONE (only which token a rule consumes)
+new conditional/handler/state in .tsx: NONE — no .tsx file was touched
+engine/data/config touched: NONE
+styling keyed to overlay state: NONE
