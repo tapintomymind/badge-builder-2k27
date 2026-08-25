@@ -1,33 +1,101 @@
 /**
- * BadgeGridSection (design-spec §3.4) — one <section> per Category:
- * the CategoryLedger as sticky group header, then the card <ul>.
- * (EmptyResults is M4 — there are no filters yet, so a section can never be
- * empty in M3.)
+ * BadgeGridSection (design-spec §3.4, §15.8) — one <section> per Category:
+ * the CategoryLedger digest as sticky group header, then the card <ul>.
+ *
+ * F5.3/B — THE CATEGORY IS COLLAPSIBLE, and the structure is a ruling:
+ *
+ *   <section className="grid-section" id={categoryAnchorId(category)}>
+ *     <details className="grid-section__disclosure">
+ *       <summary className="category-ledger"> … the digest …
+ *       … the lede …
+ *       <ul className="grid-section__cards">
+ *
+ * THE <section> LINE DOES NOT MOVE. `#cat-{name}` is the head of the --cat
+ * custom-property chain that four identity surfaces inherit from; custom
+ * property inheritance does not care about <details> open state, display, or
+ * nesting depth, but it cares very much WHICH element carries the id. The
+ * <details> therefore carries no id of its own (assertion 11).
+ *
+ * COLLAPSE IS DISPLAY-ONLY. This component imports NOTHING from src/engine/
+ * (assertion 14): a collapsed category still spends Badge Points, still
+ * counts Badge Slots, still appears in the rail ledger and the Summary, and
+ * still exports. Hiding cards is a view state, never a plan state.
  */
 
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 import type { ReactNode } from "react";
 import type { Category } from "../../engine/vocabulary";
-import { categoryAnchorId } from "./anchors";
+import { readUiSectionOpen, writeUiSectionOpen } from "../../persist/local-storage";
+import { categoryAnchorId, categorySectionStorageKey } from "./anchors";
 
 export interface BadgeGridSectionProps {
   category: Category;
-  /** The CategoryLedger header — rendered by the parent so the ledger's
-   * headingId and this section's aria-labelledby agree. */
-  header: (headingId: string) => ReactNode;
+  /** The CategoryLedger DIGEST — it renders as this section's <summary>, so
+   * it is rendered by the parent to keep the ledger's headingId and this
+   * section's aria-labelledby in agreement. */
+  digest: (headingId: string) => ReactNode;
+  /** The CategoryLedger LEDE — meter, refunded, feasibility, projection. */
+  lede: () => ReactNode;
   children: ReactNode;
 }
 
-export function BadgeGridSection({ category, header, children }: BadgeGridSectionProps) {
+export function BadgeGridSection({ category, digest, lede, children }: BadgeGridSectionProps) {
   const headingId = useId();
+  const storageKey = categorySectionStorageKey(category);
+  /** All six default OPEN: the zero state renders the full instrument. The
+   * Build panel's mobile auto-collapse latch is a Build-panel behaviour and
+   * is deliberately NOT extended here. */
+  const [open, setOpen] = useState<boolean>(() => readUiSectionOpen(storageKey) ?? true);
+
+  /**
+   * A JumpNav chip pointing into a COLLAPSED section must open it. The
+   * browser's native ancestor-revealing algorithm does not help: the target
+   * <section> is the details' ANCESTOR, not its descendant, so nothing is
+   * hidden from the fragment-navigation algorithm's point of view.
+   *
+   * The auto-open PERSISTS, because the section genuinely is open now and a
+   * reload must not re-collapse what the user is looking at.
+   *
+   * `open` is deliberately NOT a dependency. Clicking the same JumpNav chip
+   * twice fires no `hashchange` at all, so jump → deliberately collapse →
+   * click the same chip does nothing — which is the correct reading of "I
+   * collapsed that on purpose." Adding `open` here would make the effect
+   * re-fire on the collapse itself and re-open it under the user.
+   */
+  useEffect(() => {
+    const openIfTargeted = () => {
+      if (window.location.hash !== `#${categoryAnchorId(category)}`) return;
+      setOpen(true);
+      writeUiSectionOpen(storageKey, true);
+    };
+    openIfTargeted();
+    window.addEventListener("hashchange", openIfTargeted);
+    return () => {
+      window.removeEventListener("hashchange", openIfTargeted);
+    };
+  }, [category, storageKey]);
+
   return (
     <section
       className="grid-section"
       id={categoryAnchorId(category)}
       aria-labelledby={headingId}
     >
-      {header(headingId)}
-      <ul className="grid-section__cards">{children}</ul>
+      {/* No aria-expanded: the browser maps it from `open`. Hand-authoring it
+          is redundant and can conflict with the native mapping. */}
+      <details
+        className="grid-section__disclosure"
+        open={open}
+        onToggle={(event) => {
+          const next = event.currentTarget.open;
+          setOpen(next);
+          writeUiSectionOpen(storageKey, next);
+        }}
+      >
+        {digest(headingId)}
+        {lede()}
+        <ul className="grid-section__cards">{children}</ul>
+      </details>
     </section>
   );
 }

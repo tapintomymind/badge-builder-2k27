@@ -78,7 +78,8 @@ import { BuildManagerDialog, BuildSwitcher } from "./ui/builds/BuildManager";
 import { BadgeCard } from "./ui/grid/BadgeCard";
 import { BadgeGridSection } from "./ui/grid/BadgeGridSection";
 import {
-  CategoryLedger,
+  CategoryLedgerDigest,
+  CategoryLedgerLede,
   overByBadgePoints,
   overByBadgeSlots,
   projectionDiffers,
@@ -1174,12 +1175,23 @@ export default function App() {
                 <BadgeGridSection
                   key={category}
                   category={category}
-                  header={(headingId) => (
-                    <CategoryLedger
+                  // F5.3/B: two render props instead of one `header`. The
+                  // digest becomes the section's <summary> (the collapse
+                  // control); the lede is ordinary disclosure content. Wiring
+                  // only — the numbers are the same engine readouts.
+                  digest={(headingId) => (
+                    <CategoryLedgerDigest
                       category={category}
                       readout={readout}
                       budget={budget}
                       headingId={headingId}
+                    />
+                  )}
+                  lede={() => (
+                    <CategoryLedgerLede
+                      category={category}
+                      readout={readout}
+                      budget={budget}
                       feasibility={feasibilityByCategory[category]}
                       projection={projections?.[category]}
                     />

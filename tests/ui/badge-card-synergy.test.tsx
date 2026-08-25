@@ -8,8 +8,12 @@
  * `Activated: X`), Legend-effective (filled Legend pip + LEGEND chip).
  *
  * Per-pip affordability (§3.6): an upgrade pip whose whatIf delta exceeds
- * the category's remaining points renders dashed with `+N ⚠` — and stays
+ * the category's remaining points renders dashed with `+N⚠` — and stays
  * fully clickable (H4: the Budget class never disables anything).
+ *
+ * F5.3/I12: the space before the glyph is GONE (`+N ⚠` -> `+N⚠`). The pip is
+ * the narrowest box in the app and the space cost 6 of the 34px the widest
+ * cost string needed; the glyph itself is untouched.
  */
 
 import { render, screen } from "@testing-library/react";
@@ -160,9 +164,10 @@ describe("per-pip affordability (§3.6) — warned, never disabled (H4)", () => 
     // Float Game (A: 3/5/6/7 total-to-own), remaining 5: Bronze +3 and
     // Silver +5 fit; Gold +6 and HOF +7 do not. Close 90 caps at Gold, so
     // HOF is locked (not an affordability question).
+    // F5.3/I12: `+6⚠`, no space — see the file header.
     renderCard(requireBadge("float-game"), emptyState, defaultOverlay, 5);
     const costs = [...document.querySelectorAll(".pip__cost")].map((el) => el.textContent);
-    expect(costs).toEqual(["+3", "+5", "+6 ⚠", "—", "boost"]);
+    expect(costs).toEqual(["+3", "+5", "+6⚠", "—", "boost"]);
     expect(document.querySelectorAll(".pip--unaffordable")).toHaveLength(1);
     const gold = screen.getByRole("radio", { name: /^Gold/ });
     expect(gold.getAttribute("aria-label")).toContain("exceeds remaining points");

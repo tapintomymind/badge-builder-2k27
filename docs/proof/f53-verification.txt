@@ -1,0 +1,21 @@
+F5.3 verification log
+=====================
+
+BASELINE (worktree /tmp/bb-f53, base origin/f4-official-data @ 2999a6c):
+  52 test files / 856 tests passed, 40.59s wall
+  NOTE: brief cites 701 on a dev baseline; +155 is F4's enrichment tests + growth in five files.
+
+FIRST PROOF — the pip-spread inequality RED against the UNMODIFIED tree
+-----------------------------------------------------------------------
+ FAIL  tests/layout-arithmetic.test.ts > TEMP F5.3 first proof > the pip spread reads wider than the dots on the UNMODIFIED tree
+AssertionError: expected 31.6 to be less than 22
+ ❯ tests/layout-arithmetic.test.ts:477:43
+    475|     const PIP_DOT = px(cssBlock(app, ".pip__dot"), /width:\s*(\d+)px/);
+    476|     const stretched = (CARD_CONTENT - 4 * SPACE_1) / 5; // .pip { flex…
+    477|     expect(stretched - PIP_DOT + SPACE_1).toBeLessThan(PIP_DOT); // 31…
+       |                                           ^
+    478|   });
+    479| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

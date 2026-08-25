@@ -22,7 +22,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { cssBlock, srcSources } from "../helpers/test-utils";
+import { cssBlock, srcSources, stripComments } from "../helpers/test-utils";
 
 /** CSS sources via Vite's typed raw glob — same zero-node:fs discipline as
  * tests/helpers/test-utils.ts. */
@@ -113,34 +113,50 @@ describe("F — canonical preview predicate adopted (no hand-negation)", () => {
   });
 });
 
-describe("F5 — §2.7 metallic layer: the worst token pairing holds AA", () => {
-  const tokens = read("src/styles/tokens.css");
+const tokens = read("src/styles/tokens.css");
 
-  /** Resolve a token to its hex, following one `var(--alias)` hop (the §2.7
-   * base metals are ALIASES of the §2.1 level tones by design). */
-  function resolveHex(name: string): string {
-    const match = new RegExp(`${name}:\\s*([^;]+);`).exec(tokens);
-    if (match === null) throw new Error(`token not declared: ${name}`);
-    const value = match[1]!.trim();
-    const alias = /^var\((--[\w-]+)\)$/.exec(value);
-    if (alias !== null) return resolveHex(alias[1]!);
-    if (!/^#[0-9a-fA-F]{6}$/.test(value)) throw new Error(`not a hex: ${name} = ${value}`);
-    return value;
-  }
+/** Resolve a token to its hex, following one `var(--alias)` hop (the §2.7
+ * base metals are ALIASES of the §2.1 level tones by design).
+ * F5.3: hoisted OUT of the §2.7 describe unchanged, so the drift-1 and
+ * drift-3 pins below can reuse it rather than carry a second copy of a
+ * contrast implementation. No `it` body moved. */
+function resolveHex(name: string): string {
+  const match = new RegExp(`${name}:\\s*([^;]+);`).exec(tokens);
+  if (match === null) throw new Error(`token not declared: ${name}`);
+  const value = match[1]!.trim();
+  const alias = /^var\((--[\w-]+)\)$/.exec(value);
+  if (alias !== null) return resolveHex(alias[1]!);
+  if (!/^#[0-9a-fA-F]{6}$/.test(value)) throw new Error(`not a hex: ${name} = ${value}`);
+  return value;
+}
 
-  /** WCAG 2.1 relative-luminance contrast ratio. */
-  function ratio(hexA: string, hexB: string): number {
-    const luminance = (hex: string): number => {
-      const channel = (offset: number): number => {
-        const srgb = parseInt(hex.slice(offset, offset + 2), 16) / 255;
-        return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
-      };
-      return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+/** WCAG 2.1 relative-luminance contrast ratio. */
+function ratio(hexA: string, hexB: string): number {
+  const luminance = (hex: string): number => {
+    const channel = (offset: number): number => {
+      const srgb = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+      return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
     };
-    const [lighter, darker] = [luminance(hexA), luminance(hexB)].sort((a, b) => b - a);
-    return ((lighter as number) + 0.05) / ((darker as number) + 0.05);
-  }
+    return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+  };
+  const [lighter, darker] = [luminance(hexA), luminance(hexB)].sort((a, b) => b - a);
+  return ((lighter as number) + 0.05) / ((darker as number) + 0.05);
+}
 
+/** A colour composited over an opaque backdrop at `alpha` — what a container
+ * `opacity` ACTUALLY does to every ratio beneath it (invariant I2). */
+function composite(fgHex: string, bgHex: string, alpha: number): string {
+  const mix = (offset: number): string => {
+    const fg = parseInt(fgHex.slice(offset, offset + 2), 16);
+    const bg = parseInt(bgHex.slice(offset, offset + 2), 16);
+    return Math.round(alpha * fg + (1 - alpha) * bg)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${mix(1)}${mix(3)}${mix(5)}`;
+}
+
+describe("F5 — §2.7 metallic layer: the worst token pairing holds AA", () => {
   it("the layer's worst pairing — --fg-on-accent on --metal-hof base — is ≥ 4.5:1 (spec: 5.64:1)", () => {
     // Method calibration (design-spec §2.7.1 / invariant I1): the same
     // arithmetic must reproduce §2.1's published bronze figure first.
@@ -151,5 +167,106 @@ describe("F5 — §2.7 metallic layer: the worst token pairing holds AA", () => 
     const worst = ratio(resolveHex("--fg-on-accent"), resolveHex("--metal-hof"));
     expect(worst).toBeGreaterThanOrEqual(4.5);
     expect(worst).toBeCloseTo(5.64, 1);
+  });
+});
+
+describe("F5.3 — card internals and collapse, pinned at the source", () => {
+  const css = read("src/styles/app.css");
+
+  it("I13 — the <li> is the equal-height carrier, and the four repairs stay forbidden", () => {
+    // The reported defect's ACTUAL cause: the grid always stretched its <li>
+    // children correctly; `.badge-card` is a content-height flex column that
+    // never filled its cell, so the dead space sat INSIDE each cell. One
+    // declaration fixes it without the card knowing about its wrapper.
+    expect(cssBlock(css, ".grid-section__cards > li")).toContain("display: grid");
+    // Stripped: A1's rationale FORBIDS these four by name, in prose, and an
+    // assertion that greps its own explanation is red for the most honest
+    // possible reason.
+    const code = stripComments(css);
+    expect(code).not.toContain("grid-auto-rows");
+    // PRE-FIX there was no `li` rule at all, no height and no height: 100%.
+    expect(cssBlock(code, ".badge-card")).not.toContain("height");
+  });
+
+  it("the digest IS the <summary>, so position: sticky survives the collapse", () => {
+    // T3, and it is the failure this pin exists for: nesting .category-ledger
+    // INSIDE a <summary> makes the summary the sticky element's containing
+    // block — a box its own size — and the sticky header dies with every
+    // CSS-text pin in this file still green.
+    const ledger = read("src/ui/grid/CategoryLedger.tsx");
+    expect(ledger).toMatch(/<summary className=\{`category-ledger/);
+    expect(ledger).not.toMatch(/<summary[^>]*>\s*<div className="category-ledger/);
+    // The sticky declaration stays in its ORIGINAL block. cssBlock returns
+    // the first match, so moving it into F5.3's appended block is exactly how
+    // the pin above would stop checking anything (A17).
+    expect(cssBlock(css, ".category-ledger")).toContain("position: sticky");
+  });
+
+  it("A14/T5 — the <summary> keeps a visible focus ring (nothing else can give it one)", () => {
+    // `:focus-visible { box-shadow: var(--ring-focus) }` (0,1,0, line ~51) is
+    // OVERRIDDEN by `.category-ledger { box-shadow: var(--shadow-raised) }`
+    // (0,1,0, later). Equal specificity, later wins — so a <summary> carrying
+    // this class ships with NO focus ring, and no test in the suite can see a
+    // focus ring. The composed rule is required, not stylistic.
+    const focus = cssBlock(css, ".category-ledger:focus-visible");
+    expect(focus).toContain("var(--ring-focus)");
+    expect(focus).toContain("var(--shadow-raised)");
+    // forced-colors drops box-shadow entirely; the transparent outline is
+    // what survives there.
+    expect(focus).toContain("outline: 2px solid transparent");
+  });
+
+  it("T4 — the caret is --fg-muted, NOT a fifth --cat surface", () => {
+    // category-colors.test.ts CANNOT catch this: its allowlist regex already
+    // matches `category-ledger h2`, so a --cat-coloured caret is pre-approved
+    // by the very test that polices the palette. The explicit colour is the
+    // only guard, and this is it.
+    const caret = cssBlock(css, ".category-ledger h2::before");
+    expect(caret).toContain("color: var(--fg-muted)");
+    expect(caret).not.toContain("var(--cat)");
+    // F5 owns .category-ledger::before for the gold hairline — the caret must
+    // not have been hung there.
+    expect(cssBlock(css, ".category-ledger::before")).toContain("var(--rule-gold)");
+  });
+
+  it("DRIFT 1 — .chip--accent has a rule at last, and it clears AA on the binding backdrop", () => {
+    // Shipped state: `Chip` accepts variant="accent", BadgeCard passes it for
+    // the Fuse role chip, and app.css declared --tier/--level/--warning/
+    // --info/--muted and NOT --accent. The Fuse chip rendered with no border
+    // and an inherited colour while its Reaction sibling got 1px solid.
+    const chip = cssBlock(css, ".chip--accent");
+    expect(chip).toContain("border: 1px solid var(--accent)");
+    expect(chip).toContain("color: var(--accent)");
+    // The BINDING backdrop is --bg-raised: a purchased card, and ANY hovered
+    // card (`.badge-card:hover { background: var(--bg-raised) }`). Quoting the
+    // --bg-canvas figure against a surface-class background is an I1 violation
+    // in miniature, so the number is pinned against the right one.
+    const onRaised = ratio(resolveHex("--accent"), resolveHex("--bg-raised"));
+    expect(onRaised).toBeCloseTo(4.97, 1);
+    expect(onRaised).toBeGreaterThanOrEqual(4.5); // AA text
+    expect(onRaised).toBeGreaterThanOrEqual(3.0); // SC 1.4.11 non-text
+    // No new hue and no new token: it consumes the existing --accent.
+    expect(chip).not.toMatch(/#[0-9a-fA-F]{3,6}/);
+  });
+
+  it("DRIFT 3 — .btn:disabled ships the RATIFIED 0.6, not the drifted 0.45", () => {
+    const disabled = cssBlock(css, ".btn:disabled");
+    expect(disabled).toContain("opacity: 0.6");
+    expect(disabled).not.toContain("opacity: 0.45");
+    // Not cosmetic — invariant I2: a container opacity silently invalidates
+    // every ratio beneath it. Disabled controls are formally EXEMPT from
+    // SC 1.4.3, so this is not an AA failure; it is the spec's own invariant
+    // and the spec's own ratification both saying .6, while at .45 two of the
+    // three common label tokens sat below the bar the document holds itself
+    // to everywhere else.
+    const surface = resolveHex("--bg-surface");
+    const primaryAt45 = ratio(composite(resolveHex("--fg-primary"), surface, 0.45), surface);
+    const primaryAt60 = ratio(composite(resolveHex("--fg-primary"), surface, 0.6), surface);
+    expect(primaryAt45).toBeCloseTo(3.99, 1);
+    expect(primaryAt60).toBeCloseTo(6.01, 1);
+    const secondaryAt45 = ratio(composite(resolveHex("--fg-secondary"), surface, 0.45), surface);
+    const secondaryAt60 = ratio(composite(resolveHex("--fg-secondary"), surface, 0.6), surface);
+    expect(secondaryAt45).toBeCloseTo(3.31, 1);
+    expect(secondaryAt60).toBeCloseTo(4.83, 1);
   });
 });

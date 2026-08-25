@@ -5,6 +5,9 @@
  *  - `.category-ledger` (the DIGEST): title + one compact row — Badge Points
  *    spent/pool with left/over-by, Badge Slots used/capacity with over-by.
  *    THIS is the sticky layer (layer 2 of the global two-layer cap).
+ *    F5.3/B: it is also the collapse control — it renders AS the `<summary>`
+ *    of BadgeGridSection's `<details>`. See CategoryLedgerDigest below for
+ *    why it must BE the summary and not be nested inside one.
  *  - `.category-ledger__lede`: the meter, `refunded N` (suppressed at zero),
  *    the feasibility line, the "capacity not set" hint, and the H2 projection
  *    row. Lede content SCROLLS AWAY — that is what makes the sticky budget
@@ -118,57 +121,95 @@ export interface CategoryLedgerProps {
   projection?: CategoryLedgerReadout;
 }
 
-export function CategoryLedger({
+/**
+ * F5.3/B (design-spec §15.8) — THE DIGEST IS THE `<summary>`.
+ *
+ * Three reasons this element is the `<summary>` itself rather than a `<div>`
+ * nested inside one, and all three are load-bearing:
+ *
+ *  1. `position: sticky` survives. A `<summary>` wrapping the digest would
+ *     become the sticky element's CONTAINING BLOCK — a box its own size — and
+ *     the sticky header would die with every test still green, because the
+ *     shipped pin reads CSS text, not layout.
+ *  2. It is the only conforming HTML. `<summary>`'s content model is phrasing
+ *     content optionally intermixed with heading content: an `<h2>` plus a
+ *     `<span>` row qualifies, a `<div>` does not. That is why
+ *     `.category-ledger__row` is a `<span>` here — its `display: flex` is
+ *     unaffected, and both `querySelector` and `textContent` still match.
+ *  3. `--over` stays on this element, so a COLLAPSED category that is
+ *     overspent still renders its --danger border and its `over by N ⚠`.
+ *     Collapse can never hide an H4 overspend.
+ *
+ * No `aria-expanded` (the browser maps it from `<details open>`) and no
+ * `aria-label` (the native subtree computation reads the category name then
+ * the numbers, which is exactly what a user collapsing a category wants).
+ */
+export function CategoryLedgerDigest({
   category,
   readout,
   budget,
   headingId,
-  feasibility,
-  projection,
-}: CategoryLedgerProps) {
+}: Omit<CategoryLedgerProps, "feasibility" | "projection">) {
   const pointsOverText = overByBadgePoints(readout);
   const equipSlotsOverText = overByBadgeSlots(readout, budget);
   const capacityUnset = badgeSlotsCapacityUnset(budget);
   const over = pointsOverText !== null || equipSlotsOverText !== null;
+
+  return (
+    <summary className={`category-ledger${over ? " category-ledger--over" : ""}`}>
+      <h2 id={headingId}>{category}</h2>
+      <span className="category-ledger__row">
+        <span>
+          Badge Points{" "}
+          <span className="num">
+            {readout.spent} / {budget.points}
+          </span>
+        </span>
+        {pointsOverText !== null ? (
+          <span className="ledger-over num">{pointsOverText}</span>
+        ) : (
+          <span>
+            left <span className="num">{readout.remainingPoints}</span>
+          </span>
+        )}
+        <span>
+          Badge Slots{" "}
+          <span className="num">
+            {capacityUnset ? readout.equipSlotsUsed : `${readout.equipSlotsUsed} / ${budget.equipSlots}`}
+          </span>
+        </span>
+        {equipSlotsOverText !== null ? (
+          <span className="ledger-over num">{equipSlotsOverText}</span>
+        ) : null}
+      </span>
+    </summary>
+  );
+}
+
+/**
+ * F5.3/B — the lede, VERBATIM from the pre-split component. It already
+ * "SCROLLS AWAY — that is what makes the sticky budget achievable", so
+ * collapsing hides exactly what scrolling already hid.
+ */
+export function CategoryLedgerLede({
+  category,
+  readout,
+  budget,
+  feasibility,
+  projection,
+}: Omit<CategoryLedgerProps, "headingId">) {
+  const capacityUnset = badgeSlotsCapacityUnset(budget);
   const showProjection = projection !== undefined && projectionDiffers(readout, projection);
   const projectionOver = projection !== undefined && projection.remainingPoints < 0;
 
   return (
-    <>
-      <div className={`category-ledger${over ? " category-ledger--over" : ""}`}>
-        <h2 id={headingId}>{category}</h2>
+    <div className="category-ledger__lede">
+      <Meter label={`${category} Badge Points`} value={readout.spent} max={budget.points} />
+      {readout.refunded > 0 ? (
         <div className="category-ledger__row">
           <span>
-            Badge Points{" "}
-            <span className="num">
-              {readout.spent} / {budget.points}
-            </span>
+            refunded <span className="num">{readout.refunded}</span>
           </span>
-          {pointsOverText !== null ? (
-            <span className="ledger-over num">{pointsOverText}</span>
-          ) : (
-            <span>
-              left <span className="num">{readout.remainingPoints}</span>
-            </span>
-          )}
-          <span>
-            Badge Slots{" "}
-            <span className="num">
-              {capacityUnset ? readout.equipSlotsUsed : `${readout.equipSlotsUsed} / ${budget.equipSlots}`}
-            </span>
-          </span>
-          {equipSlotsOverText !== null ? (
-            <span className="ledger-over num">{equipSlotsOverText}</span>
-          ) : null}
-        </div>
-      </div>
-      <div className="category-ledger__lede">
-        <Meter label={`${category} Badge Points`} value={readout.spent} max={budget.points} />
-        {readout.refunded > 0 ? (
-          <div className="category-ledger__row">
-            <span>
-              refunded <span className="num">{readout.refunded}</span>
-            </span>
           </div>
         ) : null}
         {capacityUnset ? (
@@ -188,7 +229,6 @@ export function CategoryLedger({
             · refunded {projection.refunded}
           </p>
         ) : null}
-      </div>
-    </>
+    </div>
   );
 }
