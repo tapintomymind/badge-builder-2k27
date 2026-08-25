@@ -3960,3 +3960,234 @@ F8-E3 must precede F8-R2 — R2 surfaces the reproducibility token and
 `ROLL_ALGORITHM_VERSION` changed here, so R2 should read the version-in-seed
 note above before it starts. F8-S2 is unaffected by this slice.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+## F5.4 — the attributes pane and the right column
+2026-08-25 · branch `f5-4-attribute-pane`, cut from `dev`@`2e422c2` (1096/1096, 60 files),
+rebased onto `dev`@`d186791` after F8-E3 merged mid-slice — **clean, zero conflicts**
+Brief: `impl-briefs/f5-4-attribute-pane-and-right-column.md` · constrained mode
+Design authority: `design-spec.md` rev 10 §16 · invariants **I15** and **I16**
+Governance: **`main` untouched · NOT merged to `dev`** · full evidence
+`docs/proof/f54-verification.txt`
+
+### VERDICT
+Shipped. The user's defect is closed and the closure is **measured in a browser,
+before and after**, not derived. `1155/1155` across 60 files on the rebased tip.
+
+### THE HEADLINE — the mechanism already shipped; the defect was CONTENTS
+`.rail-left` was already `position: sticky` + `max-height: calc(100vh - …)` +
+`overflow-y: auto`. A slice that "implemented a 100% height pane" would have
+landed and changed nothing the user could see. What was wrong is what was IN it:
+**657px of non-attribute content ahead of the stack.**
+
+  viewport      BEFORE        AFTER      derived floor
+  1280 x 700      0             6            >= 6
+  1280 x 800      0             7            >= 7
+  1280 x 900      1             8            >= 8
+
+Both trees served simultaneously (`dev`@`2e422c2` in a throwaway worktree) and
+measured with the same headless-Chrome driver, counting sliders whose BOTTOM edge
+is inside the scrollport at `scrollTop 0` — the same predicate `slidersVisible()`
+walks.
+
+### AND THE SECOND HALF OF THE ASK IS WHAT MAKES THE FIRST HALF WORK
+`.panel-below { grid-column: 1 / -1 }` ran Synergy and Summary *underneath* the
+pane, so the pane's sticky containing block was **grid row 1**. Honouring "the
+other items on the right side" makes `.layout` exactly two grid items:
+
+  BEFORE  [ rail-column, main, panel-below, panel-below ]   4 items
+  AFTER   [ attr-pane-column, col-right ]                   2 items
+
+Measured at 1280x800 scrolled to `#panel-summary` (**state 51, the falsifier**):
+the pane is still on screen with 7 sliders and the Summary renders **beside** it.
+
+### BELOW 1280 THE OUTPUT IS BIT-IDENTICAL, AND IT IS PROVED
+SHA-256 of the captured PNGs, same driver, same flags, both trees:
+
+  1279 x 900 · 768 x 900 · 390 x 800   **all three BYTE-IDENTICAL to `dev`**
+
+§16.10's convergence claim is not an argument in this slice; it is a pixel
+comparison. Live resize across the seam re-renders correctly in **both**
+directions (1200 → 1400 → 1100, no reload).
+
+### T16 CLOSED, and not with the threshold F5.2 proposed
+`426` is a **border-box** figure — its own derivation ends in "+ 2 x --space-4 row
+padding" — and a size query evaluates the **content** box. Asking for 426 content
+really asked for a 460 border box: **larger than the row's own 426 track floor**,
+which is self-contradictory, and it is why the pickers stacked at 1440 while 1280
+passed. The threshold protects the pickers, so it is the pickers' own content-box
+demand: `2 x SELECT_FLOOR 180 + --space-3 12 = 372`. F5.2's proposed 460 double-
+counts and is strictly worse. Measured **side by side at 1280 (445px row) and at
+1440 (525px row)**; stacked at 390 (332px), which is intended.
+
+### A1 — the Architect amendment, and it was load-bearing
+§16.5's "the ledger lays out 4-up on two lines" is **unbuildable**:
+`repeat(auto-fit, …)` forbids intrinsic track sizes. Left alone the `1fr` absorbs
+**739 of the 878px grid box** and splits every row label-far-left /
+numbers-far-right — verbatim the defect `.summary`'s cap exists to prevent. One
+scoped rule in F5.4's own block; the frozen base blocks are untouched. Browser
+confirms: tracks **77.41px / 75.92px**, `justify-content: start`, all six labels
+column-aligned.
+
+**Incidental corroboration of a re-pin:** the measured max-content label is
+77.4062px. `LEDGER_LABEL_MAX` was pinned at 76 and this slice re-pins it at 78.
+The browser confirms both halves — the old pin was 1.41px low, and 78 is right.
+
+### THE LATCH — F5.3/A2 superseded, and the correction that had to land with it
+F5.3's "DO NOT TOUCH THE AUTO-COLLAPSE LATCH" was scoped to F5.3; §16.5 supersedes
+it here. The `compact` term leaves the predicate (the panel is in flow above the
+cards at every width now), and **`hasValues` is scoped to what the panel renders**
+— otherwise the user drags a slider on the left and a panel collapses on the
+right. `tests/ui/f2-disclosure-surfaces.test.tsx`'s D2 test 2 is the mechanical
+guard: **assertion verbatim, only its now-false name and comment changed.**
+
+### AMENDMENT LANDED MID-SLICE (Designer §17) — and one thing it does NOT reach
+The budget half of that predicate ships **derived**, not enumerated:
+
+    const hasBudgetValues = CATEGORIES.some((category) =>
+      Object.values(budgets[category]).some((value) => value > 0));
+
+Equivalent to the shipped sum test because every budget field is clamped at min 0.
+Any new member of `Budget` is picked up for free.
+
+**But it does not by itself reach the bonus fields, and that is worth knowing
+now.** Checked against `a5-e-bonus-engine` rather than assumed: that branch models
+bonus as a **separate `BonusBudget`** on `WorkingState` — `earnedEquipSlots`,
+`earnedPoints`, `appliedEquipSlots[6]`, `appliedPoints[6]` — and A5-R1/A5-R4
+**deliberately never merge it into `budgets`**; `Budget` itself is unchanged there.
+So the fourteen fields are not in the record `BuildPanel` receives. **The bonus UI
+slice must pass the bonus totals into `BuildPanel` and add them to this
+predicate**, or a user whose only input is bonus gets a setup panel that never
+latches closed. Flagged as a hand-off, not left as a silent gap.
+
+### BLOCKING IN-SLICE GATE — `NUMERIC_H` re-measured
+Chrome 151.0.7922.174, `--headless=new`, over CDP, at the cut:
+
+    deviceScaleFactor 1  ->  offsetHeight 26,  rect 26.000
+    deviceScaleFactor 2  ->  offsetHeight 27,  rect 26.500
+
+**Kept pinned at the larger, 27** (§13.0.1's take-the-larger rule). A larger
+`SLIDER_H` yields a LOWER derived count, so the I15 floor stays **pessimistic**,
+and the browser meets it exactly at 6/7/8. Both values sit inside the brief's
+26–28 band; the stop condition did not fire and **the floor did not relax.**
+
+### ONE HONEST DISCREPANCY, RECORDED RATHER THAN BURIED
+Assertion 1's canary pins the pre-slice counts at **0 / 1 / 2** (from
+`LEAD_TODAY = 657`, per correction C-1). The browser measures **0 / 0 / 1**:
+`LEDGER_H 252` and `PHYSIQUE_H 324` are paper sums over wrapped Hint and Banner
+lines and are ~22px light in aggregate (real lead **678.75**, not 657). The canary
+therefore **understates** how bad the shipped tree was and never overstates it,
+and its load-bearing claim — zero of twenty at 700 — is exact. The pins are left
+as briefed (they feed nothing but this canary) and the measurement is written into
+the test's own comment, not only into the proof file.
+
+### SHIP GATES
+  `npx tsc --noEmit`                              clean
+  `npx vitest run`                    60 files, **1155 passed** (1096 at the base;
+                                      +17 from this slice, +42 from F8-E3)
+  `npm run build`                     clean
+  `tests/ui/overlays.test.tsx`             4 passed · **unmodified**
+  `tests/category-colors.test.ts`         15 passed · **unmodified**
+  `tests/feasibility-golden.test.ts`       4 passed · **unmodified**
+  `tests/architecture.test.ts`           182 passed · **unmodified**
+  `tests/ui/f2-source-pins.test.ts`       14 passed · **unmodified** (a four-time
+                                          casualty; this time it genuinely was not)
+  `tests/layout-arithmetic.test.ts`       69 passed (was 52)
+  `git status --porcelain`            only Allowed paths
+  runtime `dependencies`              exactly `{ react, react-dom }`
+  `src/styles/tokens.css`             untouched · zero new tokens · no new hex
+
+`tests/layout-arithmetic.test.ts` extends the parse-and-re-derive chain to the
+**vertical axis** — 6 rewrites, 4 re-points, 1 tombstoned deletion (`BUDGET_GRID_MIN`,
+now vacuous), and the **21 numbered assertions**, including the six canaries that
+demonstrate the pre-slice tree failing. `SECTION_CHROME_Y = 70` is the vertical
+counterpart of I8's horizontal 34 and it is **parsed from tokens**, not pinned.
+
+### WHAT WAS DELIBERATELY NOT DONE
+The **300 → 340 rail lever** is priced at **13.3px per card** (not §16's 20) and is
+**unspent**. It buys 8 → 12 visible sliders and would reverse F5.2's headline
+number hours after it landed. Its trigger is named and it is the **user's** call,
+routed through Designer — not an implementer's. Also untaken, per §16: collapsible
+`.attr-group`s, sticky group legends, a two-column attribute grid, any type-size
+shave, a non-page-scrolling shell, and any re-cut of `.summary`.
+
+### CROSS-SLICE OBLIGATIONS
+· **F8-S2 MUST BE RE-BRIEFED BEFORE DISPATCH (§15).** `.summary` moved into the
+  right column: its box is **885 at 1280/s=17, not the 1231 below-grid box** all
+  five of §14.2's pinned constants and the 1428/1429 three-up seam were derived
+  against. Its own precondition checklist asserts "`SummaryPanel` inside
+  `.panel-below`" — **F5.4 deletes `.panel-below`**; that item now reads
+  `.col-right`. And `.summary` resolves to **2 tracks rather than 3** at 1280 under
+  the shipped `auto-fit minmax(280px, 380px)` — visible in
+  `docs/proof/f54-summary-scrolled-1280x800.png`. F5.4 does not touch `.summary`
+  and must not. Hand F8-S2's author §8 of the F5.4 brief.
+· **F8-E3's INV-14 watch-out is DISCHARGED.** It asked whether F5.4 touches
+  `makeBuild` or `tests/helpers/test-utils.ts`. **It does not** — verified by
+  `git diff --name-only origin/dev...HEAD` — and `tests/randomize.test.ts` is
+  **66/66** on the rebased tip. The sweep numbers did not move.
+· **§3.4 rev-3's stale-purchase foot line** is still unshipped. Verified absent,
+  surfaced, **not actioned** — F5.4 is layout. When it lands it belongs on BOTH
+  surfaces (the pane's foot and the collapsed setup digest) through ONE builder.
+
+### MERGE-CONFLICT FORECAST
+F5.4's whole surface is 5 files: `src/App.tsx`, `src/styles/app.css`,
+`src/ui/build/BuildPanel.tsx`, `tests/layout-arithmetic.test.ts`,
+`tests/ui/f2-disclosure-surfaces.test.tsx`.
+
+· **`f8-e3-exchange` — ALREADY RESOLVED, zero conflicts.** It merged to `dev` as
+  `d186791` mid-slice; F5.4 rebased onto it cleanly. Its surface is
+  `src/engine/**` + engine tests, with no file in common.
+· **`a5-e-bonus-engine` / `a5e-trial-merge` (bonus slots) — ONE overlap:
+  `src/App.tsx`, and it is benign.** Its hunks land at lines 23, 42, 155–261, 595,
+  607, 1269 — `WorkingState`, `freshWorkingState`, `fromSaved`, `toEnvelope`,
+  `workingHasContent` and two hook-area lines. F5.4's edits are the layout JSX
+  (~1228–1460) plus one `const isLarge` at ~508. The 1269 hunk is ~40 lines above
+  F5.4's JSX region and inside a `useEffect`, not the tree. Expect an auto-merge;
+  if git snags, the resolution is "take both" — they are disjoint regions.
+  **The semantic note is the one above:** the bonus predicate needs the derived
+  `hasBudgetValues` extended when the bonus *UI* lands.
+· **Cap-breaker — no branch exists yet.** If it touches `.synergy-row` geometry it
+  must check against the binding margin **+10.5px at 1280/s=17**, which is the
+  number the next addition to the synergy row header is measured against; if it
+  touches `.summary` it is behind the §15 relay.
+· **`claude/right-sidebar-width-62di4r`** touches `src/styles/app.css` and
+  `src/ui/build/AttributeGrid.tsx`. If that branch is still live it will conflict
+  in `app.css`, and a "right sidebar width" change is **semantically** at odds with
+  §16 — surface it before merging either.
+
+### CONFIRMATIONS THE BRIEF ASKED FOR EXPLICITLY
+· **The `--cat` chain survived the re-parenting.** All four carriers are id /
+  attribute / href selectors on the element that sets `--cat`, so re-parenting
+  cannot sever them. Asserted mechanically (assertion 14) and visible in the proof
+  frames: FINISHING gold, SHOOTING green, PLAYMAKING orange, in the pane.
+· **Both §4.5 landmarks survived, and there are now three** — `"Attributes"` (new),
+  `"Build"`, `"Ledger overview"`. `"Ledger and synergy"` still absent. The skip link
+  still lands on `<main>`, and both moved asides are **outside** it (assertion 16,
+  with a failing fixture).
+· **`BuildPanel` conflict resolved cleanly.** F5.3's `Reset build` button,
+  `onResetRequest` and `canReset` are preserved verbatim at the foot of
+  `.build-panel` and ride into the setup panel — Reset is a set-up action, which is
+  correct. All four props are wired (`onResetRequest`, `canReset`, `compact`,
+  `withAttributes`). F5.3's `resetBlastRadius` / `playerHasContent` / dialog mount
+  in `App.tsx` are untouched. The only F5.3 comment edited is the Reset button's
+  placement rationale, which claimed "the foot of a long sticky, scrolling rail" —
+  false after this slice.
+
+### KNOWN, AND DELIBERATELY NOT "FIXED"
+The load-dependent vitest flake class. Heavy files carry `{ timeout: 20000 }`; none
+was lowered and `vite.config.ts` is untouched. No flake was observed on any run.
+If one appears, **RE-RUN** — do not lower a timeout.
+
+### SCOPE / PLAN IMPACT
+None to `scope.md` / `tech-strategy.md`. `design-spec.md` amendments are **named,
+not self-ratified**: §4.5 two asides → three; §11.5 ③'s `.rail-left`-scoped Position
+grid retired; §13.4's rail ordering and §13.5's below-grid placement superseded;
+§13.5's 404/426 thresholds superseded by 372/406; §16.5's "4-up on two lines"
+withdrawn and replaced by **A1** (Architect-authored, flagged to Designer for
+ratification, not blocking); §16.13 assertion 1's canary literal 683 → 657;
+§16.6's lever price 20px → 13.3px per card.
+
+### NEXT
+Branch pushed. `dev` untouched at `d186791`; `main` untouched. Merge order stands:
+**F5.4 → F8-S2 → F8-R2**, and F8-S2 must be re-briefed per §15 first.
+─────────────────────────────────────────────
