@@ -1,0 +1,23 @@
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+
+// Single source of truth for both the dev/build config and the test config.
+// `defineConfig` is imported from `vitest/config` so the `test` block is typed
+// without a second config file that would shadow this one.
+export default defineConfig({
+  plugins: [react()],
+
+  server: {
+    // Pinned deliberately. localStorage is keyed to origin INCLUDING port, so a
+    // silent roll to 5174 would orphan every saved build and read as data loss.
+    // strictPort makes a collision fail loudly instead.
+    port: 5173,
+    strictPort: true,
+  },
+
+  test: {
+    // Default node environment. UI work adds a DOM environment when it needs one.
+    environment: "node",
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx", "src/**/*.test.ts", "src/**/*.test.tsx"],
+  },
+});
