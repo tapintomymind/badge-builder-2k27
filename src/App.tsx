@@ -21,6 +21,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { defaultAppConfig, deriveBudget } from "./config";
+import { bonusHasContent, effectiveBudgets, zeroBonus } from "./engine/budget";
 import { shippedDataset } from "./engine/dataset";
 import { levelPasses, validateBadge } from "./engine/eligibility";
 import { whatIf } from "./engine/cost";
@@ -40,6 +41,7 @@ import { validateLoadout } from "./engine/validate-loadout";
 import type {
   AppConfig,
   Badge,
+  BonusBudget,
   Budget,
   Build,
   LoadoutEntry,
@@ -153,7 +155,14 @@ interface WorkingState {
    * silent re-validation H8 forbids. */
   dataVersion: string;
   build: Build;
+  /** [A5] THE BASE SIX — never the composed record. What the base-entry grid
+   * shows and what `onBudgetCommit` writes back into. */
   budgets: Record<Category, Budget>;
+  /** [A5] The bonus layer, a SEPARATE layer that is never merged into
+   * `budgets`. Always present in memory; `zeroBonus()` for a fresh build and
+   * for every pre-A5 file. NO CONTROL CAN WRITE A NON-ZERO VALUE YET — that
+   * arrives with A5-U. */
+  bonus: BonusBudget;
   loadout: LoadoutEntry[];
   synergy: SynergySlot[];
   config: AppConfig;
@@ -176,6 +185,10 @@ function freshWorkingState(): WorkingState {
     dataVersion: shippedDataset.dataVersion,
     build: { heightInches: DEFAULT_HEIGHT_INCHES, attributes: zeroAttributes() },
     budgets: zeroBudgets(),
+    // [A5] ALL ZERO. There is no published starting bonus and none is
+    // invented — the user's observed figures are one account's snapshot,
+    // explicitly "dynamic". Ship gate 1.7.
+    bonus: zeroBonus(),
     loadout: [],
     synergy: createDefaultSynergySlots(defaultAppConfig.plusTwoSlotIds),
     config: defaultAppConfig,
@@ -214,6 +227,12 @@ function fromSaved(saved: SavedBuild, sourceId: string | null): FromSavedResult 
       dataVersion: saved.dataVersion,
       build: saved.build,
       budgets: saved.budgets,
+      // [A5] NO SECOND NORMALIZATION. The deserializer already guaranteed a
+      // fully-populated bonus with exactly the six category keys, and a second
+      // normalization point is a second place for the two to drift. Also NO
+      // DISCLOSURE: "your file had no bonus section" is the normal case for
+      // every build that exists today and would fire on every boot.
+      bonus: saved.bonus,
       loadout: saved.loadout,
       synergy: ratified.synergySlots,
       config: saved.config,
@@ -230,6 +249,10 @@ function toEnvelope(working: WorkingState, savedAt: string = new Date().toISOStr
     name: working.name,
     build: working.build,
     budgets: working.budgets,
+    // [A5] All five call sites (autosave, unmount flush, save-named, export,
+    // the BuildManager prop) route through here. A miss writes a bonus-less
+    // envelope OVER a build that had one — the F4/A2 discarded-return class.
+    bonus: working.bonus,
     loadout: working.loadout,
     synergy: working.synergy,
     config: working.config,
@@ -259,6 +282,11 @@ function workingHasContent(working: WorkingState): boolean {
       (category) =>
         working.budgets[category].points > 0 || working.budgets[category].equipSlots > 0,
     ) ||
+    // [A5] Earned totals and applied allocations are BOTH content worth
+    // guarding — they are account progression the user typed in, and a
+    // switcher replace that discards them silently is the F2.2 class. Derived
+    // (src/engine/budget.ts), not enumerated here, so it widens by itself.
+    bonusHasContent(working.bonus) ||
     working.synergy.some(
       (synergySlot) =>
         synergySlot.unlocked ||
@@ -592,7 +620,23 @@ export default function App() {
   }, []);
 
   // ---- derived, all engine-side ----
-  const budgets = deriveBudget(working.build, working.budgets, working.config.budgetStrategy);
+  //
+  // [A5] THE COMPOSITION POINT, AND THE ONE PLACE THE TWO RECORDS DIVERGE.
+  //
+  //   baseBudgets → BuildPanel → BudgetGrid — the ENTRY surface, and the only
+  //                 record `onBudgetCommit` may ever write back into.
+  //   budgets     → ledgerState, the category rail, SummaryPanel, feasibility,
+  //                 the roll — everything that READS a capacity or a pool.
+  //
+  // ⚠ THE RUNAWAY-INFLATION HAZARD. `onBudgetCommit` writes the field's value
+  // straight into `prev.budgets`, the BASE. Pre-A5 these two records were the
+  // same object, so passing the derived one to the grid was a no-op. THEY ARE
+  // NOT THE SAME POST-A5: hand `budgets` to the grid and a user with base 3 +
+  // bonus 1 sees 4, the next blur commits 4 as the base, the next render shows
+  // 5, then 6 — a silent runaway on the number the entire plan rests on, in
+  // the one surface that has no cross-check. Test 6.6 pins it.
+  const baseBudgets = deriveBudget(working.build, working.budgets, working.config.budgetStrategy);
+  const budgets = effectiveBudgets(baseBudgets, working.bonus);
 
   const synergyState: SynergyState = useMemo(
     () => ({ loadout: working.loadout, synergySlots: working.synergy }),
@@ -605,8 +649,12 @@ export default function App() {
       budgets,
       synergySlots: working.synergy,
       refundTrigger: working.config.refundTrigger,
+      // [A5] The rules layer's only route to the bonus layer: validateLoadout's
+      // two Σ ≤ earned SoftViolations and buildSummary's base-Σ recovery. The
+      // ledger math never sees it.
+      bonus: working.bonus,
     }),
-    [working.loadout, budgets, working.synergy, working.config.refundTrigger],
+    [working.loadout, budgets, working.synergy, working.config.refundTrigger, working.bonus],
   );
 
   const badgesByCategory = useMemo(() => {
@@ -1267,9 +1315,13 @@ export default function App() {
             </aside>
 
             <aside className="rail-build" aria-label="Build">
+              {/* [A5] `budgets` here is the BASE record, never the composed
+                  one. The grid is a base-ENTRY surface and `onBudgetCommit`
+                  below writes straight back into the base; rendering the
+                  effective number would compound it on every blur. Test 6.6. */}
               <BuildPanel
                 build={working.build}
-                budgets={budgets}
+                budgets={baseBudgets}
                 heightRange={heightRange}
                 buildViolationReasons={buildViolationReasons}
                 clampNotice={clampNotice}

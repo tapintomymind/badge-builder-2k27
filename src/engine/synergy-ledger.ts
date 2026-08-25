@@ -30,6 +30,7 @@ import { categoryLedger } from "./ledger";
 import type { LedgerState } from "./ledger";
 import { boost, clampToLegend, synergySlotActive } from "./synergy";
 import type {
+  BonusBudget,
   Budget,
   LedgerBasis,
   LoadoutEntry,
@@ -62,9 +63,31 @@ export function overlayForBasis(basis: LedgerBasis): OverlayState {
 /** The full state the synergy-aware ledger derives from. A plain value. */
 export interface SynergyLedgerState {
   loadout: readonly LoadoutEntry[];
+  /**
+   * [A5] THE COMPOSED (EFFECTIVE) RECORD — base + applied bonus, already run
+   * through `effectiveBudgets`. Every consumer of this field reads effective
+   * capacity and pool with NO EDIT, which is the whole point of composing at
+   * the seam rather than retyping `Budget`.
+   */
   budgets: Readonly<Record<Category, Budget>>;
   synergySlots: readonly SynergySlot[];
   refundTrigger: RefundTrigger;
+  /**
+   * [A5] The bonus layer, OPTIONAL — deliberately, and it is the choice that
+   * keeps this slice's diff honest.
+   *
+   * Exactly two consumers need it: `validateLoadout` (the Σ ≤ earned
+   * SoftViolations) and `buildSummary` (recovering the BASE Badge Slots Σ for
+   * `badgeSlotsBaselineText`). The ledger math never sees it — `LedgerState`
+   * does NOT carry it, and must not: it reads the composed record and has no
+   * business learning that a bonus layer exists.
+   *
+   * ABSENT means "this caller has no bonus layer", not "zero bonus": no
+   * violations fire and no base-Σ recovery happens, which is the pre-A5
+   * behaviour byte for byte. Requiring it would churn 68 budget literals
+   * across 29 test files for zero correctness gain.
+   */
+  bonus?: BonusBudget;
 }
 
 /**

@@ -23,6 +23,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { effectiveBudgets, zeroBonus } from "../src/engine/budget";
 import { loadDataset, shippedRawDataset } from "../src/engine/dataset";
 import { RollDidNotTerminateError } from "../src/engine/errors";
 import {
@@ -57,7 +58,14 @@ import { createDefaultSynergySlots } from "../src/engine/synergy";
 import { categoryLedgerAt } from "../src/engine/synergy-ledger";
 import type { SynergyLedgerState } from "../src/engine/synergy-ledger";
 import { validateLoadout } from "../src/engine/validate-loadout";
-import type { BadgeDataset, Budget, LoadoutEntry, RawBadge, SynergySlot } from "../src/engine/types";
+import type {
+  BadgeDataset,
+  BonusBudget,
+  Budget,
+  LoadoutEntry,
+  RawBadge,
+  SynergySlot,
+} from "../src/engine/types";
 import type { Category, PurchasableLevel } from "../src/engine/vocabulary";
 import { CATEGORIES, levelIndex } from "../src/engine/vocabulary";
 import { makeBuild } from "./helpers/test-utils";
@@ -68,6 +76,7 @@ import {
   spreadAttributeFamily,
 } from "./randomize-oracle";
 import type { SweepFixture } from "./randomize-oracle";
+import { categoryFeasibility } from "../src/ui/grid/feasibility";
 
 // ---------------------------------------------------------------------------
 // Datasets. Isolated ones exist because the statistical and equivariance
@@ -604,8 +613,16 @@ describe("INV-6 — budget respect (AJ-11): a roll never creates a violation it 
       const beforeWarnings = validateLoadout(state, dataset).warnings;
       const afterWarnings = validateLoadout(proposedState, dataset).warnings;
       expect(afterWarnings.length).toBeLessThanOrEqual(beforeWarnings.length);
-      const hadWarning = new Set(beforeWarnings.map((warning) => warning.category));
+      // [A5] NARROWED, NOT RE-SCOPED. `SoftViolation` gained two BUILD-LEVEL
+      // kinds (bonus*OverApplied) that carry no `category`, so the union no
+      // longer has that field on every member. These sweep states carry no
+      // bonus layer at all, so neither kind can fire and the set below is
+      // exactly the set it has always been — no expectation moves.
+      const hadWarning = new Set(
+        beforeWarnings.flatMap((warning) => ("category" in warning ? [warning.category] : [])),
+      );
       for (const warning of afterWarnings) {
+        if (!("category" in warning)) continue;
         expect(hadWarning.has(warning.category), `a NEW warning in ${warning.category}`).toBe(true);
       }
     }
@@ -2047,3 +2064,193 @@ describe("the adversarial fixture, disclosed — a KNOWN capacity-free limit of 
   });
 });
 
+// ===========================================================================
+// A5 group 5 — THE PAYOFF.
+//
+// "This will help equip extra badges too" [user 2026-08-26]. That sentence is
+// the reason the amendment exists, and 5.1 is the acceptance test for the
+// whole of it: the claim is PROVEN against the shipped roll engine rather than
+// asserted. The engine itself is UNEDITED by A5 — `newBadgesAllowed =
+// used < budget.equipSlots` is the hard cap, and it reads the COMPOSED record,
+// so an applied bonus Badge Slot reaches it with no code change at all.
+// [engine-data-design.md §6 group 5]
+// ===========================================================================
+
+describe("A5 group 5 — an applied bonus Badge Slot lets the roll equip one more badge", () => {
+  /** A category pinned at FULL base capacity with points to spare: two badges
+   *  owned, two base Badge Slots, a deep pool. Everything qualifies at 99. */
+  const PAYOFF_BUILD = makeBuild(78, 99);
+  const PAYOFF_LOADOUT: LoadoutEntry[] = [
+    { badgeId: "deadeye", purchasedLevel: "bronze" },
+    { badgeId: "static-middy", purchasedLevel: "bronze" },
+  ];
+  const PAYOFF_SEED = "a5-payoff";
+  const BASE_EQUIP_SLOTS = 2;
+
+  function payoffBase(): Record<Category, Budget> {
+    return budgets(200, BASE_EQUIP_SLOTS);
+  }
+
+  function payoffRequest(bonus: BonusBudget): RollRequest {
+    return requestOf({
+      state: stateOf({
+        loadout: PAYOFF_LOADOUT,
+        budgets: effectiveBudgets(payoffBase(), bonus),
+        bonus,
+      }),
+      build: PAYOFF_BUILD,
+      seed: PAYOFF_SEED,
+      mode: "fill",
+    });
+  }
+
+  it("5.1 SHIP GATE — same seed: zero bonus is blocked at capacity; ONE applied bonus Badge Slot buys exactly ONE more new badge", () => {
+    // --- Leg A: no bonus. The category is full, so no new badge may land,
+    // and the engine says so explicitly rather than leaving it inferable.
+    const withoutBonus = rollCategory(payoffRequest(zeroBonus()), "Shooting", dataset);
+    expect(withoutBonus.outcome).not.toBe("declined");
+    expect(withoutBonus.equipSlotCapacity).toBe(BASE_EQUIP_SLOTS);
+    expect(withoutBonus.newBadgesBlockedByBadgeSlots).toBe(true);
+    const newBadgesWithout = withoutBonus.steps.filter((step) => step.requiresNewBadgeSlot);
+    expect(newBadgesWithout).toHaveLength(0);
+
+    // --- Leg B: THE SAME SEED, one bonus Badge Slot applied to that category.
+    const bonus: BonusBudget = {
+      ...zeroBonus(),
+      earnedEquipSlots: 1,
+      appliedEquipSlots: { ...zeroBonus().appliedEquipSlots, Shooting: 1 },
+    };
+    const withBonus = rollCategory(payoffRequest(bonus), "Shooting", dataset);
+    expect(withBonus.outcome).toBe("rolled");
+    expect(withBonus.equipSlotCapacity).toBe(BASE_EQUIP_SLOTS + 1);
+
+    const newBadgesWith = withBonus.steps.filter((step) => step.requiresNewBadgeSlot);
+    expect(newBadgesWith).toHaveLength(1);
+    // One more Badge Slot, exactly one more equipped badge — not two, and the
+    // cap re-closes behind it.
+    expect(withBonus.after.equipSlotsUsed).toBe(BASE_EQUIP_SLOTS + 1);
+    expect(withBonus.after.equipSlotsUsed).toBe(withoutBonus.after.equipSlotsUsed + 1);
+    expect(withBonus.newBadgesBlockedByBadgeSlots).toBe(true);
+  });
+
+  it("5.2 an applied bonus Badge POINT raises the affordable-upgrade count", () => {
+    const base = {
+      ...budgets(0, 4),
+      Shooting: { equipSlots: 4, points: 1 },
+    };
+    const build = makeBuild(78, 99);
+    const stateAt = (bonus: BonusBudget) =>
+      stateOf({ loadout: [], budgets: effectiveBudgets(base, bonus), bonus });
+
+    const poor = stateAt(zeroBonus());
+    const poorCount = categoryFeasibility(
+      poor,
+      build,
+      "Shooting",
+      categoryLedgerAt(poor, "current", "Shooting", dataset).remainingPoints,
+      dataset,
+    ).affordableUpgrades;
+
+    const funded: BonusBudget = {
+      ...zeroBonus(),
+      earnedPoints: 40,
+      appliedPoints: { ...zeroBonus().appliedPoints, Shooting: 40 },
+    };
+    const rich = stateAt(funded);
+    const richCount = categoryFeasibility(
+      rich,
+      build,
+      "Shooting",
+      categoryLedgerAt(rich, "current", "Shooting", dataset).remainingPoints,
+      dataset,
+    ).affordableUpgrades;
+
+    expect(richCount).toBeGreaterThan(poorCount);
+  });
+
+  it("5.3 THE CARVE-OUT — a bonus applied to a BASE-0 category changes nothing: the roll still declines as capacity-unset", () => {
+    const base = { ...budgets(200, 4), Shooting: { equipSlots: 0, points: 200 } };
+    const bonus: BonusBudget = {
+      ...zeroBonus(),
+      earnedEquipSlots: 3,
+      appliedEquipSlots: { ...zeroBonus().appliedEquipSlots, Shooting: 3 },
+    };
+    const request = requestOf({
+      state: stateOf({ budgets: effectiveBudgets(base, bonus), bonus }),
+      build: makeBuild(78, 99),
+      seed: "a5-carve-out",
+    });
+    const report = rollCategory(request, "Shooting", dataset);
+    expect(report.outcome).toBe("declined");
+    expect(report.decline).toEqual({ kind: "badgeSlotsCapacityUnset" });
+    // Byte-identical to the same roll with no bonus at all.
+    const withoutBonus = rollCategory(
+      requestOf({
+        state: stateOf({ budgets: effectiveBudgets(base, zeroBonus()) }),
+        build: makeBuild(78, 99),
+        seed: "a5-carve-out",
+      }),
+      "Shooting",
+      dataset,
+    );
+    expect(report.steps).toEqual(withoutBonus.steps);
+    expect(report.decline).toEqual(withoutBonus.decline);
+  });
+
+  it("5.4 rollIterationBound grows with the EFFECTIVE capacity and the walk still terminates", () => {
+    const base = budgets(200, 4);
+    const bonus: BonusBudget = {
+      ...zeroBonus(),
+      earnedEquipSlots: 6,
+      appliedEquipSlots: { ...zeroBonus().appliedEquipSlots, Shooting: 6 },
+    };
+    const effective = effectiveBudgets(base, bonus);
+    expect(effective.Shooting.equipSlots).toBe(10);
+    // A4-R2's ratified formula is UNCHANGED; only its input grew.
+    expect(
+      rollIterationBound(0, effective.Shooting.equipSlots, 0),
+    ).toBeGreaterThan(rollIterationBound(0, base.Shooting.equipSlots, 0));
+
+    const request = requestOf({
+      state: stateOf({ budgets: effective, bonus }),
+      build: makeBuild(78, 99),
+      seed: "a5-bound",
+    });
+    expect(() => rollCategory(request, "Shooting", dataset)).not.toThrow(
+      RollDidNotTerminateError,
+    );
+    const report = rollCategory(request, "Shooting", dataset);
+    expect(report.after.equipSlotsUsed).toBeLessThanOrEqual(10);
+  });
+
+  it("5.5 the reproducibility token is unaffected: two states with the same EFFECTIVE record roll identically", () => {
+    // F8-E3 note — `bonus` is deliberately NOT added to stableDigest. Two
+    // states with the same effective record are the same input to a roll, so
+    // the roll must not be able to tell them apart.
+    const viaBase = requestOf({
+      state: stateOf({ loadout: PAYOFF_LOADOUT, budgets: budgets(200, 3) }),
+      build: PAYOFF_BUILD,
+      seed: PAYOFF_SEED,
+    });
+    const bonus: BonusBudget = {
+      ...zeroBonus(),
+      earnedEquipSlots: 1,
+      appliedEquipSlots: { ...zeroBonus().appliedEquipSlots, Shooting: 1 },
+    };
+    const viaBonus = requestOf({
+      state: stateOf({
+        loadout: PAYOFF_LOADOUT,
+        budgets: effectiveBudgets(
+          { ...budgets(200, 3), Shooting: { equipSlots: 2, points: 200 } },
+          bonus,
+        ),
+        bonus,
+      }),
+      build: PAYOFF_BUILD,
+      seed: PAYOFF_SEED,
+    });
+    expect(rollCategory(viaBonus, "Shooting", dataset).steps).toEqual(
+      rollCategory(viaBase, "Shooting", dataset).steps,
+    );
+  });
+});

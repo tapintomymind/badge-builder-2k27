@@ -25,6 +25,7 @@
  * invariant guards the assignment ACTION (assignSynergy), not the state.
  */
 
+import { appliedEquipSlotsTotal, appliedPointsTotal } from "./budget";
 import { badgeById, shippedDataset } from "./dataset";
 import { UnknownBadgeError } from "./errors";
 import { MAX_PLUS_TWO_SYNERGY_SLOTS, plusTwoSynergySlotIds } from "./synergy";
@@ -95,7 +96,33 @@ export type SoftViolation =
       equipSlotCapacity: number;
       overBy: number;
     }
-  | { kind: "pointsOverspend"; category: Category; remainingPoints: number; overBy: number };
+  | { kind: "pointsOverspend"; category: Category; remainingPoints: number; overBy: number }
+  /**
+   * [A5] More bonus Badge Slots applied across the six categories than the
+   * build has earned. BUILD-LEVEL, so there is ONE of these, never six.
+   *
+   * THIS IS THE SOLE ENFORCEMENT SURFACE FOR Σ ≤ earned. The SavedBuild
+   * deserializer deliberately does NOT check it — see the back-reference
+   * comment at the cap-free `validateBonus` site in
+   * src/engine/serialization.ts. The deserializer validates SHAPE;
+   * validateLoadout validates RULES.
+   *
+   * Reachable with NO external editing: season-earned rewards expire, so a
+   * user who earned 3, applied 3, then edits the total down to 2 at rollover
+   * lands here THROUGH THE UI. That is a state to DISCLOSE, not one to refuse
+   * at the JSON boundary — refusing it turns a disclosable state into an
+   * unloadable file, which is the H8 failure mode and a reproduced data-loss
+   * chain.
+   *
+   * SOFT, and it stays soft: warn in red, NEVER block, never disable a
+   * control. Reducing an allocation is legal at any time, including out of
+   * overflow (INV-A5-4), and the effective capacity is NEVER clamped to
+   * compensate (H8: disclose, never repair).
+   */
+  | { kind: "bonusEquipSlotsOverApplied"; applied: number; earned: number; overBy: number }
+  /** [A5] The Badge Points twin of `bonusEquipSlotsOverApplied` — same sole
+   *  ownership, same reachability, same SOFT class. */
+  | { kind: "bonusPointsOverApplied"; applied: number; earned: number; overBy: number };
 
 export interface LoadoutValidation {
   errors: HardViolation[];
@@ -229,6 +256,33 @@ export function validateLoadout(
         category,
         remainingPoints: readout.remainingPoints,
         overBy: -readout.remainingPoints,
+      });
+    }
+  }
+
+  // --- SOFT: [A5] the bonus layer's Σ ≤ earned cap, owned HERE and only here
+  // (the deserializer's validateBonus is deliberately cap-free — see both
+  // comments). BUILD-LEVEL: one violation per kind, not six. `state.bonus` is
+  // OPTIONAL, and absent means the caller has no bonus layer to report on —
+  // neither violation fires, which is the pre-A5 behaviour exactly.
+  const bonus = state.bonus;
+  if (bonus !== undefined) {
+    const appliedEquipSlots = appliedEquipSlotsTotal(bonus);
+    if (appliedEquipSlots > bonus.earnedEquipSlots) {
+      warnings.push({
+        kind: "bonusEquipSlotsOverApplied",
+        applied: appliedEquipSlots,
+        earned: bonus.earnedEquipSlots,
+        overBy: appliedEquipSlots - bonus.earnedEquipSlots,
+      });
+    }
+    const appliedPoints = appliedPointsTotal(bonus);
+    if (appliedPoints > bonus.earnedPoints) {
+      warnings.push({
+        kind: "bonusPointsOverApplied",
+        applied: appliedPoints,
+        earned: bonus.earnedPoints,
+        overBy: appliedPoints - bonus.earnedPoints,
       });
     }
   }

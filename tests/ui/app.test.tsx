@@ -11,6 +11,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../src/App";
+import { zeroBonus } from "../../src/engine/budget";
 import { defaultAppConfig } from "../../src/config";
 import { SAVED_BUILD_SCHEMA_VERSION } from "../../src/engine/serialization";
 import { createDefaultSynergySlots } from "../../src/engine/synergy";
@@ -139,6 +140,7 @@ describe("DriftBanner (H8): dataVersion mismatch on load", () => {
       name: "Old plan",
       build: makeBuild(78, 0, { close: 90 }),
       budgets: zeroBudgets(),
+      bonus: zeroBonus(),
       loadout: [{ badgeId: "float-game", purchasedLevel: "hof" }],
       synergy: createDefaultSynergySlots(null),
       // [F4/A4] The trigger is passed EXPLICITLY, never inherited from
