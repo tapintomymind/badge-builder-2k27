@@ -3155,3 +3155,269 @@ Architect's in-flight item, listed above.
 NEXT
 Nothing blocking. The two open items are owned elsewhere.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+F5.3 — card internals re-cut · collapsible categories · Reset build
+SLICE COMPLETE · 2026-08-25 · constrained mode
+Branch: `f5-3-card-collapse-reset`, pushed, NOT merged. `main` untouched.
+Base: `origin/f4-official-data` @ 2999a6c (F4 + the F5.2 merge), NOT `dev` —
+F4 had not yet landed on dev and this slice's arithmetic depends on it.
+Commits: 945e315 (A+B) · b175a04 (C) · this entry.
+─────────────────────────────────────────────
+
+BASELINE / DENOMINATOR
+The brief cites 701 tests on a `dev` baseline. My base carries F4, so the
+verified pre-slice baseline in my worktree was 52 files / 856 tests / 40.6s,
+re-run green before the first edit. Final: 53 files / 914 tests. Delta +58
+(+29 in commit 1, +29 in commit 2), one new file (tests/ui/reset-build.test.tsx).
+
+FIRST PROOF — the red canary, against the UNMODIFIED tree
+Run before a byte of src/ changed, verbatim:
+
+  AssertionError: expected 31.6 to be less than 22
+   ❯ tests/layout-arithmetic.test.ts:477:43
+     expect(stretched - PIP_DOT + SPACE_1).toBeLessThan(PIP_DOT);
+
+The temporary `it` was deleted; the inequality survives as permanent assertion
+5 with `shippedBroken` as its canary. Full text in docs/proof/f53-verification.txt.
+
+CHANGED FILES (all within Allowed paths)
+  src/ui/grid/BadgeCard.tsx · CategoryLedger.tsx · BadgeGridSection.tsx ·
+  anchors.ts · src/App.tsx · src/ui/build/BuildPanel.tsx ·
+  src/ui/build/ResetBuildDialog.tsx (new) · src/styles/app.css ·
+  src/ui/README.md · tests/layout-arithmetic.test.ts ·
+  tests/ui/f2-source-pins.test.ts · tests/ui/category-ledger.test.tsx ·
+  tests/ui/badge-card-synergy.test.tsx · tests/ui/reset-build.test.tsx (new) ·
+  docs/proof/f53-verification.txt (new) · .claude/reportback.md
+
+DENIED PATHS — verified untouched by `git diff --name-only 2999a6c -- <paths>`,
+which returned EMPTY for: src/engine/** · src/data/** · src/config/** ·
+src/persist/** · src/main.tsx · src/ui/synergy/** · src/ui/summary/** ·
+src/ui/builds/** · src/ui/primitives/** · src/ui/shell/** · FilterBar.tsx ·
+JumpNav.tsx · EmptyResults.tsx · feasibility.ts · tests/category-colors.test.ts ·
+tests/ui/overlays.test.tsx · tests/helpers/** · scripts/** · package.json ·
+package-lock.json · tsconfig.json · vite.config.ts.
+`git diff --stat 2999a6c -- src/styles/tokens.css` is EMPTY — byte-identical.
+
+HOW THE NEW-CHIP ARITHMETIC RESOLVED
+F4's NEW chip joins .badge-card__meta with the other three. On the title line
+the widest isNew name gives 152 + 8 + 40 + 8 + 24 = 232 > 204 and the row wraps
+again; §15.4's "constant-height 24px band" does not survive F4 otherwise. The
+row was rewritten ONCE, for all four chips at once. NEW_CHIP_MAX is pinned at
+40 and assertions 2b/3b make the eviction permanent rather than incidental.
+MEASURED IN THE BROWSER: before, "Arc Cadence"'s title row was 48px (two lines,
+three chips); after, 24px (one line, tier medallion only) — and all 53 title
+rows are one line at 390/768/1280/1357/1440. Meta's worst case wraps to two
+lines by declared intent and A1 absorbs it at zero cost to the row.
+
+THE THREE (FOUR) SURGICAL app.css EDITS
+  S1  DELETED `.pip--stale .pip__cost::after { content: " stale" }`. This is
+      the one edit inside another slice's delimited block (F5's §10.4) and it
+      is called out as the brief requires. Three of §10.4's four stale carriers
+      remain, one of them textual, so WCAG 1.4.1 holds; .pip__cost is
+      aria-hidden and the pip's accessible name already says it, so AT loses
+      nothing. Verified live: `document.body.textContent.includes(" stale")`
+      is false.
+  S2  `.pip { flex: 1 }` -> `flex: 0 0 auto` + `width: 36px`, at the SOURCE.
+      An override later in the file would leave assertion 7 permanently red.
+  S3  `.btn:disabled { opacity: .45 }` -> `.6` (drift 3).
+  S4  I DID take the fourth edit: `.reset-dialog` was joined to
+      `.import-dialog`'s five selector lists IN PLACE rather than duplicating
+      ~15 lines, so the two dialogs cannot drift. Note for future readers:
+      `cssBlock(css, ".import-dialog {")` no longer resolves (the selector is
+      now `.import-dialog,\n.reset-dialog {`). I checked first — NO test reads
+      it. `.reset-dialog {` does resolve, and assertion 22 uses it.
+
+OLD `CategoryLedger` EXPORT — DELETED, not kept as a thin composition.
+A composition would have to return a <summary> outside a <details>, which is
+not valid in any context it could be used in. tests/ui/category-ledger.test.tsx
+is re-pointed at CategoryLedgerDigest + CategoryLedgerLede. The four string
+builders (overByBadgePoints, overByBadgeSlots, badgeSlotsCapacityUnset,
+projectionDiffers) are untouched and still exported — assertion 19b pins it,
+because SummaryPanel.tsx imports one of them and is a denied path.
+
+THE TWO CASUALTY EDITS, quoted
+  tests/ui/badge-card-synergy.test.tsx:165
+    -    expect(costs).toEqual(["+3", "+5", "+6 ⚠", "—", "boost"]);
+    +    expect(costs).toEqual(["+3", "+5", "+6⚠", "—", "boost"]);
+    plus the two comments at lines ~11 and ~159. Nothing else in the file.
+  tests/ui/category-ledger.test.tsx:17
+    -  import { CategoryLedger } from "../../src/ui/grid/CategoryLedger";
+    +  import { CategoryLedgerDigest, CategoryLedgerLede } from "…/CategoryLedger";
+    renderLedger renders both siblings in a fragment.
+
+THE FOUR COLLAPSE DISPLAY-ONLY ASSERTIONS — named individually
+All four live in tests/ui/category-ledger.test.tsx, plus a fifth structural one:
+  (0) "the persisted preference collapses it, and the id never left .grid-section"
+  (1) "a collapsed category STILL SPENDS Badge Points, in its own digest"
+  (2) "a collapsed category STILL COUNTS Badge Slots"
+  (2b) "a collapsed category that is OVERSPENT still shows --danger and `over by N ⚠`"
+  (3) "a collapsed category STILL APPEARS in the rail ledger overview and the Summary"
+  (4) "a collapsed category STILL EXPORTS — the envelope is byte-identical"
+Collapse is asserted via `details.open`, never via visibility — jsdom keeps
+closed-<details> content in the DOM and applies no UA display:none.
+
+VERIFICATION EVIDENCE
+  npm test            53 files / 914 tests PASS   (baseline 52 / 856)
+  npm run typecheck   clean
+  npm run build       clean
+  npx vitest run tests/ui/overlays.test.tsx          4/4 PASS   (H2 ship gate)
+  npx vitest run tests/category-colors.test.ts      15/15 PASS  (the --cat chain)
+  npx vitest run tests/ui/f2-disclosure-surfaces.test.tsx  11/11 PASS (the latch)
+  npx vitest run tests/layout-arithmetic.test.ts + f2-source-pins   66/66 PASS
+  npx vitest run tests/ui/badge-card.test.tsx + badge-card-synergy  19/19 PASS
+  npx vitest run tests/ui/reset-build.test.tsx      16/16 PASS
+  npx vitest run tests/vocabulary + architecture + persist-boundary 271/271 PASS
+  git status --porcelain  clean before this commit
+  §4.2 by hand: the `<section className="grid-section" id={categoryAnchorId(
+    category)}>` line shows as UNCHANGED CONTEXT in the diff (I had reformatted
+    it to one line and to a local const; I reverted both so the audit reads
+    true), and `git grep -n "id=" BadgeGridSection.tsx` shows no id on the
+    <details>.
+  CARD-HEIGHT CHECK, both halves as required: assertion 9 parses the
+    declaration; the browser measured worst dead space 0.00px over 109 card-rows
+    across five viewports, 0 clipped cards, 0 horizontal scroll.
+
+TRAPS ACTUALLY HIT
+  T6/T7  Real. `.pip { width }` exists twice after the S override and both are
+         literals, so spaceIn throws twice over. Used blocksFor(...)[0]/[1] + px().
+  T8/A17 Real, and it bit twice more than the brief predicted: cssBlock returns
+         the FIRST match, so `.pip--legend` resolved to F5's `cursor: default`
+         block and `.badge-card__meta` to F5's type block. Both needed
+         blocksFor + a find() on the declaring property.
+  ALSO   `blocksFor(".pip-row")` matches `.badge-card--blocked .pip-row {`
+         FIRST — the brief did not flag this one. Assertion 7 now checks EVERY
+         block that declares the selector rather than an index.
+  NEW TRAP, worth recording for the next slice: SIX assertions initially failed
+         because they grepped source that legitimately NAMES the anti-pattern it
+         forbids — the S2 rationale quotes `flex: 1`, A1's quotes
+         `.badge-card { height: 100% }` (which blocksFor then parsed as a real
+         block), BadgeGridSection's says "No aria-expanded", anchors.ts says
+         "`section-*` keys". Every one now runs against stripComments(). A lint
+         that reads its own explanation teaches the next author to delete the
+         explanation.
+  BUILD-ONLY DEFECT the suite could not see: my own appended CSS comment
+         contained `--space-*/` , whose `*/` closed the comment early.
+         `npm test` stayed green; `npm run build` failed in lightningcss. Caught
+         and fixed before commit 1 — a standing argument for the build gate.
+  T14    Confirmed EMPIRICALLY in the browser, not just accepted:
+         `document.querySelector("dialog")` returns the BUILD MANAGER, not the
+         reset dialog.
+  T15/T16/T17  Handled as ruled (.map() not createDefaultSynergySlots; wholesale
+         applyEdit + setClampNotice(null), never handlePositionChange; new
+         playerHasContent, workingHasContent untouched).
+  T19    Did NOT fire on any run this session, including three full-suite runs.
+         No timeout value was touched.
+
+BOTH DRIFT FIXES CONFIRMED IN THE RUNNING APP
+  DRIFT 1 `.chip--accent`: before, the Fuse chip computed
+    `border-width 0px / border-style none / color rgb(201,209,217)` (inherited
+    --fg-primary) while its Reaction sibling had `1px solid`. After:
+    `1px solid rgb(76,141,246)` = --accent. Measured ratio on --bg-raised —
+    the binding backdrop, a purchased card and ANY hovered card — is 4.97:1,
+    pinned in f2-source-pins.test.ts. NOT 5.81 (that is the --bg-canvas figure
+    §15.10 ⑨ quoted against the wrong background).
+  DRIFT 3 `.btn:disabled`: 0.45 -> 0.6, verified live. Composited over
+    --bg-surface, --fg-primary 3.99:1 -> 6.01:1 and --fg-secondary
+    3.31:1 -> 4.83:1, all four numbers pinned with a real compositing function.
+
+A3 — THE `Meter` AT max = 0 CONFIRMATION
+Confirmed as the brief predicted: no NaN and no full bar. `Meter.tsx` guards
+with `max <= 0 ? (value > 0 ? 100 : 0) : …`, and after a budgets-clearing reset
+value is 0 too, so the track renders empty — identical to boot. Downgraded from
+a stop condition, as ruled. The §3.1-rev-2 divergence RESTATED FOR NEXT: the
+spec says the Meter is not rendered against an unset capacity; CategoryLedger
+renders it unconditionally. Pre-existing, reachable at boot today, correctly
+guarded, cosmetically wrong. NOT F5.3's.
+
+PINNED CONSTANTS RE-MEASURED — three disagree, NONE silently re-pinned
+  BADGE_NAME_MAX  160 vs 151.5  conservative/safe, but the widest name is
+                                "Immovable Enforcer", not "Versatile Visionary".
+  BADGE_NAME_MIN   92 vs  93.3  1.3px optimistic ("Post Powerhouse").
+  PIP_COST_MAX     28 vs  21.7  conservative/safe; 0 pips overflow anywhere.
+  LEGEND_COST_MAX  36 vs  36.1  exact; the legend pip grew to 44.1 against its
+                                44px floor rather than overflowing.
+  META_MAX         47 vs  54.3  7.3px optimistic. Assertion 3 becomes
+                                54.3+8+130 = 192.3 <= 204 — still true.
+  NEW_CHIP_MAX     40 vs  46.0  6px optimistic. Assertions 2b/3b both hold MORE
+                                strongly with the measured value.
+Every affected assertion was re-checked against the measured number and every
+conclusion survives. The three optimistic pins should be moved deliberately by
+whoever next owns §15's measurement table — that is a decision, not a cleanup.
+
+HEARTBEATS EMITTED
+Not applicable as specified: this ran as a single dispatched agent turn with no
+channel to emit 5-minute heartbeats to. Progress is reconstructable from the
+two implementation commits and this entry.
+
+STOP CONDITIONS TRIGGERED
+None of the fourteen. Two deviations from the brief's letter, both reported
+rather than improvised:
+  1. Port 5173 was held by another agent's dev server (the brief's precondition
+     expects it free). I did not touch it. My proof ran on :5183, with the
+     pre-slice tree on :5184 from a second detached worktree at 2999a6c.
+  2. The `f53-before-1280.png` "before" capture could not precede my first edit
+     as §0.3 asks, because the defect had to be reproduced on a tree I had
+     already branched. I reproduced it on a SEPARATE worktree pinned at the base
+     SHA instead, which is strictly better evidence than a screenshot taken
+     before editing: both trees were measured with the same script.
+
+BROWSER PROOF — AND ONE HONEST GAP
+Every numeric frame is discharged in docs/proof/f53-verification.txt: card
+bottoms flush at 390/768/1280/1357/1440 (worst dead space 0.00px over 109
+card-rows, 0 clipped), pips clustered (18 < 22 at >=768, 26 vs 22 at S, four
+radios never wrapping), a collapsed category retaining every ledger number
+INCLUDING a --danger `over by 2 ⚠`, and the reset confirm's exact rendered copy
+with real counts. PNG CAPTURE WAS NOT AVAILABLE: the Browser pane reported
+`document.visibilityState === "hidden"` for the whole session and every
+screenshot returned an unpainted canvas. I did not ship blank or reconstructed
+PNGs. Two items are therefore genuinely unverified visually and are named as
+outstanding in the proof file: the rendered screenshots, and the keyboard
+focus-ring on the <summary> (:focus-visible requires a TRUSTED interaction and
+this environment can only dispatch untrusted events, so programmatic focus
+correctly refused to match). The focus ring is proven structurally — the
+composed rule is 0,2,0 and later, against `.category-ledger`'s 0,1,0.
+
+KNOWN NOT-OURS
+  · The load-dependent vitest flake class did not fire this session.
+  · getComputedStyle on `.category-ledger h2::before` returned the SAME
+    transform for both open and closed states in this Chrome build. Caret
+    rotation was verified by selector match instead
+    (`details.matches('.grid-section__disclosure[open]')` false vs true, one
+    rule, gated on [open]), which is definitive. Not an app defect.
+  · A hand-authored autosave envelope is rejected by the deserializer because
+    the sixth category key is "Physicals", not "Physical". Cost me two cycles;
+    recording it so the next agent seeding a fixture does not repeat it.
+
+SCOPE / PLAN IMPACT
+None to scope.md / tech-strategy.md / design-spec.md / the H-rulings. The
+design-spec §15 corrections Architect adjudicated (A1–A18) all held, with the
+three additional cssBlock traps and the comment-grep class noted above.
+
+NEXT
+  · **F9 — the app-wide I6 touch-floor pass. OPENED HERE BY NAME, and it is
+    scheduled, not conditional.** `.btn--sm` is 28px and `.btn--md` is 36px at
+    EVERY width; there is no `@media (max-width: 767px)` block touching button
+    heights anywhere in app.css. §3.1 rev 2 ratified 36 and 44 at S and that
+    override never landed. This is a WCAG 2.2 SC 2.5.5/I6 target-size defect on
+    every screen the user actually holds. F5.3 ships only the SCOPED
+    `.build-panel__reset { min-height: 44px }` at <768 (measured live at 390:
+    90.6 x 44) so its own new control is not born below the floor. The six
+    surfaces F9 must reflow and re-prove at 390, enumerated:
+      1. AppHeader's control row
+      2. BuildManager's footer
+      3. Banner.__actions
+      4. FilterBar
+      5. ExportImportControls
+      6. both shipped dialogs' action rows (build-manager + import-dialog —
+         and now the third, reset-dialog, whose action row joins their recipe)
+  · The §3.1-rev-2 Meter divergence (A3), above.
+  · Three optimistic measurement pins (BADGE_NAME_MIN, META_MAX, NEW_CHIP_MAX),
+    above — a deliberate re-pin, not a cleanup.
+  · DEFERRED WITH TRIGGERS, unchanged from the brief §7: re-arming the Build
+    panel latch after a reset (A2), a budgets-only build being resettable (A4),
+    undo (RULED OUT — the autosave is overwritten the instant reset commits, so
+    an undo buffer would be the only copy), a `New build` control.
+  · Merge is Tier 1's, in the order F4 -> F5.3. Merge-conflict forecast against
+    `f8-engine` and the queued F5.4 attribute-pane slice is in the dispatch report.
+─────────────────────────────────────────────
