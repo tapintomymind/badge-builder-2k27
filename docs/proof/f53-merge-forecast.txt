@@ -1,0 +1,126 @@
+F5.3 — MERGE FORECAST, VALIDATED BY A REAL TRIAL MERGE (not predicted)
+================================================================================
+Branch:  f5-3-card-collapse-reset @ ec1f31a
+Base:    origin/f4-official-data @ 2999a6c
+Target:  origin/dev @ 70f90bf  (MOVED under this slice — see below)
+Method:  `git merge --no-commit --no-ff origin/dev` in a throwaway detached
+         worktree, conflicts resolved, then typecheck + full suite run.
+Result:  60 files / 1096 tests PASS, typecheck clean, after ONE test amendment.
+
+--------------------------------------------------------------------------------
+THE HEADLINE: `dev` MOVED, AND THE DISPATCH ORDER IS NOW STALE
+--------------------------------------------------------------------------------
+The dispatch said "I merge, in the order F4 -> F5.3". While this slice ran,
+`dev` absorbed all of it and more:
+
+  70f90bf chore(reportback): F8-E1 + F8-E2 engine slices integration entry
+  8ba17b4 feat(f8-e2): the roll engine — seeded PRNG, randomized greedy, lint
+  d23de0b refactor(f8-e1): ONE step enumerator, the summary selectors, and TWO
+          RULES HOISTED OUT OF COMPONENTS          <-- this one matters to F5.3
+  7289386 feat(f4): official-2K-page data adoption  <-- F4 is ALREADY on dev
+  59d2c39 perf(tests): shared jsdom `.labels` index  <-- the harness optimization
+
+So F4 no longer needs merging first — it is in. F5.3 merges straight to dev.
+
+--------------------------------------------------------------------------------
+FIVE CONFLICTS. FOUR ARE MECHANICAL. ONE IS A REAL DECISION.
+--------------------------------------------------------------------------------
+1. src/App.tsx — 1 hunk, the CategoryLedger import group.
+   ours: CategoryLedgerDigest, CategoryLedgerLede, badgeSlotsCapacityUnset
+   dev : CategoryLedger
+   RESOLVE: take the two new component names AND DROP badgeSlotsCapacityUnset
+   from this import — dev already imports it from "./engine/ledger" (F8-E1).
+
+2. src/ui/grid/BadgeCard.tsx — 1 hunk at the title-row / meta seam.
+   dev's side is the PRE-F5.3 title row plus the old meta carrying
+   `{badge.category} · `. RESOLVE: take OURS. Re-cutting that hunk IS
+   deliverable A. F4's NEW chip and its <details> description sit outside the
+   hunk and survive untouched either way.
+
+3. src/styles/app.css — 1 hunk, two EOF appends.
+   RESOLVE: keep BOTH delimited blocks, F5.3's last. Exactly the pattern the
+   brief prescribed for F4 -> F5.3.
+
+4. tests/ledger.test.ts — 1 hunk, EOF append; our side is empty.
+   RESOLVE: take THEIRS (F8-E1's describe block).
+
+5. .claude/reportback.md — both append. RESOLVE: keep both entries.
+
+--------------------------------------------------------------------------------
+THE ONE REAL COLLISION: assertion 19b vs F8-E1's hoist
+--------------------------------------------------------------------------------
+F8-E1 moved `badgeSlotsCapacityUnset` OUT of src/ui/grid/CategoryLedger.tsx
+into src/engine/ledger.ts, on the reasoning that "a function that knows what a
+capacity number MEANS is a rule, and the engine cannot import from src/ui/".
+It pins the move with, in tests/ledger.test.ts:
+
+    expect(stripComments(source)).not.toContain("export function badgeSlotsCapacityUnset");
+
+F5.3's assertion 19b, written against a tree where the builder still lived in
+the UI module, asserts the exact opposite:
+
+    for (const builder of [... "badgeSlotsCapacityUnset" ...])
+      expect(ledger).toContain(`export function ${builder}`);
+
+These are DIRECTLY CONTRADICTORY and one must go red. F8-E1 is right; 19b was
+right about its own tree and is now stale. The fix FOLLOWS THE SYMBOL rather
+than deleting the check — the property 19b exists to protect is "exactly one
+definition, and every surface still reaches it", and that property is still
+worth pinning after the hoist. Confirmed: with the amendment below the merged
+tree is 1096/1096 green.
+
+APPLY THIS AS PART OF THE MERGE COMMIT, NOT BEFORE IT. On the F5.3 branch as it
+stands the amended assertion FAILS, because src/engine/ledger.ts does not carry
+the symbol until dev is merged in.
+
+--- a/tests/layout-arithmetic.test.ts
++++ b/tests/layout-arithmetic.test.ts
+   it("19b — the string builders are STILL REACHABLE (SummaryPanel is denied)", () => {
+     for (const builder of ["overByBadgePoints", "overByBadgeSlots", "projectionDiffers"]) {
+       expect(ledger).toContain(`export function ${builder}`);
+     }
+     // `badgeSlotsCapacityUnset` was HOISTED to src/engine/ledger.ts by F8-E1.
+     // The check FOLLOWS THE SYMBOL rather than being deleted.
+     const engineLedger = srcSources["/src/engine/ledger.ts"] as string;
+     expect(engineLedger).toContain("export function badgeSlotsCapacityUnset");
+     expect(ledger).not.toContain("export function badgeSlotsCapacityUnset");
+     expect(ledger).toContain('from "../../engine/ledger"');
+     const summary = srcSources["/src/ui/summary/SummaryPanel.tsx"] as string;
+     expect(summary).toContain("badgeSlotsCapacityUnset");
+   });
+
+--------------------------------------------------------------------------------
+WHAT DID *NOT* CONFLICT, AND IS WORTH KNOWING
+--------------------------------------------------------------------------------
+  src/ui/grid/CategoryLedger.tsx  AUTO-MERGED CLEANLY, which is the pleasant
+    surprise: F8-E1 removes the local definition and adds an engine import at
+    the top; F5.3 splits the component in two further down. Disjoint regions,
+    and both intents compose exactly as intended.
+  src/ui/summary/SummaryPanel.tsx, src/engine/ledger.ts, feasibility.ts,
+    tests/architecture.test.ts, tests/vocabulary.test.ts — all clean.
+  tests/category-colors.test.ts and tests/ui/overlays.test.tsx — untouched by
+    F5.3 by contract, and still green in the merged tree.
+  The harness label-index optimization (59d2c39) merged with no interaction.
+
+--------------------------------------------------------------------------------
+STILL AHEAD: the queued F5.4 attribute-pane slice
+--------------------------------------------------------------------------------
+Forecast only — F5.4 is not written yet, so this is a warning, not a measurement.
+  src/ui/build/BuildPanel.tsx  LIKELY CONFLICT. F5.3 adds two props
+    (onResetRequest, canReset) to BuildPanelProps and a `Reset build` button at
+    the FOOT of the .build-panel div, immediately after the third <Section> —
+    which is exactly where an attribute-pane slice will be working. Union
+    resolution, with two hard constraints F5.4 must not break: the button stays
+    INSIDE .build-panel (the one-placement-at-every-width ruling), and the
+    auto-collapse latch stays frozen (fireLatch / latchArmed / autoCollapsed /
+    BUILD_PANEL_AUTO_COLLAPSED_KEY), or tests/ui/f2-disclosure-surfaces.test.tsx
+    reddens and that file is denied to both slices.
+  src/styles/app.css  EOF append collision, same trivial pattern as above.
+  tests/layout-arithmetic.test.ts  EOF append collision. F5.3's block parses
+    CARD_PAD, CARD_GAP_Y, PIP_*, TIER_MEDALLION_MAX and SYNERGY_BORDER; it does
+    NOT read STACK_MAX or ATTR_CELL_FLOOR, so an attribute-cell re-cut cannot
+    silently invalidate F5.3's derivations.
+  One trap to hand F5.4 explicitly: `cssBlock` returns the FIRST matching block
+    and cannot see into a media query. After F5.3 there are TWO `.pip {`, TWO
+    `.pip--legend {`, TWO `.badge-card__meta {` and FOUR `.category-ledger {`
+    blocks. Use blocksFor(...) + a find() on the declaring property.
