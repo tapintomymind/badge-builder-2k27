@@ -203,3 +203,47 @@ describe("validateLoadout — HARD invariant class (externally constructed state
     expect(() => validateLoadout(state)).toThrow(UnknownBadgeError);
   });
 });
+
+// ---------------------------------------------------------------------------
+// F1 item 3 — the sealed 2-of-8 cap ("2 different +2 slots", seed: Synergy
+// system) as a HardViolation. Pinning test: FAILS on pre-fix code, where the
+// cap lived only inside the SynergyPanel component and validateLoadout
+// returned zero errors for three +2 designations.
+// ---------------------------------------------------------------------------
+
+describe("F1 — tooManyPlusTwoSynergySlots (H4 invariant class, the sealed +2 cap)", () => {
+  const budgets = makeBudgets(16, 3);
+
+  it("THREE magnitude-2 synergy slots is a HardViolation naming the designated ids and the cap", () => {
+    const state: SynergyLedgerState = {
+      loadout: [{ badgeId: "float-game", purchasedLevel: "gold" }],
+      budgets,
+      synergySlots: synergySlotsWith({
+        2: { magnitude: 2 },
+        5: { magnitude: 2 },
+        7: { magnitude: 2 },
+      }),
+      refundTrigger: "legendByAnyMeans",
+    };
+    expect(validateLoadout(state).errors).toEqual([
+      {
+        kind: "tooManyPlusTwoSynergySlots",
+        plusTwoSynergySlotIds: [2, 5, 7],
+        maxAllowed: 2,
+      },
+    ]);
+  });
+
+  it("EXACTLY two magnitude-2 synergy slots stays legal — zero errors", () => {
+    const state: SynergyLedgerState = {
+      loadout: [{ badgeId: "float-game", purchasedLevel: "gold" }],
+      budgets,
+      synergySlots: synergySlotsWith({
+        2: { magnitude: 2 },
+        5: { magnitude: 2 },
+      }),
+      refundTrigger: "legendByAnyMeans",
+    };
+    expect(validateLoadout(state).errors).toEqual([]);
+  });
+});

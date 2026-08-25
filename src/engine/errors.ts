@@ -45,3 +45,24 @@ export class UnsupportedSchemaVersionError extends Error {
     this.name = "UnsupportedSchemaVersionError";
   }
 }
+
+/**
+ * A SavedBuild envelope whose BODY fails shape validation (H6 at the JSON
+ * boundary): a hand-edited, corrupted, or foreign file must fail LOUDLY at
+ * deserialize time — never cast through into cost arithmetic as NaN, a render
+ * crash, or a silent double-count. `problems` lists every violation found so
+ * the import banner can say exactly what was wrong.
+ *
+ * Deliberately NOT thrown for dataset drift (a badge id absent from the
+ * current dataset in an otherwise-valid build) — that is H8's supported
+ * scenario, reported via `droppedEntries` instead.
+ */
+export class MalformedSavedBuildError extends Error {
+  readonly problems: readonly string[];
+
+  constructor(problems: readonly string[]) {
+    super(`Saved build failed validation: ${problems.join("; ")}`);
+    this.name = "MalformedSavedBuildError";
+    this.problems = problems;
+  }
+}

@@ -6,11 +6,12 @@
 
 import { describe, expect, it } from "vitest";
 import { loadDataset, shippedDataset, shippedRawDataset } from "../src/engine/dataset";
-import { recheckEligibility } from "../src/engine/eligibility";
-import { UnsupportedSchemaVersionError } from "../src/engine/errors";
+import { driftFromDroppedEntries, recheckEligibility } from "../src/engine/eligibility";
+import { MalformedSavedBuildError, UnsupportedSchemaVersionError } from "../src/engine/errors";
 import {
   createSavedBuild,
   deserializeSavedBuild,
+  deserializeSavedBuildWithReport,
   serializeSavedBuild,
 } from "../src/engine/serialization";
 import type { Budget, RawBadgeDataset, SavedBuild, SynergySlot } from "../src/engine/types";
@@ -125,6 +126,7 @@ describe("recheckEligibility (H8 drift action, engine half — consumed by M3's 
         purchasedLevel: "gold",
         maxPurchasableLevel: "silver", // build has 92 Mid: gold now needs 95
         heightBlocked: false,
+        droppedFromDataset: false,
       },
     ]);
   });
@@ -142,6 +144,7 @@ describe("recheckEligibility (H8 drift action, engine half — consumed by M3's 
         purchasedLevel: "gold",
         maxPurchasableLevel: null,
         heightBlocked: true,
+        droppedFromDataset: false,
       },
     ]);
   });
@@ -158,7 +161,260 @@ describe("recheckEligibility (H8 drift action, engine half — consumed by M3's 
         purchasedLevel: "gold",
         maxPurchasableLevel: null,
         heightBlocked: false,
+        droppedFromDataset: true,
       },
     ]);
+  });
+
+  it("driftFromDroppedEntries maps the deserializer's droppedEntries into the SAME drift-report shape", () => {
+    expect(
+      driftFromDroppedEntries([
+        { badgeId: "vanished-badge", purchasedLevel: "hof" },
+        { badgeId: "another-gone", purchasedLevel: "bronze" },
+      ]),
+    ).toEqual([
+      {
+        badgeId: "vanished-badge",
+        purchasedLevel: "hof",
+        maxPurchasableLevel: null,
+        heightBlocked: false,
+        droppedFromDataset: true,
+      },
+      {
+        badgeId: "another-gone",
+        purchasedLevel: "bronze",
+        maxPurchasableLevel: null,
+        heightBlocked: false,
+        droppedFromDataset: true,
+      },
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F1 item 1 — FULL body validation at the JSON boundary (H6). Every case in
+// the first describe is a pinning test that FAILS on the pre-fix code (which
+// validated only schemaVersion + dataVersion and cast the body through).
+// ---------------------------------------------------------------------------
+
+/** Serialize the valid fixture, apply a raw-JSON mutation, restringify. */
+function corrupt(mutate: (envelope: Record<string, unknown>) => void): string {
+  const envelope = JSON.parse(serializeSavedBuild(makeSaved())) as Record<string, unknown>;
+  mutate(envelope);
+  return JSON.stringify(envelope);
+}
+
+describe("deserializeSavedBuild — malformed bodies throw MalformedSavedBuildError, never cast through", () => {
+  it("rejects purchasedLevel 'legend' — Legend is boost-only and can never be purchased", () => {
+    const text = corrupt((envelope) => {
+      (envelope["loadout"] as Record<string, unknown>[])[0]!["purchasedLevel"] = "legend";
+    });
+    expect(() => deserializeSavedBuild(text)).toThrowError(MalformedSavedBuildError);
+  });
+
+  it("rejects a non-canonical purchasedLevel string ('Gold') — the silent-NaN import shape", () => {
+    const text = corrupt((envelope) => {
+      (envelope["loadout"] as Record<string, unknown>[])[0]!["purchasedLevel"] = "Gold";
+    });
+    expect(() => deserializeSavedBuild(text)).toThrowError(MalformedSavedBuildError);
+  });
+
+  it("rejects duplicate loadout rows for one badge id — the silent double-count shape", () => {
+    const text = corrupt((envelope) => {
+      const loadout = envelope["loadout"] as Record<string, unknown>[];
+      loadout.push({ badgeId: "deadeye", purchasedLevel: "silver" });
+    });
+    expect(() => deserializeSavedBuild(text)).toThrowError(MalformedSavedBuildError);
+  });
+
+  it("rejects a bodyless envelope ({schemaVersion, dataVersion} only) — the confirm-crash shape", () => {
+    expect(() =>
+      deserializeSavedBuild('{"schemaVersion":1,"dataVersion":"2026-08-25.1"}'),
+    ).toThrowError(MalformedSavedBuildError);
+  });
+
+  it("rejects junk attributes: missing key, out-of-range value, non-numeric value", () => {
+    const missingKey = corrupt((envelope) => {
+      const build = envelope["build"] as Record<string, unknown>;
+      delete (build["attributes"] as Record<string, unknown>)["mid"];
+    });
+    expect(() => deserializeSavedBuild(missingKey)).toThrowError(MalformedSavedBuildError);
+
+    const outOfRange = corrupt((envelope) => {
+      const build = envelope["build"] as Record<string, unknown>;
+      (build["attributes"] as Record<string, unknown>)["mid"] = 120;
+    });
+    expect(() => deserializeSavedBuild(outOfRange)).toThrowError(MalformedSavedBuildError);
+
+    const nonNumeric = corrupt((envelope) => {
+      const build = envelope["build"] as Record<string, unknown>;
+      (build["attributes"] as Record<string, unknown>)["mid"] = "92";
+    });
+    expect(() => deserializeSavedBuild(nonNumeric)).toThrowError(MalformedSavedBuildError);
+  });
+
+  it("rejects a non-numeric heightInches", () => {
+    const text = corrupt((envelope) => {
+      (envelope["build"] as Record<string, unknown>)["heightInches"] = "tall";
+    });
+    expect(() => deserializeSavedBuild(text)).toThrowError(MalformedSavedBuildError);
+  });
+
+  it("rejects negative budgets and a missing budget category", () => {
+    const negative = corrupt((envelope) => {
+      const budgets = envelope["budgets"] as Record<string, Record<string, unknown>>;
+      budgets["Finishing"]!["points"] = -4;
+    });
+    expect(() => deserializeSavedBuild(negative)).toThrowError(MalformedSavedBuildError);
+
+    const missing = corrupt((envelope) => {
+      const budgets = envelope["budgets"] as Record<string, unknown>;
+      delete budgets["Defense"];
+    });
+    expect(() => deserializeSavedBuild(missing)).toThrowError(MalformedSavedBuildError);
+  });
+
+  it("rejects junk config (unknown refundTrigger, unknown budgetStrategy, missing config)", () => {
+    const badTrigger = corrupt((envelope) => {
+      (envelope["config"] as Record<string, unknown>)["refundTrigger"] = "whenever";
+    });
+    expect(() => deserializeSavedBuild(badTrigger)).toThrowError(MalformedSavedBuildError);
+
+    const badStrategy = corrupt((envelope) => {
+      (envelope["config"] as Record<string, unknown>)["budgetStrategy"] = "vibes";
+    });
+    expect(() => deserializeSavedBuild(badStrategy)).toThrowError(MalformedSavedBuildError);
+
+    const noConfig = corrupt((envelope) => {
+      delete envelope["config"];
+    });
+    expect(() => deserializeSavedBuild(noConfig)).toThrowError(MalformedSavedBuildError);
+  });
+
+  it("rejects junk synergy shapes: non-array, duplicate ids, magnitude 3, wrong permanence", () => {
+    const nonArray = corrupt((envelope) => {
+      envelope["synergy"] = "not-an-array";
+    });
+    expect(() => deserializeSavedBuild(nonArray)).toThrowError(MalformedSavedBuildError);
+
+    const duplicateIds = corrupt((envelope) => {
+      const synergy = envelope["synergy"] as Record<string, unknown>[];
+      synergy[1]!["id"] = 1;
+    });
+    expect(() => deserializeSavedBuild(duplicateIds)).toThrowError(MalformedSavedBuildError);
+
+    const badMagnitude = corrupt((envelope) => {
+      const synergy = envelope["synergy"] as Record<string, unknown>[];
+      synergy[0]!["magnitude"] = 3;
+    });
+    expect(() => deserializeSavedBuild(badMagnitude)).toThrowError(MalformedSavedBuildError);
+
+    const wrongPermanence = corrupt((envelope) => {
+      const synergy = envelope["synergy"] as Record<string, unknown>[];
+      synergy[0]!["permanence"] = "permanent"; // Synergy Slot 1 is temporary (seed table)
+    });
+    expect(() => deserializeSavedBuild(wrongPermanence)).toThrowError(MalformedSavedBuildError);
+  });
+
+  it("rejects MORE than two magnitude-2 synergy entries — the sealed 2-of-8 cap", () => {
+    const twoPlusTwo = corrupt((envelope) => {
+      const synergy = envelope["synergy"] as Record<string, unknown>[];
+      synergy[0]!["magnitude"] = 2;
+      synergy[1]!["magnitude"] = 2;
+    });
+    // Exactly two is legal.
+    expect(() => deserializeSavedBuild(twoPlusTwo)).not.toThrow();
+
+    const threePlusTwo = corrupt((envelope) => {
+      const synergy = envelope["synergy"] as Record<string, unknown>[];
+      synergy[0]!["magnitude"] = 2;
+      synergy[1]!["magnitude"] = 2;
+      synergy[2]!["magnitude"] = 2;
+    });
+    expect(() => deserializeSavedBuild(threePlusTwo)).toThrowError(MalformedSavedBuildError);
+  });
+
+  it("rejects a synergy reference to a badge that is NOT in the loadout (H4 at the boundary)", () => {
+    const text = corrupt((envelope) => {
+      const synergy = envelope["synergy"] as Record<string, unknown>[];
+      synergy[4]!["unlocked"] = true;
+      synergy[4]!["fuseBadgeId"] = "posterizer"; // not a loadout badge
+    });
+    expect(() => deserializeSavedBuild(text)).toThrowError(MalformedSavedBuildError);
+  });
+
+  it("aggregates EVERY problem found into MalformedSavedBuildError.problems", () => {
+    const text = corrupt((envelope) => {
+      (envelope["loadout"] as Record<string, unknown>[])[0]!["purchasedLevel"] = "legend";
+      (envelope["build"] as Record<string, unknown>)["heightInches"] = null;
+      delete envelope["config"];
+    });
+    let caught: unknown = null;
+    try {
+      deserializeSavedBuild(text);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(MalformedSavedBuildError);
+    expect((caught as MalformedSavedBuildError).problems.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F1 items 1+5 — dataset drift (H8): an unknown badge id in an OTHERWISE-VALID
+// build is stripped + reported, NEVER a failure and NEVER a cast-through.
+// ---------------------------------------------------------------------------
+
+describe("deserializeSavedBuildWithReport — dataset drift strips into droppedEntries (H8)", () => {
+  /** The valid fixture with one loadout entry whose badge id left the dataset,
+   * holding a fuse role on unlocked Synergy Slot 5 (reaction stays deadeye). */
+  function driftedText(): string {
+    return corrupt((envelope) => {
+      (envelope["loadout"] as Record<string, unknown>[]).push({
+        badgeId: "vanished-badge",
+        purchasedLevel: "hof",
+      });
+      const synergy = envelope["synergy"] as Record<string, unknown>[];
+      synergy[4]!["unlocked"] = true;
+      synergy[4]!["fuseBadgeId"] = "vanished-badge";
+      synergy[4]!["reactionBadgeId"] = "deadeye";
+    });
+  }
+
+  it("does NOT throw; strips the unknown-id entry and reports it in droppedEntries", () => {
+    const { saved, droppedEntries } = deserializeSavedBuildWithReport(driftedText());
+    expect(droppedEntries).toEqual([{ badgeId: "vanished-badge", purchasedLevel: "hof" }]);
+    expect(saved.loadout).toEqual([
+      { badgeId: "deadeye", purchasedLevel: "gold" },
+      { badgeId: "glove", purchasedLevel: "gold" },
+    ]);
+  });
+
+  it("clears synergy references to the dropped badge id, keeping unrelated references", () => {
+    const { saved } = deserializeSavedBuildWithReport(driftedText());
+    const synergySlot5 = saved.synergy.find((entry) => entry.id === 5);
+    expect(synergySlot5?.fuseBadgeId).toBeNull();
+    expect(synergySlot5?.reactionBadgeId).toBe("deadeye");
+  });
+
+  it("preserves unknown synergy extra fields OPAQUELY while clearing dropped references", () => {
+    const envelope = JSON.parse(driftedText()) as Record<string, unknown>;
+    const synergy = envelope["synergy"] as Record<string, unknown>[];
+    synergy[4]!["futureField"] = "opaque";
+    const { saved } = deserializeSavedBuildWithReport(JSON.stringify(envelope));
+    const synergySlot5 = saved.synergy.find((entry) => entry.id === 5) as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(synergySlot5["futureField"]).toBe("opaque");
+    expect(synergySlot5["fuseBadgeId"]).toBeNull();
+  });
+
+  it("reports droppedEntries [] for a fully-valid build (and the report-free form matches)", () => {
+    const text = serializeSavedBuild(makeSaved());
+    const { saved, droppedEntries } = deserializeSavedBuildWithReport(text);
+    expect(droppedEntries).toEqual([]);
+    expect(saved).toEqual(makeSaved());
+    expect(deserializeSavedBuild(text)).toEqual(saved);
   });
 });

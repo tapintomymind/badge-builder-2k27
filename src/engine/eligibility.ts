@@ -22,6 +22,7 @@ import type {
   BadgeEligibility,
   BadgeRequirements,
   Build,
+  LoadoutEntry,
   SavedBuild,
 } from "./types";
 import type { PurchasableLevel } from "./vocabulary";
@@ -130,6 +131,11 @@ export interface EligibilityDrift {
   maxPurchasableLevel: PurchasableLevel | null;
   /** true when the build's height is now outside the badge's range. */
   heightBlocked: boolean;
+  /** true when the badge id is absent from the current dataset entirely —
+   * the deserializer strips such entries into `droppedEntries` (H8), and this
+   * flag lets the drift report say "removed from the dataset" rather than the
+   * weaker "qualifies at no level". */
+  droppedFromDataset: boolean;
 }
 
 /**
@@ -154,6 +160,7 @@ export function recheckEligibility(
         purchasedLevel: entry.purchasedLevel,
         maxPurchasableLevel: null,
         heightBlocked: false,
+        droppedFromDataset: true,
       });
       continue;
     }
@@ -167,8 +174,27 @@ export function recheckEligibility(
         purchasedLevel: entry.purchasedLevel,
         maxPurchasableLevel: eligibility.maxPurchasableLevel,
         heightBlocked: !eligibility.allowed,
+        droppedFromDataset: false,
       });
     }
   }
   return drifted;
+}
+
+/**
+ * Represents the deserializer's `droppedEntries` (H8 dataset drift — badge
+ * ids absent from the current dataset, stripped at the JSON boundary) in the
+ * SAME drift-report shape the DriftBanner consumes, so the UI has exactly one
+ * disclosure structure for both drift sources.
+ */
+export function driftFromDroppedEntries(
+  droppedEntries: readonly LoadoutEntry[],
+): EligibilityDrift[] {
+  return droppedEntries.map((entry) => ({
+    badgeId: entry.badgeId,
+    purchasedLevel: entry.purchasedLevel,
+    maxPurchasableLevel: null,
+    heightBlocked: false,
+    droppedFromDataset: true,
+  }));
 }

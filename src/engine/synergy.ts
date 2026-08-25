@@ -122,6 +122,40 @@ export function synergySlotActive(synergySlot: SynergySlot, overlay: OverlayStat
 }
 
 /**
+ * Whether a synergy slot renders as "⟳ Disabled by season-reset preview":
+ * unlocked but not active under the overlay — algebraically
+ * `unlocked && !synergySlotActive`, which reduces to
+ * `seasonReset && temporary && unlocked`. THE canonical predicate for that
+ * UI state: components import this rather than hand-negating
+ * synergySlotActive, so a future change to the activity rule can never
+ * desynchronize the boost math from the "disabled by preview" annotations.
+ */
+export function synergySlotDisabledByPreview(
+  synergySlot: SynergySlot,
+  overlay: OverlayState,
+): boolean {
+  return synergySlot.unlocked && !synergySlotActive(synergySlot, overlay);
+}
+
+/**
+ * The sealed cap on +2 designations (seed: Synergy system — "6 different +1
+ * slots and 2 different +2 slots"): at most TWO synergy slots may carry
+ * magnitude 2. WHICH two is unpublished 2K27 data (OQ-A1); the COUNT is
+ * sealed. Enforced by validateLoadout (H4 invariant class) and by the
+ * SavedBuild deserializer at the JSON boundary.
+ */
+export const MAX_PLUS_TWO_SYNERGY_SLOTS = 2;
+
+/** The ids of the synergy slots currently designated +2, in array order. */
+export function plusTwoSynergySlotIds(
+  synergySlots: readonly SynergySlot[],
+): SynergySlotId[] {
+  return synergySlots
+    .filter((synergySlot) => synergySlot.magnitude === 2)
+    .map((synergySlot) => synergySlot.id);
+}
+
+/**
  * The single-role boost (H5 — EXCLUSIVE, never a sum of two roles):
  *   no role                → 0
  *   fuse                   → slot active ? magnitude : 0

@@ -27,6 +27,7 @@
 
 import { badgeById, shippedDataset } from "./dataset";
 import { UnknownBadgeError } from "./errors";
+import { MAX_PLUS_TWO_SYNERGY_SLOTS, plusTwoSynergySlotIds } from "./synergy";
 import { categoryLedgerAt } from "./synergy-ledger";
 import type { SynergyLedgerState } from "./synergy-ledger";
 import type { BadgeDataset, SynergyRoleKind, SynergySlotId } from "./types";
@@ -44,7 +45,14 @@ export interface SynergyRoleOccurrence {
 export type HardViolation =
   | { kind: "synergyTargetNotPurchased"; synergySlotId: SynergySlotId; role: SynergyRoleKind; badgeId: string }
   | { kind: "badgeHoldsMultipleSynergyRoles"; badgeId: string; occurrences: SynergyRoleOccurrence[] }
-  | { kind: "sameBadgeBothRolesInOneSynergySlot"; synergySlotId: SynergySlotId; badgeId: string };
+  | { kind: "sameBadgeBothRolesInOneSynergySlot"; synergySlotId: SynergySlotId; badgeId: string }
+  /** The sealed 2-of-8 cap (seed: "2 different +2 slots"): more than TWO
+   * synergy slots carrying magnitude 2 is a state the game cannot express. */
+  | {
+      kind: "tooManyPlusTwoSynergySlots";
+      plusTwoSynergySlotIds: SynergySlotId[];
+      maxAllowed: number;
+    };
 
 /** SOFT — budget class (H4): warn in red, never block. */
 export type SoftViolation =
@@ -127,6 +135,19 @@ export function validateLoadout(
     if (badgeOccurrences.length > 1) {
       errors.push({ kind: "badgeHoldsMultipleSynergyRoles", badgeId, occurrences: badgeOccurrences });
     }
+  }
+
+  // The sealed +2 cap (seed: "2 different +2 slots"). The SynergyPanel's
+  // designator refuses to create a third +2, so this — like every other HARD
+  // violation — can only arrive via externally constructed or deserialized
+  // state; the single enforcement surface still names it.
+  const designatedPlusTwo = plusTwoSynergySlotIds(state.synergySlots);
+  if (designatedPlusTwo.length > MAX_PLUS_TWO_SYNERGY_SLOTS) {
+    errors.push({
+      kind: "tooManyPlusTwoSynergySlots",
+      plusTwoSynergySlotIds: designatedPlusTwo,
+      maxAllowed: MAX_PLUS_TWO_SYNERGY_SLOTS,
+    });
   }
 
   // --- SOFT: budget class, computed from the COMMITTED ("current") basis. ---

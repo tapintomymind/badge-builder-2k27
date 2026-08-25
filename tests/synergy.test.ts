@@ -20,10 +20,13 @@ import {
   defaultOverlay,
   effectiveLevel,
   magnitudeForSynergySlot,
+  MAX_PLUS_TWO_SYNERGY_SLOTS,
   permanenceForSynergySlot,
+  plusTwoSynergySlotIds,
   SYNERGY_SLOT_IDS,
   synergyRoleFor,
   synergySlotActive,
+  synergySlotDisabledByPreview,
 } from "../src/engine/synergy";
 import type { SynergyState } from "../src/engine/synergy";
 import type { LoadoutEntry, OverlayState, SynergySlot, SynergySlotId } from "../src/engine/types";
@@ -315,5 +318,67 @@ describe("clearSynergy — typed results, idempotent, unlocked-only", () => {
     const truncated: SynergyState = { loadout, synergySlots: synergySlots.slice(0, 4) };
     const result = clearSynergy(truncated, 8, "fuse");
     expect(result).toEqual({ ok: false, error: { kind: "unknownSynergySlot", synergySlotId: 8 } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F1 item 4 — synergySlotDisabledByPreview: THE canonical engine predicate
+// for the "⟳ Disabled by season-reset preview" UI state, exported so
+// components import it instead of hand-negating synergySlotActive (F2 swaps
+// the hand-rolled copies). Pinning test: FAILS on pre-fix code, where the
+// export did not exist.
+// ---------------------------------------------------------------------------
+
+describe("F1 — synergySlotDisabledByPreview (canonical predicate for the preview-disabled state)", () => {
+  const allOverlays: OverlayState[] = [
+    { reactionsActive: false, seasonReset: false },
+    { reactionsActive: false, seasonReset: true },
+    { reactionsActive: true, seasonReset: false },
+    { reactionsActive: true, seasonReset: true },
+  ];
+
+  it("is algebraically `unlocked && !synergySlotActive` for every slot state × overlay", () => {
+    for (const unlocked of [false, true]) {
+      for (const permanence of ["temporary", "permanent"] as const) {
+        for (const testOverlay of allOverlays) {
+          const synergySlot: SynergySlot = {
+            id: 1,
+            unlocked,
+            permanence,
+            magnitude: 1,
+            fuseBadgeId: null,
+            reactionBadgeId: null,
+          };
+          expect(synergySlotDisabledByPreview(synergySlot, testOverlay)).toBe(
+            unlocked && !synergySlotActive(synergySlot, testOverlay),
+          );
+        }
+      }
+    }
+  });
+
+  it("fires ONLY for an unlocked temporary slot under the season-reset preview", () => {
+    const temporary = synergySlotsWith({ 2: { unlocked: true } }).find((s) => s.id === 2)!;
+    const permanent = synergySlotsWith({ 5: { unlocked: true } }).find((s) => s.id === 5)!;
+    const locked = synergySlotsWith({})!.find((s) => s.id === 3)!;
+    const reset: OverlayState = { reactionsActive: false, seasonReset: true };
+
+    expect(synergySlotDisabledByPreview(temporary, reset)).toBe(true);
+    expect(synergySlotDisabledByPreview(temporary, defaultOverlay)).toBe(false);
+    expect(synergySlotDisabledByPreview(permanent, reset)).toBe(false);
+    expect(synergySlotDisabledByPreview(locked, reset)).toBe(false);
+  });
+});
+
+describe("F1 — plusTwoSynergySlotIds + MAX_PLUS_TWO_SYNERGY_SLOTS (the sealed count)", () => {
+  it("the sealed cap is exactly 2 (seed: '2 different +2 slots' — count sealed, WHICH two unpublished)", () => {
+    expect(MAX_PLUS_TWO_SYNERGY_SLOTS).toBe(2);
+  });
+
+  it("lists the magnitude-2 synergy slot ids in array order", () => {
+    expect(plusTwoSynergySlotIds(createDefaultSynergySlots())).toEqual([]);
+    expect(
+      plusTwoSynergySlotIds(synergySlotsWith({ 3: { magnitude: 2 }, 6: { magnitude: 2 } })),
+    ).toEqual([3, 6]);
   });
 });

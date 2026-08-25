@@ -20,8 +20,10 @@
 
 import {
   deserializeSavedBuild,
+  deserializeSavedBuildWithReport,
   serializeSavedBuild,
 } from "../engine/serialization";
+import type { DeserializedSavedBuild } from "../engine/serialization";
 import type { SavedBuild } from "../engine/types";
 
 const AUTOSAVE_KEY = "badge-builder-2k27:autosave:v1";
@@ -64,15 +66,23 @@ export function writeAutosave(saved: SavedBuild): PersistResult {
 }
 
 /** null = no autosave, or an unreadable/foreign envelope (never throws —
- * a corrupt autosave must not take the app down at boot). */
-export function readAutosave(): SavedBuild | null {
+ * a corrupt autosave must not take the app down at boot). Carries the H8
+ * drift report: `droppedEntries` lists loadout entries the deserializer
+ * stripped because their badge id is absent from the current dataset, so the
+ * boot path can disclose the drop instead of crash-looping on it. */
+export function readAutosaveWithReport(): DeserializedSavedBuild | null {
   const text = safeGetItem(AUTOSAVE_KEY);
   if (text === null) return null;
   try {
-    return deserializeSavedBuild(text);
+    return deserializeSavedBuildWithReport(text);
   } catch {
     return null;
   }
+}
+
+/** The report-free form for callers that only need the build. */
+export function readAutosave(): SavedBuild | null {
+  return readAutosaveWithReport()?.saved ?? null;
 }
 
 export function clearAutosave(): void {
@@ -183,6 +193,39 @@ export function readUiSectionOpen(sectionKey: string): boolean | null {
   } catch {
     return null;
   }
+}
+
+// ----------------------------------------------- recovery surface (boot) --
+// Consumed ONLY by the render error boundary in src/main.tsx. This module is
+// the single localStorage owner (the boundary lint), so the recovery screen's
+// storage access lives here.
+
+/**
+ * Every raw persisted string under this app's keys, verbatim — the recovery
+ * screen's "export raw saved data" escape hatch. Read-only: exporting must
+ * work even (especially) when the data cannot be deserialized.
+ */
+export function exportRawPersistedData(): string {
+  return JSON.stringify(
+    {
+      [AUTOSAVE_KEY]: safeGetItem(AUTOSAVE_KEY),
+      [NAMED_BUILDS_KEY]: safeGetItem(NAMED_BUILDS_KEY),
+      [UI_STATE_KEY]: safeGetItem(UI_STATE_KEY),
+    },
+    null,
+    2,
+  );
+}
+
+/**
+ * Removes every key this app owns. ONLY ever reached from an explicit user
+ * click on the recovery screen's "Clear saved data" action — NOTHING in the
+ * codebase auto-clears storage (H8: never destroy the user's plan silently).
+ */
+export function clearAllPersistedData(): void {
+  safeRemoveItem(AUTOSAVE_KEY);
+  safeRemoveItem(NAMED_BUILDS_KEY);
+  safeRemoveItem(UI_STATE_KEY);
 }
 
 export function writeUiSectionOpen(sectionKey: string, open: boolean): void {
