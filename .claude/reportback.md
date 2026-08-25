@@ -3783,3 +3783,180 @@ re-cut, collapsible categories, Reset build) plus its forecast and reportback pa
 E3 must precede **F8-R2** (R2 surfaces the reproducibility token and
 `ROLL_ALGORITHM_VERSION` changed here). F8-S2 is unaffected by this slice.
 ─────────────────────────────────────────────
+
+═════════════════════════════════════════════
+F8-E3 — the exchange move and two contract corrections · integration into dev · integration-complete
+Agent: Tier-2 integrator · 2026-08-25
+Source branch: f8-e3-exchange (tip 3f0a00e) · base dev @ 70f90bf
+Integration commits: 30ed5e7 + dfc602b (replayed from 486c2f8 + 3f0a00e) + this entry
+Branch dev · main untouched (444d034)
+─────────────────────────────────────────────
+
+WHAT LANDED
+The exchange move for the roll engine, unchanged in behaviour from the branch.
+When every Badge Slot is occupied a roll may now remove one entry IT CREATED
+ITSELF and buy an unowned legal badge in the same category, iff net spend
+strictly increases — slot-neutral, never a cost preference. Plus the two
+contract corrections: A4-R1 (`fill` ADDS while `reroll` REBUILDS — `pins` is now
+a positive permission grant in both modes, so a forgotten pin fails CLOSED in
+the mode where failing open is invisible) and A4-R2 (the termination bound gains
+a required third argument, `ceilingSpend`, because a defaulted one would be too
+tight in exactly the capacity-bound case the exchange move exists for).
+`ROLL_ALGORITHM_VERSION` 1 → 2.
+
+The author's measured outcome, carried over as stated: capacity-bound gap
+against an exact-DP oracle went median 1 / p95 4 / max 8 → 0 / 0 / 1;
+exactly-optimal rolls 47.7% → 96.7%; zero breaches of the per-roll hard cap;
+capacity-free unregressed at 0 / 1 / 2 with 0 exchanges in 735 capacity-free
+rolls. Evidence: docs/proof/f8e3-verification.txt, which rides along with the
+integration by the same reasoning de1f734 and b1a267f did.
+
+INTEGRATION MECHANISM — rebase onto a throwaway branch, not a merge commit
+This history is strictly linear (zero merge commits across the whole log; the
+four entries above record a cherry-pick and rebases for the same reason). The
+branch's two commits are file-disjoint from dev's five, so a plain REBASE was
+sufficient — no cherry-pick gymnastics were needed here, unlike F5.3 where two
+F4 commits were already on dev. The rebase ran on a THROWAWAY branch
+(f8-e3-integrate) created from f8-e3-exchange; dev then fast-forwarded onto the
+result and the throwaway branch was deleted. f8-e3-exchange was never rebased,
+amended or force-pushed and still points at 3f0a00e — the /tmp/bb-f8e3 worktree
+stays valid and clean. Merge-commit count: 0 before, 0 after.
+
+The replay was verified NON-LOSSY rather than assumed: the implementation
+commit's patch-id is identical before and after
+(514677cb655d8300b1f7c457a3b42d7ebeab817a on both 70f90bf→486c2f8 and
+2e422c2→30ed5e7), and all nine source/test blobs plus the proof file are
+byte-identical to the branch by object hash. reportback.md is the ONLY file the
+integration altered.
+
+CONFLICTS — one, exactly as the author forecast
+The author trial-merged against this same dev tip (2e422c2) and predicted zero
+conflicts in source or tests. That held exactly: commit 1/2 replayed clean.
+
+  .claude/reportback.md — append-only, and the SIXTH integration to touch it.
+    The rebase produced a single conflict region (the author's merge-shaped
+    forecast saw it as two hunks; a rebase replays against the commit's own
+    parent and collapses them). Resolved so all entries survive in
+    chronological order: …F4.1 integration → F8-E1 → F8-E2 → F8 integration →
+    F5.3 slice → F5.3 integration → F8-E3 slice. Ordered by AUTHORED TIME, the
+    same key the F5.3 integration used, which puts the F8-E3 slice entry LAST
+    (3f0a00e 17:04 > 2e422c2 16:44). Both sides were then verified byte-exact
+    against their sources: dev's 3574 lines are an exact prefix of the result,
+    and the branch's 209-line block is object-identical to its own copy. The
+    conflict had consumed the shared entry separator, so the canonical
+    `─────` / blank / `─────` was restored between the two blocks. Arithmetic
+    reconciles exactly: dev 3574 + branch-unique 211 = 3785, and the merged
+    file is 3785 lines.
+
+  ONE COSMETIC DISCREPANCY, left as authored rather than silently corrected:
+    the F8-E3 slice entry dates itself 2026-08-26, but both its commits are
+    authored 2026-08-25 17:04. The entry text is preserved byte-for-byte — a
+    reportback entry is the author's record, not the integrator's to edit — but
+    the ordering above follows the COMMIT timestamps, not the typed date. The
+    two agree on placement either way, so nothing turns on it.
+
+COUNTS — predicted before measuring, and the prediction held
+  base dev @ 70f90bf (author's cut)   59 files / 1038   (author's measured base)
+  branch tip 3f0a00e                  59 files / 1080   → F8-E3 delta +42
+  dev @ 2e422c2, re-measured here     60 files / 1096   → F5.3 contributes
+                                                          +58 / +1 file
+  the two deltas are file-disjoint; the branch adds no new test FILE (its +42
+  land in existing randomize/steps/architecture/vocabulary suites), which is
+  why the file count stays at 60 rather than rising
+  EXPECTED  1096 + 42 = 1138 / 60 files
+  ACTUAL    1138 passed / 60 files, 22.31s.  No gap.
+
+GATES
+  npm test                          60 files / 1138 passed
+  npm run typecheck                 clean (tsc --noEmit, exit 0)
+  npm run build                     clean — tsc + vite 8.2.2, 67 modules,
+                                    lightningcss emitted
+                                    dist/assets/index-C8Ets28a.css 38.40 kB,
+                                    built in 92ms. Run deliberately and NOT
+                                    skipped: a CSS comment containing
+                                    `--space-*/` closes early and breaks
+                                    lightningcss while the suite stays green,
+                                    so the build is the only gate for that
+                                    class — a prior slice hit exactly that.
+  runtime dependencies              exactly {react, react-dom}; package.json
+                                    and the lockfile byte-identical to dev
+  tests/feasibility-golden.test.ts  4/4 — INV-19's 504-cell table. NO CELL
+                                    MOVED and the file was NEVER EDITED, both
+                                    established by object hash rather than by
+                                    reading the diff: tests/feasibility-golden
+                                    .test.ts and src/ui/grid/feasibility.ts are
+                                    the SAME BLOBS on dev and on the integrated
+                                    tree (cef359dc / c79a3c96), and src/ui/**
+                                    is untouched in its entirety. This is the
+                                    mechanical confirmation of the author's
+                                    claim that `legalSteps` was not modified,
+                                    which is why the golden could not move.
+  tests/ui/overlays.test.tsx        4/4 — the H2 guardrail. File not modified.
+  tests/category-colors.test.ts     15/15 — the `--cat` chain. File not
+                                    modified.
+  tests/architecture.test.ts        182/182 (was 181 on dev; the branch's +26
+                                    lines extend the class-2 structural scope
+                                    to src/engine/steps.ts).
+  Math.random containment lint      2/2 green — "NO file under src/engine/
+                                    calls Math.random — the seeded PRNG is the
+                                    only source" and "every Math.random under
+                                    src/ is on the explicit allowlist". Both
+                                    matter more than usual this slice: the
+                                    exchange enumerator is new code inside
+                                    src/engine/ and is precisely where an
+                                    ambient-randomness shortcut would have been
+                                    written.
+
+CARRIED FORWARD — recorded, NOT resolved by this integration
+  · A DELIBERATE, DISCLOSED DEVIATION. Literal E2 goldens are UNCONSTRUCTIBLE at
+    algorithm version 2, because the version rides inside the per-category RNG
+    seed string (`${seed} ${VERSION} ${category}`) — that is the version
+    mechanism working as designed, not a regression. The below-capacity
+    byte-identity theorem was therefore proved DIFFERENTIALLY against a
+    reference two-move walk at the SAME version: 735/735 identical, zero
+    exchange steps, plus six checked-in goldens labelled E3-era rather than
+    copied from E2. The differential form is strictly stronger than a frozen
+    output blob, but it is a deviation from the brief and is logged as one.
+  · The author found and fixed a hole in ITS OWN BRIEF'S pseudocode. The brief
+    ends every iteration with an unconditional `rollCreated.add(...)`;
+    implemented that way, an UPGRADE of a pre-existing entry would enrol that
+    entry as exchangeable — and an `include` pin permits exactly such an upgrade
+    on an entry the USER placed, so the roll could trade the user's own badge
+    away. That is the precise failure INV-5 exists to prevent. The
+    implementation enrols on ADDS and on an exchange's INCOMING SIDE only;
+    upgrades enrol nothing. INV-21 pins it.
+  · An enlarged-sweep HARD-CAP BREACH traced to the author's own FIXTURE, not
+    the engine: a HOF-only synthetic badge (a shape no shipped badge has) had
+    been splatted into the sweep dataset via the syntheticBadges barrel, turning
+    a capacity-free Physicals pool into an exact-cover problem greedy can miss
+    by 4. The offending roll is capacity-free, hence byte-identical to the
+    two-move walk — F8-E2's engine produces the same result, so the exchange
+    move neither caused it nor could fix it. Fixed by pinning the sweep dataset
+    to a NAMED SET, and the finding is pinned as its own test so nobody
+    re-splats the barrel without seeing it.
+  · SEMANTIC WATCH-OUT for the queued F5.4 (`f5-4-attribute-pane`, in flight).
+    No TEXT conflict is expected — but if F5.4 touches `makeBuild` or
+    tests/test-utils.ts, the INV-14 sweep numbers MOVE. The sweep's 2115 rolls
+    are generated from makeBuild fixtures, so a change to build construction
+    re-bases every gap statistic in section 3 of the proof file. Whoever
+    integrates F5.4 should re-run tests/randomize.test.ts and compare against
+    0 / 0 / 1 bound and 0 / 1 / 2 free before assuming green.
+
+KNOWN, AND DELIBERATELY NOT "FIXED"
+The load-dependent vitest flake class. Heavy files carry { timeout: 20000 };
+none was lowered and vite.config.ts is untouched. No flake was observed on any
+run in this integration. If one appears, RE-RUN — do not lower a timeout.
+
+SCOPE / PLAN IMPACT
+None to scope.md / tech-strategy.md / the H-rulings. The A4-R1 and A4-R2
+corrections are ratified in scope.md §0.1 A4 already, so this slice CLOSES them
+rather than opening anything. The three items riding out of the F5.3 integration
+(no proof PNGs, three optimistic design-spec constants, F9 touch-floor pass) are
+unchanged and still owned elsewhere.
+
+NEXT
+Nothing blocking. dev is at dfc602b, pushed. main untouched at 444d034.
+F8-E3 must precede F8-R2 — R2 surfaces the reproducibility token and
+`ROLL_ALGORITHM_VERSION` changed here, so R2 should read the version-in-seed
+note above before it starts. F8-S2 is unaffected by this slice.
+─────────────────────────────────────────────
