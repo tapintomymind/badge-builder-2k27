@@ -1,0 +1,74 @@
+F7 — category identity colour layer (§2.8) — contrast + separation evidence
+Date: 2026-08-25 (session) · branch dev
+
+== Method ==
+WCAG 2.1 relative luminance; CIE76 ΔE in Lab; CVD via the Viénot (1999) LMS
+shortcut. Calibrated the way docs/proof/f5-contrast.txt was: the published
+§2.1 bronze pairing was reproduced FIRST and matched 6.65:1 exactly before
+any new value was derived. tests/category-colors.test.ts recomputes the
+contrast column from the shipped hex, so this file cannot drift from source.
+
+== Provenance (what is 2K's, what is ours) ==
+  finishing   blue    user-stated anchor + 2K convention
+  shooting    green   2K convention
+  playmaking  gold    2K convention (2K's yellow)
+  defense     red     user-stated anchor + 2K convention
+  rebounding  magenta NO 2K PRECEDENT — 2K files Rebounding under Defense's
+                      red; this dataset splits them, so the hue is ours
+  physicals   violet  NO 2K PRECEDENT — Physicals is not a 2K badge
+                      category; the hue is entirely ours
+Requested as "match as closely as possible". Nothing here is presented as
+published 2K27 data, per the standing rule in tokens.css §2.
+
+== Contrast and separation ==
+name        hex      canvas   inset   nearest state      nearest level
+  Finishing   #3d93e9  5.90    6.40    --info    ΔE  7    --lvl-hof    ΔE 45
+  Shooting    #1caf61  6.63    7.19    --success ΔE 14    --lvl-silver ΔE 67
+  Playmaking  #c9ab19  8.40    9.12    --warning ΔE 15    --lvl-gold   ΔE 12
+  Defense     #ef5a64  5.69    6.18    --danger  ΔE 16    --lvl-legend ΔE 38
+  Rebounding  #e467bb  6.27    6.80    --accent  ΔE 59    --lvl-legend ΔE 11
+  Physicals   #a582ec  6.31    6.85    --accent  ΔE 25    --lvl-hof    ΔE 17
+
+  contrast spread: 5.69 – 8.40 (tight spread = no category shouts louder than another)
+  mutual worst: Finishing vs Physicals ΔE 32.9
+  protan  Finishing vs Physicals     ΔE 5.0
+  deutan  Shooting vs Defense        ΔE 6.4
+  tritan  Playmaking vs Defense      ΔE 1.4
+
+== Why the contrast spread is not flat ==
+Each hue sits where it still READS as its named colour at full saturation,
+not at a shared target. A saturated red cannot reach 6.6:1 on this canvas
+without turning pink — which is exactly why --danger ships at 5.65:1 — and
+a yellow cannot go below ~8:1 without turning olive. An earlier cut forced
+one register and produced a salmon Defense and a teal Shooting, which fails
+the actual requirement. The spread is bounded (<3.5) and asserted, not
+eliminated.
+
+== The collisions that remain, and why they are safe ==
+Nearest state colour is --info for Finishing (ΔE 7) — both blues. Nearest
+level colours are --lvl-legend/Rebounding (ΔE 11), --lvl-gold/Playmaking
+(ΔE 12), --lvl-hof/Physicals (ΔE 17).
+
+None of these pairs ever share a surface. §2.8.1 confines the identity
+layer to four places — attribute slider fill, attribute group legend,
+category digest title, jump-nav chip border — and bars it from every
+state-bearing surface. Two are load-bearing and pinned by test:
+  · .category-ledger's left border, which --danger takes on overspend. A
+    red Defense identity there would be pixel-identical to "over budget".
+  · the ledger/summary numerals on §2.7.4's forbidden list.
+The level palette lives on pips and medallions INSIDE cards; the identity
+layer lives on the chrome around them.
+
+== Colour-vision deficiency ==
+The simulated worst pairs above are real and are NOT designed away: a
+six-hue palette containing both red and green cannot be separated by hue
+under deuteranopia, and a red/magenta pair cannot under tritanopia.
+§6 is the mitigation, and it is structural rather than a promise — all
+four consuming surfaces render the category NAME as text:
+  slider fill      inside a <fieldset> whose <legend> is the group name
+  group legend     IS the name
+  digest title     IS the name
+  jump-nav chip    label stays --fg-secondary, never the category colour,
+                   so chip legibility never depends on the palette at all
+Colour is reinforcement on every one of them. Removing all six colours
+loses no information, which is the test §6 actually asks.

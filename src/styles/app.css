@@ -1754,7 +1754,7 @@ ul {
   border: 1px solid var(--border-strong);
   background: linear-gradient(
     to right,
-    var(--accent) 0 calc(var(--val) * 1%),
+    var(--cat) 0 calc(var(--val) * 1%),
     var(--bg-inset) calc(var(--val) * 1%) 100%
   );
 }
@@ -1765,7 +1765,7 @@ ul {
   border: 1px solid var(--border-strong);
   background: linear-gradient(
     to right,
-    var(--accent) 0 calc(var(--val) * 1%),
+    var(--cat) 0 calc(var(--val) * 1%),
     var(--bg-inset) calc(var(--val) * 1%) 100%
   );
 }
@@ -2266,6 +2266,115 @@ ul {
 
   .ledger-overview__row {
     column-gap: var(--space-4);
+  }
+}
+
+/* ================================================ category identity (§2.8) ==
+ * F7. ONE custom property, --cat, set once per category and inherited by
+ * everything inside it. The six blocks below are the ONLY place a category
+ * is mapped to a colour; every consumer downstream reads var(--cat) and
+ * never names a category itself.
+ *
+ * Note what these selectors key off: DOM THAT ALREADY EXISTS. The grid
+ * section already carries id="cat-{name}" (JumpNav's anchor target) and the
+ * nav chip already carries the matching href, so cards and the category
+ * digest inherit --cat with no markup change at all. That matters beyond
+ * tidiness: the H2 overlay guard forbids new data-* hooks on ledger DOM, and
+ * this adds none. The attribute fieldset is the one exception — it had no
+ * per-group hook, so AttributeGrid now emits data-attr-group, a value it
+ * already had in hand.
+ *
+ * ATTR_GROUPS (lowercase, groups ATTRIBUTES) and CATEGORIES (capitalized,
+ * groups BADGES) are deliberately separate axes in vocabulary.ts — "never
+ * derived from it: cross-group badges exist". They are NOT unified here
+ * either: each block lists both selectors explicitly, so the day a group and
+ * a category stop sharing a name, this file states which is which rather
+ * than silently following a string match. */
+#cat-finishing,
+.jump-nav a[href="#cat-finishing"],
+.attr-group[data-attr-group="finishing"] {
+  --cat: var(--cat-finishing);
+}
+
+#cat-shooting,
+.jump-nav a[href="#cat-shooting"],
+.attr-group[data-attr-group="shooting"] {
+  --cat: var(--cat-shooting);
+}
+
+#cat-playmaking,
+.jump-nav a[href="#cat-playmaking"],
+.attr-group[data-attr-group="playmaking"] {
+  --cat: var(--cat-playmaking);
+}
+
+#cat-defense,
+.jump-nav a[href="#cat-defense"],
+.attr-group[data-attr-group="defense"] {
+  --cat: var(--cat-defense);
+}
+
+#cat-rebounding,
+.jump-nav a[href="#cat-rebounding"],
+.attr-group[data-attr-group="rebounding"] {
+  --cat: var(--cat-rebounding);
+}
+
+#cat-physicals,
+.jump-nav a[href="#cat-physicals"],
+.attr-group[data-attr-group="physicals"] {
+  --cat: var(--cat-physicals);
+}
+
+/* ---- the four consumers. Each renders the category NAME as text, so the
+ * colour is reinforcement and never the carrier (§6). ---- */
+
+/* 1. The attribute group legend — FINISHING, SHOOTING, …
+ *
+ * Scoped to [data-attr-group] deliberately: .attr-group is also worn by the
+ * Physique panel's Height fieldset, which is NOT a category. Unscoped, that
+ * legend inherits the root --cat fallback and silently turns accent-blue —
+ * it did, and the browser check below caught it. The attribute selector
+ * makes the rule state its own precondition instead of relying on where it
+ * happens to sit in the DOM. */
+.attr-group[data-attr-group] legend {
+  color: var(--cat);
+}
+
+/* 2. The category digest title. NOT the digest's left border: that is a
+ * STATE channel — .category-ledger--over turns it --danger on overspend, and
+ * a red Defense identity on the same pixel would be indistinguishable from
+ * the overspend signal. The h2 text is identity and carries the name. */
+.category-ledger h2 {
+  color: var(--cat);
+}
+
+/* 3. The jump-nav chips. Border carries the colour; the label stays
+ * --fg-secondary so chip legibility never depends on the palette. */
+.jump-nav a[href^="#cat-"] {
+  border-color: var(--cat);
+}
+
+/* 4. The attribute slider fill is wired at .attr-slider__row (F3 block).
+ *
+ * Deliberately NOT wired: the badge cards themselves. F5 already owns every
+ * card edge — data-purchased-level paints the top edge and border in the
+ * metal palette, and .badge-card--blocked owns the de-opacified recipe. A
+ * category tint there would compete with purchase state for the same pixels,
+ * and every card already sits under a sticky, category-coloured digest. */
+
+/* §10.6 forced-colors companion: the identity layer is decorative by
+ * construction, so it discards cleanly — but say so explicitly rather than
+ * leaving a system colour fighting a custom property. Every surface above
+ * keeps its text, which is what carried the category all along. */
+@media (forced-colors: active) {
+  .attr-group[data-attr-group] legend,
+  .category-ledger h2 {
+    color: CanvasText;
+  }
+
+  .jump-nav a[href^="#cat-"] {
+    border-color: ButtonBorder;
   }
 }
 

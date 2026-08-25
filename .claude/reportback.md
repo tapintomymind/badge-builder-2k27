@@ -1336,6 +1336,101 @@ their own viewport is the real DoD — the XL tier in particular is aimed at it.
 ─────────────────────────────────────────────
 
 ─────────────────────────────────────────────
+2026-08-25 — F7 complete: category identity colour layer (§2.8) — sliders, legends, digest titles, nav chips
+Type: slice-complete
+Actor: Claude Code (cloud session, branch claude/right-sidebar-width-62di4r off dev)
+Slice: F7 (one commit)
+
+WHAT
+User asked to continue the restyling by colouring the sliders to 2K's per-category
+scheme, stating the anchors themselves: "blue is finishing, red is defense, etc.
+the color you use can match as closely as possible", scope "full category
+identity".
+
+FIRST, THE STATE OF THE WORLD: the user believed this work was already partly
+done. It was not present anywhere on the remote — three branches only (main, dev,
+the merged F6 branch), no per-category colour in any of them, every slider still
+filling with the single --accent. Their earlier local session was never pushed and
+this container clones fresh. Flagged before building rather than after.
+
+Shipped:
+- tokens.css §2.8: six --cat-* tokens, additive, no existing token value changed.
+  PROVENANCE IS RECORDED PER COLOUR, because two of the six have none: 2K files
+  Rebounding under Defense's red (this dataset splits them) and Physicals is not a
+  2K badge category at all. Those two hues are OURS and say so in the token
+  comment. Nothing is presented as published 2K27 data — the standing rule in the
+  tokens header ("a design choice, NOT 2K27 data") is respected, not bent.
+- One custom property, --cat, set once per category and inherited. The six mapping
+  blocks key off DOM THAT ALREADY EXISTS — the grid section's id="cat-{name}" and
+  the nav chip's matching href — so cards and the category digest inherit with no
+  markup change, and critically NO new data-* lands on ledger DOM (the H2 overlay
+  guard forbids exactly that). One TSX line total: AttributeGrid's fieldset now
+  emits data-attr-group, a value it already had.
+- Four consumers: attribute slider fill (both -webkit- and -moz- engines),
+  attribute group legend, category digest h2, jump-nav chip border.
+- §10.6 forced-colors companion.
+- NEW tests/category-colors.test.ts (12 assertions) + docs/proof/f7-contrast.txt.
+
+THE CHANNEL RULE (§2.8.1) — the load-bearing decision
+Defense's red and the overspend red are both red. That is safe ONLY because
+identity and state never share a surface, which is the same separation F5 used
+(gold=identity, blue=interaction, semantics=state). Two exclusions are deliberate
+and pinned by test:
+- .category-ledger's LEFT BORDER is not identity — .category-ledger--over takes it
+  to --danger. A red Defense there would be pixel-identical to "over budget". The
+  h2 text carries the identity instead. Found by reading the rule, not by guessing.
+- The badge cards themselves are NOT tinted. F5 already owns every card edge
+  (data-purchased-level paints the top edge and border in the metal palette,
+  .badge-card--blocked owns the de-opacified recipe); a category tint would compete
+  with purchase state for the same pixels. This is a REDUCTION from the "full
+  category identity" scope the user picked — see judgment call 1.
+
+VERIFICATION
+docs/proof/f7-contrast.txt — WCAG ratios, CIE76 ΔE separation, CVD simulation,
+calibrated by reproducing §2.1's bronze 6.65:1 first (the F5 method).
+All six clear the 4.5:1 AA text bar (5.69–8.40 on --bg-canvas); mutual ΔE >= 32.9.
+Browser-verified at 1440 that all six wire on all four surfaces, and that
+.category-ledger's left border stayed --border-strong on all six.
+docs/proof/f7-category-colors-1440.png, f7-slider-fills-1440.png.
+Pre-change proofs: four breakages reverted in isolation (--cat onto the digest
+border; a dropped chip mapping; a colour darkened below AA; the -moz- engine left
+unwired) each fail 1–2 assertions.
+npm test: 643 tests, 641 pass. npm run build: clean.
+
+SCOPE / PLAN IMPACT
+No engine, data or config file touched. One TSX line. Judgment calls recorded:
+(1) SCOPE REDUCED vs the user's answer. They chose "full category identity"
+    including badge card accents; cards are excluded for the F5 collision above.
+    Every card already sits under a sticky category-coloured digest, so identity
+    is present without competing with purchase state. Flagged to the user
+    directly — this is theirs to overrule, not mine to quietly drop.
+(2) The contrast spread is 5.69–8.40, NOT flat. Each hue sits where it still reads
+    as its named colour at full saturation. An earlier cut forced one register and
+    produced a salmon Defense and a teal Shooting — it cleared the numbers and
+    failed the requirement. The spread is bounded (<3.5) and asserted.
+(3) CVD collisions are real and are NOT designed away: red/green cannot be
+    separated by hue under deuteranopia. §6 is the mitigation and it is structural
+    — all four surfaces render the category NAME as text, and the nav chip LABEL
+    deliberately stays --fg-secondary so chip legibility never depends on the
+    palette. Removing all six colours loses no information.
+(4) Finishing (ΔE 7 from --info) and three near-misses against the level palette
+    are recorded in the proof rather than tuned away; they never share a surface.
+
+PRE-EXISTING FAILURES — NOT THIS SLICE'S
+tests/ui/f2-builds-persistence.test.tsx still fails 2 tests on 5s vitest timeouts
+(the failing NAMES vary run to run — they are timeouts, not assertions).
+Reproduced on the clean dev tip during F6. Untouched.
+
+NEXT
+The palette is one file: swap the six --cat-* values in tokens.css and the proof
+regenerates from source (the test recomputes contrast from the shipped hex, so it
+cannot drift). If the user wants card accents after all, the seam is already there
+— cards inherit --cat today and simply do not consume it. M5 stays data-blocked.
+User's live acceptance pass on the palette is the real DoD: two of the six hues
+are ours, not 2K's, and only they can say whether the approximation reads right.
+─────────────────────────────────────────────
+
+─────────────────────────────────────────────
 2026-08-25 — F2.2 persistence data-integrity slice complete: unreadable saved data is preserved and disclosed, never overwritten
 Type: milestone-complete
 Actor: Tier 2 implementer (Claude Opus 5) — constrained mode, Tier 1 dispatch

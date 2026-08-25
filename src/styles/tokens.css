@@ -121,6 +121,51 @@
    * without a specificity fight (see .pip__dot). */
   --shadow-none: 0 0 rgba(0, 0, 0, 0);
 
+  /* ---- Category identity layer (§2.8, added rev 5 — F7) --------------
+   * ADDITIVE ONLY. No token above this comment changes value.
+   *
+   * PROVENANCE, per category — this is an APPROXIMATION of 2K's attribute
+   * category convention, requested as "match as closely as possible". It is
+   * NOT sourced 2K27 data, and nothing here is presented as published:
+   *   finishing   blue    — user-stated anchor, and the 2K convention
+   *   shooting    green   — 2K convention
+   *   playmaking  gold    — 2K convention (2K's yellow)
+   *   defense     red     — user-stated anchor, and the 2K convention
+   *   rebounding  magenta — NO 2K PRECEDENT. 2K files Rebounding under
+   *                         Defense's red; this dataset separates them, so
+   *                         the hue is ours, picked for separation.
+   *   physicals   violet  — NO 2K PRECEDENT. Physicals is not a 2K badge
+   *                         category at all; the hue is entirely ours.
+   *
+   * DERIVATION (docs/proof/f7-contrast.txt): each hue sits where it still
+   * reads as its named colour at full saturation, NOT at a shared contrast
+   * target — a saturated red cannot reach 6.6:1 on this canvas without
+   * turning pink (which is why --danger is 5.65:1), and a yellow cannot go
+   * below ~8:1 without turning olive. Forcing one register washes both out.
+   * Range is 5.69:1–8.40:1 on --bg-canvas; the AA text bar is 4.5:1, so
+   * every one of these may carry text. Mutual separation is ΔE >= 32.9.
+   *
+   * THE CHANNEL RULE (§2.8.1), which is what makes red-next-to-red safe:
+   * these are IDENTITY, never state. They appear on the attribute slider
+   * fill, the attribute group legend, the category title and the jump-nav
+   * chip — and NOWHERE that carries state. In particular they never touch
+   * .category-ledger's left border (--danger owns it on overspend) or the
+   * ledger numerals (§2.7.4's forbidden list). Colour is never the only
+   * carrier: every one of these surfaces renders the category NAME as text
+   * (§6), which is also what covers the colour-vision-deficiency collisions
+   * recorded in the proof — red/green cannot be separated by hue for a
+   * deuteranope, and is not asked to be. */
+  --cat-finishing: #3d93e9;
+  --cat-shooting: #1caf61;
+  --cat-playmaking: #c9ab19;
+  --cat-defense: #ef5a64;
+  --cat-rebounding: #e467bb;
+  --cat-physicals: #a582ec;
+
+  /* The fallback when no category is in scope — today's single-accent
+   * behaviour, so an un-keyed surface degrades to what F3 shipped. */
+  --cat: var(--accent);
+
   /* ---- Typography (§2.2) — system stack only, zero network egress ---- */
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
