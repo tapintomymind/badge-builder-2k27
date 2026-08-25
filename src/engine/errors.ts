@@ -70,3 +70,39 @@ export class MalformedSavedBuildError extends Error {
     this.problems = problems;
   }
 }
+
+/**
+ * The roll's walk exceeded its lattice bound (F8-E2, H6 class).
+ *
+ * Termination is bounded by the LATTICE, not by the budget: every applied step
+ * strictly increases either the number of entries in the category or one
+ * entry's level index, so the walk cannot exceed
+ * `4 * max(entriesAtStart, equipSlots)`. A budget-based bound would be WRONG --
+ * a zero-net-cost step is reachable today under the selectable `hofOrAbove`
+ * refund trigger, and a negative-net-cost step is reachable when upgrading
+ * across the refund line.
+ *
+ * Reaching the guard means an applied step failed to make lattice progress,
+ * i.e. the enumerator and the applier disagree. That must fail LOUDLY: a
+ * silent `break` would emit a plausible-looking partial roll, and the defect
+ * would surface only as "the roller sometimes does less than it should".
+ */
+export class RollDidNotTerminateError extends Error {
+  constructor(category: string, bound: number) {
+    super(
+      `Roll of ${category} exceeded its ${bound}-step lattice bound. Every step must raise ` +
+        "either the entry count or an entry's level index; one did not.",
+    );
+    this.name = "RollDidNotTerminateError";
+  }
+}
+
+/** `pickUniform` was handed an empty array. The caller checks for an empty
+ * candidate set and stops; reaching the picker with nothing to pick is a bug,
+ * and returning `undefined` would be the H6 silent-wrong shape. */
+export class EmptyCandidateSetError extends Error {
+  constructor() {
+    super("pickUniform received an empty candidate set - the caller must stop before this point.");
+    this.name = "EmptyCandidateSetError";
+  }
+}

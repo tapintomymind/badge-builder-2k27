@@ -57,3 +57,36 @@ unit tests rather than browser assertions.
 - `ledger.ts` gained `badgeSlotsCapacityUnset` and `eligibility.ts` gained
   `entryIsStale` — both hoisted out of components, both now with exactly one
   definition. No re-export shim was left behind in either UI module.
+
+## F8-E2 additions — the roll engine
+
+- `random.ts` — **the only randomness in the app, and it is deterministic.**
+  xmur3 to mulberry32, hand-rolled as the canonical published algorithms with a
+  checked-in golden vector, because a dependency here is a tripwire and a
+  hidden input makes every determinism test flaky-green. `pickUniform` is
+  **rejection-sampled, never `% n`** — modulo is biased for any arity that does
+  not divide 2^32, and a candidate set of 7 or 11 is completely ordinary.
+- `randomize.ts` — `rollCategory` / `rollBuild` return a **pure value**: a
+  proposed complete loadout plus a per-category report, applied by the UI as
+  **one atomic state write**. The walk is randomized greedy over the legal-step
+  set from `steps.ts`, and it stops only when that set is empty, so the result
+  is **maximal by construction**. *Maximal is not maximum* — the gap to the
+  achievable optimum is measured against a test-only exact-DP oracle, and
+  closing it would require a preference, which is the one thing the carve-out
+  forbids.
+- **ONE SELECTION PRIMITIVE, ONE CALL SITE.** `pickUniform` is the only
+  selection anywhere in the roll: no sort, no comparator, no reduce to an
+  extremum, no weights, no probability parameter. The enumeration order is
+  fixed by the dataset and is an *input to a uniform index*, not a preference.
+  `tests/vocabulary.test.ts` class 2 and `tests/architecture.test.ts` group (f)
+  keep it that way mechanically rather than culturally.
+- **Termination is bounded by the LATTICE, not the budget** —
+  `4 x max(entries, capacity)`, because a zero-net-cost step is reachable today
+  under the selectable `hofOrAbove` trigger. Exhausting the bound throws
+  `RollDidNotTerminateError` rather than breaking quietly (H6).
+- **Synergy is out of v1 structurally:** `RollResult` has no field able to
+  carry a `SynergySlot`. Assigning a fuse frees that badge's spend back to its
+  pool, which funds another purchase, which is itself a fuse candidate — so
+  purchases and assignments become mutually determining and "maximal" stops
+  being well-defined. The roller reads `remainingPoints` as it finds it, so
+  existing refunds already count and it composes correctly regardless.
