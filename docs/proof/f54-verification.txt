@@ -1,0 +1,236 @@
+F5.4 — the attributes pane and the right column
+design-spec.md rev 10 §16 · invariants I15 + I16
+branch f5-4-attribute-pane · base dev @2e422c2 (1096/1096 across 60 files)
+================================================================================
+
+1. BLOCKING IN-SLICE GATE — NUMERIC_H RE-MEASURED IN HEADLESS CHROME
+--------------------------------------------------------------------------------
+Chrome/151.0.7922.174, --headless=new, driven over CDP
+(Runtime.evaluate on the live dev server), .number-field input inside
+.attr-slider__num, viewport 1280.
+
+  deviceScaleFactor 1  ->  offsetHeight  26   getBoundingClientRect 26.000
+  deviceScaleFactor 2  ->  offsetHeight  27   getBoundingClientRect 26.500
+
+PINNED VALUE UNCHANGED AT 27, and the choice is deliberate. 27 is the larger
+of the two, per §13.0.1's take-the-larger rule (the same rule that governs
+SYNERGY_HEADER_MAX and that re-pinned LEDGER_LABEL_MAX 76 -> 78 in this
+slice). A larger SLIDER_H yields a LOWER derived slider count, so the I15
+floor is the PESSIMISTIC bound; deriving from the dpr-1 value would make the
+floor optimistic on a Retina display, which is the wrong direction for a
+floor. Both measurements sit inside the brief's 26-28 band, so the stop
+condition did not fire and the floor did not relax.
+
+Consequences, recorded rather than assumed:
+  derived  SLIDER_H = 81      measured (dpr 1) 80.0
+  derived  ATTR_STACK_H = 2016 measured (dpr 1) 1996, (dpr 2) 2006
+The model over-estimates by 0.5px per slider = 10px over the stack. It is
+conservative in the same direction as the pin, and the measured visible-slider
+counts match the derived floor exactly (below).
+
+
+2. VISIBLE-SLIDER COUNTS — MEASURED IN THE BROWSER, BEFORE AND AFTER
+--------------------------------------------------------------------------------
+Both trees served simultaneously and measured with the same headless driver:
+  AFTER   f5-4-attribute-pane   http://localhost:5199
+  BEFORE  dev @2e422c2          http://localhost:5201  (detached worktree)
+
+Counted as "slider whose BOTTOM edge is inside the scrollport at rest"
+(scrollTop 0), which is the same predicate slidersVisible() walks.
+
+  viewport     BEFORE   AFTER    derived floor
+  1280 x 700     0        6          >= 6
+  1280 x 800     0        7          >= 7
+  1280 x 900     1        8          >= 8
+
+  BEFORE: .rail-left, scrollHeight 3293, pane-top -> first-slider-top 704.75
+  AFTER : .attr-pane, scrollHeight 2066, pane-top -> first-slider-top ~ 79
+
+NOTE ON THE ASSERTION-1 CANARY. The canary pins the pre-slice counts at
+0 / 1 / 2 (from LEAD_TODAY = 657, per correction C-1). The browser measures
+0 / 0 / 1, because LEDGER_H = 252 and PHYSIQUE_H = 324 are paper sums over
+wrapped Hint and Banner lines and are ~22px light in aggregate (real lead
+678.75, not 657). The canary therefore UNDERSTATES how bad the shipped tree
+was and never overstates it, and its load-bearing claim -- zero of twenty at
+700 -- is exact. The pins are left as briefed; they feed nothing but this
+canary. Recorded in the test's own comment, not only here.
+
+
+3. STRUCTURE — .layout IS EXACTLY TWO GRID ITEMS AT L
+--------------------------------------------------------------------------------
+  BEFORE  [ "rail-column", "" (main), "panel-below", "panel-below" ]   4 items
+  AFTER   [ "attr-pane-column", "col-right" ]                          2 items
+
+That is what moves the pane's sticky containing block from grid row 1 to the
+whole of .layout. Measured at 1280x800 scrolled to #panel-summary (state 51,
+the falsifier): the pane is still on screen, still showing 7 sliders, and the
+Summary panel renders beside it -- it does NOT paint over it.
+
+  .attr-pane @1280x700  position sticky · overflow-y auto · padding-inline 4px
+                        max-height 676px (= 700 - 24) · scroll-padding-block 12px
+                        width 300 · scrollHeight 2066
+  cell width            258   (= RAIL 300 - 2x4 pane padding - 34 Section chrome)
+  slider track          258   (<= STACK_MAX 287, so stacked -- I9 unchanged in kind)
+  pane h-scrollbar      none  (scrollWidth 300 === clientWidth 300)
+  document h-scrollbar  none  (scrollWidth 1280 === clientWidth 1280)
+
+
+4. BELOW 1280 THE OUTPUT IS BIT-IDENTICAL — PROVED, NOT DERIVED
+--------------------------------------------------------------------------------
+Same headless driver, same flags, both trees. SHA-256 of the captured PNGs:
+
+  1279 x 900   dev @2e422c2  ==  f5-4-attribute-pane   BYTE-IDENTICAL
+   768 x 900   dev @2e422c2  ==  f5-4-attribute-pane   BYTE-IDENTICAL
+   390 x 800   dev @2e422c2  ==  f5-4-attribute-pane   BYTE-IDENTICAL
+
+§16.10's claim is not an argument in this slice; it is a pixel comparison.
+
+
+5. THE 1279/1280 SEAM, AND LIVE RESIZE ACROSS IT
+--------------------------------------------------------------------------------
+  1279 x 900   pane absent · .layout children ["col-right"] · one unified
+               Build panel with Physique, Attributes and Budgets inside it
+  1280 x 900   pane present · .layout children ["attr-pane-column","col-right"]
+               · 8 sliders visible · Build collapsed to its digest on the right
+
+Live resize with no reload (Emulation.setDeviceMetricsOverride):
+  load @1200  ->  mq(max-width:1279px) true  · pane false · attrs in panel true
+  resize 1400 ->  mq false · pane true  · children [attr-pane-column, col-right]
+  resize 1100 ->  mq true  · pane false · attrs in panel true
+
+Both directions re-render correctly. (The interactive browser pane showed a
+stale shape after its own resize call; that is an artifact of how that tool
+resizes -- matchMedia did not deliver a change event to the loaded page -- and
+not a defect in the code. Real Chrome, driven over CDP, is correct.)
+
+
+6. T16 CLOSED — SYNERGY PICKERS SIDE BY SIDE, MEASURED
+--------------------------------------------------------------------------------
+@container threshold moved 426 (a border-box figure asked of a content box)
+to 372 (CONTAINER_THRESHOLD = 2 x SELECT_FLOOR 180 + --space-3 12).
+.synergy-panel's minmax(min(426px, 100%), 1fr) NOT touched.
+
+  viewport   row border box   computed flex-direction
+  1280        445             row     (side by side)   derived 445 @ s=0
+  1440        525             row     (side by side)   derived 525 @ s=0
+   390        332             column  (stacked -- intended, §13.5)
+
+1440 was T16's failing case: under the old pair the below-grid box resolved to
+THREE columns of 450px border box = 416px content, below the 426 threshold, so
+the pickers stacked. At 1280 the same pair gave 601 -> 567 and passed, which is
+exactly why the defect only ever fired at 1440.
+
+
+7. A1 — THE LEDGER IN THE RIGHT COLUMN (Architect amendment to §16.5)
+--------------------------------------------------------------------------------
+.ledger-panel .ledger-overview { grid-template-columns: max-content minmax(0, auto);
+                                 justify-content: start }
+
+  1280   computed tracks  77.4062px  75.9219px   element width 902   justify start
+  1440   computed tracks  77.4062px  75.9219px   element width 1062  justify start
+  all six label boxes     77.4px each -- column-aligned
+
+Left alone, `1fr` would have absorbed 878 - 12 - 127 = 739px and split every
+row label-far-left / numbers-far-right: the defect .summary's cap exists to
+prevent. §16.5's "4-up on two lines" was withdrawn as unbuildable
+(repeat(auto-fit, ...) forbids intrinsic track sizes).
+
+INCIDENTAL CORROBORATION: the measured max-content label track is 77.4062px.
+LEDGER_LABEL_MAX was pinned at 76 and is re-pinned by this slice at 78. The
+browser confirms both halves -- the old pin was 1.41px low, and 78 is the
+correct round-up.
+
+
+8. FOCUS RING AT THE PANE'S EDGES (state 54)
+--------------------------------------------------------------------------------
+--ring-focus reaches 4px outside the box and overflow-y: auto clips at the
+padding box. The pane now carries padding-inline: var(--space-1).
+
+  focused slider inline clearance   left 21px   right 21px   (ring needs 4)
+  first slider  rect 219..243 in a pane spanning 118..894 -- ring not clipped
+  last slider   focusing scrolls the PANE, not the page; rect 701..725 in a
+                pane spanning 12..788 -- ring not clipped, and
+                scroll-padding-block keeps it off the boundary
+
+
+9. SHIP GATES
+--------------------------------------------------------------------------------
+  npx tsc --noEmit                                   clean
+  npx vitest run                       60 files, 1113 passed  (was 1096)
+  npm run build                        clean  (tsc --noEmit && vite build,
+                                       67 modules, 38.27 kB css, 288.63 kB js)
+
+  Explicit, RUN-never-edit:
+  npx vitest run tests/ui/overlays.test.tsx                4 passed  UNMODIFIED
+  npx vitest run tests/category-colors.test.ts            15 passed  UNMODIFIED
+  npx vitest run tests/feasibility-golden.test.ts          4 passed  UNMODIFIED
+  npx vitest run tests/architecture.test.ts              181 passed  UNMODIFIED
+  npx vitest run tests/ui/f2-source-pins.test.ts          14 passed  UNMODIFIED
+  npx vitest run tests/ui/f2-disclosure-surfaces.test.tsx 11 passed  comment+name only
+
+  tests/layout-arithmetic.test.ts      69 passed  (was 52: 6 rewrites,
+                                       4 re-points, 1 tombstoned deletion,
+                                       21 numbered assertions)
+
+  git status --porcelain               only Allowed paths (5 files + docs/proof)
+  runtime dependencies                 exactly { react, react-dom }
+  src/styles/tokens.css                untouched · zero new tokens · no new hex
+
+
+10. THE SIX CANARIES THAT DEMONSTRATE THE PRE-SLICE TREE FAILING
+--------------------------------------------------------------------------------
+  1   slidersVisible(700, LEAD_TODAY) === 0   -- the user's complaint as
+      arithmetic (plus === 1 at 800, === 2 at 900)
+  3   2 + SPACE_4 === 18 !== SECTION_CHROME_Y 70 -- the <summary> omission,
+      T16's root cause on the vertical axis
+  6   258 - ledgerDemand 241 = 17 < SPACE_6 24 -- with the ledger still in the
+      pane the focus-ring padding was NOT affordable
+  8   SYNERGY_HEADER_MAX 426 + ROW_CHROME 34 === 460 > synergyRowFloor 426 --
+      the shipped threshold demanded a border box larger than its own floor
+  10  the uncorrected below-grid derivation reads 609.5 and hides the error;
+      the corrected right-column figure is 436.5
+  11  old 1440 below-grid: 3 cols x 450 border box -> 416 content < 426 --
+      the pickers stacked
+
+
+11. PROOF FRAMES  (docs/proof/)
+--------------------------------------------------------------------------------
+  f54-pane-1280x700.png              state 50 · 6 sliders visible at rest
+  f54-pane-1280x800.png              state 50 · 7 sliders visible at rest
+  f54-pane-1280x900.png              state 50 · 8 sliders visible at rest
+  f54-summary-scrolled-1280x800.png  state 51 · THE FALSIFIER -- pane still on
+                                     screen with 7 sliders beside the Summary
+  f54-focus-ring-first.png           state 54 · first slider focused
+  f54-focus-ring-last.png            state 54 · last slider focused
+  f54-seam-1279.png                  state 55 · one unified panel, no pane
+  f54-seam-1280.png                  state 55 · two panes
+  f54-pickers-1280.png               state 56 · side by side
+  f54-pickers-1440.png               state 56 · side by side (T16's case)
+  f54-pickers-390.png                        · stacked, intended
+  f54-zoom200.png                    state 57 · 640 CSS px, S layout, no pane
+  f54-ledger-right-column-1280.png   state 58 · six rows, tight, left-aligned
+  f54-1440x900.png                            · the 1440 frame
+  f54-390.png / f54-768.png                   · M/S, byte-identical to dev
+
+
+12. AMENDMENT LANDED MID-SLICE (Designer §17, via the coordinator)
+--------------------------------------------------------------------------------
+The scoped `hasValues` expresses its budget half as a DERIVED predicate over
+the Budget record rather than an enumerated `points || equipSlots`:
+
+  const hasBudgetValues = CATEGORIES.some((category) =>
+    Object.values(budgets[category]).some((value) => value > 0));
+
+Equivalent to the shipped sum test because every budget field is clamped at
+min 0 (BudgetGrid), so a positive sum and a positive member are one question.
+
+REACHABILITY, checked against the queued work rather than assumed. Any new
+member of `Budget` is picked up for free. But `a5-e-bonus-engine` models the
+bonus layer as a SEPARATE `BonusBudget` on WorkingState -- earnedEquipSlots,
+earnedPoints, appliedEquipSlots[6], appliedPoints[6] -- and A5-R1/A5-R4
+deliberately never merge it into `budgets`; `Budget` itself is unchanged on
+that branch. So the derived form does not by itself reach the bonus fields:
+they are not in the record BuildPanel receives. When the bonus UI slice lands
+it must pass the bonus totals into BuildPanel and add them to this predicate,
+or a user whose only input is bonus gets a setup panel that never latches.
+Flagged here so it is a hand-off and not a silent gap.

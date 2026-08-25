@@ -11,9 +11,12 @@
  * App.tsx) — this file never reads src/data/position-heights and holds no
  * copy of the table.
  *
- * Below the L breakpoint (<1280px — §5.2 rev 2: BOTH rails dissolve at M,
- * so M and S share one structure) the whole panel collapses into one
- * <details> whose summary carries a live digest (§5.3).
+ * F5.4 (design-spec §16.5) — the panel is a collapsible <details> at EVERY
+ * width now, and it no longer owns the breakpoint: `compact` and
+ * `withAttributes` arrive as props from App, which is the ONE owner of the L
+ * query (§16.10). At L the 20 attribute sliders live in the left pane, so
+ * this panel renders Physique + Budgets (+ F5.3's Reset) only, and the
+ * Attributes Section is exported separately for the pane to mount.
  *
  * AUTO-COLLAPSE (§5.3, design-review P0-2) — a LATCH, not a computation:
  * default-open at zero state; collapses automatically EXACTLY ONCE the
@@ -24,6 +27,14 @@
  * stays on the thumb), so the panel must not snap shut when the user lets
  * go of a slider. Firing is deferred to that slider's blur (or the next
  * mount). NumberField commits on blur, so its path is unchanged.
+ *
+ * F5.4 drops the `compact` term from the latch predicate (§16.5, superseding
+ * F5.3/A2's "do not touch the latch", which was scoped to F5.3). The gate
+ * existed because at L the panel lived in a rail where its height cost the
+ * user nothing; after F5.4 the panel is in flow above the cards, so that
+ * precondition is true at L too. `hasValues` is scoped to what the panel
+ * actually renders — an attribute drag in the pane must not collapse a panel
+ * on the other side of the layout that does not contain the control.
  */
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -36,8 +47,8 @@ import { HeightField } from "../primitives/HeightField";
 import { Hint } from "../primitives/Hint";
 import { Section } from "../primitives/Section";
 import { SegmentedControl } from "../primitives/SegmentedControl";
-import { useMediaQuery } from "../useMediaQuery";
 import { AttributeGrid } from "./AttributeGrid";
+import type { AttributeGridProps } from "./AttributeGrid";
 import { BudgetGrid } from "./BudgetGrid";
 
 /** Section open/closed preference key + the one-shot auto-collapse latch. */
@@ -83,6 +94,35 @@ export interface BuildPanelProps {
    * entered budgets and nothing else would get an enabled control whose
    * confirm, with zero rows suppressed, lists nothing. */
   canReset: boolean;
+  /** F5.4 — true below 1280, and it is the DECLARED seam input: the L query
+   * has exactly ONE owner and it is App (§16.10), so this file no longer
+   * calls useMediaQuery at all. The panel does not branch on it today —
+   * §16.5 renders the identical collapsible <details> on both sides of the
+   * seam and §4.3 keeps the identical digest — and that is the point: the
+   * seam is expressed once, in App, rather than re-derived here. Anything
+   * that must differ by width goes through this prop and nowhere else. */
+  compact: boolean;
+  /** F5.4 — false at L, where the 20 attribute sliders live in the pane
+   * (§16.5). Scopes both the rendered Sections AND the latch's `hasValues`. */
+  withAttributes: boolean;
+}
+
+/** F5.4 (§16.5) — the Attributes Section, lifted VERBATIM out of BuildPanel
+ * so the pane can mount it directly at L. `PhysiqueSection` above is the
+ * precedent.
+ *
+ * THE <Section> WRAPPER IS NOT DECORATION. Its <summary> is a focusable,
+ * persisted control that takes all 20 sliders out of the tab order in one
+ * keystroke. It costs SECTION_CHROME_Y (70px, 53 of it above the first
+ * slider) and it buys the keyboard bypass — no pass may unwrap it to reclaim
+ * the pixels (§16.9). If it looks removable, that is the stop condition, not
+ * the optimisation. */
+export function AttributesSection({ attributes, onCommit }: AttributeGridProps) {
+  return (
+    <Section title="Attributes" storageKey="section-attributes">
+      <AttributeGrid attributes={attributes} onCommit={onCommit} />
+    </Section>
+  );
 }
 
 export function PhysiqueSection({
@@ -153,11 +193,16 @@ export function PhysiqueSection({
 }
 
 export function BuildPanel(props: BuildPanelProps) {
-  const { build, budgets, onAttributeCommit, onBudgetCommit, onResetRequest, canReset } = props;
+  const {
+    build,
+    budgets,
+    withAttributes,
+    onAttributeCommit,
+    onBudgetCommit,
+    onResetRequest,
+    canReset,
+  } = props;
   const resetReasonId = useId();
-  // <1280: both rails dissolve (§5.2 rev 2) — the panel is a full-width
-  // collapsible <details> at M AND S, with the same auto-collapse rule.
-  const isCompact = useMediaQuery("(max-width: 1279px)");
   const [autoCollapsed, setAutoCollapsed] = useState<boolean>(
     () => readUiSectionOpen(BUILD_PANEL_AUTO_COLLAPSED_KEY) === true,
   );
@@ -169,12 +214,37 @@ export function BuildPanel(props: BuildPanelProps) {
     0,
   );
 
-  const hasValues =
-    totalPoints > 0 ||
-    totalEquipSlots > 0 ||
-    Object.values(build.attributes).some((value) => value > 0);
+  /** "Has the user entered ANY budget figure" — DERIVED over the Budget
+   * record, never enumerated (Designer §17 amendment). The two totals above
+   * are display quantities and stay field-specific; this is a question about
+   * the record as a whole.
+   *
+   * The enumerated `points || equipSlots` form is a trap the moment a slice
+   * adds budget-shaped fields — F9's bonus Badge Slots and Points adds
+   * fourteen. It would silently miss them, and the concrete failure is a
+   * user whose only budget input is bonus getting a setup panel that NEVER
+   * LATCHES CLOSED: exactly the defect F5.4 exists to fix, back for a subset
+   * of users. Reading the record picks new fields up for free.
+   *
+   * Equivalent to the shipped `totalPoints > 0 || totalEquipSlots > 0`
+   * because every budget field is clamped at min 0 (BudgetGrid), so a
+   * positive sum and a positive member are the same question. */
+  const hasBudgetValues = CATEGORIES.some((category) =>
+    Object.values(budgets[category]).some((value) => value > 0),
+  );
 
-  const latchArmed = isCompact && hasValues && !autoCollapsed;
+  // SCOPED TO WHAT THIS PANEL RENDERS (design-spec §16.5). At L the
+  // attributes are in the pane, so an attribute drag must not collapse a
+  // panel that does not contain the control the user is touching. M/S is
+  // bit-identical — `withAttributes` is true there and the predicate is the
+  // shipped one.
+  const hasValues = withAttributes
+    ? hasBudgetValues || Object.values(build.attributes).some((value) => value > 0)
+    : hasBudgetValues || build.position !== undefined;
+
+  // F5.4: the `compact` term is GONE (§16.5). The panel is in flow above the
+  // cards at every width now, so its height costs the user something at L too.
+  const latchArmed = hasValues && !autoCollapsed;
 
   const fireLatch = useCallback(() => {
     writeUiSectionOpen(BUILD_PANEL_SECTION_KEY, false);
@@ -214,21 +284,21 @@ export function BuildPanel(props: BuildPanelProps) {
       }}
     >
       <PhysiqueSection {...props} />
-      <Section title="Attributes" storageKey="section-attributes">
-        <AttributeGrid attributes={build.attributes} onCommit={onAttributeCommit} />
-      </Section>
+      {withAttributes ? (
+        <AttributesSection attributes={build.attributes} onCommit={onAttributeCommit} />
+      ) : null}
       <Section title="Badge Points & Badge Slots" storageKey="section-budget">
         <BudgetGrid budgets={budgets} onCommit={onBudgetCommit} />
       </Section>
       {/* F5.3/C — `Reset build`, at the foot of the panel.
        *
-       * PLACEMENT IS ONE RULING FOR EVERY WIDTH, and it is deliberate. At
-       * >=1280 this is the foot of a long sticky, scrolling rail: reaching it
-       * is an act, and a mis-click is not available. Below 1280 there is no
-       * rail at all and the whole panel is a collapsible <details> — so the
-       * button sits INSIDE the collapsible at M/S, which keeps the same
-       * property by a different mechanism (an expanded panel rather than a
-       * long scroll). One placement, one behaviour.
+       * PLACEMENT IS ONE RULING FOR EVERY WIDTH, and it is deliberate. The
+       * button sits INSIDE the collapsible, at the foot of an expanded
+       * panel: reaching it is an act, and a mis-click is not available. F5.4
+       * made the panel a collapsible <details> at every width (§16.5), so
+       * that one mechanism now carries the property everywhere — where
+       * before it was a long sticky rail at L and the collapsible at M/S.
+       * One placement, one behaviour.
        *
        * Text only, NO GLYPH: `↺` already means *Reaction* on the badge cards,
        * and re-using a glyph that means something else is H1's doctrine broken
@@ -260,8 +330,9 @@ export function BuildPanel(props: BuildPanelProps) {
     </div>
   );
 
-  if (!isCompact) return sections;
-
+  // F5.4: no early return. The panel is the collapsible <Section title="Build">
+  // at EVERY width — at L it is the setup panel above the FilterBar, at M/S
+  // it is the unified panel it has always been (§16.5, §16.10).
   const digest = [
     formatHeightInches(build.heightInches),
     ...(build.position !== undefined ? [build.position] : []),

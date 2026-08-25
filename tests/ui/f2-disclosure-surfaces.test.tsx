@@ -268,7 +268,17 @@ describe("D2 — Build panel auto-collapse below 1280 (one-shot latch)", () => {
     expect(readUiSectionOpen("section-build-panel")).toBe(true);
   });
 
-  it("does not collapse at desktop (the panel lives in the rail there)", () => {
+  it("an attribute commit does not collapse the setup panel, because the attributes are not in it", () => {
+    // F5.4 (§16.5): THE ASSERTION IS UNCHANGED and it is now the mechanical
+    // guard for the `hasValues` scoping. The old reason ("the panel lives in
+    // the rail there") is false — the latch's `compact` term is gone and the
+    // latch fires at every width now.
+    //
+    // The new reason is scoping. No query matches → isLarge = true →
+    // withAttributes = false → the 20 sliders live in the PANE, so the
+    // panel's own hasValues ignores them and the latch never arms. Drop the
+    // scoping and the user drags a slider on the left while a panel collapses
+    // on the right — and this line goes red immediately.
     stubMatchMedia([]); // no query matches → desktop shape
     render(<App />);
     commitNumber(screen.getByLabelText("Close"), "90");

@@ -35,9 +35,18 @@
  * The measured-on-paper constants are MEASURED, not parsed. They are pinned
  * deliberately: if a label, a font size or a field width moves, someone has
  * to come here and move them by hand. That is the point, not a shortcoming.
+ *
+ * F5.4 EXTENDS THE CHAIN TO THE VERTICAL AXIS (I15 · I16, design-spec §16).
+ * Every identity above is horizontal, and a green suite therefore said
+ * nothing at all about a pane that showed ZERO of twenty attribute sliders
+ * at a 700px viewport. The vertical counterpart of I8's 34px horizontal
+ * `<Section>` chrome is SECTION_CHROME_Y = 70 — the omission F5.2 found
+ * systemically — and slidersVisible() is the identity it feeds: how much of
+ * a fixed-height region is visible AT REST, not merely that it scrolls.
  */
 
 import { describe, expect, it } from "vitest";
+import { ATTRS, ATTR_GROUPS, ATTR_GROUP_OF } from "../src/engine/vocabulary";
 import { cssBlock, srcSources, stripComments } from "./helpers/test-utils";
 
 const cssSources = import.meta.glob("/src/styles/*.css", {
@@ -147,16 +156,66 @@ const ATTR_CELL_FLOOR = px(
 const STACK_MAX = px(app, /@container \(max-width:\s*(\d+)px\)/);
 const NUMERIC_W = px(app, /\.number-field input \{[^}]*width:\s*(\d+)px/);
 
+/* ------------------------------------ parsed: the VERTICAL axis (F5.4) ----- */
+
+const TEXT_XS = px(tokens, /--text-xs:\s*(\d+)px/); // 12 — slider + legend label
+const TEXT_BASE = px(tokens, /--text-base:\s*(\d+)px/); // 16 — <summary> heading
+const SPACE_3_5 = px(tokens, /--space-3-5:\s*(\d+)px/); // 14 — the user's py-3.5
+/** PARSED, not assumed: every line box below is derived from it. */
+const BODY_LH = Number(
+  (/body \{[^}]*line-height:\s*([\d.]+)/.exec(app) ??
+    (() => {
+      throw new Error("layout arithmetic: body line-height not found");
+    })())[1] as string,
+);
+const RANGE_H = px(app, /input\[type="range"\] \{[^}]*height:\s*(\d+)px/); // 24
+
+/** A space token read off ONE declaration inside an already-sliced block.
+ *  spaceIn()'s `(?:^|;)` anchor cannot see past a block comment, and the
+ *  pane documents each of its declarations in place — so this reads the
+ *  declaration directly rather than making the stylesheet less explanatory. */
+function tokenIn(block: string, property: string): number {
+  const match = new RegExp(`${property}:\\s*var\\(--([a-z0-9-]+)\\)`).exec(block);
+  if (match === null) throw new Error(`layout arithmetic: no ${property} in block`);
+  return spaceToken(match[1] as string);
+}
+
+/** The pane's inline padding — the focus ring's 4px reach, and GEOMETRY: it
+ *  comes out of the cell every slider is laid out in. */
+const PANE_PAD_X = tokenIn(cssBlock(app, ".attr-pane"), "padding-inline");
+
+const lineBox = (fontPx: number): number => Math.round(fontPx * BODY_LH);
+
+/** I15 — the VERTICAL counterpart of I8's horizontal 34, and the omission
+ *  F5.2 found systemically. A <details class="section">'s <summary> is
+ *  2 × --space-3-5 of padding around one --text-base line, over a 1px top
+ *  border, and .section__body adds --space-4 of padding below it. */
+const SECTION_CHROME_Y = 2 + (2 * SPACE_3_5 + lineBox(TEXT_BASE)) + SPACE_4; // 70
+/** The half of it that sits ABOVE the first child: one border + the summary. */
+const SECTION_LEAD_Y = 1 + (2 * SPACE_3_5 + lineBox(TEXT_BASE)); // 53
+
 /* --------------------------- measured on paper (design-spec §0.1, §13.0.1) -- */
 
-/** BudgetGrid <table> min-content: "Playmaking" ~79 + 8 cell padding, then
- *  two NumberField cells of 56 + 8. A table genuinely cannot compress below
- *  this — it overflows instead. */
-const BUDGET_GRID_MIN = 215;
-/** Widest category label at --text-sm: "Rebounding". MEASURED in headless
- *  Chrome by b22f8ab; kept verbatim (§13.0.1). A single word has no break
- *  opportunity, so its min- and max-content are the same. */
-const LEDGER_LABEL_MAX = 76;
+/* DELETED by F5.4: BUDGET_GRID_MIN = 215, and the assertion that spent it.
+ * BudgetGrid left the rail for the setup panel (§16.5), so `RAIL −
+ * SECTION_CHROME >= 215` graded a surface that is no longer there — it would
+ * have passed forever while checking nothing. Tombstoned rather than
+ * re-pointed, per §13.7's LEDGER_ROW_MIN precedent: the setup panel's box is
+ * 902px at 1280 and 298 at 390, so the demand is not binding anywhere. */
+
+/** Widest category label at --text-sm: "Rebounding". RE-PINNED 76 → 78 by
+ *  F5.4 (§16 ③): the measured value is 77.41 and the take-the-larger rule
+ *  §13.0.1 applied to SYNERGY_HEADER_MAX applies here too. It changes no
+ *  outcome — the ledger now has an 878px grid box — but a pinned measurement
+ *  known to be 1.41px LOW is a defect waiting for its next consumer.
+ *
+ *  §13.0.1's "implied 8.44 px/char monospace advance (76 ÷ 9 chars)" bridge
+ *  was unsound and is withdrawn: "Rebounding" is TEN characters and renders
+ *  in the proportional --text-sm UI face, not --font-num. The bridge is
+ *  restated from the empty-state metrics string instead — "0/0 · 0/—" is
+ *  nine --font-num characters at 75.86px = 8.429 px/char, corroborated by
+ *  "112/116 · 13/15" at 126.44 / 15 = 8.429. */
+const LEDGER_LABEL_MAX = 78;
 /** .ledger-overview__metrics MAX-content for a REAL 3-digit build,
  *  "112/116 · 13/15" — 15 --font-num chars.
  *
@@ -181,8 +240,40 @@ const ROW_PAD = SPACE_4;
 const USABLE_TRACK = 224;
 /** <details class="section">: 1px border + --space-4 padding, both sides. */
 const SECTION_CHROME = 2 + 2 * SPACE_4;
+/** .synergy-row's own box: 1px fieldset border + --space-4 padding, both
+ *  sides. Numerically equal to SECTION_CHROME and a DIFFERENT thing — the
+ *  conversion between the row's border box and the box a size query sees. */
+const ROW_CHROME = 2 + 2 * ROW_PAD;
 /** Plausible classic-scrollbar widths, plus macOS overlay. Derive at ALL. */
 const SCROLLBARS = [0, 15, 17];
+
+/* ------------------- measured on paper: the VERTICAL axis (F5.4, §16) ------ */
+
+/** .number-field input at --text-sm: content + 2 × --space-1 + 2px border.
+ *  The label is `hideLabel` → .sr-only, so nothing else is in the box.
+ *
+ *  RE-MEASURED IN HEADLESS CHROME AT THE CUT (Chrome 151.0.7922.174,
+ *  docs/proof/f54-verification.txt), because the attribute stack multiplies it
+ *  by 20 and the visible-slider counts move with it:
+ *
+ *    deviceScaleFactor 1 → offsetHeight 26, rect 26.000
+ *    deviceScaleFactor 2 → offsetHeight 27, rect 26.500
+ *
+ *  PINNED AT THE LARGER, 27, per §13.0.1's take-the-larger rule. A larger
+ *  SLIDER_H yields a LOWER derived slider count, so the I15 floor asserted
+ *  below is the PESSIMISTIC bound — and the browser meets it at both device
+ *  scale factors (6 / 7 / 8 measured at 700 / 800 / 900). Deriving from the
+ *  dpr-1 value instead would make the floor optimistic on a Retina display,
+ *  which is the wrong direction for a floor. */
+const NUMERIC_H = 27;
+/** The Ledger overview <Section> as it shipped in the rail: 6 × a --text-sm
+ *  line box + 5 row-gaps + the well's 2 × --space-2 + SECTION_CHROME_Y.
+ *  Feeds LEAD_TODAY only — the pre-slice canary — so a ±60px error here
+ *  cannot change an outcome. */
+const LEDGER_H = 252;
+/** The Physique <Section> in the rail: Position control + wrapped Hint +
+ *  HeightField + chrome. Same canary-only exposure as LEDGER_H. */
+const PHYSIQUE_H = 324;
 
 /* DELETED: LEDGER_ROW_MIN = 137. It was a MIN-content figure — the width at
  * which the TEXT breaks, not the width at which the ROW stops wrapping — and
@@ -194,10 +285,21 @@ const SCROLLBARS = [0, 15, 17];
 function centreColumn(viewport: number, scrollbar: number): number {
   return viewport - scrollbar - 2 * SPACE_4 - SPACE_3 - RAIL;
 }
-/** What the rail must be for a ledger row to sit on ONE line: the row box it
- *  needs, plus the well it sits in, plus the section around that. */
-function ledgerRailNeeded(gap: number, wellPadX: number): number {
+/** What a COLUMN must be for a ledger row to sit on ONE line: the row box it
+ *  needs, plus the well it sits in, plus the section around that.
+ *
+ *  F5.4 re-points this from the rail to the right column (§16.5). The ledger
+ *  overview moved out of the pane — it carries no unique information (the six
+ *  sticky per-category digests carry every number it shows) and it was 252 of
+ *  the 657px of non-attribute content that left the pane showing zero
+ *  sliders. It is MOVED, not deleted: §4.5 requires the landmark. */
+function ledgerBoxNeeded(gap: number, wellPadX: number): number {
   return LEDGER_LABEL_MAX + gap + LEDGER_METRICS_MAX + 2 * wellPadX + SECTION_CHROME;
+}
+/** The ledger overview's own GRID box in the right column: the centre
+ *  column, less the <Section> chrome, less the inset well's sides. */
+function ledgerGridBox(viewport: number, scrollbar: number): number {
+  return centreColumn(viewport, scrollbar) - SECTION_CHROME - 2 * WELL_PAD_X;
 }
 function cardsPerRow(track: number): number {
   return Math.max(1, Math.floor((track + SPACE_3) / (CARD_FLOOR + SPACE_3)));
@@ -205,6 +307,95 @@ function cardsPerRow(track: number): number {
 /** The design-spec §11.4 arrangement rule, as a function. */
 function sliderTrack(cell: number): number {
   return cell <= STACK_MAX ? cell : cell - SPACE_2 - NUMERIC_W;
+}
+
+/* ------------------------------- derived: the attribute stack (F5.4) ------ */
+
+/** One AttributeSlider: a --text-xs label + --space-1, the 24px range input,
+ *  then --space-2 of row-gap and the wrapped numeric field. It wraps — and
+ *  so costs 81 rather than 49 — because the 258px cell is below I9's derived
+ *  arrangement threshold of 287. See §5 of the brief: the 340px rail lever
+ *  that would cross it is PRICED (12 visible sliders, −13.3px per card) and
+ *  deliberately UNSPENT. An implementer must not take it. */
+const SLIDER_H = lineBox(TEXT_XS) + SPACE_1 + RANGE_H + SPACE_2 + NUMERIC_H; // 81
+/** <legend> at --text-xs + its --space-2 margin-bottom. */
+const GROUP_LEGEND_H = lineBox(TEXT_XS) + SPACE_2; // 26
+/** DERIVED FROM THE VOCABULARY, never pinned: a 21st attribute (the live
+ *  Free Throw question) has to move the counts below by hand. */
+const GROUP_SIZES = ATTR_GROUPS.map(
+  (group) => ATTRS.filter((attr) => ATTR_GROUP_OF[attr] === group).length,
+);
+/** One .attr-group: legend, n sliders with --space-3 grid row-gaps between
+ *  them, and the fieldset's own --space-3 margin-bottom. */
+const groupH = (n: number): number =>
+  GROUP_LEGEND_H + n * SLIDER_H + (n - 1) * SPACE_3 + SPACE_3;
+const ATTR_STACK_H = GROUP_SIZES.reduce((sum, n) => sum + groupH(n), 0); // 2016
+/** The pane's own height: viewport less `top` and the matching bottom slack. */
+const paneH = (viewport: number): number => viewport - 2 * SPACE_3;
+
+/** Non-attribute content ahead of the STACK, as the pane shipped before this
+ *  slice. The group legend is INSIDE the stack and slidersVisible adds it —
+ *  do NOT fold it in here. 657, not 683: 683 is the pane-top → first-slider-
+ *  TOP distance, and passing it as `lead` double-counts GROUP_LEGEND_H. It
+ *  happens not to matter at 700 (both give 0) and it is wrong at 800 and 900,
+ *  where the true counts are 1 and 2. Pinned separately in assertion 1.
+ *
+ *  MEASURED AGAINST THE PRE-SLICE TREE AT THE CUT (dev @2e422c2 served
+ *  alongside, docs/proof/f54-verification.txt): the real pane-top →
+ *  first-slider-top distance was 704.75px, not 683, and the real counts were
+ *  0 / 0 / 1 rather than 0 / 1 / 2 — LEDGER_H and PHYSIQUE_H are paper sums
+ *  over wrapped Hint and Banner lines and are ~22px light in aggregate.
+ *  The canary is therefore CONSERVATIVE: it understates how bad the shipped
+ *  tree was, never overstates it, and its load-bearing claim (zero sliders at
+ *  700) is exact. The pins are left as briefed rather than re-cut, because
+ *  they feed nothing but this canary. */
+const LEAD_TODAY = LEDGER_H + SPACE_4 + PHYSIQUE_H + SPACE_3 + SECTION_LEAD_Y; // 657
+
+/** Sliders whose BOTTOM edge is inside the pane at rest, given `lead` px of
+ *  non-attribute content ahead of the stack. Walks GROUP_SIZES and
+ *  short-circuits at the first slider that does not fit. */
+function slidersVisible(viewportH: number, lead: number): number {
+  const limit = paneH(viewportH) - lead;
+  let count = 0;
+  let offset = 0;
+  for (const n of GROUP_SIZES) {
+    for (let k = 1; k <= n; k += 1) {
+      const bottom = offset + GROUP_LEGEND_H + k * SLIDER_H + (k - 1) * SPACE_3;
+      if (bottom > limit) return count;
+      count += 1;
+    }
+    offset += groupH(n);
+  }
+  return count;
+}
+
+/* ---------------------- derived: I16's two boxes, one arrangement (F5.4) --- */
+
+/** What the PICKERS need, on the box a size query actually evaluates — the
+ *  row's CONTENT box. The row padding is not part of it because the query
+ *  never sees the padding. */
+const CONTAINER_THRESHOLD = 2 * SELECT_FLOOR + SPACE_3; // 372
+/** The same arrangement, expressed on the row's BORDER box.
+ *  §13.5's 404 computed `2 × SELECT_FLOOR + SPACE_3 + 2 × ROW_PAD` — padding
+ *  only, no border — and was 2px light. The conversion is ROW_CHROME. */
+const pickersRowFloor = CONTAINER_THRESHOLD + ROW_CHROME; // 406
+/** The grid track floor: the larger of the two border-box demands. The max()
+ *  is kept VISIBLE so the day the header shrinks the pickers become the
+ *  binding floor mechanically rather than by someone remembering they might. */
+const synergyRowFloor = Math.max(pickersRowFloor, SYNERGY_HEADER_MAX); // 426
+
+/** A synergy row's BORDER box in the right column at (viewport, scrollbar).
+ *  `− SECTION_CHROME` is the <Section> chrome §13.0.1 omitted, which is T16's
+ *  root cause: without it the derivation reads 609.5 at 1280 and hides a
+ *  failure that was real at 1440. */
+function synergyRowBox(viewport: number, scrollbar: number): number {
+  const body = centreColumn(viewport, scrollbar) - SECTION_CHROME;
+  const columns = Math.max(1, Math.floor((body + SPACE_3) / (synergyRowFloor + SPACE_3)));
+  return (body - (columns - 1) * SPACE_3) / columns;
+}
+function synergyColumns(viewport: number, scrollbar: number): number {
+  const body = centreColumn(viewport, scrollbar) - SECTION_CHROME;
+  return Math.max(1, Math.floor((body + SPACE_3) / (synergyRowFloor + SPACE_3)));
 }
 
 /* ------------------------------------------------------------------ I3 -- */
@@ -261,36 +452,55 @@ describe("I3 — two columns, and the card count that follows", () => {
 /* ------------------------------------------------------------- I8 + I11 -- */
 
 describe("I8 + I11 — the single rail clears its contents' MAX-content, not min", () => {
-  it("the rail clears BudgetGrid's min-content", () => {
-    expect(RAIL - SECTION_CHROME).toBeGreaterThanOrEqual(BUDGET_GRID_MIN);
-  });
+  /* DELETED by F5.4: "the rail clears BudgetGrid's min-content". BudgetGrid
+   * moved to the setup panel (§16.5), so `RAIL − SECTION_CHROME >= 215`
+   * became vacuous — 258 ≥ 215 passes while grading a surface that is not in
+   * the rail. Tombstoned rather than re-pointed (§13.7's LEDGER_ROW_MIN
+   * precedent): in the setup panel the table gets 902px at 1280 and 298 at
+   * 390, so the demand is not binding at any width. */
 
   it("I11 — the ledger row lays out ON ONE LINE with real numbers, well included", () => {
     // The property the user actually reported. Checked against max-content,
     // and with the well counted, because both of those are how the previous
     // two revisions passed while the rows wrapped.
-    const content = RAIL - SECTION_CHROME;
+    //
+    // RE-POINTED by F5.4: the ledger overview lives in the right column now,
+    // so the box is the centre column rather than the rail. It clears by an
+    // order of magnitude — which is precisely why A1 (below) is needed: at
+    // this width the SHIPPED `1fr auto` stops being a fit problem and starts
+    // being a spreading problem.
     const rowMax = LEDGER_LABEL_MAX + ROW_GAP_X + LEDGER_METRICS_MAX;
-    expect(content - 2 * WELL_PAD_X).toBeGreaterThanOrEqual(rowMax);
+    for (const scrollbar of SCROLLBARS) {
+      expect(ledgerGridBox(1280, scrollbar), `scrollbar ${scrollbar}px`).toBeGreaterThanOrEqual(
+        rowMax,
+      );
+    }
   });
 
   it("I8b — the ledger well's sides are GEOMETRY: spent, they must be funded", () => {
-    expect(RAIL).toBeGreaterThanOrEqual(ledgerRailNeeded(ROW_GAP_X, WELL_PAD_X));
+    // RE-POINTED to the column that now holds it; the identity is unchanged.
+    expect(centreColumn(1280, Math.max(...SCROLLBARS))).toBeGreaterThanOrEqual(
+      ledgerBoxNeeded(ROW_GAP_X, WELL_PAD_X),
+    );
 
     // b22f8ab's own L cut fails this by 49px. The canary proves the assertion
-    // has teeth against the JUST-SHIPPED tree, not only against the old one.
+    // has teeth against a real shipped tree, not only against the old one.
+    // KEPT VERBATIM, and re-checked at LEDGER_LABEL_MAX = 78: 162 < 213.
     const shippedBroken = 204 - SECTION_CHROME - 2 * SPACE_1; // 162
-    expect(shippedBroken).toBeLessThan(LEDGER_LABEL_MAX + SPACE_2 + LEDGER_METRICS_MAX); // 211
+    expect(shippedBroken).toBeLessThan(LEDGER_LABEL_MAX + SPACE_2 + LEDGER_METRICS_MAX); // 213
   });
 
   it("the rail is chosen ABOVE its floor, and the slack is named", () => {
     // b22f8ab asserted that NO slack remained, which was true and was the
     // problem. Same bookkeeping discipline, opposite sign: the next addition
     // is still checked against a number rather than against a vibe.
-    const content = RAIL - SECTION_CHROME;
-    // The binding demand, named: a real 3-digit ledger row inside its well.
-    const maxDemand = LEDGER_LABEL_MAX + ROW_GAP_X + LEDGER_METRICS_MAX + 2 * WELL_PAD_X; // 239
-    expect(content - maxDemand).toBeGreaterThanOrEqual(SPACE_6); // 266 − 239 = 27 ≥ 24
+    //
+    // RE-POINTED by F5.4. The ledger left the pane, so the binding demand is
+    // no longer a 3-digit ledger row — it is I9's usable slider track, and
+    // the cell is 8px narrower because the pane now carries the focus ring's
+    // inline padding. 300 − 8 − 34 = 258 against 224 leaves 34 ≥ 24.
+    const cell = RAIL - 2 * PANE_PAD_X - SECTION_CHROME; // 258
+    expect(cell - USABLE_TRACK).toBeGreaterThanOrEqual(SPACE_6);
   });
 
   it("the duplicate right-rail Export/Import pair stays deleted (rev 2 §3.6)", () => {
@@ -299,82 +509,157 @@ describe("I8 + I11 — the single rail clears its contents' MAX-content, not min
     expect(appTsx.match(/<ExportImportControls/g)?.length ?? 0).toBe(1);
   });
 
-  it("the sticky rail is wrapped in a stretching grid item, so it cannot escape the grid", () => {
+  it("the sticky pane is wrapped in a stretching grid item, so it cannot escape the grid", () => {
     // A sticky GRID ITEM is constrained by the grid container's content box,
-    // not by its own row. With the two panels in rows 2 and 3, a sticky
-    // .rail-left placed directly in .layout scrolls past the badge grid and
-    // paints over them (measured: doc-y 4660 against a grid ending at 4644).
-    // .rail-column stretches to row 1 and gives the sticky box a containing
-    // block that ends where the grid does.
+    // not by its own row. With the panels as separate rows, a sticky pane
+    // placed directly in .layout scrolls past the badge grid and paints over
+    // them (measured: doc-y 4660 against a grid ending at 4644). The wrapper
+    // stretches to row 1 and gives the sticky box a containing block that
+    // ends where the grid does.
+    //
+    // F5.4 RENAMES ONLY. The finding is F5.2's D1 and it is unchanged; four
+    // no-new-element candidates were measured and none moved the clamp by a
+    // pixel, so the wrapper stays.
     const appTsx = srcSources["/src/App.tsx"] as string;
-    expect(appTsx).toMatch(/className="rail-column">\s*<div className="rail-left">/);
-    expect(cssBlock(app, ".rail-column")).toContain("align-self: stretch");
+    expect(appTsx).toMatch(/className="attr-pane-column">\s*<div className="attr-pane">/);
+    expect(cssBlock(app, ".attr-pane-column")).toContain("align-self: stretch");
   });
 
-  it("the rail still surfaces overflow rather than hiding it", () => {
+  it("the pane still surfaces overflow rather than hiding it", () => {
     // overflow-y:auto computes overflow-x to auto — that scrollbar is how the
     // user found this defect. Masking it would hide the next one.
-    const railBlock = app.slice(app.indexOf(".rail-left {"));
-    expect(railBlock.slice(0, 200)).not.toContain("overflow-x: hidden");
-    expect(railBlock.slice(0, 200)).not.toContain("overflow-x: clip");
+    //
+    // The first-occurrence discipline still applies: this reads the FIRST
+    // block, which is the sticky one. A second rule declared above it would
+    // silently re-point the guard at a box that never had overflow-y.
+    const paneBlock = cssBlock(app, ".attr-pane");
+    expect(paneBlock).toContain("overflow-y: auto");
+    expect(paneBlock).not.toContain("overflow-x: hidden");
+    expect(paneBlock).not.toContain("overflow-x: clip");
   });
 });
 
 /* --------------------------------------------------------------- §13.5 -- */
 
-describe("§13.5 — Synergy and Summary live below the grid at EVERY breakpoint", () => {
-  it("both panels span the full layout width", () => {
-    expect(cssBlock(app, ".panel-below")).toContain("grid-column: 1 / -1");
+describe("§16.7 — Synergy and Summary live in the RIGHT COLUMN, beside the pane", () => {
+  it("the right column carries the gap the grid used to supply", () => {
+    // REPLACES "both panels span the full layout width". `.panel-below`'s
+    // `grid-column: 1 / -1` is DELETED: it ran the two panels UNDERNEATH the
+    // pane, which is what made the pane's sticky containing block grid row 1
+    // instead of the whole document. .layout is exactly two grid items now.
+    //
+    // .layout's own `gap: var(--space-6)` supplied the 24px between main and
+    // the two panels while they were grid items. Once they stop being grid
+    // items that gap evaporates, so .col-right must re-declare it.
+    expect(cssBlock(app, ".col-right")).toContain("gap: var(--space-6)");
+    expect(app).not.toContain(".panel-below");
+
+    const appTsx = srcSources["/src/App.tsx"] as string;
+    const colRight = appTsx.indexOf('className="col-right"');
+    expect(colRight).toBeGreaterThan(-1);
+    // The ids are what the jump nav targets and they stay; only the wrapper
+    // class went.
+    expect(appTsx.indexOf('id="panel-synergy"')).toBeGreaterThan(colRight);
+    expect(appTsx.indexOf('id="panel-summary"')).toBeGreaterThan(colRight);
   });
 
-  it("the synergy row floor is DERIVED, and the header binds", () => {
-    const pickersRowFloor = 2 * SELECT_FLOOR + SPACE_3 + 2 * ROW_PAD; // 404
-    const synergyRowFloor = Math.max(pickersRowFloor, SYNERGY_HEADER_MAX); // 426
+  it("8 — I16: the synergy row floor is DERIVED on TWO boxes, conversion written down", () => {
+    // T16, closed. The threshold and the track floor describe ONE
+    // arrangement on two different boxes, and 426 is a BORDER-box figure:
+    // its own derivation ends in "+ 2 × --space-4 row padding".
+    expect(CONTAINER_THRESHOLD).toBe(2 * SELECT_FLOOR + SPACE_3); // 372, CONTENT
+    expect(pickersRowFloor).toBe(CONTAINER_THRESHOLD + ROW_CHROME); // 406, BORDER
+    expect(synergyRowFloor).toBe(Math.max(pickersRowFloor, SYNERGY_HEADER_MAX));
     // The max() is kept VISIBLE so the day the header shrinks, the pickers
     // become the binding floor mechanically rather than by someone
     // remembering that they might.
-    expect(synergyRowFloor).toBe(SYNERGY_HEADER_MAX);
-    // One number, used twice: the grid track floor AND the container-query
-    // threshold, so a row can never be narrower than what it must arrange.
-    //
+    expect(synergyRowFloor).toBe(SYNERGY_HEADER_MAX); // 426
+
+    // §13.5's 404 was `2 × SELECT_FLOOR + SPACE_3 + 2 × ROW_PAD` — padding
+    // only, no border. The outcome does not move (max(…, 426) is still 426)
+    // but I16's whole point is that the conversion is visible.
+    expect(2 * SELECT_FLOOR + SPACE_3 + 2 * ROW_PAD).toBe(pickersRowFloor - 2);
+
+    // CANARY, and it is T16 as arithmetic: the SHIPPED threshold asked for a
+    // 426px CONTENT box, i.e. a 460px border box — LARGER than the row's own
+    // 426px track floor. A row could satisfy its floor and still stack its
+    // pickers. That is self-contradictory, and F5.2 measured exactly it.
+    expect(SYNERGY_HEADER_MAX + ROW_CHROME).toBe(460);
+    expect(SYNERGY_HEADER_MAX + ROW_CHROME).toBeGreaterThan(synergyRowFloor);
+
     // The floor carries §11.5 ③'s min() sub-floor idiom. A bare 426px floor
     // is ABSOLUTE and would hold the single S column at 426px inside a 366px
     // box — a horizontal scrollbar on the whole document, at the one
-    // breakpoint where §13.5 explicitly expects the row to be 366 and the
-    // pickers to stack.
+    // breakpoint where the row is expected to be 366 and the pickers stack.
+    // F5.2's D3 fix stands verbatim and F5.4 does not touch it.
     expect(app).toContain(
       `repeat(auto-fill, minmax(min(${synergyRowFloor}px, 100%), 1fr))`,
     );
-    expect(app).toContain(`@container (min-width: ${synergyRowFloor}px)`);
+    expect(app).toContain(`@container (min-width: ${CONTAINER_THRESHOLD}px)`);
   });
 
-  it("the container query sits BELOW the rule it overrides", () => {
+  it("9 — the container query sits BELOW the rule it overrides", () => {
     // A container query adds no specificity. Declared above
     // `.synergy-row__pickers`'s base `flex-direction: column`, the query
     // evaluates true at 1280 and changes nothing — the pickers stay stacked
-    // in a 601px row, and every assertion in this file still passes.
-    expect(app.indexOf("@container (min-width: 426px)")).toBeGreaterThan(
+    // and every assertion in this file still passes. F5.2's D4 ordering rule,
+    // unchanged in spirit and updated in literal.
+    expect(app.indexOf(`@container (min-width: ${CONTAINER_THRESHOLD}px)`)).toBeGreaterThan(
       app.indexOf(".synergy-row__pickers {"),
     );
   });
 
-  it("a synergy row is never narrower than the arrangement it asks for, at 1280", () => {
-    const pickersRowFloor = 2 * SELECT_FLOOR + SPACE_3 + 2 * ROW_PAD;
-    const synergyRowFloor = Math.max(pickersRowFloor, SYNERGY_HEADER_MAX);
-    const belowGrid = 1280 - 17 - 2 * SPACE_4; // 1231
-    const columns = Math.max(
-      1,
-      Math.floor((belowGrid + SPACE_3) / (synergyRowFloor + SPACE_3)),
-    );
-    const rowWidth = (belowGrid - (columns - 1) * SPACE_3) / columns; // 609.5
-    expect(columns).toBe(2);
-    expect(rowWidth).toBeGreaterThanOrEqual(synergyRowFloor);
+  it("10 — a synergy row is never narrower than the arrangement it asks for, at 1280", () => {
+    // REWRITTEN. The old version computed `belowGrid = 1280 − 17 − 2·SPACE_4`
+    // and OMITTED the <Section> chrome the panel sits inside — precisely
+    // T16's root cause. It read 609.5 and hid an error that was real at 1440.
+    for (const scrollbar of SCROLLBARS) {
+      expect(synergyColumns(1280, scrollbar), `scrollbar ${scrollbar}px`).toBe(2);
+      expect(
+        synergyRowBox(1280, scrollbar),
+        `scrollbar ${scrollbar}px`,
+      ).toBeGreaterThanOrEqual(synergyRowFloor);
+    }
+    // The binding case, named: 1280 with a 17px classic scrollbar. +10.5px is
+    // the margin the NEXT addition to the synergy row header is checked
+    // against.
+    expect(synergyRowBox(1280, 17)).toBe(436.5);
+    expect(synergyRowBox(1280, 17) - synergyRowFloor).toBe(10.5);
+
+    // CANARY: dropping SECTION_CHROME — the omission — reads 609.5 and hides
+    // the error. Assert the corrected figure is NOT that.
+    const uncorrected = (1280 - 17 - 2 * SPACE_4 - SPACE_3) / 2;
+    expect(uncorrected).toBe(609.5);
+    expect(synergyRowBox(1280, 17)).toBeLessThan(uncorrected);
+  });
+
+  it("11 — the pickers go SIDE BY SIDE at 1440, T16's failing case", () => {
+    // The row's CONTENT box is what a size query evaluates.
+    expect(synergyRowBox(1440, 17) - ROW_CHROME).toBeGreaterThanOrEqual(CONTAINER_THRESHOLD);
+
+    // CANARY — the OLD pair, and it is the defect the user would have seen:
+    // the below-grid box at 1440 resolved to THREE columns, each a 450px
+    // border box, i.e. 416px of content — less than the shipped 426px
+    // threshold, so the pickers stacked. At 1280 the same pair resolved to
+    // two columns of 601 → 567 content and PASSED, which is exactly why T16
+    // only ever fired at 1440.
+    const oldBody = 1440 - 0 - 2 * SPACE_4 - SECTION_CHROME; // 1374
+    const oldCols = Math.floor((oldBody + SPACE_3) / (SYNERGY_HEADER_MAX + SPACE_3)); // 3
+    const oldRow = (oldBody - (oldCols - 1) * SPACE_3) / oldCols; // 450
+    expect(oldCols).toBe(3);
+    expect(oldRow - ROW_CHROME).toBe(416);
+    expect(oldRow - ROW_CHROME).toBeLessThan(SYNERGY_HEADER_MAX);
   });
 
   it("the summary tables are capped rather than stretched", () => {
-    // width:100% across a 1231px below-grid box puts the label at the far
-    // left and the figure at the far right — unreadable in a different way
-    // from a 142px rail. The track cap tames it; the table rule is untouched.
+    // width:100% across a wide box puts the label at the far left and the
+    // figure at the far right — unreadable in a different way from a 142px
+    // rail. The track cap tames it; the table rule is untouched.
+    //
+    // F5.4 does NOT touch .summary. Its BOX changed (885 in the right column
+    // at 1280/s=17, not 1231 below the grid), so its column count resolves to
+    // 2 rather than 3 — the relay to F8-S2, which must re-derive §14.2's five
+    // constants and the 1428/1429 seam against the new box before it lands.
     expect(cssBlock(app, ".summary")).toMatch(/repeat\(auto-fit, minmax\(\d+px, \d+px\)\)/);
   });
 
@@ -399,30 +684,42 @@ describe("§13.5 — Synergy and Summary live below the grid at EVERY breakpoint
     expect(cssBlock(app, ".ledger-overview__metrics")).not.toContain("text-align: right");
   });
 
-  it("the §4.5 landmarks are restored — two asides, each named what it holds", () => {
+  it("the §4.5 landmarks are restored — THREE asides, each named what it holds", () => {
     // The shipped code drifted to ONE <aside aria-label="Ledger and synergy">
     // because that aside held three unrelated things. Nothing in the suite
     // observed the drift, which is why it survived five revisions.
+    //
+    // F5.4 amends §4.5 from two asides to three: splitting the content splits
+    // the landmark, which is the same finding read forwards. A landmark must
+    // name what it holds.
     const appTsx = srcSources["/src/App.tsx"] as string;
+    expect(appTsx).toContain('aria-label="Attributes"');
     expect(appTsx).toContain('aria-label="Build"');
     expect(appTsx).toContain('aria-label="Ledger overview"');
     expect(appTsx).not.toContain('aria-label="Ledger and synergy"');
   });
 
   it("the jump-nav targets and the section storage keys survived the move", () => {
-    // The two ids move from inside the deleted right rail onto .panel-below.
     // A dropped id is a dead chip at EVERY breakpoint (P1-3) and no DOM test
-    // asserts the target EXISTS — only the link text.
+    // asserts the target EXISTS — only the link text. F5.4 drops the
+    // .panel-below wrapper class and KEEPS both ids.
     //
-    // The three storageKeys are the slice's one persisted-reload reader. A
-    // silent rename resets every user's collapsed/expanded preference on
-    // their next load, and nothing else in the suite would notice.
+    // The storageKeys are the slice's persisted-reload readers. A silent
+    // rename resets every user's collapsed/expanded preference on their next
+    // load, and nothing else in the suite would notice. F5.4 renames NONE of
+    // them — section-attributes now belongs to a <Section> in the pane and
+    // section-build-panel is now read at L as well as M/S, but the keys
+    // themselves are untouched, so no preference resets.
     const appTsx = srcSources["/src/App.tsx"] as string;
+    const buildPanel = srcSources["/src/ui/build/BuildPanel.tsx"] as string;
     expect(appTsx).toContain('id="panel-synergy"');
     expect(appTsx).toContain('id="panel-summary"');
     expect(appTsx).toContain('storageKey="section-ledger-overview"');
     expect(appTsx).toContain('storageKey="section-synergy"');
     expect(appTsx).toContain('storageKey="section-summary"');
+    expect(buildPanel).toContain('storageKey="section-attributes"');
+    expect(buildPanel).toContain('storageKey="section-budget"');
+    expect(buildPanel).toContain('"section-build-panel"');
   });
 });
 
@@ -434,7 +731,13 @@ describe("I9 — the arrangement threshold is derived, not borrowed", () => {
   });
 
   it("widening the rail improves the track instead of halving it", () => {
-    const cell = RAIL - SECTION_CHROME;
+    // F5.4 UPDATES THE EXPRESSION, NOT THE EXPECTATION. The pane carries 4px
+    // of inline padding each side now (the focus ring's reach), so the cell
+    // is `RAIL − 2·PANE_PAD_X − SECTION_CHROME` = 258, not the 266 the
+    // pre-slice expression gave. The arrangement is unchanged: 258 ≤ 287, so
+    // the numeric field stacks below the track and the track is the full cell.
+    const cell = RAIL - 2 * PANE_PAD_X - SECTION_CHROME;
+    expect(cell).toBe(258);
     expect(sliderTrack(cell)).toBeGreaterThanOrEqual(USABLE_TRACK);
     // Regression canary: the pre-rev-5 threshold would have failed this.
     expect(cell > 223 && cell <= STACK_MAX).toBe(true);
@@ -988,5 +1291,297 @@ describe("F5.3/C — `Reset build`: the scope, pinned where it is written", () =
     // its selector lists, so the two can never drift apart.
     expect(app).toContain(".import-dialog,\n.reset-dialog {");
     expect(app).toContain(".import-dialog__actions,\n.reset-dialog__actions {");
+  });
+});
+
+/* ------------------------------------------------------- I15 + I16 (F5.4) -- */
+
+/** The vertical axis, and the structure that makes it reachable (design-spec
+ *  §16). Seventeen of the slice's twenty-one numbered assertions live here;
+ *  8 · 9 · 10 · 11 are rewrites of existing §13.5 tests and stayed in the
+ *  §16.7 describe above, marked with their numbers.
+ *
+ *  SIX OF THESE CANARIES FAIL AGAINST THE PRE-F5.4 TREE ON PURPOSE — 1, 3, 6,
+ *  8, 10 and 11. An assertion whose canary passes on the broken tree is not
+ *  checking anything, and that is exactly how a pane showing zero of twenty
+ *  sliders shipped under a green suite. */
+describe("I15 + I16 — the attributes pane, parse-and-re-derive on the vertical axis", () => {
+  it("1 — I15: >=6 sliders visible at 700, >=7 at 800, >=8 at 900", () => {
+    // The pane's only lead is its own <Section>'s summary. This is the whole
+    // point of the slice, stated as a number.
+    expect(slidersVisible(700, SECTION_LEAD_Y)).toBeGreaterThanOrEqual(6);
+    expect(slidersVisible(800, SECTION_LEAD_Y)).toBeGreaterThanOrEqual(7);
+    expect(slidersVisible(900, SECTION_LEAD_Y)).toBeGreaterThanOrEqual(8);
+
+    // §16.2's prose figure — the pane-top → first-slider-TOP distance — pinned
+    // HERE rather than passed as `lead`, because slidersVisible adds
+    // GROUP_LEGEND_H itself and passing 683 double-counts it.
+    expect(LEAD_TODAY).toBe(657);
+    expect(LEAD_TODAY + GROUP_LEGEND_H).toBe(683);
+
+    // CANARY — THE USER'S COMPLAINT AS ARITHMETIC. With the ledger, Physique
+    // and the budgets still ahead of the stack, a 700px viewport showed ZERO
+    // of twenty sliders when the pane was scrolled to its own top.
+    expect(slidersVisible(700, LEAD_TODAY)).toBe(0);
+    expect(slidersVisible(800, LEAD_TODAY)).toBe(1);
+    expect(slidersVisible(900, LEAD_TODAY)).toBe(2);
+  });
+
+  it("2 — GROUP_SIZES is DERIVED from the vocabulary, never pinned", () => {
+    expect(GROUP_SIZES.reduce((sum, n) => sum + n, 0)).toBe(ATTRS.length);
+    expect(GROUP_SIZES).toHaveLength(ATTR_GROUPS.length);
+    // A 21st attribute (the live Free Throw question) changes the stack and
+    // must move assertion 1's counts BY HAND. Pinned so it cannot drift
+    // silently under a green suite.
+    expect(SLIDER_H).toBe(81);
+    expect(GROUP_LEGEND_H).toBe(26);
+    expect(ATTR_STACK_H).toBe(2016);
+  });
+
+  it("3 — SECTION_CHROME_Y is PARSED from tokens, not pinned", () => {
+    expect(SECTION_CHROME_Y).toBe(70);
+    expect(SECTION_LEAD_Y).toBe(53);
+    expect(SECTION_CHROME_Y).toBe(SECTION_LEAD_Y + 1 + SPACE_4);
+    // CANARY — T16's omission, on the vertical axis: counting only the border
+    // and the body padding and FORGETTING THE <summary> gives 18. That class
+    // of omission is what put a 426px content demand on a 601px border box.
+    expect(2 + SPACE_4).toBe(18);
+    expect(2 + SPACE_4).not.toBe(SECTION_CHROME_Y);
+  });
+
+  it("4 — the pane is sticky, capped and scrollable, with dvh AFTER vh", () => {
+    const pane = cssBlock(app, ".attr-pane");
+    expect(pane).toContain("position: sticky");
+    expect(pane).toContain("overflow-y: auto");
+    expect(pane).toContain("max-height: calc(100vh - var(--space-6))");
+    expect(pane).toContain("max-height: calc(100dvh - var(--space-6))");
+    // A fallback declared SECOND is not a fallback.
+    expect(pane.indexOf("calc(100dvh")).toBeGreaterThan(pane.indexOf("calc(100vh"));
+    // max-height, never height: a pane forced to full height with 300px of
+    // content draws an empty box the day a user collapses the Section.
+    expect(pane).not.toMatch(/\n\s*height:\s/);
+    // The focus ring reaches 4px outside the box and overflow-y clips.
+    expect(pane).toContain("padding-inline: var(--space-1)");
+    expect(pane).toContain("scroll-padding-block: var(--space-3)");
+  });
+
+  it("5 — the pane holds the attributes and NOTHING ELSE", () => {
+    const appTsx = srcSources["/src/App.tsx"] as string;
+    const start = appTsx.indexOf('<div className="attr-pane">');
+    expect(start).toBeGreaterThan(-1);
+    const subtree = appTsx.slice(start, appTsx.indexOf("</aside>", start));
+    expect(subtree).toContain('aria-label="Attributes"');
+    expect(subtree).toContain("<AttributesSection");
+    // Everything the arithmetic evicted, checked by name.
+    expect(subtree).not.toContain("PhysiqueSection");
+    expect(subtree).not.toContain("BudgetGrid");
+    expect(subtree).not.toContain("ledger-overview");
+    expect(subtree).not.toContain("ExportImportControls");
+  });
+
+  it("6 — I8 re-derived: the pane funds the focus ring's inline padding", () => {
+    const cell = RAIL - 2 * PANE_PAD_X - SECTION_CHROME;
+    expect(PANE_PAD_X).toBe(4); // exactly --ring-focus's 4px reach
+    expect(cell).toBe(258);
+    expect(cell - USABLE_TRACK).toBeGreaterThanOrEqual(SPACE_6); // 34 >= 24
+
+    // CANARY — the horizontal consequence of a vertical decision. While the
+    // ledger was still in the pane its 3-digit row was the binding demand,
+    // and the 4px of padding was NOT affordable: the slack fell below
+    // --space-6. Evicting the ledger is what paid for the ring.
+    const ledgerDemand = LEDGER_LABEL_MAX + ROW_GAP_X + LEDGER_METRICS_MAX + 2 * WELL_PAD_X;
+    expect(cell - ledgerDemand).toBeLessThan(SPACE_6); // 17 < 24
+  });
+
+  it("7 — I9 unchanged in KIND: the cell still stacks and the track is usable", () => {
+    const cell = RAIL - 2 * PANE_PAD_X - SECTION_CHROME;
+    expect(cell).toBeLessThanOrEqual(STACK_MAX); // stacked, so SLIDER_H is 81
+    expect(sliderTrack(cell)).toBeGreaterThanOrEqual(USABLE_TRACK);
+    // The pre-slice EXPRESSION gave 266. The expectation did not move; the
+    // expression did — the pane's padding is geometry.
+    expect(RAIL - SECTION_CHROME).toBe(266);
+    expect(cell).toBe(258);
+  });
+
+  it("12 — the CSS and TSX breakpoints are complements, and 1279 appears once", () => {
+    const appCode = stripComments(srcSources["/src/App.tsx"] as string);
+    const tsxBreakpoint = px(appCode, /\(max-width:\s*(\d+)px\)/);
+    expect(tsxBreakpoint + 1).toBe(L_BREAKPOINT); // 1279 + 1 === 1280
+
+    // A JS/CSS breakpoint pair is a classic desync, so the TSX literal is
+    // allowed exactly one home across the whole of src/**.
+    const occurrences = Object.values(srcSources).reduce(
+      (sum, source) => sum + (stripComments(source).match(/1279/g)?.length ?? 0),
+      0,
+    );
+    expect(occurrences).toBe(1);
+
+    // CANARY: an off-by-one fixture must fail the complement check.
+    const fixture = px('useMediaQuery("(max-width: 1280px)")', /\(max-width:\s*(\d+)px\)/);
+    expect(fixture + 1).not.toBe(L_BREAKPOINT);
+  });
+
+  it("13 — the jsdom desktop default is preserved by the NEGATION's direction", () => {
+    const appCode = stripComments(srcSources["/src/App.tsx"] as string);
+    // useMediaQuery returns false where matchMedia is absent, so this form
+    // yields isLarge = true in jsdom and every component test keeps rendering
+    // the desktop shape.
+    expect(appCode).toContain('!useMediaQuery("(max-width: 1279px)")');
+    // The tidier-looking form inverts that default to MOBILE and silently
+    // flips a large, hard-to-attribute set of tests.
+    expect(appCode).not.toContain('useMediaQuery("(min-width: 1280px)")');
+    // ONE owner: the panel does not ask the question itself any more.
+    expect(stripComments(srcSources["/src/ui/build/BuildPanel.tsx"] as string)).not.toContain(
+      "useMediaQuery",
+    );
+  });
+
+  it("14 — the --cat chain survives the re-parenting", () => {
+    // All four carriers are id / attribute / href selectors on the very
+    // element that sets --cat, so no amount of re-parenting can sever them.
+    expect(srcSources["/src/ui/build/AttributeGrid.tsx"]).toContain("data-attr-group={group}");
+    expect(srcSources["/src/ui/grid/BadgeGridSection.tsx"]).toContain(
+      "id={categoryAnchorId(category)}",
+    );
+    for (const category of [
+      "finishing",
+      "shooting",
+      "playmaking",
+      "defense",
+      "rebounding",
+      "physicals",
+    ]) {
+      expect(app, category).toContain(`#cat-${category}`);
+      expect(app, category).toContain(`[data-attr-group="${category}"]`);
+    }
+    // The wiring file names no hue and no custom property. If a category goes
+    // neutral, the id moved — put it back on .grid-section, never elsewhere.
+    const appCode = stripComments(srcSources["/src/App.tsx"] as string);
+    expect(appCode).not.toContain("--cat");
+    expect(appCode).not.toMatch(/#[0-9a-fA-F]{6}\b/);
+  });
+
+  it("15 — three landmarks at L, and every storage key survives", () => {
+    const appTsx = srcSources["/src/App.tsx"] as string;
+    const buildPanel = srcSources["/src/ui/build/BuildPanel.tsx"] as string;
+    expect(appTsx).toContain('aria-label="Attributes"');
+    expect(appTsx).toContain('aria-label="Build"');
+    expect(appTsx).toContain('aria-label="Ledger overview"');
+    expect(appTsx).not.toContain('aria-label="Ledger and synergy"');
+    // No key renamed → no user's collapsed/expanded preference resets.
+    expect(buildPanel).toContain('storageKey="section-attributes"');
+    expect(buildPanel).toContain('"section-build-panel"');
+    expect(buildPanel).toContain('storageKey="section-budget"');
+    expect(appTsx).toContain('storageKey="section-ledger-overview"');
+  });
+
+  it("16 — the skip target still follows the moved panels and stays outside <main>", () => {
+    // <a href="#badge-grid"> is the first focusable element. Putting the
+    // moved panels INSIDE <main> would silently park ~40 controls behind the
+    // skip target and undo the affordance §4.5 calls "not optional".
+    function skipTargetIsClear(source: string): boolean {
+      const grid = source.indexOf('id="badge-grid"');
+      const ledger = source.indexOf('aria-label="Ledger overview"');
+      const build = source.indexOf('aria-label="Build"');
+      return ledger > -1 && build > -1 && grid > ledger && grid > build;
+    }
+    const appTsx = srcSources["/src/App.tsx"] as string;
+    expect(appTsx).toContain('href="#badge-grid"');
+    expect(skipTargetIsClear(appTsx)).toBe(true);
+
+    // FAILING FIXTURE: the asides inside <main>.
+    expect(
+      skipTargetIsClear(
+        '<main id="badge-grid">' +
+          '<aside aria-label="Ledger overview" /><aside aria-label="Build" />' +
+          "</main>",
+      ),
+    ).toBe(false);
+  });
+
+  it("17 — §5.3's two-sticky-layer cap still holds in the card column", () => {
+    function declaresSticky(selector: string): boolean {
+      try {
+        return blocksFor(app, selector).some((block) => block.includes("position: sticky"));
+      } catch {
+        return false; // no rule at all
+      }
+    }
+    // The two moved panels are ABOVE <main> and non-sticky, so they scroll
+    // away and never occupy the viewport permanently. A third layer would
+    // break I5.
+    expect(declaresSticky(".col-right")).toBe(false);
+    expect(declaresSticky(".ledger-panel")).toBe(false);
+    expect(declaresSticky(".setup-panel")).toBe(false);
+    // The two that ARE the cap, unchanged: jump nav (top 0) and the
+    // per-category digest (top 44).
+    expect(declaresSticky(".jump-nav")).toBe(true);
+    expect(declaresSticky(".category-ledger")).toBe(true);
+  });
+
+  it("18 — nothing INSIDE the pane is sticky", () => {
+    // The pane owns its own scrollport, which is why it does not spend the
+    // §5.3 cap. Sticky group legends were considered and rejected: <legend>'s
+    // box is UA-special, and a sticky header eats the budget exactly where §4
+    // shows it is scarcest.
+    const descendants = [
+      ...stripComments(app).matchAll(/\.attr-pane\s+[^{}\s][^{}]*\{([^}]*)\}/g),
+    ];
+    for (const rule of descendants) {
+      expect(rule[1]).not.toContain("position: sticky");
+    }
+  });
+
+  it("19 — the renames are complete, in the stylesheet AND in src/**", () => {
+    // A half-done rename leaves a dead rule that reads as live. Checked
+    // without the leading dot too: App.tsx writes className="panel-below".
+    for (const dead of ["rail-left", "rail-column", "rail-ledger", "rail-build", "panel-below"]) {
+      expect(app, `app.css still names ${dead}`).not.toContain(dead);
+      for (const [path, source] of Object.entries(srcSources)) {
+        expect(source, `${path} still names ${dead}`).not.toContain(dead);
+      }
+    }
+    // The new names exist, so the loop above cannot pass by deleting the layout.
+    expect(app).toContain(".attr-pane {");
+    expect(app).toContain(".attr-pane-column {");
+    expect(app).toContain(".ledger-panel {");
+    expect(app).toContain(".col-right {");
+    expect(srcSources["/src/App.tsx"]).toContain('className="setup-panel"');
+  });
+
+  it("20 — the L-scoped .segmented__track override is GONE, in both spellings", () => {
+    // Its surface left the rail: in the setup panel the 6-option Position
+    // control gets 902px at 1280 and 298 at 390, so it is one inline-flex row
+    // everywhere. A rule renamed to .attr-pane would grid nothing while
+    // reading as live; one left un-renamed would be a dead selector.
+    expect(stripComments(app)).not.toMatch(/\.segmented__track\s*\{[^}]*display:\s*grid/);
+    expect(stripComments(app)).not.toMatch(/\.attr-pane\s+\.segmented/);
+    expect(stripComments(app)).not.toMatch(/\.rail-left\s+\.segmented/);
+  });
+
+  it("21 — A1: the ledger's track override exists, is SCOPED, and the base is untouched", () => {
+    expect(app).toContain(".ledger-panel .ledger-overview {");
+    const scoped = cssBlock(app, ".ledger-panel .ledger-overview");
+    expect(scoped).toContain("grid-template-columns: max-content minmax(0, auto)");
+    // Without this the default `normal` behaves as `stretch` and the auto-max
+    // track eats the leftover space again.
+    expect(scoped).toContain("justify-content: start");
+
+    // The FROZEN base blocks are not touched, and I12's two parsed numbers
+    // still resolve unambiguously (the scoped rule declares neither).
+    expect(cssBlock(app, ".ledger-overview")).toContain("grid-template-columns: 1fr auto");
+    expect(spaceIn(app, ".ledger-overview", "padding", 1)).toBe(WELL_PAD_X);
+    expect(spaceIn(app, ".ledger-overview", "column-gap", 0)).toBe(ROW_GAP_X);
+
+    // CANARY — why the move needed the override. §16.5's "4-up on two lines"
+    // is unbuildable (repeat(auto-fit, …) forbids intrinsic track sizes), and
+    // left alone the `1fr` absorbs 739 of the 878px grid box: label at the far
+    // left, numbers at the far right, six times over. That is verbatim the
+    // defect .summary's cap exists to prevent.
+    const box = ledgerGridBox(1280, 0);
+    expect(box).toBe(878);
+    const absorbedByFr = box - ROW_GAP_X - LEDGER_METRICS_MAX;
+    expect(absorbedByFr).toBe(739);
+    expect(absorbedByFr).toBeGreaterThan(SPACE_6 * 10);
   });
 });
