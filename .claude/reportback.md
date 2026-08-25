@@ -3155,3 +3155,214 @@ Architect's in-flight item, listed above.
 NEXT
 Nothing blocking. The two open items are owned elsewhere.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+## F8-E3 — the exchange move, and two contract corrections
+2026-08-26 · branch `f8-e3-exchange`, cut from `dev`@`70f90bf` (1038/1038, 59 files)
+Brief: `impl-briefs/f8-e3-exchange-move-and-contract-corrections.md` · constrained mode
+Governance: `scope.md` §0.1 A4 (ratified objective, the banned distribution claim,
+A4-R1, A4-R2) · **`main` untouched · NOT merged to `dev`**
+
+### VERDICT
+Shipped. **Every acceptance number is met with headroom, and none was relaxed.**
+`ROLL_ALGORITHM_VERSION` **1 → 2**. Full evidence: `docs/proof/f8e3-verification.txt`.
+
+### FIRST PROOF — the worked case, red then green
+Capacity 3, pool 16, Finishing, `makeBuild(78, 72)`, 50 seeds, gate `optimal − spend ≤ 2`.
+  RED  (tree as cut, before `exchangeSteps` existed): **42/50 seeds over the gate**,
+       worst spend 3 of an achievable 11. Maximal (INV-7 green), oracle a true upper
+       bound — i.e. the escalation's own failure, not a fixture artefact.
+  GREEN: **50/50 seeds spend exactly 11. Max gap 0.**
+Transcript for seed `worked-2` (3 adds → 3 exchanges → 1 upgrade, slot count pinned at
+3/3 throughout) and a byte-identical same-seed re-run are in the proof file.
+
+### changed_files — nine, all on the Allowed list
+  src/engine/steps.ts          ADD ExchangeStep, RollStep, isExchangeStep,
+                               exchangeSteps, applyExchange, ceilingSpendFor.
+                               `legalSteps` NOT TOUCHED — which is why INV-19 could
+                               not move.
+  src/engine/randomize.ts      the walk's third arm, `rollCreatedIds`, resolvePins'
+                               `fillDefault` arm, PinReason widened, the 3-arg bound,
+                               VERSION 1→2, and BOTH header paragraphs rewritten.
+  src/engine/errors.ts         RollDidNotTerminateError's message now names all three
+                               measures (entry count, level index, net spend).
+  src/engine/__fixtures__/synthetic-badges.ts   INV-23's two-delta pair only.
+  tests/randomize.test.ts · tests/steps.test.ts · tests/randomize-oracle.ts ·
+  tests/architecture.test.ts · tests/vocabulary.test.ts
+  plus NEW docs/proof/f8e3-verification.txt and this entry.
+
+### denied_paths_checked — "I did not touch these"
+  src/ui/** — ALL of it, **in particular `src/ui/grid/feasibility.ts`**:
+      `categoryFeasibility` never learns about exchanges, so the grid's
+      "N upgrades still affordable" line still matches what the grid can offer.
+  tests/feasibility-golden.test.ts — RUN (4/4), NEVER EDITED, absent from
+      `git status --porcelain`. **INV-19's 504-cell table byte-identical. SHIP GATE MET.**
+  src/engine/eligibility.ts · summary.ts · summary-text.ts · cost.ts · ledger.ts ·
+  synergy.ts · synergy-ledger.ts · validate-loadout.ts · dataset.ts · vocabulary.ts ·
+  serialization.ts · random.ts — all CALLED, none CHANGED.
+  src/config/** · src/data/** · src/persist/** · src/App.tsx · src/main.tsx ·
+  src/styles/** · tests/ui/** · scripts/** · package.json · package-lock.json ·
+  tsconfig.json · *.config.* · .env* · .claude/** except this file · the `main` branch.
+  **No dependency added. Runtime dependencies remain exactly `{react, react-dom}`.**
+
+### THE FIVE PRESERVED PROPERTIES, and the test that pins each
+  1. NOT A PREFERENCE — no comparator, argmax, weight, sort or reduce anywhere.
+     `pickUniform` is still the one primitive at its one call site.
+       → INV-23 (statistical) + class-2 vocabulary AND structural lints, now on
+         `steps.ts` as well as `randomize.ts`.
+  2. READS ONLY LEGALITY AND NET COST, so INV-8 equivariance is untouched.
+       → INV-24 (a) relabel + (b) swap, re-run on a CAPACITY-BOUND fixture, with a
+         preceding test asserting exchanges actually fire there.
+  3. `exchangeableBadgeIds` IS EXACTLY THE WALK'S OWN CREATIONS — INV-5 by construction.
+       → INV-21 (a) every `outBadgeId` was created by an earlier move of the same walk;
+         (b) a guarded fixture carrying a user pin, an exclusion, a synergy role and a
+         stale entry, 200 seeds × both modes, none ever exchanged out.
+  4. SLOT-NEUTRAL, so INV-6 and AJ-11 overflow behaviour are unaffected.
+       → INV-22, three arms (structural, ledger-observed, pre-existing overflow).
+  5. PROVABLY INERT BELOW CAPACITY.
+       → INV-20, three arms — see the deviation note below.
+
+### verification_evidence
+  test count  BEFORE 1038 / 59 files  →  AFTER **1080 / 59 files** (+42)
+  npm test · npm run typecheck · npm run build — all green.
+  EXPLICIT gates: randomize+steps 97/97 · feasibility-golden 4/4 (byte-identical) ·
+  random+summary+summary-text 57/57 · vocabulary+architecture 251/251 ·
+  tests/ui/overlays.test.tsx 4/4 (H2 unchanged).
+  INV-9 green and **UNEDITED** (its fixture is capacity-free by construction: pool 3
+  against two badges costing 4 together, so `atCapacity` is never true).
+  INV-11 green across all four `refundTrigger`s including `onFuse`, and restated for
+  the exchange delta — the delta is probed through `netCostOf`, never hand-rolled.
+  Max iterations observed across the sweep: **14**, against a guard in the hundreds.
+  BOTH class-2 canaries **seen to fail on real code** (injected `bestExchange` into
+  steps.ts, `preferredDelta` into randomize.ts; both red; reverted; green). Neither
+  pattern weakened. No flake observed on any run.
+
+#### INV-14, both families, split by regime
+| family | regime | n | median | p90 | p95 | max | exact |
+|---|---|---|---|---|---|---|---|
+| equal-attributes | bound | 778 | 0 | 0 | 0 | 1 | 99.5% |
+| equal-attributes | free | 222 | 0 | 1 | 1 | 2 | 86.0% |
+| spread-attributes | bound | 602 | 0 | 0 | 0 | 1 | 99.8% |
+| spread-attributes | free | 513 | 0 | 0 | 1 | 2 | 93.4% |
+| **both** | **bound** | **1380** | **0** | 0 | **0** | **1** | **99.6%** |
+| **both** | **free** | **735** | **0** | 0 | **1** | **2** | 91.2% |
+| **both** | **all** | **2115** | 0 | 0 | 0 | 2 | **96.7%** |
+
+  CAPACITY BOUND  0 / ≤1 / ≤2 → **0 / 0 / 1**      PASS (E2 was 1 / 4 / 8)
+  CAPACITY FREE   0 / ≤1 / ≤2 → **0 / 1 / 2**      PASS, no regression
+  Exact overall ≥ 90%         → **96.7%**          PASS (E2 was 47.7%)
+  HARD CAP, per roll ≤ 2      → **0 rolls over**   PASS
+  Oracle never negative       → min gap 0          PASS
+  INV-20 zero exchanges free  → **0 / 735**        PASS
+
+#### The enlarged sweep's shape
+Family 1 `equal-attributes`: 200 fixtures, `makeBuild(78, attrs)` — E2's own shape.
+Family 2 `spread-attributes`: **240 fixtures with per-attribute spreads (45–99, an
+affine hash of (fixture, attribute) — no PRNG, no clock) across SEVEN heights
+69/72/75/78/81/84/88.** Both × 5 seeds. Generators live in `tests/randomize-oracle.ts`;
+the DP recurrence was not touched.
+
+### oracle_constraint_note
+**No fixture in either family carries pins, exclusions, or a starting loadout.**
+`optimalAddedSpend` passes `pinnedBadgeIds: NONE, excludedBadgeIds: NONE`, so it solves
+the SAME problem the roll solves — but only under that precondition. The precondition is
+now **asserted** in the sweep-shape test rather than trusted, so a future fixture that
+gains a pin reddens instead of silently contaminating every gap number.
+
+### The two contract corrections
+**A4-R1 — `fill` adds, `reroll` rebuilds.** `resolvePins` gains a fourth implicit-pin
+arm: in `fill`, every existing entry not otherwise pinned is held `exact` with the new
+`PinReason` member `"fillDefault"`. `pins` is a POSITIVE PERMISSION GRANT in both modes,
+so a forgotten pin fails closed in the mode where failing open is invisible. The note is
+emitted **only** for entries that actually had a suppressed affordable upgrade, computed
+by re-running the enumerator at the end of the walk with the fill-held entries treated as
+unpinned — the same shape `newBadgesBlockedByBadgeSlots` already uses. **The
+caller-obligation paragraph is DELETED from the `pins` field doc** and replaced with the
+structural rule; both documents now agree.
+  → INV-5b, three arms: 500 seeds × 20 states byte-identical; an explicit `include`
+    still re-opens the entry; the note fires only where the rule cost something.
+  → **De-vacuumed en route:** the AJ-11 `fill` test's
+    `steps.every(s => !s.requiresNewBadgeSlot)` became vacuously true under A4-R1
+    (`steps` is now `[]`). Made explicit, and a second arm added with `include` pins
+    where the fifteen upgrades genuinely fire. An assertion that cannot fail is not one.
+
+**A4-R2 — the termination bound.** `4 × (max(entriesAtStart, equipSlots) + ceilingSpend)
++ 1`, with `ceilingSpend = min(points, legalCeiling)` from the new `ceilingSpendFor`.
+**The two-argument form was NOT kept as an overload — the third argument is REQUIRED and
+the existing unit test was updated** (your call to make, so: stated). A defaulted third
+argument would silently produce a bound that is too tight in exactly the capacity-bound
+case the exchange move exists for, and a false throw is the one failure a backstop must
+not have. The ratified two-move form survives as the `ceilingSpend = 0` case and is
+pinned as such (13 / 13 / 21, unchanged).
+  → INV-17 gains the **AJ-11 regression fixture**: 5 entries against capacity 1 in
+    `fill`, both with and without `include` pins — completes, does not throw. That is
+    the exact input the brief's `4 × equipSlots + 1` would have thrown on.
+
+### ONE DEVIATION FROM THE BRIEF — recorded, not smoothed
+The brief's walk pseudocode ends every iteration with an unconditional
+`rollCreated.add(chosen.badgeId)`. **Implemented literally, that is an INV-5 hole:** an
+UPGRADE of a pre-existing entry would enrol it as exchangeable, and an `include` pin
+permits exactly such an upgrade on an entry **the user placed** — so the roll could then
+trade the user's own badge away. The implementation enrols on ADDS and on the incoming
+side of an EXCHANGE only; **upgrades enrol nothing.** INV-21 pins it.
+
+### ONE FINDING FROM THE ENLARGED SWEEP — disclosed, not repaired
+The first run of the enlarged sweep showed capacity-free max 4 and **one roll over the
+hard cap**. Root-caused before anything was changed: **not the engine.** INV-23's
+`synthetic-exchange-plus-four` is legal ONLY at HOF — a shape no shipped badge has — and
+it had been added to the `syntheticBadges` barrel, which the sweep splatted into its
+dataset. In a capacity-free Physicals pool of 12 that turns the category into an
+exact-cover problem greedy can miss by 4.
+    with the pair in the dataset:  free max 4, 1 roll over the cap
+    without it:                    free max 2, 0 rolls over the cap
+and the offending roll is CAPACITY-FREE, therefore byte-identical to the two-move walk at
+the same seed — **F8-E2's engine produces exactly the same result**, so the exchange move
+neither caused it nor could fix it.
+**Fix:** the sweep dataset is pinned to a NAMED SET (the E1/E2 fixtures) — the same
+reasoning `tests/feasibility-golden.test.ts` already records for its own dataset, and it
+additionally makes the `equal-attributes` family a true reproduction of what E2 measured.
+The finding is **pinned as its own test** ("the adversarial fixture, disclosed") so it is
+on the record and so nobody re-splats the barrel into the sweep without seeing it.
+
+### heartbeats_emitted
+6, recorded against the section boundaries of `docs/proof/f8e3-verification.txt` rather
+than to a live channel (a dispatched subagent has no mid-turn channel to the operator).
+
+### stop_conditions_triggered
+**None.** Specifically: no denied path touched; the feasibility golden did not move by a
+cell; INV-9 green and unedited; INV-11 green; **no weight, bias, preference, score, sort,
+comparator or reduce-to-an-extremum was written** — the headroom fair-share filter A4
+measured and rejected was not used, and **the latitude A4 granted for it is left
+unspent**; no exchange with `delta ≤ 0` is ever emitted; `exchangeableBadgeIds` was never
+widened beyond the walk's own creations; no capacity-bound gate missed; `badge.name` is
+never read and `badge.tier` only inside `costForLevel`; nothing repaired that should be
+disclosed; no Synergy Slot read or written; no dependency added; both lint canaries made
+to fail. **The banned sentence appears nowhere** — the last surviving occurrence, in
+`randomize.ts`'s own header (where it sat quoted inside its own negation), is gone.
+
+### MERGE-CONFLICT FORECAST
+**`dev` MOVED under this slice** — `70f90bf` → **`2e422c2`**, five commits: F5.3 (card
+re-cut, collapsible categories, Reset build) plus its forecast and reportback pair.
+**F5.3 is therefore already ON `dev`, and its branch is no longer a merge counterparty.**
+  vs **F5.3 (now on `dev`)** — **ZERO conflict surface, mechanically checked.**
+      `git diff --name-only 70f90bf..origin/dev` ∩ this slice's nine files = **∅**.
+      F5.3 is entirely `src/ui/**`, `src/data/**`, `scripts/**` and their tests; this
+      slice is entirely `src/engine/{steps,randomize,errors}.ts`, one fixture file and
+      five test files. Not one shared path.
+  vs **F5.4 (`f5-4-attribute-pane`, currently at `2e422c2` — no commits yet)** —
+      an attribute-pane slice is `src/ui/build/**` + `src/styles/**`. **No forecast
+      conflict.** The one thing to watch is not a text conflict but a semantic one:
+      F5.4 changes how attributes are ENTERED, and every INV-14 fixture is a function of
+      attributes. If F5.4 alters `makeBuild` or `tests/helpers/test-utils.ts` the sweep
+      numbers move — it does not today.
+  **The real F8/F5 collision is still R2**, unchanged, and `docs/proof/f8-merge-forecast.txt`
+  is untouched by this slice.
+  **Ordering note for whoever merges:** this branch is based at `70f90bf`, five commits
+  behind. A rebase onto `2e422c2` is expected to be trivial (disjoint file sets) but has
+  NOT been performed here — the dispatch was explicit that this branch does not merge to
+  `dev` and does not touch `main`.
+
+### NEXT
+E3 must precede **F8-R2** (R2 surfaces the reproducibility token and
+`ROLL_ALGORITHM_VERSION` changed here). F8-S2 is unaffected by this slice.
+─────────────────────────────────────────────
