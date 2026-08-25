@@ -24,6 +24,8 @@ export const syntheticAndTrailingNull: RawBadge = {
   name: "Synthetic And Trailing Null",
   tier: "A",
   category: "Finishing",
+  description: "Synthetic fixture — not 2K27 data.",
+  isNew: false,
   requirements: {
     heightMinInches: 69,
     heightMaxInches: 88,
@@ -43,6 +45,8 @@ export const syntheticAndMidNullGap: RawBadge = {
   name: "Synthetic And Mid Null Gap",
   tier: "B",
   category: "Shooting",
+  description: "Synthetic fixture — not 2K27 data.",
+  isNew: false,
   requirements: {
     heightMinInches: 69,
     heightMaxInches: 88,
@@ -61,6 +65,8 @@ export const syntheticOrBothNull: RawBadge = {
   name: "Synthetic Or Both Null",
   tier: "C",
   category: "Playmaking",
+  description: "Synthetic fixture — not 2K27 data.",
+  isNew: false,
   requirements: {
     heightMinInches: 69,
     heightMaxInches: 88,
@@ -78,6 +84,8 @@ export const syntheticHeightBoundary: RawBadge = {
   name: "Synthetic Height Boundary",
   tier: "A",
   category: "Defense",
+  description: "Synthetic fixture — not 2K27 data.",
+  isNew: false,
   requirements: {
     heightMinInches: 78,
     heightMaxInches: 78,
@@ -92,6 +100,8 @@ export const syntheticThresholdBoundary: RawBadge = {
   name: "Synthetic Threshold Boundary",
   tier: "C",
   category: "Physicals",
+  description: "Synthetic fixture — not 2K27 data.",
+  isNew: false,
   requirements: {
     heightMinInches: 69,
     heightMaxInches: 88,

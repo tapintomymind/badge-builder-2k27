@@ -9,6 +9,8 @@ import { loadDataset, shippedDataset, shippedRawDataset } from "../src/engine/da
 import { driftFromDroppedEntries, recheckEligibility } from "../src/engine/eligibility";
 import { MalformedSavedBuildError, UnsupportedSchemaVersionError } from "../src/engine/errors";
 import {
+  MIGRATIONS,
+  SAVED_BUILD_SCHEMA_VERSION,
   createSavedBuild,
   deserializeSavedBuild,
   deserializeSavedBuildWithReport,
@@ -18,6 +20,8 @@ import { validateBuild } from "../src/engine/validate-build";
 import type { Budget, RawBadgeDataset, SavedBuild, SynergySlot } from "../src/engine/types";
 import type { Category } from "../src/engine/vocabulary";
 import { CATEGORIES } from "../src/engine/vocabulary";
+import { applyRatifiedMagnitudes, plusTwoSynergySlotIds } from "../src/engine/synergy";
+import { validateLoadout } from "../src/engine/validate-loadout";
 import { defaultAppConfig } from "../src/config";
 import { makeBuild } from "./helpers/test-utils";
 
@@ -34,6 +38,7 @@ function makeSynergy(): SynergySlot[] {
     unlocked: false,
     permanence: id <= 4 ? "temporary" : "permanent",
     magnitude: 1,
+    disciplineLock: null,
     fuseBadgeId: null,
     reactionBadgeId: null,
   }));
@@ -64,7 +69,11 @@ describe("SavedBuild serializer: pure string ↔ object", () => {
     const saved = makeSaved();
     expect(saved.schemaVersion).toBe(1);
     expect(saved.dataVersion).toBe(shippedDataset.dataVersion);
-    expect(saved.dataVersion).toBe("2026-08-25.1");
+    // [F4/N7] Re-pinned by the F4 dataVersion bump. NOTE the sibling literal
+    // further down (the '{"schemaVersion":1,"dataVersion":"2026-08-25.1"}'
+    // envelope) is a SAVED BUILD's stamp exercising the H8 DRIFT path, and
+    // drift is the behaviour under test there — it must NOT be re-pinned.
+    expect(saved.dataVersion).toBe("2026-08-26.1");
   });
 
   it("round-trips to an identical object", () => {
@@ -317,22 +326,32 @@ describe("deserializeSavedBuild — malformed bodies throw MalformedSavedBuildEr
     expect(() => deserializeSavedBuild(wrongPermanence)).toThrowError(MalformedSavedBuildError);
   });
 
-  it("rejects MORE than two magnitude-2 synergy entries — the sealed 2-of-8 cap", () => {
-    const twoPlusTwo = corrupt((envelope) => {
-      const synergy = envelope["synergy"] as Record<string, unknown>[];
-      synergy[0]!["magnitude"] = 2;
-      synergy[1]!["magnitude"] = 2;
-    });
-    // Exactly two is legal.
-    expect(() => deserializeSavedBuild(twoPlusTwo)).not.toThrow();
-
+  /**
+   * [F4/A1] RE-DECIDED. This case used to assert that THREE magnitude-2
+   * entries throw MalformedSavedBuildError. That check is REMOVED, and the
+   * removal is the single most important change in F4.
+   *
+   * F4 ratifies Synergy Slot 7 as a +2, so a pre-F4 build that already
+   * designated two OTHER Synergy Slots normalizes to THREE at load — a state
+   * F4 is ruled to DISCLOSE (H8: never un-designate a user's choice). With
+   * the throw in place, that ruled state was written straight back by the
+   * mount-time autosave and REFUSED on the next boot; the read swallowed the
+   * throw and the app overwrote the user's build with an empty one.
+   *
+   * The cap now has exactly ONE owner: validateLoadout's
+   * tooManyPlusTwoSynergySlots HARD violation. See test 8.6 below.
+   */
+  it("[F4/A1] does NOT reject three magnitude-2 synergy entries — the cap is validateLoadout's, not the deserializer's", () => {
     const threePlusTwo = corrupt((envelope) => {
       const synergy = envelope["synergy"] as Record<string, unknown>[];
       synergy[0]!["magnitude"] = 2;
       synergy[1]!["magnitude"] = 2;
       synergy[2]!["magnitude"] = 2;
     });
-    expect(() => deserializeSavedBuild(threePlusTwo)).toThrowError(MalformedSavedBuildError);
+    expect(() => deserializeSavedBuild(threePlusTwo)).not.toThrow();
+    expect(
+      deserializeSavedBuild(threePlusTwo).synergy.filter((slot) => slot.magnitude === 2),
+    ).toHaveLength(3);
   });
 
   it("rejects a synergy role reference of a genuinely untyped shape (number, not string/null)", () => {
@@ -535,5 +554,151 @@ describe("F3: the deserializer does NOT reject an out-of-range height", () => {
     expect(() => deserializeSavedBuild(JSON.stringify(envelope))).toThrowError(
       MalformedSavedBuildError,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F4 group 8 — PERSISTED BACKWARD COMPATIBILITY.
+//
+// F4 makes FOUR persisted-shape changes and NONE of them bumps schemaVersion:
+//   P1 config.refundTrigger        — legal-value set widens by "onFuse"
+//   P2 config.plusTwoSlotIds       — retyped [id,id]|null → readonly id[]|null
+//   P3 synergy[].disciplineLock    — new additive field, Category|null
+//   P4 synergy[].magnitude         — READ-TIME projection (slot 7 re-derived)
+// All four are backward compatible by construction. Bumping schemaVersion here
+// would be a ONE-WAY DOOR that made every existing autosave
+// UnsupportedSchemaVersionError on the next boot.
+// ---------------------------------------------------------------------------
+
+/** A literal PRE-F4 SavedBuild, checked in as a string constant so no
+ * post-F4 code path can have produced it: refundTrigger legendByAnyMeans,
+ * plusTwoSlotIds [3,6], synergy entries with NO disciplineLock, slot 7 at
+ * magnitude 1, schemaVersion 1. */
+const PRE_F4_SAVED_BUILD_JSON = JSON.stringify({
+  schemaVersion: 1,
+  dataVersion: "2026-08-25.1",
+  savedAt: "2026-08-25T12:00:00.000Z",
+  name: "pre-F4 build",
+  build: makeBuild(78, 85, { mid: 92, steal: 93 }),
+  budgets: Object.fromEntries(
+    CATEGORIES.map((category) => [category, { points: 12, equipSlots: 3 }]),
+  ),
+  loadout: [
+    { badgeId: "deadeye", purchasedLevel: "gold" },
+    { badgeId: "glove", purchasedLevel: "gold" },
+  ],
+  synergy: ([1, 2, 3, 4, 5, 6, 7, 8] as const).map((id) => ({
+    id,
+    unlocked: true,
+    permanence: id <= 4 ? "temporary" : "permanent",
+    magnitude: id === 3 || id === 6 ? 2 : 1,
+    fuseBadgeId: null,
+    reactionBadgeId: null,
+  })),
+  config: {
+    refundTrigger: "legendByAnyMeans",
+    plusTwoSlotIds: [3, 6],
+    budgetStrategy: "manual",
+  },
+});
+
+describe("F4 group 8 — a pre-F4 SavedBuild still loads", () => {
+  it("8.1 THE ONE THAT MATTERS — deserializes with ZERO problems, and every disciplineLock comes back null (never undefined)", () => {
+    const { saved, droppedEntries, clearedSynergyRefs } =
+      deserializeSavedBuildWithReport(PRE_F4_SAVED_BUILD_JSON);
+    expect(droppedEntries).toEqual([]);
+    expect(clearedSynergyRefs).toEqual([]);
+    expect(saved.synergy).toHaveLength(8);
+    for (const synergySlot of saved.synergy) {
+      expect(synergySlot.disciplineLock, `Synergy Slot ${synergySlot.id}`).toBeNull();
+      // `undefined !== null` would fire a spurious violation on every slot of
+      // every old build — the type lie the P3 normalization exists to close.
+      expect(Object.prototype.hasOwnProperty.call(synergySlot, "disciplineLock")).toBe(true);
+    }
+    expect(saved.config.refundTrigger).toBe("legendByAnyMeans");
+    expect(saved.config.plusTwoSlotIds).toEqual([3, 6]);
+  });
+
+  it("8.2 refundTrigger: onFuse round-trips; junk still throws", () => {
+    const onFuse = PRE_F4_SAVED_BUILD_JSON.replace('"legendByAnyMeans"', '"onFuse"');
+    expect(deserializeSavedBuild(onFuse).config.refundTrigger).toBe("onFuse");
+    const junk = PRE_F4_SAVED_BUILD_JSON.replace('"legendByAnyMeans"', '"whenever"');
+    expect(() => deserializeSavedBuild(junk)).toThrowError(MalformedSavedBuildError);
+  });
+
+  it("8.3 plusTwoSlotIds accepts null / [] / [7] / [3,6]; rejects a non-id, a duplicate pair, and a 3-element array", () => {
+    const withPlusTwo = (value: string) =>
+      PRE_F4_SAVED_BUILD_JSON.replace('"plusTwoSlotIds":[3,6]', `"plusTwoSlotIds":${value}`);
+    for (const legal of ["null", "[]", "[7]", "[3,6]"]) {
+      expect(() => deserializeSavedBuild(withPlusTwo(legal)), legal).not.toThrow();
+    }
+    for (const illegal of ["[9]", '["7"]', "[3,3]", "[1,2,3]"]) {
+      expect(() => deserializeSavedBuild(withPlusTwo(illegal)), illegal).toThrowError(
+        MalformedSavedBuildError,
+      );
+    }
+  });
+
+  it("8.4 disciplineLock accepts absent / null / a valid Category; rejects a non-Category", () => {
+    const withLock = (value: string) =>
+      PRE_F4_SAVED_BUILD_JSON.replace('"magnitude":1,"fuseBadgeId"', `"magnitude":1,"disciplineLock":${value},"fuseBadgeId"`);
+    // Absent is legal — that is PRE_F4_SAVED_BUILD_JSON itself (8.1).
+    expect(() => deserializeSavedBuild(withLock("null"))).not.toThrow();
+    expect(() => deserializeSavedBuild(withLock('"Shooting"'))).not.toThrow();
+    expect(deserializeSavedBuild(withLock('"Shooting"')).synergy[0]?.disciplineLock).toBe(
+      "Shooting",
+    );
+    // "Dunking" is an ATTRIBUTE-flavoured word, not one of the six Categories.
+    expect(() => deserializeSavedBuild(withLock('"Dunking"'))).toThrowError(
+      MalformedSavedBuildError,
+    );
+  });
+
+  it("8.5 SAVED_BUILD_SCHEMA_VERSION is STILL 1 and MIGRATIONS is STILL empty", () => {
+    // Asserted LITERALLY: a well-meaning bump is the single change that would
+    // brick every existing autosave. All four F4 persisted-shape changes are
+    // backward compatible by construction and need no migration.
+    expect(SAVED_BUILD_SCHEMA_VERSION).toBe(1);
+    expect(Object.keys(MIGRATIONS)).toEqual([]);
+  });
+
+  /**
+   * 8.6 [F4/A1] THE ROUND TRIP THAT FAILED BEFORE A1 — the highest-value test
+   * in the slice.
+   *
+   * Without A1 this fails on its SECOND deserialize with
+   * `MalformedSavedBuildError: at most 2 Synergy Slots may carry +2 (found 3)`
+   * — reproduced against the shipped code. That is the chain: slice E's ruled
+   * three-+2 state → toEnvelope verbatim → mount-time autosave with no dirty
+   * guard → validateSynergyShape throws on the next boot →
+   * readAutosaveWithReport swallows it → freshWorkingState() → the mount
+   * effect overwrites the user's build with an empty one.
+   *
+   * The two PERSISTED-SHAPE legs (autosave + named-build) live in
+   * tests/ui/f4-plus-two-roundtrip.test.tsx, because they need a DOM
+   * environment for localStorage and this file is node-env by config.
+   */
+  it("8.6 deserialize → normalize → serialize → DESERIALIZE AGAIN survives, and the cap is owned exactly once", () => {
+    const first = deserializeSavedBuild(PRE_F4_SAVED_BUILD_JSON);
+    const normalized = applyRatifiedMagnitudes(first.synergy);
+    expect(normalized.normalizedSynergySlotIds).toEqual([7]);
+
+    const envelope: SavedBuild = { ...first, synergy: normalized.synergySlots };
+    const text = serializeSavedBuild(envelope);
+
+    expect(() => deserializeSavedBuild(text)).not.toThrow();
+    const second = deserializeSavedBuild(text);
+    expect(plusTwoSynergySlotIds(second.synergy)).toEqual([3, 6, 7]);
+
+    const validation = validateLoadout({
+      loadout: second.loadout,
+      budgets: second.budgets,
+      synergySlots: second.synergy,
+      refundTrigger: second.config.refundTrigger,
+    });
+    const capErrors = validation.errors.filter(
+      (error) => error.kind === "tooManyPlusTwoSynergySlots",
+    );
+    expect(capErrors).toHaveLength(1);
   });
 });

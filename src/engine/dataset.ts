@@ -73,6 +73,8 @@ export function loadBadge(raw: RawBadge): Badge {
     name: raw.name,
     tier: raw.tier,
     category: raw.category,
+    description: raw.description,
+    isNew: raw.isNew,
     requirements: {
       heightMinInches: raw.requirements.heightMinInches,
       heightMaxInches: raw.requirements.heightMaxInches,

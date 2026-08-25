@@ -23,9 +23,11 @@
 import { useState } from "react";
 import { badgeById } from "../../engine/dataset";
 import {
+  RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS,
   assignSynergy,
   clearSynergy,
   effectiveLevel,
+  isRatifiedPlusTwo,
   synergyRoleFor,
   synergySlotDisabledByPreview,
 } from "../../engine/synergy";
@@ -37,6 +39,7 @@ import type {
   SynergySlot,
   SynergySlotId,
 } from "../../engine/types";
+import type { Category } from "../../engine/vocabulary";
 import { CATEGORIES, LEVEL_LABELS } from "../../engine/vocabulary";
 import { Banner } from "../primitives/Banner";
 import { Chip } from "../primitives/Chip";
@@ -47,21 +50,36 @@ import { Toggle } from "../primitives/Toggle";
 
 const ROLE_LABELS: Record<SynergyRoleKind, string> = { fuse: "Fuse", reaction: "Reaction" };
 
-/** How many Synergy Slots the user has designated +2 (2 max — OQ-A1). */
+/** How many Synergy Slots carry +2 in total — RATIFIED plus user-designated
+ * (2 max — the sealed count; OQ-A1 covers only WHICH). */
 export function plusTwoDesignatedCount(synergySlots: readonly SynergySlot[]): number {
   return synergySlots.filter((synergySlot) => synergySlot.magnitude === 2).length;
 }
+
+/** F4: how many +2 designations remain for the USER, once the ratified set is
+ * accounted for. Synergy Slot 7 is 2K's; one is left to designate. */
+const USER_DESIGNATABLE_PLUS_TWO = 2 - RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS.length;
 
 export interface PlusTwoDesignatorProps {
   designatedCount: number;
 }
 
-/** The standing banner — persistent while OQ-A1 is unresolved. */
+/** The standing banner — persistent while OQ-A1 is unresolved. F4 re-cut the
+ * copy and the counter to the REMAINING budget: Synergy Slot 7's +2 is
+ * ratified data, so only one designation is left to the user. The banner
+ * itself retires only when the second +2 is published (scope.md §6 OQ-A1). */
 export function PlusTwoDesignator({ designatedCount }: PlusTwoDesignatorProps) {
+  const userDesignated = Math.max(
+    0,
+    designatedCount - RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS.length,
+  );
   return (
     <Banner variant="warning">
-      2 of these 8 are +2 — 2K hasn't published which. Designate them here.{" "}
-      <span className="num plus-two-counter">+2 designated: {designatedCount} of 2</span>
+      {USER_DESIGNATABLE_PLUS_TWO} more Synergy Slot can be +2 — 2K hasn&apos;t published which.
+      Designate it here.{" "}
+      <span className="num plus-two-counter">
+        +2 designated: {userDesignated} of {USER_DESIGNATABLE_PLUS_TWO}
+      </span>
     </Banner>
   );
 }
@@ -75,6 +93,8 @@ interface SynergySlotRowProps {
   designatedCount: number;
   onToggleUnlocked: (synergySlotId: SynergySlotId, unlocked: boolean) => void;
   onMagnitudeChange: (synergySlotId: SynergySlotId, magnitude: 1 | 2) => void;
+  /** F4: the Build Specialization discipline for Synergy Slot 7, or null. */
+  onDisciplineLockChange: (synergySlotId: SynergySlotId, lock: Category | null) => void;
   /** badgeId, or null to clear the position. */
   onPick: (synergySlotId: SynergySlotId, roleKind: SynergyRoleKind, badgeId: string | null) => void;
 }
@@ -107,6 +127,17 @@ function pickerGroups(
           role.synergySlotId === synergySlot.id
             ? `${base} — already this Synergy Slot's ${ROLE_LABELS[role.kind]}`
             : `${base} — already ${ROLE_LABELS[role.kind]} in Synergy Slot ${role.synergySlotId}`;
+      } else if (
+        synergySlot.disciplineLock !== null &&
+        badge.category !== synergySlot.disciplineLock
+      ) {
+        // F4 discipline lock. The picker READS the lock off the slot; the
+        // rule itself is the engine's (assignSynergy refuses the assignment).
+        // Off-discipline PURCHASED badges are shown DISABLED with the reason
+        // in the label — omission is reserved for unpurchased badges, and a
+        // user whose badge silently vanished will assume a bug.
+        disabled = true;
+        label = `${base} — ${synergySlot.disciplineLock} badges only in this Synergy Slot`;
       }
       options.push({ value: badge.id, label, disabled });
     }
@@ -124,11 +155,22 @@ export function SynergySlotRow({
   designatedCount,
   onToggleUnlocked,
   onMagnitudeChange,
+  onDisciplineLockChange,
   onPick,
 }: SynergySlotRowProps) {
   // THE canonical predicate (engine): never hand-negate synergySlotActive.
   const previewDisabled = synergySlotDisabledByPreview(synergySlot, overlay);
   const plusTwoBlocked = designatedCount >= 2 && synergySlot.magnitude !== 2;
+  /** F4: is this Synergy Slot's +2 RATIFIED data rather than a user
+   * preference? The UI READS the engine predicate; it never recomputes the
+   * membership (seed: Working agreements — every rule lives in the engine).
+   * The `disabled` attribute below is an AFFORDANCE; the INVARIANT lives in
+   * handleMagnitudeChange, which reads the same predicate. */
+  const ratifiedPlusTwo = isRatifiedPlusTwo(synergySlot.id);
+  const ratifiedReasonId = `synergy-ratified-${synergySlot.id}`;
+  /** Only the ratified Build Specialization Synergy Slot offers a discipline
+   * control; every other Synergy Slot is permanently interchangeable. */
+  const offersDisciplineLock = ratifiedPlusTwo;
 
   const state = { loadout, synergySlots: allSynergySlots };
   const committed: OverlayState = { reactionsActive: false, seasonReset: false };
@@ -197,15 +239,43 @@ export function SynergySlotRow({
           legend="Boost"
           options={["+1", "+2"] as const}
           value={synergySlot.magnitude === 2 ? "+2" : "+1"}
+          describedBy={ratifiedPlusTwo ? ratifiedReasonId : undefined}
           onChange={(picked) => {
             onMagnitudeChange(synergySlot.id, picked === "+2" ? 2 : 1);
           }}
           disabledOptions={
-            plusTwoBlocked
-              ? { "+2": "Only 2 Synergy Slots can be +2. Clear another first." }
-              : undefined
+            ratifiedPlusTwo
+              ? {
+                  "+1": `Synergy Slot ${synergySlot.id} is +2 — Build Specialization, confirmed 2026-08-26.`,
+                }
+              : plusTwoBlocked
+                ? { "+2": "Only 2 Synergy Slots can be +2. Clear another first." }
+                : undefined
           }
         />
+        {ratifiedPlusTwo ? (
+          <Chip variant="muted">
+            <span id={ratifiedReasonId}>
+              +2 — Build Specialization, confirmed 2026-08-26
+            </span>
+          </Chip>
+        ) : null}
+        {offersDisciplineLock ? (
+          <Select
+            label="Build Specialization discipline"
+            value={synergySlot.disciplineLock ?? ""}
+            onChange={(picked) => {
+              onDisciplineLockChange(synergySlot.id, picked === "" ? null : (picked as Category));
+            }}
+            options={[
+              { value: "", label: "Not set" },
+              ...CATEGORIES.map((category) => ({ value: category, label: category })),
+            ]}
+          />
+        ) : null}
+        {synergySlot.disciplineLock !== null ? (
+          <Chip variant="muted">Locked to {synergySlot.disciplineLock}</Chip>
+        ) : null}
         <span className="synergy-row__unlock">
           <Toggle
             label="Unlocked"
@@ -241,6 +311,14 @@ export interface SynergyPanelProps {
   loadout: readonly LoadoutEntry[];
   dataset: BadgeDataset;
   overlay: OverlayState;
+  /**
+   * [F4/A2] Did THIS load normalize a ratified Synergy Slot's magnitude?
+   * Threaded from App.tsx's `fromSaved` at all three reload routes (boot,
+   * named-build load, import) — false on a fresh build and on a build that
+   * already carried the ratified value, so the disclosure is a DISCLOSURE
+   * and not decoration.
+   */
+  ratifiedMagnitudeNormalized?: boolean;
   onSynergySlotsChange: (synergySlots: SynergySlot[]) => void;
 }
 
@@ -249,6 +327,7 @@ export function SynergyPanel({
   loadout,
   dataset,
   overlay,
+  ratifiedMagnitudeNormalized = false,
   onSynergySlotsChange,
 }: SynergyPanelProps) {
   const [announcement, setAnnouncement] = useState("");
@@ -263,12 +342,29 @@ export function SynergyPanel({
   };
 
   const handleMagnitudeChange = (synergySlotId: SynergySlotId, magnitude: 1 | 2) => {
+    // [F4/N9] The RATIFIED +2 is not user-removable, and that rule lives in
+    // the ENGINE (isRatifiedPlusTwo) — this handler READS it. A `disabled`
+    // attribute is an affordance, not an invariant; without this line a
+    // programmatic call would happily set Synergy Slot 7 back to +1.
+    if (magnitude === 1 && isRatifiedPlusTwo(synergySlotId)) return;
     // The +2 cap is already enforced by the disabled radio (invariant class);
     // this guard only backstops a programmatic call.
     if (magnitude === 2 && designatedCount >= 2) return;
     onSynergySlotsChange(
       synergySlots.map((synergySlot) =>
         synergySlot.id === synergySlotId ? { ...synergySlot, magnitude } : synergySlot,
+      ),
+    );
+  };
+
+  /** F4: set (or clear) a Synergy Slot's Build Specialization discipline.
+   * NEVER auto-clears an assignment that the new lock invalidates — H8
+   * forbids silently re-validating a plan away, so the resulting state is
+   * REPORTED by validateLoadout and disclosed in the Summary panel. */
+  const handleDisciplineLockChange = (synergySlotId: SynergySlotId, lock: Category | null) => {
+    onSynergySlotsChange(
+      synergySlots.map((synergySlot) =>
+        synergySlot.id === synergySlotId ? { ...synergySlot, disciplineLock: lock } : synergySlot,
       ),
     );
   };
@@ -282,7 +378,7 @@ export function SynergyPanel({
     const result =
       badgeId === null
         ? clearSynergy(state, synergySlotId, roleKind)
-        : assignSynergy(state, synergySlotId, roleKind, badgeId);
+        : assignSynergy(state, synergySlotId, roleKind, badgeId, dataset);
     if (!result.ok) {
       // The pickers never offer an invalid option (H4 invariant class), so
       // this is unreachable through the UI; announce rather than mutate.
@@ -308,6 +404,19 @@ export function SynergyPanel({
 
   return (
     <div className="synergy-panel">
+      {/* [F4/A2] The ratification disclosure. VISIBLE, PERSISTENT PLAIN TEXT
+          — deliberately NOT a live region (no role="status", no aria-live):
+          it describes a STATE, not a discrete user action, and design-spec §6
+          budgets exactly three live regions, which F4 does not extend. A
+          screen reader reaches it by normal traversal, which is correct for a
+          state description. It also needs no dismiss control: states are not
+          events. */}
+      {ratifiedMagnitudeNormalized ? (
+        <p className="synergy-panel__ratified-note">
+          Synergy Slot {RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS.join(", ")} is now +2 — 2K&apos;s Build
+          Specialization reward, confirmed 2026-08-26.
+        </p>
+      ) : null}
       <PlusTwoDesignator designatedCount={designatedCount} />
       {synergySlots.map((synergySlot) => (
         <SynergySlotRow
@@ -320,6 +429,7 @@ export function SynergyPanel({
           designatedCount={designatedCount}
           onToggleUnlocked={handleToggleUnlocked}
           onMagnitudeChange={handleMagnitudeChange}
+          onDisciplineLockChange={handleDisciplineLockChange}
           onPick={handlePick}
         />
       ))}

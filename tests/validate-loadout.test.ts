@@ -221,7 +221,6 @@ describe("F1 — tooManyPlusTwoSynergySlots (H4 invariant class, the sealed +2 c
       synergySlots: synergySlotsWith({
         2: { magnitude: 2 },
         5: { magnitude: 2 },
-        7: { magnitude: 2 },
       }),
       refundTrigger: "legendByAnyMeans",
     };
@@ -235,15 +234,102 @@ describe("F1 — tooManyPlusTwoSynergySlots (H4 invariant class, the sealed +2 c
   });
 
   it("EXACTLY two magnitude-2 synergy slots stays legal — zero errors", () => {
+    // [F4] Synergy Slot 7 is a RATIFIED +2, so the defaults already carry one.
+    // "Exactly two" is now slot 7 plus ONE user designation.
     const state: SynergyLedgerState = {
       loadout: [{ badgeId: "float-game", purchasedLevel: "gold" }],
       budgets,
       synergySlots: synergySlotsWith({
         2: { magnitude: 2 },
-        5: { magnitude: 2 },
       }),
       refundTrigger: "legendByAnyMeans",
     };
     expect(validateLoadout(state).errors).toEqual([]);
+  });
+});
+
+describe("F4 slice B — badgeCategoryViolatesDisciplineLock (HARD, one per POSITION)", () => {
+  const budgets = makeBudgets(16, 3);
+
+  it("reports one violation per offending position, naming both categories", () => {
+    const state: SynergyLedgerState = {
+      loadout: [
+        { badgeId: "deadeye", purchasedLevel: "gold" },
+        { badgeId: "glove", purchasedLevel: "gold" },
+      ],
+      budgets,
+      synergySlots: synergySlotsWith({
+        7: {
+          unlocked: true,
+          disciplineLock: "Finishing",
+          fuseBadgeId: "deadeye",
+          reactionBadgeId: "glove",
+        },
+      }),
+      refundTrigger: "legendByAnyMeans",
+    };
+    const violations = validateLoadout(state).errors.filter(
+      (error) => error.kind === "badgeCategoryViolatesDisciplineLock",
+    );
+    expect(violations).toEqual([
+      {
+        kind: "badgeCategoryViolatesDisciplineLock",
+        synergySlotId: 7,
+        role: "fuse",
+        badgeId: "deadeye",
+        badgeCategory: "Shooting",
+        disciplineLock: "Finishing",
+      },
+      {
+        kind: "badgeCategoryViolatesDisciplineLock",
+        synergySlotId: 7,
+        role: "reaction",
+        badgeId: "glove",
+        badgeCategory: "Defense",
+        disciplineLock: "Finishing",
+      },
+    ]);
+  });
+
+  it("a matching discipline, and a null lock, both report nothing", () => {
+    const base = {
+      loadout: [{ badgeId: "float-game", purchasedLevel: "gold" as const }],
+      budgets,
+      refundTrigger: "legendByAnyMeans" as const,
+    };
+    for (const lock of ["Finishing", null] as const) {
+      const state: SynergyLedgerState = {
+        ...base,
+        synergySlots: synergySlotsWith({
+          7: { unlocked: true, disciplineLock: lock, fuseBadgeId: "float-game" },
+        }),
+      };
+      expect(
+        validateLoadout(state).errors.filter(
+          (error) => error.kind === "badgeCategoryViolatesDisciplineLock",
+        ),
+        String(lock),
+      ).toEqual([]);
+    }
+  });
+
+  it("it is an ERROR (HARD), never a warning — a SOFT lock could not be enforced in assignSynergy at all", () => {
+    const state: SynergyLedgerState = {
+      loadout: [{ badgeId: "deadeye", purchasedLevel: "gold" }],
+      budgets,
+      synergySlots: synergySlotsWith({
+        7: { unlocked: true, disciplineLock: "Finishing", fuseBadgeId: "deadeye" },
+      }),
+      refundTrigger: "legendByAnyMeans",
+    };
+    const validation = validateLoadout(state);
+    expect(
+      validation.errors.some((e) => e.kind === "badgeCategoryViolatesDisciplineLock"),
+    ).toBe(true);
+    // The three-class taxonomy: the lock is an INVARIANT, so it can only
+    // ever land in `errors`. Nothing about it may appear in `warnings`.
+    expect(
+      validation.warnings.some((warning) => String(warning.kind).includes("Discipline")),
+    ).toBe(false);
   });
 });

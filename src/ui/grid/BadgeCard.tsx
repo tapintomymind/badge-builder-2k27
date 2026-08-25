@@ -372,6 +372,11 @@ export function BadgeCard(props: BadgeCardProps) {
           </Chip>
         ) : null}
         {overBadgeSlotsIfBought ? <Chip variant="warning">Would go over Badge Slots</Chip> : null}
+        {/* F4: the official page's NEW flag. `info` is the EXISTING Chip
+            variant — F4 does not invent one. It is the same variant the
+            Reaction role chip uses; that collision is a Designer ask, not an
+            implementer decision (raised in the F4 reportback). */}
+        {badge.isNew ? <Chip variant="info">NEW</Chip> : null}
         <Chip variant="tier">{badge.tier}</Chip>
       </div>
       <div className="badge-card__meta">
@@ -379,6 +384,27 @@ export function BadgeCard(props: BadgeCardProps) {
         {formatHeightInches(badge.requirements.heightMinInches)}–
         {formatHeightInches(badge.requirements.heightMaxInches)}
       </div>
+      {/* F4 — the official one-line description behind a NATIVE <details>
+          (design-spec §10.3 + §10.8 item 1: the reveal control is F4's).
+          The collapsed state IS the 3-line clamp, which is CSS-only, so the
+          FULL string is always in the DOM and AT reads it ONCE. The body is
+          deliberately EMPTY: duplicating the text would double-announce it
+          on 53 cards.
+
+          stopPropagation is MANDATORY, not defensive: the card root carries
+          the pointer-cycle handler, so without it every expand of a
+          description would BUY A LEVEL. Same idiom as the pip-row fieldset
+          above. */}
+      <details
+        className="badge-card__desc"
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        <summary className="badge-card__desc-summary">
+          <span className="badge-card__desc-text">{badge.description}</span>
+        </summary>
+      </details>
       <LevelPipRow {...props} />
       <div className="badge-card__status">
         {statusText(badge, synergyState, overlay, role, purchased, effective)}

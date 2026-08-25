@@ -1,15 +1,33 @@
 /**
- * The 14 data-integrity assertions (scope.md §2.1). ALL 14 run against the
+ * The 17 data-integrity assertions (scope.md §2.1). ALL 17 run against the
  * parsed src/data/badges.json ONLY. None is a loader guard — the loader's
  * guards are arity-only, and the H3 synthetic fixtures deliberately violate
  * assertions 11/12 and MUST stay loadable.
  *
  * Two classes, deliberately labelled differently:
  *  - CONTRACT (1–6): the seed states them. A failure means the dataset is wrong.
- *  - TRIPWIRE (7–14): properties 2K never promised. A failure means 2K
+ *  - TRIPWIRE (7–17): properties 2K never promised. A failure means 2K
  *    published something new, and the response is ASK THE USER, not "fix" the
- *    data. Never edit badges.json by hand — fix badges.source.txt via the
- *    generator, or stop and ask.
+ *    data. Never edit badges.json by hand — fix badges.source.txt (or, for
+ *    F4's display payload, badges.enrichment.source.txt) via the generator,
+ *    or stop and ask.
+ *
+ * [F4/A3] CLAIM CORRECTION — read this before trusting the TRIPWIRE label on
+ * assertions 15–17 (scope.md §0 row 4 / §3 H7 / NB-7). It is tempting to say
+ * a failure here "means the official page said something different from what
+ * we transcribed." THAT OVER-CLAIMS THE DETECTION POWER, in exactly the way
+ * NB-7 was folded to correct:
+ *   - Byte-equality (tests/generate-badges.test.ts) proves only that
+ *     badges.json agrees with the ENRICHMENT FILE. A wrong enrichment file
+ *     regenerates into a wrong, fully-green badges.json.
+ *   - Join-by-name protects against a whole-file row shift (an unknown name
+ *     throws) but NOT against a description typed against the wrong name
+ *     INSIDE the enrichment file: all 53 names still present, all
+ *     descriptions non-empty, counts unchanged, byte-equality green.
+ * The payload is display-only, so this is not a wrong-number defect — it is a
+ * limit on what these gates can see, and it is stated rather than papered
+ * over. The controls that DO reach it are the hand-transcribed
+ * tests/enrichment-spot-check.test.ts and its shuffle-invariance sibling.
  */
 
 import { describe, expect, it } from "vitest";
@@ -178,6 +196,86 @@ describe("data-integrity: TRIPWIRE assertions 7-14 (properties 2K never promised
       `${TRIPWIRE} (gameVersion must be null until 2K publishes — NEVER a guessed value)`,
     ).toBe(true);
     expect(["pre-release", "launch", "patched"], TRIPWIRE).toContain(dataset.confidence);
+  });
+
+  it("15. every badge carries a non-empty description (F4 display payload)", () => {
+    for (const badge of badges) {
+      expect(typeof badge.description, `${TRIPWIRE} (badge ${badge.id})`).toBe("string");
+      expect(badge.description.length, `${TRIPWIRE} (badge ${badge.id})`).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * [F4/A3] PIN THE NAMES, NOT THE COUNTS. A count-only assertion CANNOT SEE
+   * A SWAP between two badges in the same category: Shooting is 5-NEW-of-9,
+   * so swapping the flag between two Shooting badges leaves 5/2/1/3/5/3
+   * green, assertion 15 green, and the byte-equality regen test green. The
+   * 19-name literal closes the isNew half of that class outright.
+   *
+   * Hand-transcribed BY NAME from
+   * research/2k-official-myplayer-builder-2026-08-26.md §1.
+   */
+  const NEW_BADGE_NAMES: readonly string[] = [
+    // Shooting (5)
+    "Set and Fire",
+    "Arc Cadence",
+    "Static Middy",
+    "Smooth Operator",
+    "Quick Trigger",
+    // Finishing (2)
+    "Post Spin Catalyst",
+    "Ghost Stepper",
+    // Playmaking (1)
+    "Pace",
+    // Defense (3)
+    "Wall Up",
+    "Ankle Braces",
+    "Seatbelt",
+    // Rebounding (5) — the entire category
+    "Crasher",
+    "Possession Closer",
+    "Sync Snatcher",
+    "Boxout Boss",
+    "Breaker",
+    // Physicals (3)
+    "Work Horse",
+    "Flash",
+    "Bruiser",
+  ];
+
+  it("16. isNew is true on exactly the 19 NAMED badges (set comparison, not a count)", () => {
+    expect(NEW_BADGE_NAMES.length, `${TRIPWIRE} (the literal itself drifted)`).toBe(19);
+    const flagged = new Set(badges.filter((badge) => badge.isNew).map((badge) => badge.name));
+    expect(flagged, TRIPWIRE).toEqual(new Set(NEW_BADGE_NAMES));
+  });
+
+  it("16b. meta — the per-category NEW counts, DERIVED from the 19 names (never asserted independently)", () => {
+    const categoryOf = new Map(badges.map((badge) => [badge.name, badge.category]));
+    const derived: Record<string, number> = {};
+    for (const name of NEW_BADGE_NAMES) {
+      const category = categoryOf.get(name);
+      expect(category, `${TRIPWIRE} ("${name}" is not a badge in the dataset)`).toBeDefined();
+      derived[category as string] = (derived[category as string] ?? 0) + 1;
+    }
+    expect(derived, TRIPWIRE).toEqual({
+      Shooting: 5,
+      Finishing: 2,
+      Playmaking: 1,
+      Defense: 3,
+      Rebounding: 5,
+      Physicals: 3,
+    });
+  });
+
+  it("17. F4 provenance: dataVersion bumped, asOf 2026-08-26, source names the official page and its access date, gameVersion STILL null", () => {
+    expect(dataset.dataVersion, TRIPWIRE).toBe("2026-08-26.1");
+    expect(dataset.asOf, TRIPWIRE).toBe("2026-08-26");
+    expect(dataset.source, TRIPWIRE).toContain("official 2K MyPlayer Builder page");
+    expect(dataset.source, TRIPWIRE).toContain("accessed 2026-08-26");
+    expect(
+      dataset.gameVersion,
+      `${TRIPWIRE} (still unpublished — NEVER guessed)`,
+    ).toBeNull();
   });
 
   it("14. structural: ids unique + kebab-case of name; heightMin <= heightMax; levels = canonical 5-tuple; every tierCosts and perLevel array has length 4", () => {

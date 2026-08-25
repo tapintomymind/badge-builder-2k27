@@ -55,7 +55,11 @@ export const SAVED_BUILD_SCHEMA_VERSION = 1 as const;
  * definition — the first entry arrives with the first shape change (M5 is the
  * known candidate: SavedBuild.budgets stops being user-entered).
  */
-const MIGRATIONS: Readonly<Record<number, (old: Record<string, unknown>) => Record<string, unknown>>> =
+/** Exported so test 8.5 can assert LITERALLY that it is still empty. A
+ * well-meaning schemaVersion bump + migration entry is the single change that
+ * would brick every existing autosave, and F4's four persisted-shape changes
+ * are all backward compatible BY CONSTRUCTION — none needs one. */
+export const MIGRATIONS: Readonly<Record<number, (old: Record<string, unknown>) => Record<string, unknown>>> =
   {};
 
 /** Everything the caller provides; the envelope fields are stamped here. */
@@ -233,7 +237,6 @@ function validateSynergyShape(
   }
   const entries: Record<string, unknown>[] = [];
   const seenIds = new Set<number>();
-  let plusTwoCount = 0;
   value.forEach((raw: unknown, index: number) => {
     if (!isRecord(raw)) {
       problems.push(`synergy[${index}] must be an object`);
@@ -261,8 +264,18 @@ function validateSynergyShape(
     const magnitude = raw["magnitude"];
     if (magnitude !== 1 && magnitude !== 2) {
       problems.push(`synergy[${index}].magnitude must be 1 or 2`);
-    } else if (magnitude === 2) {
-      plusTwoCount += 1;
+    }
+    // [F4/P3] disciplineLock: ABSENT is legal (every pre-F4 file), null is
+    // legal, one of the six CATEGORIES is legal, anything else is a problem.
+    // Absent normalizes to null in the reassembly below, BEFORE the `...raw`
+    // spread can leak `undefined` into a declared `Category | null`.
+    const disciplineLock = raw["disciplineLock"];
+    if (
+      disciplineLock !== undefined &&
+      disciplineLock !== null &&
+      !(CATEGORIES as readonly string[]).includes(disciplineLock as string)
+    ) {
+      problems.push(`synergy[${index}].disciplineLock must be absent, null, or a Category`);
     }
     for (const roleField of ["fuseBadgeId", "reactionBadgeId"] as const) {
       const reference = raw[roleField];
@@ -273,11 +286,20 @@ function validateSynergyShape(
     }
     entries.push(raw);
   });
-  if (plusTwoCount > MAX_PLUS_TWO_SYNERGY_SLOTS) {
-    problems.push(
-      `at most ${MAX_PLUS_TWO_SYNERGY_SLOTS} Synergy Slots may carry +2 (found ${plusTwoCount})`,
-    );
-  }
+  // [F4/A1] NO +2 CAP CHECK HERE, DELIBERATELY. The cap has exactly ONE
+  // owner: validateLoadout's `tooManyPlusTwoSynergySlots` HardViolation
+  // (src/engine/validate-loadout.ts — see the matching comment there),
+  // already rendered in SummaryPanel.
+  //
+  // WHY IT WAS REMOVED: F4 ratifies Synergy Slot 7 as a +2, so a pre-F4 build
+  // that already designated two OTHER Synergy Slots normalizes to THREE at
+  // load — a state F4 is ruled to DISCLOSE (H8: never un-designate a user's
+  // choice). With a throw here, that ruled state was written straight back by
+  // the mount-time autosave and REFUSED on the next boot, the read swallowed
+  // the throw, and the app overwrote the user's build with an empty one.
+  //
+  // The deserializer validates SHAPE. validateLoadout validates RULES. A
+  // state ruled DISCLOSABLE must never be a state the deserializer REFUSES.
   return entries;
 }
 
@@ -286,29 +308,41 @@ function validateConfig(problems: string[], value: unknown): void {
     problems.push("config must be an object");
     return;
   }
+  // [F4/P1] WIDENED AS A STRICT SUPERSET: "onFuse" is the new default and
+  // every pre-F4 value stays legal, so a pre-F4 SavedBuild still deserializes
+  // with zero problems. Unwidened, the flipped default would have written an
+  // autosave this very function refuses on the next boot.
   const refundTrigger = value["refundTrigger"];
   if (
+    refundTrigger !== "onFuse" &&
     refundTrigger !== "legendByAnyMeans" &&
     refundTrigger !== "legendByPermanentBoostOnly" &&
     refundTrigger !== "hofOrAbove"
   ) {
     problems.push(
-      "config.refundTrigger must be legendByAnyMeans, legendByPermanentBoostOnly, or hofOrAbove",
+      "config.refundTrigger must be onFuse, legendByAnyMeans, legendByPermanentBoostOnly, or hofOrAbove",
     );
   }
   const budgetStrategy = value["budgetStrategy"];
   if (budgetStrategy !== "manual" && budgetStrategy !== "derived") {
     problems.push("config.budgetStrategy must be manual or derived");
   }
+  // [F4/P2] WIDENED AS A STRICT SUPERSET: null, or 0-2 DISTINCT Synergy Slot
+  // ids (the pre-F4 rule was "exactly 2 distinct", so `[3,6]` still passes).
+  // The total-across-ratified-and-designated cap is NOT enforced here — that
+  // is validateLoadout's, for the same reason the +2 slot cap is (see
+  // validateSynergyShape above).
   const plusTwoSlotIds = value["plusTwoSlotIds"];
   if (plusTwoSlotIds !== null) {
     const valid =
       Array.isArray(plusTwoSlotIds) &&
-      plusTwoSlotIds.length === 2 &&
+      plusTwoSlotIds.length <= MAX_PLUS_TWO_SYNERGY_SLOTS &&
       plusTwoSlotIds.every(isSynergySlotId) &&
-      plusTwoSlotIds[0] !== plusTwoSlotIds[1];
+      new Set(plusTwoSlotIds).size === plusTwoSlotIds.length;
     if (!valid) {
-      problems.push("config.plusTwoSlotIds must be null or two distinct Synergy Slot ids");
+      problems.push(
+        `config.plusTwoSlotIds must be null or up to ${MAX_PLUS_TWO_SYNERGY_SLOTS} distinct Synergy Slot ids`,
+      );
     }
   }
 }
@@ -360,6 +394,11 @@ function validateBody(
   const synergy = shapedSynergy.map((raw) => {
     // Spread first: unknown future fields round-trip OPAQUELY (M1 carve-out).
     const healed: Record<string, unknown> = { ...raw };
+    // [F4/P3] Normalize an ABSENT disciplineLock to null BEFORE anything can
+    // read it. The opaque `...raw` spread would otherwise leave the field
+    // simply missing on a pre-F4 file, and `undefined !== null` would fire a
+    // spurious violation on every slot of every old build.
+    if (healed["disciplineLock"] === undefined) healed["disciplineLock"] = null;
     for (const roleKind of ["fuse", "reaction"] as const) {
       const roleField = roleKind === "fuse" ? "fuseBadgeId" : "reactionBadgeId";
       const reference = raw[roleField] as string | null;

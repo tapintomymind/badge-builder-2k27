@@ -1,0 +1,53 @@
+Post Fade Phenom |  | Post fades and hop shots more accurate
+Deadeye |  | Reduces contest penalty on jump shots
+Limitless Range |  | Extends effective three-point range
+Mini Marksman |  | Helps shorter shooters over tall defenders
+Set and Fire | NEW | Stand-still (feet-set) three-pointers boosted
+Arc Cadence | NEW | Moving/pull-up three-pointers improved
+Static Middy | NEW | Stand-still mid-range accuracy boosted
+Smooth Operator | NEW | Moving/pull-up mid-range improved
+Quick Trigger | NEW | No-dip jump shots more successful
+Aerial Wizard |  | Alley-oop and putback finishing
+Float Game |  | Floater finishing
+Layup Mixmaster |  | Acrobatic/fancy layup conversions
+Paint Prodigy |  | Quick, effective paint scoring
+Physical Finisher |  | Contact layup conversions
+Posterizer |  | Dunking on defenders
+Rise Up |  | Standing dunks in the paint
+Hook Specialist |  | Post hook accuracy
+Post Powerhouse |  | Backdowns and drop steps stronger
+Post Spin Catalyst | NEW | Post spins, reduced strip chance
+Ghost Stepper | NEW | Step-through layups more effective
+Bail Out |  | Pass accuracy out of shots/double teams
+Break Starter |  | Deep outlet passes after rebounds
+Dimer |  | Boosts teammate shot % off assists
+Versatile Visionary |  | Threads tight passes and alley-oops
+Ankle Assassin |  | Breakdowns/crossovers more effective
+Handles for Days |  | Less energy drain from dribble chains
+Lightning Launch |  | Faster perimeter attack launches
+Strong Handle |  | Resists dribble interference from contact
+Unpluckable |  | Resists steal attempts
+Pace | NEW | Faster sprint speed with ball
+Off-Ball Pest |  | Harder to screen/pass around off-ball
+High-Flying Denier |  | Chase-down block speed and leap
+Paint Patroller |  | Rim blocks and interior contests
+Post Lockdown |  | Post defense, more strip chance
+Wall Up | NEW | Hands-up paint contests more effective
+Pick Dodger |  | Navigates through/around screens
+Challenger |  | Well-timed perimeter contests
+Immovable Enforcer |  | Defensive strength vs drivers/finishers
+Ankle Braces | NEW | Less susceptible to ankle-breakers
+Seatbelt | NEW | Body-up defense, disrupts drives
+Glove |  | Steals from handlers and layups
+Interceptor |  | Pass tips and interceptions
+Crasher | NEW | Offensive rebound tracking/grabbing
+Possession Closer | NEW | Defensive rebound grabbing
+Sync Snatcher | NEW | Timing-based vertical/rebound boost
+Boxout Boss | NEW | Better boxouts (as the boxer)
+Breaker | NEW | Breaks opponent boxouts
+Slippery Off-Ball |  | Navigates traffic off screens
+Pogo Stick |  | Quick consecutive jumps
+Work Horse | NEW | Loose-ball speed and hustle
+Flash | NEW | Faster off-ball movement in transition
+Bruiser | NEW | Drains opponent energy via contact
+Brick Wall |  | Screen effectiveness and impact

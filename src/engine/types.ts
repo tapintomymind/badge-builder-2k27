@@ -47,6 +47,15 @@ export interface RawBadge {
   name: string;
   tier: Tier;
   category: Category;
+  /** The official page's one-line ability summary (F4). Display only — it
+   * gates nothing. Joined by NAME from badges.enrichment.source.txt; the
+   * generator throws before an absent value can exist, so this is REQUIRED
+   * rather than optional (an optional field would model a state the pipeline
+   * forbids). */
+  description: string;
+  /** The official page's NEW flag (F4). Display only — no filter, no sort,
+   * no grouping. */
+  isNew: boolean;
   requirements: RawBadgeRequirements;
 }
 
@@ -88,6 +97,10 @@ export interface Badge {
   name: string;
   tier: Tier;
   category: Category;
+  /** See RawBadge.description — required, display only. */
+  description: string;
+  /** See RawBadge.isNew — required, display only. */
+  isNew: boolean;
   requirements: BadgeRequirements;
 }
 
@@ -153,9 +166,21 @@ export interface SynergySlot {
   unlocked: boolean;
   /** Synergy slots 1–4 are temporary (season reset); 5–8 permanent. */
   permanence: "temporary" | "permanent";
-  /** +1 or +2. Which two synergy slots are +2 is TBD — config `plusTwoSlotIds`
-   * stays null until the user designates them. NEVER guessed. */
+  /** +1 or +2. Synergy Slot 7 is a RATIFIED +2 (Build Specialization Level
+   * 10 — see RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS). WHICH further Synergy Slot
+   * carries the second +2 is still unpublished: the user designates it via
+   * the config `plusTwoSlotIds` seam. NEVER guessed. */
   magnitude: 1 | 2;
+  /**
+   * F4 (RATIFIED, official 2K MyPlayer Builder page + user ratification
+   * 2026-08-26): Build Specialization Synergy Slots hold only badges of
+   * their own discipline; every other Synergy Slot is interchangeable.
+   * null = interchangeable — the correct and PERMANENT value for Synergy
+   * Slots 1-6 and 8, and the pre-selection value for Synergy Slot 7 (whose
+   * discipline the planner cannot know, so the user picks it).
+   * Enforced HARD in assignSynergy + validateLoadout; never auto-cleared.
+   */
+  disciplineLock: Category | null;
   fuseBadgeId: string | null;
   reactionBadgeId: string | null;
 }
@@ -197,9 +222,14 @@ export type LedgerBasis = "current" | "postSeasonReset";
 // Config seams (seed: Open items — implement behind config, don't guess).
 // ---------------------------------------------------------------------------
 
-/** Seed Open item #1: the refund trigger condition is unconfirmed. Default is
- * the seed's stated default, `legendByAnyMeans`. */
+/**
+ * Seed Open item #1 is RESOLVED (F4). The official 2K MyPlayer Builder page
+ * states that placing a badge in a Fuse position "entirely frees up the Badge
+ * Tokens" spent on it; the user ratified it 2026-08-26. `onFuse` is therefore
+ * the DEFAULT. The three Legend/HOF variants remain selectable alternates.
+ */
 export type RefundTrigger =
+  | "onFuse"
   | "legendByAnyMeans"
   | "legendByPermanentBoostOnly"
   | "hofOrAbove";
@@ -210,9 +240,15 @@ export type BudgetStrategy = "manual" | "derived";
 
 export interface AppConfig {
   refundTrigger: RefundTrigger;
-  /** Seed Open item #2: which two synergy slots carry +2. null until the user
-   * designates exactly two. NEVER guessed. */
-  plusTwoSlotIds: readonly [SynergySlotId, SynergySlotId] | null;
+  /**
+   * Seed Open item #2, half-resolved (F4): Synergy Slot 7 IS a +2 (Build
+   * Specialization Level 10 — RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS in
+   * src/engine/synergy.ts). This seam designates Synergy Slots the user
+   * picked as +2 BEYOND the ratified set. Retyped from the old 2-tuple to a
+   * plain readonly array for shape only — see src/config/index.ts for why
+   * NOTHING writes it today.
+   */
+  plusTwoSlotIds: readonly SynergySlotId[] | null;
   budgetStrategy: BudgetStrategy;
 }
 

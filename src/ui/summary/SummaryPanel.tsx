@@ -23,7 +23,12 @@
 import { useEffect, useRef } from "react";
 import { badgeById } from "../../engine/dataset";
 import type { ClearedSynergyRef } from "../../engine/serialization";
-import { defaultOverlay, effectiveLevel, synergyRoleFor } from "../../engine/synergy";
+import {
+  RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS,
+  defaultOverlay,
+  effectiveLevel,
+  synergyRoleFor,
+} from "../../engine/synergy";
 import type { CategoryLedgerReadout } from "../../engine/synergy-ledger";
 import type { HardViolation, LoadoutValidation } from "../../engine/validate-loadout";
 import type {
@@ -67,7 +72,15 @@ export function hardViolationText(error: HardViolation, dataset: BadgeDataset): 
     case "tooManyPlusTwoSynergySlots":
       return (
         `${error.plusTwoSynergySlotIds.length} Synergy Slots are designated +2 ` +
-        `(Synergy Slots ${error.plusTwoSynergySlotIds.join(", ")}) — at most ${error.maxAllowed} allowed.`
+        `(Synergy Slots ${error.plusTwoSynergySlotIds.join(", ")}) — at most ${error.maxAllowed} allowed. ` +
+        `Synergy Slot ${RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS.join(", ")} is 2K's ratified +2 ` +
+        `(Build Specialization), so it is not the one to clear.`
+      );
+    case "badgeCategoryViolatesDisciplineLock":
+      return (
+        `Synergy Slot ${error.synergySlotId} ${error.role === "fuse" ? "Fuse" : "Reaction"} ` +
+        `holds ${nameOf(error.badgeId)}, a ${error.badgeCategory} badge, but the Synergy Slot is ` +
+        `locked to ${error.disciplineLock}.`
       );
   }
 }
@@ -122,8 +135,15 @@ export function SummaryPanel({
     <div className="summary">
       {validation.errors.length > 0 ? (
         <Banner variant="danger">
-          <strong>Invalid loadout state</strong> — this can only come from an externally
-          edited or imported build:
+          {/* [F4/N6] The old lead-in read "this can only come from an
+              externally edited or imported build". That became FALSE the day
+              F4 shipped: Synergy Slot 7's ratified +2 can push a build the
+              user never exported and never edited over the +2 cap, from the
+              app's OWN upgrade. Misdirecting the user away from the real
+              cause, on the one surface H8 depends on for disclosure, is worse
+              than saying nothing. */}
+          <strong>Invalid loadout state</strong> — from an imported or externally edited
+          build, or from a data update that changed a ratified value:
           <ul className="summary__errors">
             {validation.errors.map((error, index) => (
               <li key={index}>{hardViolationText(error, dataset)}</li>

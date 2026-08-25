@@ -28,7 +28,7 @@
 import { shippedDataset } from "./dataset";
 import { categoryLedger } from "./ledger";
 import type { LedgerState } from "./ledger";
-import { boost, clampToLegend } from "./synergy";
+import { boost, clampToLegend, synergySlotActive } from "./synergy";
 import type {
   Budget,
   LedgerBasis,
@@ -93,6 +93,42 @@ export function ledgerEffectiveLevel(
   return clampToLegend(entry.purchasedLevel, boostAmount);
 }
 
+/**
+ * Does this entry's badge hold a LIVE FUSE role under the basis (F4, the
+ * `onFuse` trigger)? THE H2-critical line, three rulings in one expression:
+ *
+ *  1. It reuses `synergySlotActive` — the CANONICAL activity predicate —
+ *     rather than hand-negating it or re-deriving "unlocked and permanent".
+ *     That makes it STRUCTURALLY IMPOSSIBLE for the refund to disagree with
+ *     the boost math about whether a Synergy Slot is live:
+ *       basis "current"          ⇒ seasonReset false ⇒ every unlocked slot counts.
+ *       basis "postSeasonReset"  ⇒ seasonReset true  ⇒ a fuse role held in a
+ *                                  TEMPORARY Synergy Slot contributes nothing,
+ *                                  and its refund vanishes with it.
+ *  2. Only `fuseBadgeId` is consulted. REACTION ASSIGNMENTS FREE NOTHING, in
+ *     either basis — the page's only token-return mechanic is the Fuse
+ *     placement.
+ *  3. It reads the FULL slot array, never `ledgerEffectiveLevel`'s
+ *     `consideredSynergySlots` filter. That filter is specific to
+ *     `legendByPermanentBoostOnly`'s effective-level computation and has no
+ *     business in a role predicate.
+ *
+ * H2 IS NOT WEAKENED: the overlay is derived from `overlayForBasis(basis)`,
+ * total over two cases with `reactionsActive` a literal false in both. No
+ * ledger signature gains an OverlayState parameter.
+ */
+function isFusedForBasis(
+  state: SynergyLedgerState,
+  entry: LoadoutEntry,
+  basis: LedgerBasis,
+): boolean {
+  const overlay = overlayForBasis(basis);
+  return state.synergySlots.some(
+    (synergySlot) =>
+      synergySlot.fuseBadgeId === entry.badgeId && synergySlotActive(synergySlot, overlay),
+  );
+}
+
 /** The M1 LedgerState for a basis — the synergy-aware effective level wired
  * through the seam M1 shipped, with no M1 signature change. */
 function toLedgerState(state: SynergyLedgerState, basis: LedgerBasis): LedgerState {
@@ -101,6 +137,7 @@ function toLedgerState(state: SynergyLedgerState, basis: LedgerBasis): LedgerSta
     budgets: state.budgets,
     refundTrigger: state.refundTrigger,
     effectiveLevelFor: (entry) => ledgerEffectiveLevel(state, entry, basis),
+    isFusedFor: (entry) => isFusedForBasis(state, entry, basis),
   };
 }
 

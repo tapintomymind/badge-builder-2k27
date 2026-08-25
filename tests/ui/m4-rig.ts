@@ -44,6 +44,11 @@ export function makeRig(options: RigOptions = {}): SavedBuild {
     budgets: budgetsWith(options.budgets ?? {}),
     loadout: options.loadout ?? [],
     synergy,
-    config: defaultAppConfig,
+    // [F4/A4] The trigger is passed EXPLICITLY, never inherited from
+    // DEFAULT_REFUND_TRIGGER. F4 flipped that default to "onFuse"; a
+    // behavioural fixture that rides the default silently re-bases its
+    // arithmetic on every future flip. tests/config.test.ts is the ONLY
+    // file permitted to assert the default.
+    config: { ...defaultAppConfig, refundTrigger: "legendByAnyMeans" as const },
   };
 }

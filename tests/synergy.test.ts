@@ -27,6 +27,8 @@ import {
   synergyRoleFor,
   synergySlotActive,
   synergySlotDisabledByPreview,
+  applyRatifiedMagnitudes,
+  isRatifiedPlusTwo,
 } from "../src/engine/synergy";
 import type { SynergyState } from "../src/engine/synergy";
 import type { LoadoutEntry, OverlayState, SynergySlot, SynergySlotId } from "../src/engine/types";
@@ -70,20 +72,90 @@ describe("synergy slot model (seed: Synergy system)", () => {
     ]);
   });
 
-  it("OQ-A1 ruling: with plusTwoSlotIds null (the SHIPPED default) every synergy slot is magnitude 1 — no +2 pair is ever guessed", () => {
+  /**
+   * [F4/7.8] RE-DECIDED, not patched to green. This assertion previously read
+   * "every synergy slot is magnitude 1 — no +2 pair is ever guessed", which
+   * encoded the PRE-F4 ruling that nothing ships +2 by default. That ruling
+   * is superseded: Synergy Slot 7's +2 is now RATIFIED DATA (Build
+   * Specialization Level 10; official 2K MyPlayer Builder page + user
+   * ratification 2026-08-26) — it is no longer a guess, so the never-guess
+   * rule no longer applies to it.
+   *
+   * The half that SURVIVES verbatim: the SECOND +2 is still unpublished and
+   * is still never guessed. That is what the six magnitude-1 slots and the
+   * null designation seam now assert.
+   */
+  it("F4 7.1 — with userDesignated null (the SHIPPED default) Synergy Slot 7 is +2 (RATIFIED) and every other synergy slot is 1", () => {
     for (const synergySlot of createDefaultSynergySlots(null)) {
-      expect(synergySlot.magnitude).toBe(1);
+      expect(synergySlot.magnitude, `Synergy Slot ${synergySlot.id}`).toBe(
+        synergySlot.id === 7 ? 2 : 1,
+      );
     }
     for (const id of SYNERGY_SLOT_IDS) {
-      expect(magnitudeForSynergySlot(id, null)).toBe(1);
+      expect(magnitudeForSynergySlot(id, null), `Synergy Slot ${id}`).toBe(id === 7 ? 2 : 1);
     }
   });
 
-  it("once the user designates two ids, exactly those two are +2 (the seed's 6×(+1)/2×(+2) with the unpublished fact SUPPLIED)", () => {
+  it("F4 7.1 — createDefaultSynergySlots sets disciplineLock null on all eight (Synergy Slot 7's lock is USER-selected)", () => {
+    for (const synergySlot of createDefaultSynergySlots()) {
+      expect(synergySlot.disciplineLock).toBeNull();
+    }
+  });
+
+  it("the user designation seam adds a +2 ON TOP of the ratified set (the unpublished second +2 SUPPLIED, never guessed)", () => {
     // Hypothetical designation — exercises the seam, asserts nothing about 2K27.
-    const synergySlots = createDefaultSynergySlots([3, 8]);
-    expect(synergySlots.filter((s) => s.magnitude === 2).map((s) => s.id)).toEqual([3, 8]);
+    const synergySlots = createDefaultSynergySlots([3]);
+    expect(synergySlots.filter((s) => s.magnitude === 2).map((s) => s.id)).toEqual([3, 7]);
     expect(synergySlots.filter((s) => s.magnitude === 1)).toHaveLength(6);
+  });
+
+  it("F4 7.2/7.7 — the ratified +2 is an ENGINE predicate: isRatifiedPlusTwo(7) true, isRatifiedPlusTwo(3) false", () => {
+    expect(isRatifiedPlusTwo(7)).toBe(true);
+    for (const id of SYNERGY_SLOT_IDS) {
+      if (id === 7) continue;
+      expect(isRatifiedPlusTwo(id), `Synergy Slot ${id}`).toBe(false);
+    }
+  });
+
+  it("F4 7.2 — Synergy Slot 7 cannot be derived back to +1 by any designation, and un-designating a user slot returns it to +1", () => {
+    // No designation list can make slot 7 a +1 — it is data, not preference.
+    expect(magnitudeForSynergySlot(7, [])).toBe(2);
+    expect(magnitudeForSynergySlot(7, [3])).toBe(2);
+    // Un-designating slot 3 returns it to +1.
+    expect(magnitudeForSynergySlot(3, [3])).toBe(2);
+    expect(magnitudeForSynergySlot(3, [])).toBe(1);
+  });
+});
+
+describe("F4 — applyRatifiedMagnitudes (P4, the read-time projection)", () => {
+  it("overrides a persisted +1 on Synergy Slot 7 and REPORTS it", () => {
+    const stale = createDefaultSynergySlots().map((slot) =>
+      slot.id === 7 ? { ...slot, magnitude: 1 as const } : slot,
+    );
+    const report = applyRatifiedMagnitudes(stale);
+    expect(report.synergySlots.find((slot) => slot.id === 7)?.magnitude).toBe(2);
+    expect(report.normalizedSynergySlotIds).toEqual([7]);
+  });
+
+  it("reports NOTHING when Synergy Slot 7 already carried +2 — a disclosure that always renders is not a disclosure", () => {
+    const report = applyRatifiedMagnitudes(createDefaultSynergySlots());
+    expect(report.normalizedSynergySlotIds).toEqual([]);
+  });
+
+  it("[NIT-3] maps over the slots ACTUALLY PRESENT — a missing Synergy Slot 7 is NEVER synthesized", () => {
+    const short = createDefaultSynergySlots().filter((slot) => slot.id !== 7);
+    const report = applyRatifiedMagnitudes(short);
+    expect(report.synergySlots).toHaveLength(7);
+    expect(report.synergySlots.some((slot) => slot.id === 7)).toBe(false);
+    expect(report.normalizedSynergySlotIds).toEqual([]);
+  });
+
+  it("never mutates its input", () => {
+    const stale = createDefaultSynergySlots().map((slot) =>
+      slot.id === 7 ? { ...slot, magnitude: 1 as const } : slot,
+    );
+    applyRatifiedMagnitudes(stale);
+    expect(stale.find((slot) => slot.id === 7)?.magnitude).toBe(1);
   });
 });
 
@@ -346,6 +418,7 @@ describe("F1 — synergySlotDisabledByPreview (canonical predicate for the previ
             unlocked,
             permanence,
             magnitude: 1,
+            disciplineLock: null,
             fuseBadgeId: null,
             reactionBadgeId: null,
           };
@@ -375,10 +448,86 @@ describe("F1 — plusTwoSynergySlotIds + MAX_PLUS_TWO_SYNERGY_SLOTS (the sealed 
     expect(MAX_PLUS_TWO_SYNERGY_SLOTS).toBe(2);
   });
 
-  it("lists the magnitude-2 synergy slot ids in array order", () => {
-    expect(plusTwoSynergySlotIds(createDefaultSynergySlots())).toEqual([]);
+  /**
+   * [F4/7.8] RE-DECIDED, not patched to green. The old expectation was
+   * `[]` on the defaults, which encoded the pre-F4 ruling that no slot ships
+   * +2. Synergy Slot 7's +2 is now RATIFIED data, so the defaults legitimately
+   * contain one. The function's CONTRACT — "list the magnitude-2 ids in array
+   * order" — is unchanged and is what is still under test; only the fixture's
+   * truth changed.
+   */
+  it("lists the magnitude-2 synergy slot ids in array order (the defaults now contain the RATIFIED Synergy Slot 7)", () => {
+    expect(plusTwoSynergySlotIds(createDefaultSynergySlots())).toEqual([7]);
     expect(
       plusTwoSynergySlotIds(synergySlotsWith({ 3: { magnitude: 2 }, 6: { magnitude: 2 } })),
-    ).toEqual([3, 6]);
+    ).toEqual([3, 6, 7]);
+  });
+});
+
+describe("F4 slice B — the disciplineLock refusal in assignSynergy (RATIFIED, HARD)", () => {
+  // deadeye is Shooting; float-game is Finishing; glove is Defense.
+  const loadout: LoadoutEntry[] = [
+    { badgeId: "deadeye", purchasedLevel: "gold" },
+    { badgeId: "float-game", purchasedLevel: "gold" },
+  ];
+
+  function stateWithLock(lock: SynergySlot["disciplineLock"]): SynergyState {
+    return {
+      loadout,
+      synergySlots: synergySlotsWith({ 7: { unlocked: true, disciplineLock: lock } }),
+    };
+  }
+
+  it("a null lock accepts any discipline — Synergy Slots 1-6 and 8 are permanently interchangeable", () => {
+    const result = assignSynergy(stateWithLock(null), 7, "fuse", "float-game");
+    expect(result.ok).toBe(true);
+  });
+
+  it("a matching discipline is accepted", () => {
+    const result = assignSynergy(stateWithLock("Finishing"), 7, "fuse", "float-game");
+    expect(result.ok).toBe(true);
+  });
+
+  it("an off-discipline badge is REFUSED with a typed error carrying both categories", () => {
+    const result = assignSynergy(stateWithLock("Finishing"), 7, "fuse", "deadeye");
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        kind: "badgeCategoryViolatesDisciplineLock",
+        synergySlotId: 7,
+        badgeId: "deadeye",
+        badgeCategory: "Shooting",
+        disciplineLock: "Finishing",
+      },
+    });
+  });
+
+  it("BOTH role positions are checked — fuse and reaction are two separately-locked positions", () => {
+    // Citation strength: this is the reconciliation's ENDORSED READING of
+    // §D.2's "each" (§D.3 flags the token as ambiguous), not page text.
+    for (const roleKind of ["fuse", "reaction"] as const) {
+      const result = assignSynergy(stateWithLock("Finishing"), 7, roleKind, "deadeye");
+      expect(result.ok, roleKind).toBe(false);
+    }
+  });
+
+  it("the lock is checked LAST — an unpurchased target still reports targetBadgeNotPurchased", () => {
+    const result = assignSynergy(stateWithLock("Finishing"), 7, "fuse", "glove");
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "targetBadgeNotPurchased", badgeId: "glove" },
+    });
+  });
+
+  it("assignSynergy NEVER auto-clears — setting a lock afterwards leaves the assignment in place", () => {
+    // The reachable route is: assign while the lock is null, THEN set it. H8
+    // forbids silently re-validating a plan away, so the resulting state is
+    // reported by validateLoadout and disclosed, never resolved here.
+    const assigned = assignSynergy(stateWithLock(null), 7, "fuse", "deadeye");
+    expect(assigned.ok).toBe(true);
+    const locked = (assigned as { ok: true; synergySlots: SynergySlot[] }).synergySlots.map(
+      (slot) => (slot.id === 7 ? { ...slot, disciplineLock: "Finishing" as const } : slot),
+    );
+    expect(locked.find((slot) => slot.id === 7)?.fuseBadgeId).toBe("deadeye");
   });
 });

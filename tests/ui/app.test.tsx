@@ -141,7 +141,12 @@ describe("DriftBanner (H8): dataVersion mismatch on load", () => {
       budgets: zeroBudgets(),
       loadout: [{ badgeId: "float-game", purchasedLevel: "hof" }],
       synergy: createDefaultSynergySlots(null),
-      config: defaultAppConfig,
+      // [F4/A4] The trigger is passed EXPLICITLY, never inherited from
+      // DEFAULT_REFUND_TRIGGER. F4 flipped that default to "onFuse"; a
+      // behavioural fixture that rides the default silently re-bases its
+      // arithmetic on every future flip. tests/config.test.ts is the ONLY
+      // file permitted to assert the default.
+      config: { ...defaultAppConfig, refundTrigger: "legendByAnyMeans" as const },
     };
     expect(writeAutosave(oldPlan).ok).toBe(true);
 

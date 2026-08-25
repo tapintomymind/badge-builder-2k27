@@ -129,3 +129,25 @@ describe("ledger: refunds behind the refundTrigger config seam (seed Open item #
     expect(refunded(state, "Rebounding")).toBe(0);
   });
 });
+
+describe("F4 group 9.6 — M1 honesty: onFuse with no isFusedFor seam refunds nothing", () => {
+  it("a LedgerState carrying refundTrigger onFuse and NO isFusedFor refunds 0", () => {
+    // Honest M1 behaviour: no synergy exists at M1, so a badge cannot be
+    // fused, so the seam's default is `() => false` rather than a guess.
+    const state = makeState([{ badgeId: "deadeye", purchasedLevel: "hof" }], {
+      refundTrigger: "onFuse",
+    });
+    expect(state.isFusedFor).toBeUndefined();
+    expect(refunded(state, "Shooting")).toBe(0);
+    expect(remainingPoints(state, "Shooting")).toBe(16 - 7);
+  });
+
+  it("with the seam injected, onFuse refunds the full spent cost", () => {
+    const state = makeState([{ badgeId: "deadeye", purchasedLevel: "gold" }], {
+      refundTrigger: "onFuse",
+      isFusedFor: (entry) => entry.badgeId === "deadeye",
+    });
+    expect(refunded(state, "Shooting")).toBe(6);
+    expect(remainingPoints(state, "Shooting")).toBe(16);
+  });
+});

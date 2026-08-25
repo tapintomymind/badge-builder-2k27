@@ -4,9 +4,12 @@
  * this codebase. That eliminates the refund-then-downgrade double-count class
  * outright: the same state always yields the same numbers.
  *
- * Refund rule (seed): reaching the max level returns the tokens spent on that
- * badge to that badge's CATEGORY pool. The trigger condition is unconfirmed
- * (seed Open item #1) and lives behind the `refundTrigger` config seam.
+ * Refund rule (seed): tokens spent on a badge return to that badge's CATEGORY
+ * pool. The TRIGGER lives behind the `refundTrigger` config seam. F4 resolved
+ * seed Open item #1: the default is `onFuse` (official 2K MyPlayer Builder
+ * page + user ratification 2026-08-26) — placing a badge in a Fuse position
+ * frees its tokens. The three Legend/HOF triggers remain selectable.
+ * The AMOUNT and DESTINATION are unchanged by that flip.
  *
  * M1 scope note: zero synergy behavior exists yet, so the level a refund
  * trigger inspects comes through the `effectiveLevelFor` seam, which defaults
@@ -33,6 +36,15 @@ export interface LedgerState {
    * and legend-based triggers cannot fire — which is honest M1 behavior).
    */
   effectiveLevelFor?: (entry: LoadoutEntry) => Level;
+  /**
+   * F4 seam for the `onFuse` trigger: does this entry's badge hold a LIVE
+   * FUSE role under the basis being computed? Injected by
+   * synergy-ledger.ts's `toLedgerState`, exactly like `effectiveLevelFor`.
+   *
+   * M1 default: `() => false` — honest M1 behaviour, because no synergy
+   * exists at M1 and a badge cannot be fused.
+   */
+  isFusedFor?: (entry: LoadoutEntry) => boolean;
 }
 
 function effectiveLevelOf(state: LedgerState, entry: LoadoutEntry): Level {
@@ -41,9 +53,18 @@ function effectiveLevelOf(state: LedgerState, entry: LoadoutEntry): Level {
     : state.effectiveLevelFor(entry);
 }
 
+function isFusedOf(state: LedgerState, entry: LoadoutEntry): boolean {
+  return state.isFusedFor === undefined ? false : state.isFusedFor(entry);
+}
+
 function refundTriggered(state: LedgerState, entry: LoadoutEntry): boolean {
   const effective = effectiveLevelOf(state, entry);
   switch (state.refundTrigger) {
+    case "onFuse":
+      // ROLE-KEYED, not level-keyed (F4): the official page's only
+      // token-return mechanic is the Fuse placement. Magnitude and purchased
+      // level do not enter it.
+      return isFusedOf(state, entry);
     case "legendByAnyMeans":
       return effective === "legend";
     case "legendByPermanentBoostOnly":

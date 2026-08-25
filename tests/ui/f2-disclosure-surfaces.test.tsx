@@ -101,9 +101,14 @@ describe("C — HardViolations render in the validation surface", () => {
     expect(
       screen.getByText("Deadeye is both Fuse and Reaction in Synergy Slot 3."),
     ).toBeTruthy();
+    // [F4] The copy is EXTENDED to name Synergy Slot 7 as the ratified one and
+    // therefore NOT the one to clear — the over-cap state can now come from
+    // the app's own upgrade, so telling the user which +2 is not theirs to
+    // move is the difference between a disclosure and a riddle.
     expect(
       screen.getByText(
-        "3 Synergy Slots are designated +2 (Synergy Slots 1, 2, 3) — at most 2 allowed.",
+        "3 Synergy Slots are designated +2 (Synergy Slots 1, 2, 3) — at most 2 allowed. " +
+          "Synergy Slot 7 is 2K's ratified +2 (Build Specialization), so it is not the one to clear.",
       ),
     ).toBeTruthy();
   });

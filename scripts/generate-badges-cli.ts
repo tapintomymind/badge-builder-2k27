@@ -15,10 +15,14 @@ import { fileURLToPath } from "node:url";
 import { generate, serializeDataset } from "./generate-badges.ts";
 
 const SOURCE_PATH = new URL("../src/data/badges.source.txt", import.meta.url);
+/** F4: the second source file — the official page's descriptions + NEW flags.
+ * Read here, in the SOLE fs consumer; the pure parser never touches disk. */
+const ENRICHMENT_PATH = new URL("../src/data/badges.enrichment.source.txt", import.meta.url);
 const OUTPUT_PATH = new URL("../src/data/badges.json", import.meta.url);
 
 const sourceText = readFileSync(SOURCE_PATH, "utf8");
-const dataset = generate(sourceText);
+const enrichmentText = readFileSync(ENRICHMENT_PATH, "utf8");
+const dataset = generate(sourceText, enrichmentText);
 writeFileSync(OUTPUT_PATH, serializeDataset(dataset), "utf8");
 console.log(
   `generate-badges: wrote ${dataset.badges.length} badges to ${fileURLToPath(OUTPUT_PATH)} (dataVersion ${dataset.dataVersion})`,
