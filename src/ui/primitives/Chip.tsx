@@ -7,7 +7,8 @@ import type { ReactNode } from "react";
 
 export interface ChipProps {
   children: ReactNode;
-  variant?: "tier" | "level" | "warning" | "info" | "muted";
+  /** M4 adds `accent` (the Fuse role chip). */
+  variant?: "tier" | "level" | "warning" | "info" | "muted" | "accent";
   /** For the level variant: the level color token painted behind dark text. */
   color?: string;
 }

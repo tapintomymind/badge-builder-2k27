@@ -51,8 +51,10 @@ function renderCard(
 describe("BadgeCard — the effectiveLevel hard contract", () => {
   it("shows the BOOSTED level when a fuse is live, purchased pip unchanged", () => {
     // Float Game purchased Gold; synergy slot 5 (permanent) unlocked, fusing
-    // it +1. Under the neutral overlay the card must say HOF (effectiveLevel),
-    // while the radiogroup's checked value stays Gold (the purchase control).
+    // it +1. Under the neutral overlay the card's status must carry the
+    // effectiveLevel (HOF) — as the M4 synergy phrase `Fused to HOF`
+    // (design-spec §3.4) — while the radiogroup's checked value stays Gold
+    // (the purchase control).
     const badge = requireBadge("float-game");
     const build = makeBuild(78, 0, { close: 90 });
     const loadout: LoadoutEntry[] = [{ badgeId: "float-game", purchasedLevel: "gold" }];
@@ -62,7 +64,7 @@ describe("BadgeCard — the effectiveLevel hard contract", () => {
         : synergySlot,
     );
     renderCard(badge, build, { loadout, synergySlots });
-    expect(screen.getByText("Now HOF")).toBeTruthy();
+    expect(screen.getByText("Now Gold · Fused to HOF")).toBeTruthy();
     const gold = screen.getByRole("radio", { name: /^Gold, current level/ });
     expect((gold as HTMLInputElement).checked).toBe(true);
   });
