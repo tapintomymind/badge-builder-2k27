@@ -4099,3 +4099,238 @@ HOUSEKEEPING: a local-only branch `a5e-trial-merge` is left behind — its
 worktree is removed but branch deletion was permission-denied in this session.
 Safe to `git branch -D a5e-trial-merge`.
 ─────────────────────────────────────────────
+
+═════════════════════════════════════════════
+A5-E — the bonus Badge Slots / Badge Points layer · integration into dev · integration-complete
+Agent: Tier-2 integrator · 2026-08-25
+Source branch: a5-e-bonus-engine (tip ac0ba4e) · base dev @ 2e422c2
+Integration commits: 841c7b0 + 0edc86c (replayed from bd8c4ad + ac0ba4e) + this entry
+Branch dev · main untouched (444d034)
+─────────────────────────────────────────────
+
+WHAT LANDED
+The engine, persistence and composition half of scope.md §0.1 A5, unchanged in
+behaviour from the branch. `SavedBuild` gains `bonus: BonusBudget` — two
+build-level earned totals plus a per-category applied allocation — as a
+SEPARATE layer that is never merged into `budgets`. New `src/engine/budget.ts`
+owns the single composition including the zero-base carve-out
+(`effective = base === 0 ? 0 : base + applied`). Persistence is
+additive-optional: `SAVED_BUILD_SCHEMA_VERSION` stays 1 and `MIGRATIONS` stays
+empty.
+
+The slice is INERT BY CONSTRUCTION — no control can yet write a non-zero bonus,
+so the ship gate was "nothing changed". That gate is met: every pre-existing
+test on dev still passes at its previous value, and the four mandated
+RUN-never-edit files are byte-unmodified blobs.
+
+INTEGRATION MECHANISM — rebase onto a throwaway branch, not a merge commit
+This history is strictly linear and stays that way. The rebase ran on a
+THROWAWAY branch (a5e-integrate) cut from a5-e-bonus-engine; dev then
+fast-forwarded onto the result and the throwaway was deleted. a5-e-bonus-engine
+was never rebased, amended or force-pushed and still points at ac0ba4e — the
+/tmp/bb-a5e worktree stays valid. Merge-commit count: 0 before, 0 after.
+
+Unlike the F8-E3 integration, the replay is NOT patch-identical, and that is
+expected rather than a defect: the three forecast edits below all land in
+tests/randomize.test.ts, so the implementation commit's patch-id necessarily
+moves (c8f7d34f… → d080c4c5…). Non-lossiness was therefore established
+FILE-WISE instead. Of the fourteen files the slice touches, THIRTEEN are
+byte-identical to the branch by object hash — src/engine/{budget,types,
+serialization,validate-loadout,synergy-ledger,summary,ledger}.ts,
+src/config/index.ts, src/App.tsx, tests/bonus.test.ts,
+tests/serialization.test.ts, tests/ui/a5-bonus-persistence.test.tsx and
+docs/proof/a5e-verification.txt. tests/randomize.test.ts is the ONLY source or
+test file the integration altered, and .claude/reportback.md the only other
+file.
+
+THE THREE EDITS, EXACTLY AS FORECAST — the author predicted all three
+The author trial-merged against dfc602b and forecast two adjacency conflicts
+plus one semantic change that would NOT present as a conflict. All three
+presented exactly as described.
+
+  1. tests/randomize.test.ts, import block — CONFLICT, took both sides.
+     dev's randomize-oracle import is a strict SUPERSET of the branch's
+     (dev adds equalAttributeFamily + spreadAttributeFamily + the SweepFixture
+     type to the branch's grossSpendOf + optimalAddedSpend), so the union is
+     dev's block plus the branch's `categoryFeasibility` line. The branch's
+     duplicate randomize-oracle line was dropped — keeping it would have
+     re-declared two identifiers and failed tsc. NO SYMBOL FROM EITHER SIDE
+     WAS LOST.
+
+  2. tests/randomize.test.ts, file tail — CONFLICT, took both sides.
+     dev's capacity-free golden block and the branch's A5 group-5 block were
+     both appended at the tail. Concatenated in that order; both survive whole.
+
+  3. tests/randomize.test.ts test 5.4 — NOT A CONFLICT, and the dangerous one.
+     F8-E3 changed `rollIterationBound` from two arguments to three with
+     `ceilingSpend` REQUIRED. The merge is clean and the tree then fails to
+     compile — the expected path. Fixed by supplying the argument explicitly at
+     both call sites, `rollIterationBound(0, N, 0)`, and NOT by defaulting it:
+     F8-E3 ruled it required deliberately because a defaulted argument gives a
+     too-tight bound in exactly the capacity-bound case. Passing 0 on BOTH
+     sides keeps 5.4's comparison purely capacity-driven, which is what the
+     test's name claims it measures (41 > 17).
+
+  The edit is provably confined to that one assertion. The A5 group-5 block is
+  189 lines on the branch and 189 lines on dev, and a line-diff of the two
+  blocks returns EXACTLY the three-line arity change and nothing else. The
+  assertion's comparison and its expectation are unchanged.
+
+COUNTS — predicted before measuring, and the prediction held
+  base dev @ 2e422c2 (author's cut)   60 files / 1096   (author's measured base)
+  branch tip ac0ba4e                  62 files / 1145   → A5-E delta +49 / +2
+  dev @ d186791, re-measured here     60 files / 1138   → F8-E3 contributes +42
+                                                          and NO new test file
+  EXPECTED  1138 + 49 = 1187 / 62 files
+  ACTUAL    1187 passed / 62 files.  No gap.
+
+  The two deltas are file-disjoint, which is why the arithmetic closes without
+  a correction term: F8-E3 added 42 tests to EXISTING suites and no new source
+  file, while A5-E adds the only new source file (src/engine/budget.ts) and two
+  new test files.
+
+  THE +5 THAT APPEARED BEFORE A SINGLE TEST WAS WRITTEN — CONFIRMED, and the
+  author's count is right while its attribution is one file off. Five
+  per-source-file lints generate a case for src/engine/budget.ts, but they live
+  in THREE files, not the two the author names:
+      tests/architecture.test.ts      182 → 185  (+3: engine purity (a),
+                                      network egress (c), fs access (d))
+      tests/vocabulary.test.ts         73 →  74  (+1: H1 bare-`slot` lint)
+      tests/ui/persist-boundary.test.ts 59 → 60  (+1: localStorage boundary)
+  Enumerated from the verbose reporter by grepping the generated case names for
+  `budget.ts`, and each file's delta measured against dev rather than inferred.
+  The remaining 44 are hand-written: bonus.test.ts 22, serialization group 3 +9
+  (9 added `it(` blocks, 0 removed), randomize group 5 +5,
+  a5-bonus-persistence.test.tsx 8.  5 + 44 = 49.
+
+GATES
+  npm test                          62 files / 1187 passed
+  npm run typecheck                 clean (tsc --noEmit, exit 0)
+  npm run build                     clean — tsc + vite 8.2.2, 68 modules,
+                                    dist/assets/index-C8Ets28a.css 38.40 kB,
+                                    built in 98ms. Run deliberately: a CSS
+                                    comment containing `--space-*/` closes
+                                    early and breaks lightningcss while the
+                                    suite stays green, so the build is the only
+                                    gate for that class.
+  runtime dependencies              exactly {react, react-dom}; package.json
+                                    and the lockfile byte-identical to dev
+  tests/feasibility-golden.test.ts  4/4 — INV-19's 504-cell table (432 shipped
+                                    + 72 synthetic). NO CELL MOVED, established
+                                    by object hash rather than by reading the
+                                    diff: the test file AND src/ui/grid/
+                                    feasibility.ts are the SAME BLOBS on dev
+                                    and on the integrated tree, and src/ui/**
+                                    is untouched in its entirety. Both the
+                                    size assertion and the cell-for-cell
+                                    assertion are green.
+  tests/ui/overlays.test.tsx        4/4 — the H2 guardrail. File not modified.
+  tests/category-colors.test.ts     15/15 — the `--cat` chain. File not
+                                    modified.
+  tests/architecture.test.ts        185/185 (was 182 on dev; +3 generated for
+                                    src/engine/budget.ts). File not modified.
+  Math.random containment lint      2/2 green — "NO file under src/engine/
+                                    calls Math.random — the seeded PRNG is the
+                                    only source" and "every Math.random under
+                                    src/ is on the explicit allowlist".
+
+MUTATION CHECKS — BOTH RE-RUN ON THE MERGED TREE, BOTH STILL FIRE
+A merge can quietly undo a guard while leaving it green, so the author's two
+mutation checks were re-run here rather than trusted. Both still fail under
+mutation; neither guard was broken. The tree was restored from a pristine copy
+after each, and the post-restore build emits a BYTE-IDENTICAL bundle hash
+(index-BECceWMx.js) to the pre-mutation build.
+
+  1. BuildPanel's baseBudgets prop reverted (src/App.tsx `budgets={baseBudgets}`
+     → `budgets={budgets}`): test 6.6 FAILS with
+     `AssertionError: expected '4' to be '3'` — the runaway's very first step,
+     the exact signature the author recorded. Two SIBLING assertions fail with
+     it (test 3.9, and 6.6's "a REAL edit still commits a base value" leg at
+     `expected '6' to be '5'`), so the guard is if anything deeper than
+     reported.
+
+  2. The composition neutered (effectiveBudgets returns base, ignoring bonus):
+     payoff test 5.1 FAILS. ONE DISCREPANCY WORTH NAMING, because it is a
+     difference from the author's recorded signature and not a defect: on the
+     merged tree 5.1 short-circuits ONE ASSERTION EARLIER than the author saw.
+     It fails at line 2124 `expect(withBonus.outcome).toBe("rolled")` with
+     `expected 'noLegalStep' to be 'rolled'`, rather than at line 2125's
+     `expect(withBonus.equipSlotCapacity).toBe(BASE_EQUIP_SLOTS + 1)`. The
+     reason is structural: with the composition dead, leg B becomes IDENTICAL
+     to leg A (capacity 2, already full), and the payoff fixture then yields no
+     legal step at all, so the outcome assertion trips before the capacity one
+     is reached. The author's `expected 2 to be 3` IS line 2125 and it is still
+     exactly right — BASE_EQUIP_SLOTS is 2 and the expectation is 3. Verified
+     directly with a throwaway probe against the neutered composition, which
+     reproduced `AssertionError: expected 2 to be 3` verbatim; the probe was
+     deleted and the tree confirmed pristine. Group 5's other members fail
+     alongside (5.2 `expected 0 to be greater than 0`, 5.4 `expected 4 to be
+     10`, 5.5 `expected [] to deeply equal [ …(3) ]`).
+
+CONFLICTS IN .claude/reportback.md — the SEVENTH integration to touch it
+Resolved so all entries survive in chronological order. Rather than hand-merge
+the conflict region, the file was RECONSTRUCTED mechanically: dev's 3962 lines
+verbatim, then the branch's 139-line block extracted from `git diff 2e422c2
+ac0ba4e` (a pure addition — zero deletions). 3962 + 139 = 4101, and the merged
+file is 4101 lines. Both halves then verified by prefix comparison: the base
+(3574 lines) is an exact prefix of dev, and dev is an exact prefix of the
+result, so no prior entry was altered by this integration or the last one.
+Entry count 27 → 29 (F8-E3) → 30.
+
+  The same cosmetic date discrepancy the previous integrator logged recurs and
+  is again left as authored: the A5-E slice entry dates itself 2026-08-26 while
+  both its commits are authored 2026-08-25 17:22. Placement is unaffected.
+
+CARRIED FORWARD — recorded, NOT resolved by this integration
+  · F8-S2 MUST NOW LAND AFTER THIS SLICE (A5-R8). `badgeSlotsBaselineText` now
+    reads the BASE Σ and appends a bonus clause, so S2's §14.5 goldens must be
+    authored against the POST-A5 function. Authoring them against the pre-A5
+    text will pin the wrong string. Queue per A5-R8: F5.4 → [A5-E done] →
+    F8-S2 → A5-U → F8-R2.
+  · THE ONE COMPILER-FORCED DIFF THAT IS NOT A `bonus:` ADDITION, carried
+    through the integration byte-intact and re-verified here. Widening
+    `SoftViolation` with two BUILD-LEVEL members (no `category` field) stopped
+    `warning.category` compiling at tests/randomize.test.ts:367-369. The author
+    narrowed with `"category" in warning`, keeping the assertion and its
+    expectation byte-identical, and explicitly REJECTED adding a phantom
+    `category` to a build-level violation to protect a diff stat. That
+    narrowing is one of only two lines this integration removed from dev's
+    randomize.test.ts (the other being the types import superseded by the
+    BonusBudget-bearing one) — confirmed by line-level diff, not assumed.
+  · A5-U remains gated on Designer's design-spec.md §17 and is NOT on any
+    critical path. OQ-A5 (discipline-locked event tokens) stays open and
+    non-blocking; A5 models the versatile pool only.
+  · The F5.4 semantic watch-out logged by the F8-E3 integration is UNCHANGED
+    and still owned there: A5-E does not touch makeBuild or test-utils.ts, so
+    it neither triggers nor clears it.
+
+HOUSEKEEPING
+  · a5e-integrate, the throwaway used for this integration, was deleted after
+    dev fast-forwarded onto it.
+  · a5e-trial-merge IS STILL PRESENT and could NOT be deleted here — the same
+    permission denial the author hit. It points at bd8c4ad, the branch's
+    PRE-REBASE implementation commit, which is not contained in dev (dev
+    carries the replayed 841c7b0), so `git branch -d` correctly refuses it as
+    unmerged and `git branch -D` is blocked. NOTHING IS AT RISK: bd8c4ad
+    remains fully reachable from a5-e-bonus-engine. It is a stale local ref
+    only, it was never pushed, and it needs one operator command:
+    `git branch -D a5e-trial-merge`.
+
+KNOWN, AND DELIBERATELY NOT "FIXED"
+The load-dependent vitest flake class. Heavy files carry { timeout: 20000 };
+none was lowered and vite.config.ts is untouched. No flake was observed on any
+run in this integration. If one appears, RE-RUN — do not lower a timeout.
+
+SCOPE / PLAN IMPACT
+None to scope.md / tech-strategy.md / design-spec.md / the H-rulings.
+schemaVersion stays 1, MIGRATIONS stays empty, dataVersion and
+ROLL_ALGORITHM_VERSION untouched by this slice, and `bonus` stays deliberately
+out of stableDigest. A5's gates survive ROLL_ALGORITHM_VERSION 2 unchanged, as
+the author predicted, because 5.1 asserts structure rather than a seeded
+golden.
+
+NEXT
+Nothing blocking. dev is at 0edc86c, pushed. main untouched at 444d034.
+F8-S2 is next per A5-R8 and must read the CARRIED FORWARD note above before it
+authors a single §14.5 golden.
+─────────────────────────────────────────────
