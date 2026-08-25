@@ -72,7 +72,7 @@ import {
   writeAutosave,
 } from "./persist/local-storage";
 import type { NamedBuildSummary, PersistResult } from "./persist/local-storage";
-import { BuildPanel } from "./ui/build/BuildPanel";
+import { AttributesSection, BuildPanel } from "./ui/build/BuildPanel";
 import type { HeightClampNotice } from "./ui/build/BuildPanel";
 import { ResetBuildDialog } from "./ui/build/ResetBuildDialog";
 import type { ResetBlastRadius } from "./ui/build/ResetBuildDialog";
@@ -99,6 +99,7 @@ import { PreviewModeStrip } from "./ui/shell/PreviewModeStrip";
 import { QuarantineBanner } from "./ui/shell/QuarantineBanner";
 import { Section } from "./ui/primitives/Section";
 import { Toggle } from "./ui/primitives/Toggle";
+import { useMediaQuery } from "./ui/useMediaQuery";
 import { SynergyPanel } from "./ui/synergy/SynergyPanel";
 import {
   ExportImportControls,
@@ -503,6 +504,20 @@ export default function App() {
   const [buildAnnouncement, setBuildAnnouncement] = useState("");
   /** F5.3/C — the `Reset build` confirm. The button never resets directly. */
   const [resetOpen, setResetOpen] = useState(false);
+
+  /** F5.4 (design-spec §16.10) — THE ONE OWNER of the L breakpoint. It used
+   * to live inside BuildPanel; the pane, the two-grid-item layout and the
+   * panel's shape all key off the same answer, so it is asked once here and
+   * passed down.
+   *
+   * KEEP THE QUERY STRING AND KEEP THE NEGATION IN THIS DIRECTION.
+   * `useMediaQuery` returns false where matchMedia is absent (jsdom), so
+   * `!useMediaQuery("(max-width: 1279px)")` yields isLarge = true and every
+   * component test keeps rendering the desktop shape it renders today. The
+   * tidier-looking `useMediaQuery("(min-width: 1280px)")` inverts that
+   * default to MOBILE and silently flips a large, hard-to-attribute set of
+   * tests. tests/layout-arithmetic.test.ts asserts this source text. */
+  const isLarge = !useMediaQuery("(max-width: 1279px)");
 
   /** EVERY working-state mutation flows through here (write-through ref). */
   const applyWorking = useCallback(
@@ -1210,219 +1225,246 @@ export default function App() {
         {buildAnnouncement}
       </p>
 
+      {/* F5.4 (design-spec §16) — .layout is EXACTLY TWO grid items at L: the
+          attributes pane, and everything else. That is not tidiness. A sticky
+          grid item is constrained by the grid CONTAINER's content box, so with
+          the panels as separate rows the pane's containing block ended at row
+          1 — "pinned while you are in the grid". With every non-attribute
+          region inside .col-right the container spans from the top of .layout
+          to the bottom of the Summary panel: "always on display".
+
+          Below 1280 the pane is NOT RENDERED, .col-right is the only item, and
+          the output is bit-identical to before this slice (§16.10). */}
       <div className="layout">
-        {/* .rail-column is the GRID ITEM and .rail-left is the sticky box
-            inside it. Presentation only — no landmark, no id, no state. A
-            sticky grid item is constrained by the grid CONTAINER, not by its
-            own row, so with the two panels now occupying rows 2 and 3 the
-            rail would slide straight out of the grid and paint over them.
-            Stretching this wrapper to row 1 gives the sticky box a
-            containing block that ends where the badge grid ends. */}
-        <div className="rail-column">
-          <div className="rail-left">
-            <aside className="rail-ledger" aria-label="Ledger overview">
-              <Section title="Ledger overview" storageKey="section-ledger-overview">
-                <div className="ledger-overview">
-                  {CATEGORIES.map((category) => {
-                    const readout = readouts[category];
-                    const budget = budgets[category];
-                    // PER-METRIC status via the in-grid ledger's OWN string
-                    // builders (design-review P0-1): danger + "over by N ⚠"
-                    // land ONLY on the metric that is genuinely over — never
-                    // color alone, never a red in-budget number.
-                    const pointsOverText = overByBadgePoints(readout);
-                    const equipSlotsOverText = overByBadgeSlots(readout, budget);
-                    const capacityUnset = badgeSlotsCapacityUnset(budget);
-                    return (
-                      <div key={category} className="ledger-overview__row">
-                        <span className="ledger-overview__label">{category}</span>
-                        <span className="num ledger-overview__metrics">
-                          <span
-                            className={
-                              pointsOverText !== null
-                                ? "ledger-over ledger-overview__points"
-                                : "ledger-overview__points"
-                            }
-                          >
-                            {readout.spent}/{budget.points}
-                            {pointsOverText !== null ? ` ${pointsOverText}` : ""}
-                          </span>
-                          {" · "}
-                          <span
-                            className={
-                              equipSlotsOverText !== null
-                                ? "ledger-over ledger-overview__capacity"
-                                : "ledger-overview__capacity"
-                            }
-                          >
-                            {readout.equipSlotsUsed}/{capacityUnset ? "—" : budget.equipSlots}
-                            {equipSlotsOverText !== null ? ` ${equipSlotsOverText}` : ""}
-                          </span>
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Section>
-            </aside>
-
-            <aside className="rail-build" aria-label="Build">
-              <BuildPanel
-                build={working.build}
-                budgets={budgets}
-                heightRange={heightRange}
-                buildViolationReasons={buildViolationReasons}
-                clampNotice={clampNotice}
-                onHeightCommit={(heightInches) => {
-                  // Fields commit on EVERY blur — a no-change commit is a no-op
-                  // (returning prev), so tabbing through never marks dirty.
-                  const changed = workingRef.current.build.heightInches !== heightInches;
-                  applyEdit((prev) =>
-                    prev.build.heightInches === heightInches
-                      ? prev
-                      : { ...prev, build: { ...prev.build, heightInches } },
-                  );
-                  // A height change ends the clamp notice's hold (§3.3 rev 3).
-                  if (changed) setClampNotice(null);
-                }}
-                onPositionChange={handlePositionChange}
-                onAttributeCommit={handleAttributeCommit}
-                onResetRequest={() => {
-                  setResetOpen(true);
-                }}
-                canReset={playerHasContent(working)}
-                onBudgetCommit={(category, field, value) => {
-                  applyEdit((prev) =>
-                    prev.budgets[category][field] === value
-                      ? prev
-                      : {
-                          ...prev,
-                          budgets: {
-                            ...prev.budgets,
-                            [category]: { ...prev.budgets[category], [field]: value },
-                          },
-                        },
-                  );
-                }}
-              />
-            </aside>
+        {isLarge ? (
+          // .attr-pane-column is the GRID ITEM and .attr-pane is the sticky box
+          // inside it. Presentation only — no landmark, no id, no state. This
+          // is F5.2's D1 wrapper, renamed and otherwise untouched: without the
+          // stretch the sticky box slides out of the grid and paints over what
+          // follows it (measured at doc-y 4660 against a grid ending at 4644).
+          <div className="attr-pane-column">
+            <div className="attr-pane">
+              <aside aria-label="Attributes">
+                <AttributesSection
+                  attributes={working.build.attributes}
+                  onCommit={handleAttributeCommit}
+                />
+              </aside>
+            </div>
           </div>
-        </div>
+        ) : null}
 
-        <main id="badge-grid">
-          <FilterBar
-            filters={filters}
-            onChange={setFilters}
-            shownCount={shownCount}
-            totalCount={shippedDataset.badges.length}
-          />
-          <JumpNav
-            panelAnchors={[
-              { id: "panel-synergy", label: "Synergy" },
-              { id: "panel-summary", label: "Summary" },
-            ]}
-          />
-          {shownCount === 0 ? (
-            <EmptyResults all onClearAll={clearAllFilters} />
-          ) : (
-            CATEGORIES.map((category) => {
-              const readout = readouts[category];
-              const budget = budgets[category];
-              const visible = visibleByCategory.get(category) ?? [];
-              return (
-                <BadgeGridSection
-                  key={category}
-                  category={category}
-                  // F5.3/B: two render props instead of one `header`. The
-                  // digest becomes the section's <summary> (the collapse
-                  // control); the lede is ordinary disclosure content. Wiring
-                  // only — the numbers are the same engine readouts.
-                  digest={(headingId) => (
-                    <CategoryLedgerDigest
-                      category={category}
-                      readout={readout}
-                      budget={budget}
-                      headingId={headingId}
-                    />
-                  )}
-                  lede={() => (
-                    <CategoryLedgerLede
-                      category={category}
-                      readout={readout}
-                      budget={budget}
-                      feasibility={feasibilityByCategory[category]}
-                      projection={projections?.[category]}
-                    />
-                  )}
-                >
-                  {visible.length === 0 ? (
-                    <li>
-                      <EmptyResults onClearAll={clearAllFilters} />
-                    </li>
-                  ) : (
-                    visible.map((badge) => {
-                      const purchased = working.loadout.some(
-                        (entry) => entry.badgeId === badge.id,
-                      );
-                      return (
-                        <li key={badge.id}>
-                          <BadgeCard
-                            badge={badge}
-                            build={working.build}
-                            eligibility={eligibilityById.get(badge.id) ?? validateBadge(badge, working.build)}
-                            synergyState={synergyState}
-                            overlay={overlay}
-                            dataset={shippedDataset}
-                            remainingPoints={readout.remainingPoints}
-                            overBadgeSlotsIfBought={
-                              // 0 = unset RULING (uniform across all four
-                              // surfaces): warn only against an ENTERED
-                              // capacity — see badgeSlotsCapacityUnset.
-                              !purchased &&
-                              !badgeSlotsCapacityUnset(budget) &&
-                              readout.equipSlotsUsed >= budget.equipSlots
-                            }
-                            onSetLevel={setLevel}
-                            onCycle={cycleBadge}
-                          />
-                        </li>
-                      );
-                    })
-                  )}
-                </BadgeGridSection>
-              );
-            })
-          )}
-        </main>
+        <div className="col-right">
+          <aside className="ledger-panel" aria-label="Ledger overview">
+            <Section title="Ledger overview" storageKey="section-ledger-overview">
+              <div className="ledger-overview">
+                {CATEGORIES.map((category) => {
+                  const readout = readouts[category];
+                  const budget = budgets[category];
+                  // PER-METRIC status via the in-grid ledger's OWN string
+                  // builders (design-review P0-1): danger + "over by N ⚠"
+                  // land ONLY on the metric that is genuinely over — never
+                  // color alone, never a red in-budget number.
+                  const pointsOverText = overByBadgePoints(readout);
+                  const equipSlotsOverText = overByBadgeSlots(readout, budget);
+                  const capacityUnset = badgeSlotsCapacityUnset(budget);
+                  return (
+                    <div key={category} className="ledger-overview__row">
+                      <span className="ledger-overview__label">{category}</span>
+                      <span className="num ledger-overview__metrics">
+                        <span
+                          className={
+                            pointsOverText !== null
+                              ? "ledger-over ledger-overview__points"
+                              : "ledger-overview__points"
+                          }
+                        >
+                          {readout.spent}/{budget.points}
+                          {pointsOverText !== null ? ` ${pointsOverText}` : ""}
+                        </span>
+                        {" · "}
+                        <span
+                          className={
+                            equipSlotsOverText !== null
+                              ? "ledger-over ledger-overview__capacity"
+                              : "ledger-overview__capacity"
+                          }
+                        >
+                          {readout.equipSlotsUsed}/{capacityUnset ? "—" : budget.equipSlots}
+                          {equipSlotsOverText !== null ? ` ${equipSlotsOverText}` : ""}
+                        </span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+          </aside>
 
-        <div className="panel-below" id="panel-synergy">
-          <Section title="Synergy Slots" storageKey="section-synergy">
-            <SynergyPanel
-              synergySlots={working.synergy}
-              loadout={working.loadout}
-              dataset={shippedDataset}
-              overlay={overlay}
-              ratifiedMagnitudeNormalized={ratifiedMagnitudeNormalized}
-              onSynergySlotsChange={setSynergySlots}
-            />
-          </Section>
-        </div>
-
-        <div className="panel-below" id="panel-summary">
-          <Section title="Summary" storageKey="section-summary">
-            <SummaryPanel
-              loadout={working.loadout}
-              synergySlots={working.synergy}
+          {/* Physique and Badge Points/Slots are SET-UP surfaces, not loop
+              surfaces: position and height are one opening gesture, and the
+              twelve budget fields are filled by hand from the MyPlayer
+              builder and then not touched again. Above the FilterBar on
+              §13.5's causality argument run in reverse — you set the pools
+              BEFORE you shop for badges (§16.5). */}
+          <aside className="setup-panel" aria-label="Build">
+            <BuildPanel
+              build={working.build}
               budgets={budgets}
-              readouts={readouts}
-              validation={validation}
-              dataset={shippedDataset}
+              compact={!isLarge}
+              withAttributes={!isLarge}
+              heightRange={heightRange}
+              buildViolationReasons={buildViolationReasons}
+              clampNotice={clampNotice}
+              onHeightCommit={(heightInches) => {
+                // Fields commit on EVERY blur — a no-change commit is a no-op
+                // (returning prev), so tabbing through never marks dirty.
+                const changed = workingRef.current.build.heightInches !== heightInches;
+                applyEdit((prev) =>
+                  prev.build.heightInches === heightInches
+                    ? prev
+                    : { ...prev, build: { ...prev.build, heightInches } },
+                );
+                // A height change ends the clamp notice's hold (§3.3 rev 3).
+                if (changed) setClampNotice(null);
+              }}
+              onPositionChange={handlePositionChange}
+              onAttributeCommit={handleAttributeCommit}
+              onResetRequest={() => {
+                setResetOpen(true);
+              }}
+              canReset={playerHasContent(working)}
+              onBudgetCommit={(category, field, value) => {
+                applyEdit((prev) =>
+                  prev.budgets[category][field] === value
+                    ? prev
+                    : {
+                        ...prev,
+                        budgets: {
+                          ...prev.budgets,
+                          [category]: { ...prev.budgets[category], [field]: value },
+                        },
+                      },
+                );
+              }}
             />
-            {/* §11.5 ⑤ (rev 5): the right-rail Export/Import pair is GONE —
-                a ratified rev-2 §3.6 clause that never shipped (~198px of
-                min-content in a 142px rail box). The header pair above is
-                the only one; tests/layout-arithmetic.test.ts pins this. */}
-          </Section>
+          </aside>
+
+          <main id="badge-grid">
+            <FilterBar
+              filters={filters}
+              onChange={setFilters}
+              shownCount={shownCount}
+              totalCount={shippedDataset.badges.length}
+            />
+            <JumpNav
+              panelAnchors={[
+                { id: "panel-synergy", label: "Synergy" },
+                { id: "panel-summary", label: "Summary" },
+              ]}
+            />
+            {shownCount === 0 ? (
+              <EmptyResults all onClearAll={clearAllFilters} />
+            ) : (
+              CATEGORIES.map((category) => {
+                const readout = readouts[category];
+                const budget = budgets[category];
+                const visible = visibleByCategory.get(category) ?? [];
+                return (
+                  <BadgeGridSection
+                    key={category}
+                    category={category}
+                    // F5.3/B: two render props instead of one `header`. The
+                    // digest becomes the section's <summary> (the collapse
+                    // control); the lede is ordinary disclosure content. Wiring
+                    // only — the numbers are the same engine readouts.
+                    digest={(headingId) => (
+                      <CategoryLedgerDigest
+                        category={category}
+                        readout={readout}
+                        budget={budget}
+                        headingId={headingId}
+                      />
+                    )}
+                    lede={() => (
+                      <CategoryLedgerLede
+                        category={category}
+                        readout={readout}
+                        budget={budget}
+                        feasibility={feasibilityByCategory[category]}
+                        projection={projections?.[category]}
+                      />
+                    )}
+                  >
+                    {visible.length === 0 ? (
+                      <li>
+                        <EmptyResults onClearAll={clearAllFilters} />
+                      </li>
+                    ) : (
+                      visible.map((badge) => {
+                        const purchased = working.loadout.some(
+                          (entry) => entry.badgeId === badge.id,
+                        );
+                        return (
+                          <li key={badge.id}>
+                            <BadgeCard
+                              badge={badge}
+                              build={working.build}
+                              eligibility={eligibilityById.get(badge.id) ?? validateBadge(badge, working.build)}
+                              synergyState={synergyState}
+                              overlay={overlay}
+                              dataset={shippedDataset}
+                              remainingPoints={readout.remainingPoints}
+                              overBadgeSlotsIfBought={
+                                // 0 = unset RULING (uniform across all four
+                                // surfaces): warn only against an ENTERED
+                                // capacity — see badgeSlotsCapacityUnset.
+                                !purchased &&
+                                !badgeSlotsCapacityUnset(budget) &&
+                                readout.equipSlotsUsed >= budget.equipSlots
+                              }
+                              onSetLevel={setLevel}
+                              onCycle={cycleBadge}
+                            />
+                          </li>
+                        );
+                      })
+                    )}
+                  </BadgeGridSection>
+                );
+              })
+            )}
+          </main>
+
+          <div id="panel-synergy">
+            <Section title="Synergy Slots" storageKey="section-synergy">
+              <SynergyPanel
+                synergySlots={working.synergy}
+                loadout={working.loadout}
+                dataset={shippedDataset}
+                overlay={overlay}
+                ratifiedMagnitudeNormalized={ratifiedMagnitudeNormalized}
+                onSynergySlotsChange={setSynergySlots}
+              />
+            </Section>
+          </div>
+
+          <div id="panel-summary">
+            <Section title="Summary" storageKey="section-summary">
+              <SummaryPanel
+                loadout={working.loadout}
+                synergySlots={working.synergy}
+                budgets={budgets}
+                readouts={readouts}
+                validation={validation}
+                dataset={shippedDataset}
+              />
+              {/* §11.5 ⑤ (rev 5): the right-rail Export/Import pair is GONE —
+                  a ratified rev-2 §3.6 clause that never shipped (~198px of
+                  min-content in a 142px rail box). The header pair above is
+                  the only one; tests/layout-arithmetic.test.ts pins this. */}
+            </Section>
+          </div>
         </div>
       </div>
 

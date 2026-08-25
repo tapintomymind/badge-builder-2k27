@@ -94,9 +94,11 @@ ul {
 /* SINGLE COLUMN in DOM order — §5.2 rev 2: M and S share one structure,
  * differing only in how many cards fit per row.
  *
- * §13: this is now the structure at EVERY width. All ≥1280 adds is a rail
- * beside the grid. Nothing re-parents, nothing teleports out of page flow at
- * a breakpoint, and the below-grid panels stay below the grid all the way up. */
+ * Below 1280 this grid has exactly ONE item, .col-right, and the output is
+ * bit-identical to the pre-F5.4 tree. At ≥1280 it has exactly TWO: the
+ * attributes pane and .col-right (§16). Nothing teleports out of page flow;
+ * the pane is a sticky item in normal flow and degrades to an ordinary block
+ * the moment the media query stops matching. */
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -105,21 +107,35 @@ ul {
   align-items: start;
 }
 
-/* The Synergy Slots and Summary panels: full width below the grid, at every
- * breakpoint (§13.5). A flat rule on purpose — nothing may wrap it in a media
- * or container query. */
-.panel-below {
-  grid-column: 1 / -1;
+/* F5.4 (§16.7) — everything that is not the attributes pane, in one grid
+ * item. That is what gives the sticky pane a containing block spanning the
+ * WHOLE of .layout rather than just row 1; with the panels as separate grid
+ * items the pane unpinned as soon as the badge grid ended.
+ *
+ * THE GAP IS NOT DECORATION. .layout's own `gap: var(--space-6)` supplied
+ * the 24px between main and the two panels while they were grid items. Once
+ * they stop being grid items that gap evaporates, so it is re-declared here
+ * (§2.3 / §13.5: --space-6 between major sections).
+ *
+ * NO `overflow` MAY BE ADDED HERE. An overflow on an ancestor of a sticky
+ * element silently kills the stickiness — F5.2's D1 in a new costume. */
+.col-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
 }
 
 /* The overview dissolves below L — the per-category sticky digests carry it,
- * exactly as the old rail wrapper did (§5.2, unchanged behaviour). */
-.rail-ledger {
+ * exactly as the old rail wrapper did (§5.2, unchanged behaviour). F5.4
+ * moved the element into the right column and renamed the wrapper; the rule
+ * itself is the shipped one, moved with it and not rewritten. */
+.ledger-panel {
   display: none;
 }
 
 @media (min-width: 1280px) {
-  .rail-ledger {
+  .ledger-panel {
     display: block;
   }
 }
@@ -158,42 +174,71 @@ ul {
   }
 }
 
-/* The rail is sticky only at L — below 1280 there is no rail (§5.2 rev 2):
- * the Build panel is a full-width collapsible <details> in flow.
+/* The attributes pane, and it exists only at L — below 1280 there is no pane
+ * (§16.10): the Build panel is a full-width collapsible <details> in flow
+ * with the 20 sliders inside it, exactly as it shipped.
  *
- * The flex column is what stacks the two §4.5 landmarks the rail now holds,
- * in causal order — the Ledger overview you glance at constantly while
- * reconciling, then the tall Build panel you scroll WITHIN (§13.4).
+ * It holds the 20 attribute sliders and NOTHING ELSE (§16.5). The Ledger
+ * overview and the two set-up surfaces left it because the arithmetic said
+ * so: 657px of non-attribute content ahead of the stack showed ZERO of
+ * twenty sliders at a 700px viewport (I15).
  *
  * Those declarations live in THIS rule and not in a new base one on purpose:
- * tests/layout-arithmetic.test.ts locates the FIRST `.rail-left {` in the
+ * tests/layout-arithmetic.test.ts locates the FIRST `.attr-pane` rule in the
  * file and inspects it for the overflow guard, so a second rule above this
  * one would silently re-point that guard at a block which never had
  * overflow-y — and it would pass forever without checking anything. */
 @media (min-width: 1280px) {
-  .rail-left {
+  .attr-pane {
     position: sticky;
     top: var(--space-3);
+    /* FALLBACK FIRST, and the order is the assertion. `vh` resolves against
+     * the LARGE viewport, so with browser chrome showing a 100vh pane
+     * extends under it and its last row is unreachable; `dvh` tracks the
+     * dynamic viewport and wins wherever it is supported.
+     *
+     * THIS IS NOT A MOBILE FIX — the pane only exists ≥1280 and §6's
+     * 200%-zoom target lands in the S layout, where there is no pane. It
+     * ships on the conservative-failure-direction argument alone: dvh ≤ vh
+     * always, so the worst case is a slightly SHORT pane (which scrolls,
+     * harmlessly) rather than a slider nobody can reach.
+     *
+     * max-height, NOT height. A pane forced to full height with 300px of
+     * content draws an empty box — invisible today because the content
+     * always exceeds it, visible the day a user collapses the Attributes
+     * Section. */
     max-height: calc(100vh - var(--space-6));
+    max-height: calc(100dvh - var(--space-6));
     overflow-y: auto;
+    /* --ring-focus reaches 4px OUTSIDE the box, and overflow-y: auto clips
+     * at the edges — every focused slider's ring was cut here. 4px of inline
+     * padding is exactly the ring's reach, and it is affordable only because
+     * the ledger left the pane: 300 − 8 − 34 = 258 against I9's 224px usable
+     * track leaves 34 ≥ --space-6, where the ledger's 239px demand left 19. */
+    padding-inline: var(--space-1);
+    /* Focus-scrolling a slider to the pane's edge leaves 12px rather than
+     * pressing it flush against the boundary with its ring on the cut. */
+    scroll-padding-block: var(--space-3);
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
   }
 
-  /* .rail-column is the grid ITEM; .rail-left is the sticky box inside it,
-   * and this one declaration is what stops the rail escaping the grid.
+  /* .attr-pane-column is the grid ITEM; .attr-pane is the sticky box inside
+   * it, and this one declaration is what stops the pane escaping the grid.
    *
    * A sticky grid item is constrained by the grid CONTAINER's content box,
-   * NOT by its own row — so now that the two panels occupy rows 2 and 3, a
-   * sticky .rail-left placed directly in .layout slides straight past the
-   * badge grid and paints on top of them. Measured: it reached doc-y 4660
-   * against a grid that ends at 4644. Stretching this wrapper to fill row 1
-   * gives the sticky box a containing block that ends where the grid ends,
-   * and it then clamps at 3768 exactly as intended.
+   * NOT by its own row — so a sticky pane placed directly in .layout slides
+   * straight past the grid and paints on top of what follows. Measured: it
+   * reached doc-y 4660 against a grid that ends at 4644. Stretching this
+   * wrapper to fill row 1 gives the sticky box a containing block that ends
+   * where the grid container ends, and it then clamps exactly as intended.
+   *
+   * F5.4 makes that containing block the WHOLE document rather than row 1,
+   * by putting every other region inside .col-right — so the pane is now
+   * pinned all the way down to the foot of the Summary panel.
    *
    * .layout sets align-items: start, so the stretch has to be asked for. */
-  .rail-column {
+  .attr-pane-column {
     align-self: stretch;
   }
 }
@@ -1621,10 +1666,31 @@ ul {
 }
 
 /* The pickers go side by side exactly when the row is wide enough to hold
- * two of them — the same derived 426 the track floor uses, asked of the row
- * ITSELF rather than of the viewport, so a row is never handed less width
- * than the arrangement it is about to attempt. Below it they stack, which is
- * the correct degradation and the only one that happens at S.
+ * two of them, asked of the row ITSELF rather than of the viewport, so a row
+ * is never handed less width than the arrangement it is about to attempt.
+ * Below it they stack, which is the correct degradation and the only one
+ * that happens at S.
+ *
+ * T16, CLOSED (F5.4, §16.8). The threshold was 426 and 426 IS A BORDER-BOX
+ * FIGURE — SYNERGY_HEADER_MAX is title 98 + Permanent chip 75 + ±control 81
+ * + Toggle 104 + 3 gaps 36 + 2 ROW PADDINGS 32, and that trailing 32 is what
+ * makes it a border box. A size query evaluates the CONTENT box, so asking
+ * for 426 content was really asking for a 460 border box — larger than the
+ * row's own 426 track floor, which is self-contradictory, and it is why the
+ * pickers stacked at 1440 under a green suite.
+ *
+ * The threshold protects the PICKERS, so it must be the pickers' own
+ * content-box demand, and the row padding is NOT part of it because the
+ * query never sees the padding:
+ *
+ *   CONTAINER_THRESHOLD = 2 × SELECT_FLOOR 180 + --space-3 12 = 372  CONTENT
+ *   pickersRowFloor     = 372 + ROW_CHROME 34            = 406      BORDER
+ *   synergyRowFloor     = max(406, SYNERGY_HEADER_MAX 426) = 426     BORDER
+ *
+ * Two expressions of one arrangement, on two boxes, with the conversion
+ * written down. That is I16. Raising the threshold to 460 (the other
+ * proposed fix) double-counts the padding and is strictly worse.
+ * `.synergy-panel`'s minmax(min(426px, 100%), 1fr) is UNCHANGED.
  *
  * This block must stay BELOW `.synergy-row__pickers`'s base rule. A
  * container query carries no specificity of its own, so placed above it the
@@ -1633,7 +1699,7 @@ ul {
  *
  * `.select` is the <label> (the flex item); `.select__control` above is the
  * <select> inside it. Both rules are needed and they compose. */
-@container (min-width: 426px) {
+@container (min-width: 372px) {
   .synergy-row__pickers {
     flex-direction: row;
   }
@@ -1984,36 +2050,21 @@ ul {
   color: var(--warning);
 }
 
-/* §11.5 rev 5 — the Position SegmentedControl is 6 options and measures
- * ~266px as one inline-flex row; even the widened rail gives it 246px. In a
- * rail it is laid out as an auto-fit grid (2 rows of 3 at 246px). Scoped to
- * .rail-left at L on purpose: at M/S the control lives in a full-width panel
- * (≥298px of content) where one row fits, and .segmented is shared with the
- * tier filter and the +1/+2 magnitude control, which must NOT become grids.
+/* DELETED by F5.4 (§16.7): §11.5 ③'s L-scoped auto-fit grid for the 6-option
+ * Position SegmentedControl, all three of its rules.
  *
- * Gap-as-separator: a 1px grid gap over the track's --border background
- * paints clean 1px rules in BOTH axes, with none of the dangling/doubled-edge
- * cases that border-right has once the track wraps. */
-@media (min-width: 1280px) {
-  .rail-left .segmented__track {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
-    gap: 1px;
-    background: var(--border);
-  }
-
-  .rail-left .segmented__track > span,
-  .rail-left .segmented__track > span:last-of-type {
-    border-right: 0;
-    background: var(--bg-surface);
-  }
-
-  .rail-left .segmented label {
-    display: block;
-    text-align: center;
-    padding: var(--space-1) var(--space-2);
-  }
-}
+ * It is not a re-cut — THE SURFACE IT PROTECTED HAS LEFT THE RAIL. The
+ * control needed the grid because a ~266px min-content inline-flex row did
+ * not fit a 246px rail box. In the setup panel it gets 902px at 1280, 702 at
+ * 768 and 298 at 390, so it is one inline-flex row at every width and the
+ * Position control's arrangement becomes identical everywhere. Same
+ * character as §13.0.1 deleting the XL tier.
+ *
+ * NOT RENAMED TO `.attr-pane …`. No segmented control lives in the pane, so
+ * a renamed rule would grid nothing while reading as live; an un-renamed one
+ * would be a dead selector. tests/layout-arithmetic.test.ts asserts BOTH
+ * spellings are absent, and F5.2's pinned "3 × 87.33px" measurement retires
+ * with the rule. */
 
 /* --- F5: visual identity — 2K-inspired dark + metallic (design-spec §10) --- */
 /* PRESENTATION ONLY, appended as ONE delimited block (F3 precedent): every
@@ -2851,3 +2902,43 @@ ul {
   color: var(--fg-secondary);
   cursor: pointer;
 }
+
+/* ==================================================== F5.4 — the attributes
+ * pane (design-spec §16) ======================================================
+ *
+ * Everything else this slice does lives in the head-of-file layout block, in
+ * place: .layout's children are the grid's own geometry and an appended
+ * override would fight the @media cascade. This block carries the one rule
+ * that is genuinely additive. */
+
+/* A1 (Architect amendment to §16.5). The overview's `1fr auto` was derived
+ * for a 266px rail. In the right column's 878px grid box the `1fr` absorbs
+ * ~739px and splits every row label-far-left / numbers-far-right — verbatim
+ * the defect `.summary`'s cap exists to prevent (see the `.summary` comment
+ * above). §16.5's "4-up on two lines" is NOT reachable and was withdrawn:
+ * repeat(auto-fit, …) forbids intrinsic track sizes, so a repeating
+ * `max-content auto` pattern cannot be written at all — the layout is
+ * foreclosed on grammar, not on taste.
+ *
+ * Scoped override; the frozen base blocks are untouched. `max-content` on
+ * the label track keeps all six labels column-aligned at the widest of them;
+ * `minmax(0, auto)` lets the metrics track fall below its max-content and
+ * wrap INSIDE ITSELF exactly as the shipped `.ledger-overview__metrics
+ * { min-width: 0 }` intends when an over-by annotation lengthens a row.
+ * `justify-content: start` is load-bearing: without it the default `normal`
+ * behaves as `stretch` and the auto-max track eats the leftover space again.
+ *
+ * Derivation at 1280, s=0: 936 centre − 34 <Section> chrome = 902 content,
+ * less the well's 2 × --space-3 = 878 to the grid. Normal row demand
+ * LEDGER_LABEL_MAX 78 + ROW_GAP_X 12 + LEDGER_METRICS_MAX 127 = 217, clears
+ * by 661; the fully annotated worst case (~303 of metrics) = 393, clears by
+ * 485. One line in every case, all numbers column-aligned, and the block is
+ * as wide as its content rather than as wide as the column.
+ *
+ * Inert below 1280: `.ledger-panel { display: none }` there. */
+.ledger-panel .ledger-overview {
+  grid-template-columns: max-content minmax(0, auto);
+  justify-content: start;
+}
+
+/* ==== end F5.4 ==== */
