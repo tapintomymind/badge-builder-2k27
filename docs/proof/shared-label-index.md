@@ -232,3 +232,26 @@ If that trade is unacceptable, the fallback is to delete `installSharedLabelInde
 and its call — `tests/setup-dom.ts` reverts to its previous behaviour with no
 other coupling, and the guard file's "is actually installed" case is the thing
 that will tell you loudly that it happened.
+
+## 7. Forward check against a moved `origin/dev`
+
+`origin/dev` advanced from `b94d403` to `9bd851c` while this work was in
+flight (`e11e8f1` F5.2 layout re-cut — `src/App.tsx`, `src/styles/app.css`,
+`tests/layout-arithmetic.test.ts`, `tests/ui/f2-source-pins.test.ts`,
+`tests/helpers/test-utils.ts`; then `9bd851c`). This branch is still based on
+`b94d403`, per the dispatch, and was NOT merged. A throwaway trial merge
+(`git merge --no-commit --no-ff origin/dev`, aborted afterwards) confirms:
+
+- merges cleanly, no conflicts;
+- full suite on the merged tree: **713/713** (701 pre-existing at the new dev
+  tip + the 12 guard tests);
+- the win survives the layout re-cut, and grows — the re-cut made the
+  unpatched baseline slower:
+
+| | Before | After |
+|---|---|---|
+| full suite wall | 36.97 s / 38.76 s | 11.21 s / 12.47 s |
+| f2-builds-persistence wall | 29.14 s / 30.64 s | 7.27 s / 7.87 s |
+
+Whoever merges should re-run the pass-set diff against the actual merge base
+at that time; the 694-name comparison in §3 is against `b94d403`.
