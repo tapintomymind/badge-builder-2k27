@@ -234,3 +234,85 @@ they are not in the record BuildPanel receives. When the bonus UI slice lands
 it must pass the bonus totals into BuildPanel and add them to this predicate,
 or a user whose only input is bonus gets a setup panel that never latches.
 Flagged here so it is a hand-off and not a silent gap.
+
+
+================================================================================
+ADDENDUM — the Physique block (scope addition, MEASURED then DECLINED)
+================================================================================
+A scope addition arrived mid-slice: the user sent a screenshot of the Physique
+block and asked to "fit the height and width across the full width of the card
+pane and format it correctly so it doesn't look off." Measured rather than
+taken on faith, per the coordinator's own instruction. FOUR of the premises do
+not survive measurement, and the fix needs FOUR denied paths. Not folded in.
+Frames: f54-physique-setup-panel-{1280,390}.png (position C, panel expanded).
+
+CORRECTION 1 — THE SCREENSHOT IS OF A LAYOUT THIS SLICE ALREADY REPLACED.
+It describes "the Position control above them spans the full pane width as a
+2x3 grid". That is §11.5 (3)'s `.rail-left .segmented__track` auto-fit grid in
+the 266px rail -- which F5.4 DELETES (§16.7), because the surface it protected
+left the rail. Post-F5.4 the track is ONE 256.73px inline-flex row. The
+reported asymmetry (full-width grid over clustered inputs) no longer exists.
+
+CORRECTION 2 — "ANY HEIGHT YOU ADD COMES OUT OF VISIBLE SLIDERS" IS FALSE NOW.
+Physique is no longer in the pane; F5.4 moved it to the setup panel in the
+right column. Measured at 1280x900 with the block fully expanded:
+`.attr-pane` still shows 8 sliders. Height added here costs ZERO sliders.
+The budget pressure that was meant to constrain this fix does not apply.
+
+CORRECTION 3 — THE DEAD GUTTER GOT BIGGER, AND IT IS NOW SHARED.
+  .section__body content            868px
+  .segmented__track                 256.73px   -> 611px of gutter
+  height row content ends at        178.59px   -> 689px of gutter
+Both Physique rows now huddle at the left. So they read as ONE layout as the
+brief asked -- but the dissonance moved: the Budgets table DIRECTLY BENEATH
+them spans the full 868px in three columns. The odd pairing is now
+Physique-vs-Budgets, not Position-vs-Height.
+
+CORRECTION 4 — THE RANGE IS STATED THREE TIMES, NOT TWICE.
+With a clamp active all three render at once, ~60px apart:
+  Position hint    "Sets the available height range (C: 6'7"-7'4"). ..."
+  HeightField hint "C: 6'7"-7'4""
+  clamp notice     "! Height adjusted 6'6" -> 6'7" to fit C's range (6'7"-7'4")."
+
+WHY IT IS NOT FOLDED IN — four denied paths, one a ratified scope clause.
+ · src/ui/primitives/HeightField.tsx        DENIED. Owns the row's DOM and the
+   `= 79 in` echo. Nothing in items 1/2 is reachable without it.
+ · tests/ui/position-height-clamp.test.tsx  DENIED, and it is the guard. Its
+   describe is literally "the withdrawn Cosmetic treatment (scope.md §0.1 A2
+   copy consequence)" and it pins the Position hint's range recitation AND
+   that it updates live on a position switch (Any -> SF). The coordinator's
+   read -- "the hint should stop reciting the numbers" -- is therefore a
+   scope.md §0.1 A2 AMENDMENT, not a copy tweak. My contract says report
+   amendments, never self-ratify.
+ · tests/ui/primitives.test.tsx             DENIED. Pins `= 78 in` exactly.
+ · scope.md                                 DENIED for the A2 consequence.
+
+AND THE "EXISTING DERIVED-VS-ENTERED VOCABULARY" DOES NOT EXIST TO REUSE.
+Grepped: every "derived" in app.css is layout-arithmetic prose, not a visual
+idiom. The closest thing the app has, the echo ALREADY wears -- `.num`
+(--font-num tabular) + --fg-muted + aria-hidden. Changing it would be
+INVENTING the vocabulary the brief said not to invent.
+
+COLLISION RISK, THE ARGUMENT FOR FOLDING IN, MEASURED AND WEAK.
+F5.4 touches NO `.height-field*` or `.physique*` rule in app.css (verified by
+grep over the diff), and `PhysiqueSection`'s body is BYTE-UNTOUCHED -- it
+appears in one hunk header only as context, the first changed line being
+`export function BuildPanel`. A follow-on Physique slice does not collide.
+
+ONE MORE THING THE RULING NEEDS. At L, picking a position FIRES THE LATCH:
+`hasValues` at L is `budgets || position !== undefined` (§16.5), so choosing C
+-- the exact act that produces the screenshot -- collapses the setup panel to
+its digest. The block being re-formatted is normally CLOSED at L and opened
+deliberately. Captured both ways; the committed frame is the expanded one.
+
+RECOMMENDED SHAPE, for Designer to rule on rather than an implementer to guess.
+The app already answered this question twice for a control marooned in a box
+far wider than its content: `.summary`'s track cap ("width:100% across a
+1231px box puts the label at the far left and the figure at the far right")
+and this slice's own A1. Both CAP; neither stretches. Taking "full width"
+literally here would stretch two number inputs to ~434px each, which is the
+defect those two comments exist to prevent. The attractive third option --
+visible in the frame -- is to lay Position and Height on the Budgets table's
+existing three-column grid so all three rows of the setup panel share one
+rhythm. That is a design ruling, it is free of vertical cost (correction 2),
+and it should be made against THIS frame, not the pre-F5.4 screenshot.
