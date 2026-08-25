@@ -13,7 +13,7 @@ the view — stop, and extend the engine contract instead. Do not compute it her
 - `shell/` — AppHeader, ProvenanceChip, DriftBanner, AutosaveWarning (§3.2)
 - `build/` — BuildPanel (+ PhysiqueSection), AttributeGrid, BudgetGrid
   (+ BudgetTotalRow) (§3.3)
-- `grid/` — JumpNav, CategoryLedger, BadgeGridSection, BadgeCard
+- `grid/` — JumpNav, CategoryLedgerDigest, CategoryLedgerLede, BadgeGridSection, BadgeCard
   (+ LevelPipRow) (§3.4)
 - `builds/` — BuildSwitcher + BuildManagerDialog (§3.6)
 

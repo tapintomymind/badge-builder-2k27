@@ -38,7 +38,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { cssBlock, srcSources } from "./helpers/test-utils";
+import { cssBlock, srcSources, stripComments } from "./helpers/test-utils";
 
 const cssSources = import.meta.glob("/src/styles/*.css", {
   query: "?raw",
@@ -465,5 +465,354 @@ describe("I4 — the sub-L layouts F2 fixed are untouched", () => {
     // 390: page padding is --space-3 below 768; one cell.
     const panel390 = 390 - 2 * SPACE_3 - 2 * SECTION_CHROME;
     expect(panel390).toBeGreaterThan(STACK_MAX); // still side-by-side
+  });
+});
+
+
+/* ------------------------------------------------ I11 + I12 + I13 (F5.3) -- */
+
+/**
+ * F5.3 — the badge card's INTERNAL geometry.
+ *
+ * §13.0.1 gave the card a width. This section asks the next question: does
+ * what is inside the card FIT that width, and do the boxes in a row end at
+ * the same pixel. Both were reported broken by the user, and the second one
+ * has a cause nobody had measured: the grid stretches its <li> children
+ * perfectly, and always did — the dead space is INSIDE each cell, below a
+ * .badge-card that is a content-height flex column and never fills its <li>.
+ *
+ * Same discipline as everything above it: parse the numbers out of the
+ * shipped stylesheet, re-derive the identity, and give each assertion a
+ * canary that is red against the arrangement it replaced.
+ */
+
+/* --------------------------------------------------------- parsed (F5.3) -- */
+
+const CARD_PAD = spaceIn(app, ".badge-card", "padding", 0);
+const CARD_GAP_Y = spaceIn(app, ".badge-card", "gap", 0);
+/** T6/T7: `.pip { width }` exists TWICE after F5.3 (base + the S touch
+ *  floor), so `spaceIn` would throw "expected exactly 1, found 2"; and both
+ *  are LITERAL px, which `spaceIn` rejects on principle. Index the blocks and
+ *  parse with px(). */
+const PIP_BLOCKS = blocksFor(app, ".pip");
+const PIP_W = px(PIP_BLOCKS[0] as string, /width:\s*(\d+)px/);
+const PIP_W_S = px(PIP_BLOCKS[1] as string, /width:\s*(\d+)px/);
+const PIP_GAP = spaceIn(app, ".pip-row", "gap", 0);
+const PIP_DOT = px(cssBlock(app, ".pip__dot"), /width:\s*(\d+)px/);
+/** The Legend indicator's floor. `.pip--legend {` has TWO blocks (F5's
+ *  `cursor: default` and F5.3's box), so cssBlock — which returns the FIRST —
+ *  would read the wrong one. Take the block that declares the property. */
+const LEGEND_PIP_BOX = blocksFor(app, ".pip--legend").find((block) =>
+  block.includes("min-width"),
+) as string;
+const LEGEND_PIP_MIN = px(LEGEND_PIP_BOX, /min-width:\s*(\d+)px/);
+/** The largest tier medallion (tier A). Levels are embossed metal, tiers are
+ *  debossed wells; rank varies by SIZE, so the biggest is the binding one. */
+const TIER_MEDALLION_MAX = px(
+  cssBlock(app, '.badge-card[data-tier="A"] .chip--tier'),
+  /width:\s*(\d+)px/,
+);
+/** The 3px synergy left border — I12. `.badge-card--fuse` is the carrier, and
+ *  the cards that lose those 2px are exactly the ones carrying the extra
+ *  chip, so this is parsed and never assumed. */
+const SYNERGY_BORDER = px(cssBlock(app, ".badge-card--fuse"), /border-left:\s*(\d+)px/);
+
+/* --------------------------------- measured on paper (design-spec §15) ---- */
+
+/** "Versatile Visionary" at --text-base/600 — the widest of the 53 names. */
+const BADGE_NAME_MAX = 160;
+/** "Powerhouse" — the longest UNBREAKABLE word. A name cannot compress below
+ *  its longest word, so this is the true floor, not the max-content. */
+const BADGE_NAME_MIN = 92;
+/** "+7⚠" — tierCosts top out at A:[3,5,6,7], so whatIf is bounded to ±7 and
+ *  every cost string on a purchasable pip is single-digit. Post-F5.3: the
+ *  space before the glyph is deleted, 34 -> 28. */
+const PIP_COST_MAX = 28;
+/** "boost" on the Legend indicator. */
+const LEGEND_COST_MAX = 36;
+/** '6'3"–7'4"' — the height range, all that is left of the meta line's own
+ *  text after the category prefix went .sr-only. Was 122 with it. */
+const META_MAX = 47;
+/** "⚡ Fuse · SS7 +2" in a bordered pill — the synergy role chip. */
+const SYNERGY_CHIP_MAX = 130;
+/** F4's "NEW" chip: ~22px of --text-xs plus 2 x --space-2 padding and a 1px
+ *  border each side. NEW PIN — F4 landed after §15 was written and this is
+ *  the number that decides where the chip lives. */
+const NEW_CHIP_MAX = 40;
+/** "Would go over Badge Slots" — the BINDING chip, and the reason compaction
+ *  was never on the table. */
+const OVER_SLOTS_CHIP_MAX = 173;
+
+/**
+ * I12 — the binding content box. 240px floor, minus a 1px right border AND a
+ * 3px synergy LEFT border, minus two card paddings. The 3px is not a detail:
+ * it is exactly the cards that carry the extra chip that pay it.
+ */
+const CARD_CONTENT_MIN = CARD_FLOOR - (1 + SYNERGY_BORDER) - 2 * CARD_PAD;
+
+describe("I12 + I13 — the badge card's own geometry (F5.3)", () => {
+  it("1 — CARD_CONTENT_MIN counts the 3px synergy border, so it is 204 and not 206", () => {
+    expect(SYNERGY_BORDER).toBe(3);
+    expect(CARD_CONTENT_MIN).toBe(204);
+    // The canary: computing it with 1px borders on both sides — the natural
+    // mistake, and the one §15 shipped — gives 206 and quietly certifies a
+    // 2px overdraft on exactly the cards carrying the extra chip.
+    const naive = CARD_FLOOR - 2 - 2 * CARD_PAD;
+    expect(naive).toBe(206);
+    expect(CARD_CONTENT_MIN).toBeLessThan(naive);
+  });
+
+  it("2 — I11 title: the row is NAME + TIER MEDALLION and it fits on one line", () => {
+    expect(BADGE_NAME_MAX + SPACE_2 + TIER_MEDALLION_MAX).toBeLessThanOrEqual(CARD_CONTENT_MIN);
+    // The canary, and the reason the chips had to leave: with the synergy
+    // chip still on the line the name gets 34px, well under the 92px its
+    // longest unbreakable word needs. And the BINDING chip is the 173px
+    // over-Badge-Slots warning, which leaves the name −1px at zero
+    // synergy-chip width — compaction could never have paid for this.
+    const withSynergyChip =
+      CARD_CONTENT_MIN - SYNERGY_CHIP_MAX - SPACE_2 - SPACE_2 - TIER_MEDALLION_MAX;
+    expect(withSynergyChip).toBeLessThan(BADGE_NAME_MIN);
+    const withWarningChip =
+      CARD_CONTENT_MIN - OVER_SLOTS_CHIP_MAX - SPACE_2 - TIER_MEDALLION_MAX;
+    expect(withWarningChip).toBeLessThan(0);
+  });
+
+  it("2b — F4's NEW chip CANNOT go back on the title line", () => {
+    // 19 of the 53 badges are isNew, including "Arc Cadence" (§15's worked
+    // example) and "Post Spin Catalyst" (the widest of them). This assertion
+    // exists so a future pass cannot quietly put the chip back.
+    expect(
+      BADGE_NAME_MAX + SPACE_2 + NEW_CHIP_MAX + SPACE_2 + TIER_MEDALLION_MAX,
+    ).toBeGreaterThan(CARD_CONTENT_MIN);
+    // stripComments first: this slice sits between two long rationale
+    // comments that legitimately NAME the chips they evict, and an assertion
+    // that reads its own prose is checking nothing.
+    const badgeCard = stripComments(srcSources["/src/ui/grid/BadgeCard.tsx"] as string);
+    const titleRow = badgeCard.slice(
+      badgeCard.indexOf('className="badge-card__title-row"'),
+      badgeCard.indexOf('className="badge-card__meta"'),
+    );
+    expect(titleRow).not.toContain("isNew");
+    expect(titleRow).not.toContain("Would go over Badge Slots");
+    expect(titleRow).not.toContain("LEGEND");
+  });
+
+  it("3 — I11 meta, the common case: height range + synergy chip on one line", () => {
+    expect(META_MAX + SPACE_2 + SYNERGY_CHIP_MAX).toBeLessThanOrEqual(CARD_CONTENT_MIN);
+    // The canary: with the category name still rendered (122px of max-content
+    // across all 53 cards) the same row is 260 against 204 and wraps. Dropping
+    // it to an .sr-only prefix is what pays for the chips with no new band.
+    const withVisibleCategory = 122 + SPACE_2 + SYNERGY_CHIP_MAX;
+    expect(withVisibleCategory).toBeGreaterThan(CARD_CONTENT_MIN);
+  });
+
+  it("3b — I11 meta, worst declared: it wraps BY DESIGN, and the wrap is declared", () => {
+    expect(
+      META_MAX + SPACE_2 + NEW_CHIP_MAX + SPACE_2 + SYNERGY_CHIP_MAX,
+    ).toBeGreaterThan(CARD_CONTENT_MIN);
+    // Declared by intent, never exempted by omission: the second line is only
+    // legitimate because the row is a wrapping flex rail and A1 absorbs it.
+    // Two `.badge-card__meta {` blocks after F5.3 (F5's type + this slice's
+    // box), so cssBlock — which returns the FIRST — reads the wrong one.
+    const meta = blocksFor(app, ".badge-card__meta").find((block) =>
+      block.includes("display: flex"),
+    ) as string;
+    expect(meta).toContain("flex-wrap: wrap");
+    expect(meta).toContain("align-items: center");
+  });
+
+  it("4 — the FOUR purchase pips never wrap among themselves", () => {
+    // PURCHASABLE_LEVELS has four entries; the fifth mark is the
+    // non-interactive Legend indicator. That difference is 44px of a 204px
+    // box, and it is why the wrap grant is taken ONLY at that seam.
+    expect(4 * PIP_W + 3 * PIP_GAP).toBeLessThanOrEqual(CARD_CONTENT_MIN);
+    expect(CARD_CONTENT_MIN - (4 * PIP_W + 3 * PIP_GAP)).toBe(48);
+  });
+
+  it("5 — THE USER'S COMPLAINT, as an inequality: the gaps read NARROWER than the dots", () => {
+    // whitespace between adjacent dots = (pipW − dotW) + pipGap
+    expect(PIP_W - PIP_DOT + PIP_GAP).toBeLessThan(PIP_DOT); // 18 < 22
+    // THE CANARY, and it is the one that was actually seen red against the
+    // unmodified tree before a byte of src/ changed: `.pip { flex: 1 }` made
+    // five pips share the 264px content box of a 298px card at 1280, giving
+    // 49.6px each and 31.6px of whitespace between 22px dots — the gaps read
+    // LARGER than the pips, which is exactly what was reported.
+    const shippedBroken = (264 - 4 * SPACE_1) / 5;
+    expect(shippedBroken - PIP_DOT + SPACE_1).toBeGreaterThan(PIP_DOT); // 31.6 > 22
+  });
+
+  it("6 — every cost string fits the box that carries it", () => {
+    expect(PIP_COST_MAX).toBeLessThanOrEqual(PIP_W); // 28 <= 36
+    // Exact, and safe BECAUSE it is exact only as a floor: .pip--legend is
+    // `width: auto` with min-width as the floor, so the box grows with the
+    // string and can never overflow it.
+    expect(LEGEND_COST_MAX + 2 * SPACE_1).toBeLessThanOrEqual(LEGEND_PIP_MIN); // 44 <= 44
+    expect(LEGEND_PIP_BOX).toContain("width: auto");
+  });
+
+  it("7 — nothing stretches the pips, and the ways to re-break it are named", () => {
+    // stripComments: S2's rationale block legitimately QUOTES `flex: 1` as
+    // the cause it removed. Grepping the prose would make this permanently
+    // red for the most honest possible reason.
+    expect(stripComments(PIP_BLOCKS[0] as string)).not.toContain("flex: 1");
+    expect(PIP_BLOCKS[0]).toContain("flex: 0 0 auto");
+    // blocksFor(".pip-row") also matches `.badge-card--blocked .pip-row {` —
+    // check EVERY block that declares the selector, not the first one.
+    for (const block of blocksFor(app, ".pip-row").map(stripComments)) {
+      expect(block).not.toContain("space-between");
+      expect(block).not.toContain("space-around");
+      expect(block).not.toContain("justify-content: center");
+      expect(block).not.toContain("1fr");
+    }
+    // The banned literals are still DETECTABLE — an assertion that cannot
+    // see what it forbids is not an assertion.
+    expect("justify-content: space-between").toContain("space-between");
+  });
+
+  it("8 — the S touch floor is intact and the base pip clears SC 2.5.8", () => {
+    expect(PIP_W_S).toBeGreaterThanOrEqual(44); // I6, FROZEN
+    expect(app).toMatch(/@media \(max-width: 767px\) \{\s*\.pip \{\s*width: 44px;/);
+    expect(PIP_W).toBeGreaterThanOrEqual(24); // WCAG 2.2 SC 2.5.8 AA, +12
+    // At S the 44px target flips the inequality back (26 vs 22) and that is
+    // CORRECT: a target the thumb can hit outranks the optical ordering.
+    expect(PIP_W_S - PIP_DOT + PIP_GAP).toBeGreaterThan(PIP_DOT);
+  });
+
+  it("9 — I13: equal card heights come from the <li>, and nothing clamps", () => {
+    expect(cssBlock(app, ".grid-section__cards > li")).toContain("display: grid");
+    // The four forbidden repairs, by name.
+    for (const block of blocksFor(app, ".grid-section__cards")) {
+      expect(block).not.toContain("grid-auto-rows");
+    }
+    // Strip the stylesheet's comments BEFORE splitting into blocks: A1's
+    // rationale names the rejected `.badge-card { height: 100% }` verbatim,
+    // and blocksFor would happily return the inside of that sentence.
+    for (const card of blocksFor(stripComments(app), ".badge-card")) {
+      for (const banned of ["height:", "max-height", "overflow", "justify-content"]) {
+        expect(card).not.toContain(banned);
+      }
+    }
+    // I14 stated as the rule it is: the eligibility reason is a disclosure
+    // with NO control and it is never truncated. (F4's description clamp is a
+    // different object — a disclosure WITH a control, whose full string is
+    // always in the DOM.)
+    const elig = cssBlock(app, ".badge-card__eligibility");
+    expect(elig).not.toContain("line-clamp");
+    expect(elig).not.toContain("overflow");
+    // CARD_GAP_Y is parsed, not assumed — it is geometry the row spends.
+    expect(CARD_GAP_Y).toBe(SPACE_2);
+  });
+
+  it("10 — I12 reclamation: the ' stale' suffix and the pip-cost space are gone", () => {
+    expect(app).not.toContain('content: " stale"');
+    const badgeCard = srcSources["/src/ui/grid/BadgeCard.tsx"] as string;
+    expect(badgeCard).not.toContain("${deltaText} ⚠");
+    expect(badgeCard).toContain("${deltaText}⚠");
+    // §10.4 named FOUR carriers for a stale purchase; deleting the textual
+    // suffix leaves three, one of them textual (the eligibility line in
+    // WORDS), so WCAG 1.4.1 is satisfied with margin. `.pip__cost` is
+    // aria-hidden and the pip's accessible name already says it, so AT loses
+    // nothing at all.
+    expect(badgeCard).toContain("no longer meets requirements");
+    expect(app).toContain(".pip--stale .pip__dot");
+  });
+});
+
+describe("F5.3/B — collapsible categories, checked structurally", () => {
+  // Every grep below is against STRIPPED source. These three files carry long
+  // rationale comments that name, by design, the exact anti-patterns they
+  // forbid — `aria-expanded`, `section-`, the sticky-killing properties. An
+  // assertion that reads that prose is red for the most honest possible
+  // reason and teaches the next author to delete the explanation.
+  const gridSection = stripComments(srcSources["/src/ui/grid/BadgeGridSection.tsx"] as string);
+  const ledger = stripComments(srcSources["/src/ui/grid/CategoryLedger.tsx"] as string);
+  const anchors = stripComments(srcSources["/src/ui/grid/anchors.ts"] as string);
+
+  it("11 — the --cat chain: the id never left .grid-section, and <details> has none", () => {
+    // The line is UNCHANGED CONTEXT in the diff, verbatim, so a reviewer can
+    // see at a glance that the id never moved.
+    expect(gridSection).toMatch(
+      /<section\s+className="grid-section"\s+id=\{categoryAnchorId\(category\)\}/,
+    );
+    // The <details> carries no id of its own. A fixture with the id moved
+    // there must FAIL this regex, or the check is decorative.
+    const detailsBlock = gridSection.slice(gridSection.indexOf("<details"));
+    expect(detailsBlock.slice(0, detailsBlock.indexOf(">"))).not.toContain("id=");
+    const badFixture =
+      '<details className="grid-section__disclosure" id={categoryAnchorId(category)}>';
+    expect(badFixture.slice(0, badFixture.indexOf(">"))).toContain("id=");
+    // All six --cat blocks still present.
+    for (const category of ["finishing", "shooting", "playmaking", "rebounding", "defense"]) {
+      expect(app).toContain(`#cat-${category}`);
+    }
+  });
+
+  it("12 — the sticky digest survives, and nothing on the wrapper can kill it", () => {
+    // A17: cssBlock returns the FIRST `.category-ledger {` block, which stays
+    // the sticky one. Moving the sticky declaration into the appended F5.3
+    // block is how this pin would silently stop checking anything.
+    const sticky = cssBlock(app, ".category-ledger");
+    expect(sticky).toContain("position: sticky");
+    expect(sticky).toContain("top: 44px");
+    // The wrapper declares nothing that creates a containing block or a clip.
+    // Every one of these would make the <details> the sticky element's
+    // containing block and the header would die with this file still green —
+    // which is why §4.3's browser scroll is a required companion, not a nicety.
+    const disclosure = stripComments(cssBlock(app, ".grid-section__disclosure"));
+    for (const banned of ["overflow", "contain", "transform", "filter", "height"]) {
+      expect(disclosure).not.toContain(banned);
+    }
+    // aria-expanded is NATIVE. Hand-authoring it is redundant and can conflict.
+    expect(gridSection).not.toContain("aria-expanded");
+    expect(ledger).not.toContain("aria-expanded");
+    // And the digest IS the <summary> — not a <div> nested inside one, which
+    // is the arrangement that kills sticky (T3) while every pin stays green.
+    expect(ledger).toMatch(/<summary className=\{`category-ledger/);
+    // §15.8 ③: <summary>'s content model admits phrasing + heading content,
+    // so the digest's row is a <span>, never a <div>.
+    const digest = ledger.slice(ledger.indexOf("export function CategoryLedgerDigest"));
+    const digestBody = digest.slice(0, digest.indexOf("export function CategoryLedgerLede"));
+    expect(digestBody).toContain('<span className="category-ledger__row">');
+    expect(digestBody).not.toContain('<div className="category-ledger__row">');
+  });
+
+  it("13 — the collapse keys are namespaced away from the section-* keys", () => {
+    expect(anchors).toContain("export function categorySectionStorageKey");
+    expect(anchors).toMatch(/return `category-\$\{category\.toLowerCase\(\)\}`/);
+    // The prefix is `category-`, NEVER `section-`, precisely so a future reset
+    // of one class cannot reach the other.
+    expect(anchors).not.toContain("`section-");
+  });
+
+  it("14 — collapse is DISPLAY-ONLY: it cannot reach a computation", () => {
+    // A TYPE import is erased at compile time and reaches no computation; a
+    // VALUE import from src/engine/ would mean collapse had grown a rule.
+    for (const line of gridSection.split("\n")) {
+      if (!line.includes("../../engine/")) continue;
+      expect(line.trimStart().startsWith("import type")).toBe(true);
+    }
+    expect(gridSection).toContain('import type { Category } from "../../engine/vocabulary"');
+    // The App's ledger memo must not depend on any collapse/ui-state value.
+    const appTsx = srcSources["/src/App.tsx"] as string;
+    const memo = appTsx.slice(appTsx.indexOf("const readouts"), appTsx.indexOf("const readouts") + 1200);
+    for (const banned of ["categorySectionStorageKey", "UiSectionOpen", "collapse"]) {
+      expect(memo).not.toContain(banned);
+    }
+  });
+
+  it("19b — the four string builders are STILL EXPORTED (SummaryPanel is denied)", () => {
+    // P0-1: one builder, four consumers. SummaryPanel.tsx imports
+    // badgeSlotsCapacityUnset from this module and is outside this slice's
+    // edit surface, so a dropped export is a reachable-but-denied break.
+    for (const builder of [
+      "overByBadgePoints",
+      "overByBadgeSlots",
+      "badgeSlotsCapacityUnset",
+      "projectionDiffers",
+    ]) {
+      expect(ledger).toContain(`export function ${builder}`);
+    }
+    const summary = srcSources["/src/ui/summary/SummaryPanel.tsx"] as string;
+    expect(summary).toContain("badgeSlotsCapacityUnset");
   });
 });

@@ -151,7 +151,10 @@ function pipModel(
     return {
       level,
       state: "unaffordable",
-      costText: `${deltaText} ⚠`,
+      // F5.3/I12: the space is deleted, not the glyph — 34px -> 28px in the
+      // narrowest box in the app. The stale case above is a BARE glyph and is
+      // not touched.
+      costText: `${deltaText}⚠`,
       ariaLabel: `${label}, ${totalCost ?? 0} points total, ${deltaText} points — exceeds remaining points`,
     };
   }
@@ -350,8 +353,36 @@ export function BadgeCard(props: BadgeCardProps) {
         onCycle(badge.id);
       }}
     >
+      {/* F5.3/A (design-spec §15.4, invariant I11): the title row carries the
+          NAME and the TIER MEDALLION ONLY. Every chip left the line, because
+          the arithmetic says they must: at the binding 204px content box the
+          173px `Would go over Badge Slots` warning leaves the name −1px even
+          at zero synergy-chip width. Compaction was not available; eviction
+          was. The row is now a provably one-line 24px band (assertion 2),
+          which is what licenses `align-items: center` in the CSS. */}
       <div className="badge-card__title-row">
         <span className="badge-card__name">{badge.name}</span>
+        <Chip variant="tier">{badge.tier}</Chip>
+      </div>
+      {/* F5.3/A: meta is now the card's chip rail — a WRAPPING flex row. The
+          visible `{category} · ` prefix is gone (it is restated on all 53
+          cards under a sticky h2 that already names the category in its own
+          hue); it survives as an .sr-only prefix because DriftBanner links
+          straight to a card by anchor and that user never passed the section
+          heading. That reclamation takes meta's max-content 122 -> 47, which
+          is what pays for the chips WITHOUT a new band.
+
+          F4's NEW chip joins them here, and that is arithmetic too: on the
+          title line `152 + 8 + 40 + 8 + 24 = 232 > 204` — the widest isNew
+          name ("Post Spin Catalyst") would wrap the row straight back open.
+          Worst case here is `47 + 8 + 40 + 8 + 130 = 233`, which wraps to a
+          second line BY DESIGN (assertion 3b) and is absorbed by A1. */}
+      <div className="badge-card__meta">
+        <span className="sr-only">{badge.category} · </span>
+        <span>
+          {formatHeightInches(badge.requirements.heightMinInches)}–
+          {formatHeightInches(badge.requirements.heightMaxInches)}
+        </span>
         {role !== null ? (
           // Compact on-card form (design-review P1-5): the H1-correct long
           // form stays the ACCESSIBLE name; the visible chip abbreviates.
@@ -377,12 +408,6 @@ export function BadgeCard(props: BadgeCardProps) {
             Reaction role chip uses; that collision is a Designer ask, not an
             implementer decision (raised in the F4 reportback). */}
         {badge.isNew ? <Chip variant="info">NEW</Chip> : null}
-        <Chip variant="tier">{badge.tier}</Chip>
-      </div>
-      <div className="badge-card__meta">
-        {badge.category} ·{" "}
-        {formatHeightInches(badge.requirements.heightMinInches)}–
-        {formatHeightInches(badge.requirements.heightMaxInches)}
       </div>
       {/* F4 — the official one-line description behind a NATIVE <details>
           (design-spec §10.3 + §10.8 item 1: the reveal control is F4's).

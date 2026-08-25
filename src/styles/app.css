@@ -352,7 +352,12 @@ ul {
 }
 
 .btn:disabled {
-  opacity: 0.45;
+  /* F5.3 drift 3: 0.45 -> 0.6, the value §3.1 rev 2 ratified. Composited over
+   * --bg-surface, --fg-primary goes 3.99:1 -> 6.01:1 and --fg-secondary
+   * 3.31:1 -> 4.83:1. Disabled controls are formally exempt from SC 1.4.3, so
+   * this is not an AA failure — it is invariant I2, and this slice ships a new
+   * disabled control (`Reset build` at the zero state). */
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
@@ -1021,7 +1026,14 @@ ul {
 }
 
 .pip {
-  flex: 1;
+  /* F5.3/S2 — `flex: 1` WAS the cause of the reported pip spread: five pips
+   * sharing a 264px content box stretch to 49.6px each, putting
+   * (49.6 − 22) + 4 = 31.6px of whitespace between 22px dots. Content-sizing
+   * flips the inequality to (36 − 22) + 4 = 18 < 22. Fixed here rather than
+   * overridden later, because layout-arithmetic assertion 7 greps THIS block
+   * for the absence of `flex: 1` and an override would leave it red forever. */
+  flex: 0 0 auto;
+  width: 36px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -2148,10 +2160,6 @@ ul {
   box-shadow: 0 0 0 2px var(--fg-primary);
 }
 
-.pip--stale .pip__cost::after {
-  content: " stale";
-}
-
 /* Boost halos re-asserted AFTER the state rules, so a boosted well keeps
  * its role ring (hues unchanged — DC-4 passed and is not re-litigated). */
 .pip--halo-fuse .pip__dot {
@@ -2622,4 +2630,165 @@ ul {
   margin: 0 0 var(--space-2);
   font-size: var(--text-xs);
   color: var(--fg-secondary);
+}
+
+/* --- F5.3: card internals, collapsible categories, Reset build --- */
+/* Appended as ONE delimited block at end of file, AFTER F4's block. Every
+   value below is an EXISTING spacing, type-scale or colour token, or a
+   derived px floor; src/styles/tokens.css is untouched (consume, never
+   define). The three surgical edits to existing rules are marked S1/S2/S3
+   in place. */
+
+/* A1 — invariant I13, and THE fix for the reported ragged-card defect, in one
+ * declaration. The grid was never broken: `.grid-section__cards` stretches its
+ * <li> children correctly and always has. The dead space is INSIDE each cell,
+ * below a `.badge-card` that is a content-height flex column and never fills
+ * its <li>. A single-item grid stretches its child in both axes by default, so
+ * the card is not asked to know anything about its wrapper and no percentage
+ * height has to resolve against anything.
+ *
+ * REJECTED: `.badge-card { height: 100% }`. It works today, and it makes the
+ * card depend on its parent having a definite height — the exact coupling I13
+ * exists to remove.
+ *
+ * FORBIDDEN, by name, so a future pass cannot reintroduce the defect:
+ *   grid-auto-rows on .grid-section__cards — Finishing has 11 cards over 4
+ *     rows at 3-up, and one blocked card with a three-line reason would
+ *     inflate all eleven.
+ *   justify-content on .badge-card — space-between distributes the slack INTO
+ *     the gaps, de-aligning the pip rows across a row: box-raggedness traded
+ *     for control-raggedness.
+ *   margin-top: auto on the disclosure — bottom-pinning the eligibility text
+ *     re-creates the ragged read on the text instead of on the box.
+ *   height / max-height / overflow / any line-clamp on any card element (I14).
+ *     The eligibility reason is the one string this tool exists to show, and
+ *     it is a disclosure with NO control. It is never truncated. (F4's
+ *     description clamp is a different object — a disclosure WITH a control,
+ *     whose full string is always in the DOM. Do not "fix" it.)
+ * Pinned by layout-arithmetic assertion 9. */
+.grid-section__cards > li {
+  display: grid;
+}
+
+/* A — the title row is now provably one line (assertion 2), so the 20/22/24px
+ * tier medallions stop sitting optically high against a 24px band. */
+.badge-card__title-row {
+  align-items: center;
+}
+
+/* A — meta is the card's chip rail now. It WRAPS by declared intent, not by
+ * omission: a card carrying both F4's NEW chip and a synergy role chip reads
+ * 47 + 8 + 40 + 8 + 130 = 233 against a 204px binding box, and the
+ * `Would go over Badge Slots` warning is wider still. The second line is
+ * absorbed by A1 and costs the row nothing. Assertion 3b. */
+.badge-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* A — the pip cluster. THE FIX IS TO STOP STRETCHING, NOT TO WRAP. Wrapping
+ * reduces how many pips share a line; it does not reduce spread. Forcing
+ * 3-per-line at 204px makes each pip 66px — strictly worse than the 49.6px
+ * being complained about. The four purchase radios take 4x36 + 3x4 = 156 of
+ * 204 and never wrap; the wrap grant is taken ONLY at the semantic seam
+ * between the four purchasable radios and the one non-interactive Legend
+ * indicator, which is why flex-wrap is safe here.
+ * FORBIDDEN, by name: `flex: 1` on .pip; space-between / space-around /
+ * justify-content: center on .pip-row; any grid-template-columns with a 1fr
+ * track. Assertion 7. */
+.pip-row {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+/* The Legend indicator is not a 36px purchase target — it is an indicator
+ * carrying the word "boost" (36px of text). width:auto with a 44px floor lets
+ * the box grow with the string, so the exact 44 = 36 + 2x4 fit cannot
+ * overflow. */
+.pip--legend {
+  width: auto;
+  min-width: 44px;
+  padding-inline: var(--space-1);
+}
+
+/* §5.3 touch floor, FROZEN (invariant I6). At S the 44x44 target wins and the
+ * spread reads 26 vs 22 — correct there, because a target the thumb can hit
+ * outranks the optical ordering. */
+@media (max-width: 767px) {
+  .pip {
+    width: 44px;
+  }
+}
+
+/* B — the digest IS the <summary>. `.section > summary`'s marker suppression,
+ * reused verbatim. */
+.category-ledger {
+  cursor: pointer;
+  list-style: none;
+}
+
+.category-ledger::-webkit-details-marker {
+  display: none;
+}
+
+/* B — the composed focus ring is NOT optional and NOT stylistic. The global
+ * `:focus-visible { box-shadow: var(--ring-focus) }` and
+ * `.category-ledger { box-shadow: var(--shadow-raised) }` have EQUAL
+ * specificity (0,1,0) and the ledger rule is later, so it wins: a <summary>
+ * carrying this class would ship with no visible focus ring at all, and no
+ * test in the suite can see a focus ring. The transparent outline is for
+ * forced-colors mode, where box-shadow is dropped entirely. */
+.category-ledger:focus-visible {
+  box-shadow: var(--ring-focus), var(--shadow-raised);
+  outline: 2px solid transparent;
+}
+
+/* B — the caret. NOT `.category-ledger::before`: F5 owns that pseudo-element
+ * for the sticky digest's gold hairline.
+ *
+ * THE `color` DECLARATION IS MANDATORY. `.category-ledger h2 { color:
+ * var(--cat) }` is the category identity surface, and without an explicit
+ * colour this caret would inherit it and become a FIFTH --cat surface by
+ * accident. category-colors.test.ts CANNOT catch that: its allowlist regex
+ * already matches `category-ledger h2`, so a --cat-coloured caret is
+ * pre-approved by the very test that exists to police the palette. Six
+ * categories, six carets, all --fg-muted — checked by eye. */
+.category-ledger h2::before {
+  content: "▸";
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  margin-right: var(--space-2);
+  display: inline-block;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.grid-section__disclosure[open] .category-ledger h2::before {
+  transform: rotate(90deg);
+}
+
+/* B — the disclosure wrapper declares NOTHING that could create a containing
+ * block or a clip. No overflow, no contain, no transform, no filter, no
+ * height animation: every one of those would make the <details> the sticky
+ * digest's containing block and the sticky header would die silently, with
+ * every CSS-text pin in the suite still green. The caret rotation IS the
+ * affordance; animating the collapse is ruled out for exactly this reason.
+ * Assertion 12. */
+.grid-section__disclosure {
+  display: block;
+}
+
+/* DRIFT 1 (rides, and in-slice by causation: F5.3 is the slice that MOVES this
+ * chip, and shipping a chip relocation while the chip stays invisible is
+ * incoherent). `.chip--accent` has no rule at all in the shipped tree, so the
+ * Fuse role chip renders with base .chip geometry, no border and an inherited
+ * colour, while its Reaction sibling gets `1px solid var(--info)`. Same recipe
+ * as .chip--info. No new hue and no new token — this consumes the existing
+ * --accent. Binding contrast case is --accent on --bg-raised (a purchased
+ * card, and ANY hovered card) at 4.97:1: clears AA text 4.5 and SC 1.4.11
+ * non-text 3.0. */
+.chip--accent {
+  border: 1px solid var(--accent);
+  color: var(--accent);
 }
