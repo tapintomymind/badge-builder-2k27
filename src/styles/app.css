@@ -875,7 +875,11 @@ ul {
  * scroll away. */
 .category-ledger {
   position: sticky;
-  top: 44px; /* below the jump nav — two sticky layers max (§5.3) */
+  /* Below the jump nav — two sticky layers max (§5.3). 44 is the nav's
+   * height at M and L, where its chips stay 28px. At S the chips take the
+   * I6 floor and the nav becomes 48px, so F9's block at the foot of this
+   * file re-derives this offset for that breakpoint. */
+  top: 44px;
   z-index: 10;
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -928,11 +932,17 @@ ul {
   font-weight: 600;
 }
 
-/* S (<768) sticky budget (§5.3: two layers ≤104px total; jump nav is 44px,
- * leaving ≤60px for the digest): compact type + tight padding keep the
- * title and the metrics row to ONE line each at 390 (~58px measured). The
- * over-state's extra `over by N ⚠` tokens may wrap a second line — an
- * overspend is exactly the state that has earned the extra chrome. */
+/* S (<768) sticky budget: compact type + tight padding keep the title and
+ * the metrics row to ONE line each at 390 (~59px measured). The over-state's
+ * extra `over by N ⚠` tokens may wrap a second line — an overspend is exactly
+ * the state that has earned the extra chrome.
+ *
+ * THE BUDGET THIS SERVES WAS RE-CUT BY §5.3 rev 2 and the ≤104px figure this
+ * comment used to quote is gone: the cap is now ≤48px for layer 1 (the jump
+ * nav) + ≤88px for layer 2 (this digest) = ≤136px global, at every
+ * breakpoint. F9 spends layer 1's cap in full — 44px chips + 2px of padding
+ * each side — so the pair is 48 + 59 = 107 against 136. The digest's own
+ * room GREW when the number was corrected; nothing here had to shrink. */
 @media (max-width: 767px) {
   .category-ledger {
     padding: var(--space-2) var(--space-3);
@@ -2942,3 +2952,221 @@ ul {
 }
 
 /* ==== end F5.4 ==== */
+
+/* ======================================================= F9 — the app-wide
+ * I6 touch-floor pass (design-spec §5.3 · §3.1 · invariant I6) ===============
+ *
+ * WHAT WAS WRONG. §3.1 rev 2 ratified an S-breakpoint override for `Button`,
+ * `Toggle` and `NumberField` and NONE of it shipped: `.btn--sm` is 28px and
+ * `.btn--md` is 36px at every width, `.toggle`'s label is 21px, and no
+ * `@media (max-width: 767px)` block touched a control height anywhere in this
+ * file. §5.3's "every interactive target >= 44x44px" is the invariant those
+ * overrides exist to satisfy, so the whole set failed WCAG 2.2 SC 2.5.5 on
+ * the one device the requirement was written for. Census at 390 before this
+ * block: SEVENTEEN control classes under the floor, from 14px (`Clear all`)
+ * to 42px (the overlay toggles). Only `.pip` (F5.3, frozen at 44),
+ * `input[type="range"]` (F3) and `.build-panel__reset` (F5.3, scoped) cleared
+ * it.
+ *
+ * §3.1's LETTER IS NOT FOLLOWED, AND THE DIVERGENCE IS DELIBERATE. Rev 2 says
+ * `sm` -> 36 and `md` -> 44, resting on one sentence: "the `md` variant is the
+ * one used for every header and dialog action, so raising it to 44 at S clears
+ * the rule for the whole set." That premise is false against the shipped tree.
+ * Every header action, every dialog action, every banner action and every
+ * build-manager action passes `size="sm"` — there is not one rendered `md`
+ * button in the app. Shipping 36 would have left the entire named set below
+ * the floor while the spec's own §5.3 invariant said 44. THE INVARIANT WINS:
+ * both sizes clear 44 here, and §3.1's size bullet needs a rev to match.
+ * Reported, not silently re-pinned.
+ *
+ * HOW. `min-height`, never `height`. `min-height` beats a smaller `height` on
+ * the used value regardless of source order or specificity, so these rules
+ * cannot be defeated by a later `.btn--sm { height: 28px }` and they do not
+ * have to out-specify one. Horizontal padding and font sizes are UNTOUCHED
+ * throughout, so every control's WIDTH is bit-identical to the pre-block tree
+ * — the reflow below is purely vertical, which is what makes it auditable.
+ *
+ * NOT MASKED. No `overflow-x: hidden` and no `overflow-x: clip` appears in
+ * this block. The three rows that genuinely could not hold their contents at
+ * 390 are given `flex-wrap: wrap` — a reflow, not a clip.
+ *
+ * `.build-panel__reset` IS NOT TOUCHED. F5.3 shipped its own scoped
+ * `min-height: 44px` at S precisely so its new control was not born below the
+ * floor, and layout-arithmetic assertion 20 pins that scoping decision where
+ * it is written. Rule 1 below subsumes it (the reset button is a `.btn`), so
+ * it is now belt-and-braces at the same value — never a conflict, and left in
+ * place rather than deleted so the assertion keeps checking what F5.3 meant.
+ *
+ * OUT OF SCOPE, NAMED. `src/main.tsx`'s RecoveryBoundary renders three
+ * UNSTYLED native <button>s with inline styles, deliberately: that screen has
+ * to render when the stylesheet itself is the casualty. They carry no class,
+ * so no rule here can reach them and none should. */
+
+@media (max-width: 767px) {
+  /* 1 — Button, both sizes. The one rule that clears the six surfaces this
+   * pass was opened for: the AppHeader control row, the BuildManager footer,
+   * Banner's actions, the FilterBar, ExportImportControls and all three
+   * dialog action rows. `.export-import__label` is a `.btn` too, so the
+   * Import control rises with its Export sibling. */
+  .btn {
+    min-height: var(--tap-target);
+  }
+
+  /* 2 — Select (§3.1). Both the primitive's control and the BuildSwitcher's
+   * bare <select>, which does not go through it. */
+  .select__control,
+  .build-switcher__select {
+    min-height: var(--tap-target);
+  }
+
+  /* 3 — Toggle (§3.1 rev 2, verbatim): the visual track stays 21px and the
+   * LABEL is the hit target. Grown with min-height on a centred flex box,
+   * never by growing the track. Covers all nine — the two header overlays,
+   * the FilterBar's `Legal for my build`, and the six Synergy Slot unlocks. */
+  .toggle {
+    min-height: var(--tap-target);
+  }
+
+  /* 4 — NumberField (§3.1 rev 2): 56px wide at every breakpoint, >=44 tall
+   * below 768. Thirty-four of them — twenty attribute echoes, twelve budgets,
+   * two height sub-fields. Interior padding grows; --text-sm does not move,
+   * so §1's "no number below 14px" still binds. */
+  .number-field input {
+    min-height: var(--tap-target);
+  }
+
+  /* 5 — SegmentedControl. The <label> wraps its radio and IS the target; the
+   * inputs are already visually hidden. `inline-flex` replaces `inline-block`
+   * so the option text centres in the taller box instead of sitting on top of
+   * it. The track's per-option <span>s stretch to match. */
+  .segmented label {
+    min-height: var(--tap-target);
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* 6 — the FilterBar's four own controls (§3.4). The tier chips are the only
+   * targets in the app narrower than they are tall, so they take the floor on
+   * BOTH axes; a 26x27 `A` fails 44x44 by width first. */
+  .filter-chip {
+    min-height: var(--tap-target);
+    min-width: var(--tap-target);
+    justify-content: center;
+  }
+
+  .filter-bar__categories > summary {
+    min-height: var(--tap-target);
+    display: flex;
+    align-items: center;
+  }
+
+  .filter-bar__category-option {
+    min-height: var(--tap-target);
+  }
+
+  .filter-bar__clear {
+    min-height: var(--tap-target);
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* 7 — the ProvenanceChip's disclosure in the header (18px, the second-worst
+   * in the census). Its popover is anchored to `top: calc(100% + …)`, so it
+   * follows the taller summary down with no rule of its own. */
+  .provenance summary {
+    min-height: var(--tap-target);
+  }
+
+  /* 8 — the jump nav (§5.3 sticky budget, layer 1). Its chips were 28px, and
+   * this is the most-tapped row on a phone. §5.3's table says layer 1 is
+   * "44px chips + 2px padding each side" = 48px, so the padding drops from
+   * --space-2 to the 2px the budget actually funds; the row is 48px, exactly
+   * at its cap, and layer 2 is untouched at ~59px against its ≤88px. Total
+   * 107 <= 136. `overflow-x: auto` is the ONE permitted single-axis scroll
+   * (§6) and it is inherited from the base rule, not added here. */
+  .jump-nav {
+    padding: 2px 0;
+  }
+
+  .jump-nav a {
+    min-height: var(--tap-target);
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* …and the sticky offset that sits under it. The base rule's `top: 44px` is
+   * the jump nav's height at M and L, where the chips stay 28px; at S the nav
+   * is 48px and a 44px offset would slide the digest under it by 4px. Derived
+   * from the same token, not re-typed: 2px + 44 + 2px. */
+  .category-ledger {
+    top: calc(var(--tap-target) + 4px);
+  }
+
+  /* 9 — the badge card's description disclosure (§10.3 rev 4). Every one of
+   * the 53 renders as a single 18px line at 390, which fails even SC 2.5.8's
+   * 24px AA floor. The 3-line clamp lives on the child span and is untouched;
+   * only the summary's box grows, and it centres what it holds. */
+  .badge-card__desc-summary {
+    min-height: var(--tap-target);
+    display: flex;
+    align-items: center;
+  }
+
+  /* 10 — the two remaining one-off targets: the skip link (§4.5, the first
+   * focusable element in the app) and the BuildManager's name field. */
+  .skip-link {
+    min-height: var(--tap-target);
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .build-manager__name-input {
+    min-height: var(--tap-target);
+  }
+
+  /* 11 — the reset dialog's opt-in row. Two lines of label at 390 measured
+   * 42.38, which is under the floor by a millimetre and reads as compliant. */
+  .reset-dialog__opt-in {
+    min-height: var(--tap-target);
+  }
+
+  /* ---- the reflow the rise causes, fixed by wrapping rather than clipping --
+   *
+   * THREE rows could not hold their contents at 390 once the controls grew.
+   * Each gets `flex-wrap: wrap`. None gets an overflow. */
+
+  /* 11a — Banner. `.banner__actions` is `flex: none` at 232px inside a 368px
+   * content box, which left 120px for the body: the quarantine sentence broke
+   * over five lines beside a two-button rail. Wrapping drops the actions onto
+   * their own line, `margin-left: auto` keeps them right-aligned there, and
+   * the body gets the full width. The banner gets SHORTER, not taller. */
+  .banner {
+    flex-wrap: wrap;
+  }
+
+  /* 11b — the dialog action rows. The reset dialog's three buttons measured
+   * 321.99px inside a 322px box — one pixel of slack across the whole row,
+   * and any copy change overflows a <dialog> that cannot scroll sideways.
+   * Both selector lists are joined here for the same reason §3.1's are:
+   * so the two can never drift apart. */
+  .import-dialog__actions,
+  .reset-dialog__actions {
+    flex-wrap: wrap;
+  }
+
+  /* 11c — the BuildManager's per-build row. Load / Rename / Duplicate /
+   * Delete is 294.8px of buttons beside a name and a timestamp inside a 320px
+   * content box — the row ALREADY overflowed its own box before this pass
+   * (measured scrollWidth > clientWidth at 390 on the base tree). Wrapping
+   * the <li> drops the action rail below the name; wrapping the rail itself
+   * lets four 44px targets take two lines instead of being squeezed. */
+  .build-manager__list li {
+    flex-wrap: wrap;
+  }
+
+  .build-manager__row-actions {
+    flex-wrap: wrap;
+  }
+}
+
+/* ==== end F9 ==== */

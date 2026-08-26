@@ -1585,3 +1585,281 @@ describe("I15 + I16 — the attributes pane, parse-and-re-derive on the vertical
     expect(absorbedByFr).toBeGreaterThan(SPACE_6 * 10);
   });
 });
+
+/* ------------------------------------------------------------ I6 (F9) ----- */
+
+/** THE TOUCH FLOOR, on the same parse-and-re-derive footing as everything
+ *  above it. §5.3's "every interactive target >= 44x44px" is invariant I6, and
+ *  for the whole of M3/M4/F2–F8 it was true of exactly three classes: `.pip`
+ *  (F5.3, frozen), `input[type="range"]` (F3) and `.build-panel__reset`
+ *  (F5.3, scoped to its own new control). Seventeen others were between 14px
+ *  and 42px at 390, and §3.1 rev 2's ratified S override — the one that was
+ *  supposed to prevent exactly this — never shipped a single declaration.
+ *
+ *  WHY A PARSE TEST AND NOT A MEASUREMENT. vitest runs in jsdom, which has no
+ *  layout engine: every getBoundingClientRect() in this repo's DOM tests
+ *  returns zeros, so a test that "measures" a touch target here would pass
+ *  against 0x0. What CAN be checked mechanically is that each control DECLARES
+ *  the floor at S and that the floor itself is one parsed token, so a future
+ *  density pass that shrinks `--tap-target` fails HERE — in one place, loudly —
+ *  instead of in the user's thumb. The empirical counterpart is a headless-
+ *  Chrome census at 390 recorded in docs/proof/f9-verification.txt: 80 hit
+ *  targets under the floor before, 0 after.
+ *
+ *  THE THREE cssBlock TRAPS THIS BLOCK HAD TO AVOID, all live in this file:
+ *  cssBlock() returns the FIRST matching block, it stops at the FIRST `}`, and
+ *  it therefore CANNOT SEE INSIDE A MEDIA QUERY AT ALL — every rule below is
+ *  inside one. `.category-ledger` now has five blocks and `.btn` two contexts.
+ *  Hence sMediaBodies() + sRule(), which brace-match and search every S block
+ *  by name rather than by ordinal. */
+
+/** CSS comments only — NOT the shared stripComments(), whose `//` arm would
+ *  eat the rest of a line at the first protocol-relative anything. Stripping
+ *  is mandatory before any brace counting here: this stylesheet's rationale
+ *  comments quote `{ … }` and `@media (max-width: 767px)` verbatim, and an
+ *  unstripped scan finds six S blocks where five exist. */
+const cssPlain = app.replace(/\/\*[\s\S]*?\*\//g, " ");
+
+/** Every `@media <query>` BODY, brace-matched. */
+function mediaBodies(source: string, query: string): string[] {
+  const out: string[] = [];
+  const needle = `@media ${query} {`;
+  for (let at = source.indexOf(needle); at !== -1; at = source.indexOf(needle, at + 1)) {
+    let depth = 1;
+    let i = at + needle.length;
+    for (; i < source.length && depth > 0; i += 1) {
+      if (source[i] === "{") depth += 1;
+      else if (source[i] === "}") depth -= 1;
+    }
+    out.push(source.slice(at + needle.length, i - 1));
+  }
+  if (out.length === 0) throw new Error(`layout arithmetic: no @media ${query} block`);
+  return out;
+}
+
+const S_BODIES = mediaBodies(cssPlain, "(max-width: 767px)");
+
+/** Every declaration block declared for `selector` ANYWHERE below 768px,
+ *  across every S media block, matching grouped selector lists exactly (so
+ *  `.import-dialog__actions, .reset-dialog__actions {` answers for both and a
+ *  substring like `.toggle--overlay` never answers for `.toggle`). */
+function sRule(selector: string): string[] {
+  const out: string[] = [];
+  for (const body of S_BODIES) {
+    for (const rule of body.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selectors = (rule[1] as string).split(",").map((s) => s.trim().replace(/\s+/g, " "));
+      if (selectors.includes(selector)) out.push(rule[2] as string);
+    }
+  }
+  return out;
+}
+
+/** The one number the pass turns on, PARSED from tokens.css. */
+const TAP = px(tokens, /--tap-target:\s*(\d+)px/);
+
+/** WCAG 2.2 SC 2.5.5 / design-spec §5.3. A literal on purpose, and it is the
+ *  STANDARD rather than a measurement — it is what `--tap-target` is graded
+ *  against, so it may not be parsed from the thing under test. */
+const WCAG_TARGET_SIZE = 44;
+
+/** §5.3's re-cut sticky budget, as three declared caps. Also the spec's own
+ *  numbers, so also pinned; what gets DERIVED below is whether the
+ *  composition still fits them once layer 1's chips take the touch floor. */
+const STICKY_LAYER_1_MAX = 48; // jump nav — "44px chips + 2px padding each side"
+const STICKY_LAYER_2_MAX = 88; // the per-category digest
+const STICKY_TOTAL_MAX = 136; // two layers, at every breakpoint
+
+/** Every control class F9 raises, with the class of surface it belongs to.
+ *  This census is the test's contract: assertion 27 proves it is neither short
+ *  (a rule in the stylesheet with no census entry) nor long (a census entry
+ *  with no rule), so it cannot rot in either direction. */
+const S_TOUCH_FLOOR_CENSUS = [
+  // the six surfaces F9 was opened for
+  ".btn", // AppHeader row · BuildManager footer · Banner actions · Export/Import · all 3 dialog action rows
+  ".select__control",
+  ".build-switcher__select",
+  ".toggle",
+  ".filter-chip",
+  ".filter-bar__categories > summary",
+  ".filter-bar__category-option",
+  ".filter-bar__clear",
+  ".provenance summary",
+  ".build-manager__name-input",
+  ".reset-dialog__opt-in",
+  // …and the three the app-wide census turned up beyond them
+  ".number-field input",
+  ".segmented label",
+  ".jump-nav a",
+  ".badge-card__desc-summary",
+  ".skip-link",
+] as const;
+
+describe("I6 — the S touch floor, parsed from one token and re-derived per control", () => {
+  it("23 — the floor is a TOKEN, defined once, and it clears the standard", () => {
+    expect(TAP).toBeGreaterThanOrEqual(WCAG_TARGET_SIZE);
+    // Consume, never define: app.css uses `--tap-target`, tokens.css owns it.
+    expect(tokens.match(/--tap-target:/g)).toHaveLength(1);
+    expect(cssPlain).not.toMatch(/--tap-target:\s*\d/);
+    expect(cssPlain).toContain("var(--tap-target)");
+    // CANARY. A floor below the standard must fail — if this file could not
+    // tell 40 from 44 it would certify the defect it exists to close.
+    expect(40).toBeLessThan(WCAG_TARGET_SIZE);
+  });
+
+  it("24 — every control in the census declares the floor at S, from the token", () => {
+    for (const selector of S_TOUCH_FLOOR_CENSUS) {
+      const rules = sRule(selector);
+      expect(rules, `no S rule for ${selector}`).toHaveLength(1);
+      const rule = rules[0] as string;
+      expect(rule, `${selector} does not take the floor`).toContain(
+        "min-height: var(--tap-target)",
+      );
+      // min-height, NOT height. `height: 44px` on a control whose content is
+      // taller clips it; min-height also beats a smaller `height` on the used
+      // value regardless of source order, which is what lets these rules sit
+      // at the foot of the file without out-specifying `.btn--sm`.
+      expect(rule, `${selector} sets a fixed height`).not.toMatch(/(?:^|;)\s*height:/);
+    }
+    // The tier chips are the ONLY targets narrower than they are tall — a 26px
+    // `A` fails 44x44 on the width axis first — so they take the floor twice.
+    expect(sRule(".filter-chip")[0]).toContain("min-width: var(--tap-target)");
+  });
+
+  it("25 — the canary: the shipped base heights are STILL under the floor", () => {
+    // If a later slice raises `.btn--sm` at every width, these two go green-by-
+    // accident and the S block above stops being load-bearing. That is a fact
+    // worth failing on, so it is asserted rather than assumed.
+    const smBase = px(app, /\.btn--sm \{[^}]*height:\s*(\d+)px/);
+    const mdBase = px(app, /\.btn--md \{[^}]*height:\s*(\d+)px/);
+    expect(smBase).toBe(28);
+    expect(mdBase).toBe(36);
+    expect(smBase).toBeLessThan(TAP);
+    expect(mdBase).toBeLessThan(TAP);
+    // §3.1 rev 2 ratified `sm` -> 36 at S on the premise that "`md` is the one
+    // used for every header and dialog action". Not one `md` button renders in
+    // this app — every call site passes size="sm" — so 36 would have left the
+    // whole named set below §5.3's own invariant. Both sizes clear 44 here and
+    // §3.1's size bullet needs a rev. Pinned so the divergence is not silent.
+    for (const call of Object.entries(srcSources)) {
+      const [path, source] = call as [string, string];
+      if (!path.startsWith("/src/ui/")) continue;
+      expect(stripComments(source), `${path} ships an md Button`).not.toContain('size="md"');
+    }
+  });
+
+  it("26 — the raise is not masked: no clip anywhere below 768px", () => {
+    // The shipped guard this mirrors is §16's `.attr-pane` pair. A reflow that
+    // is hidden instead of fixed passes every height assertion above it.
+    for (const body of S_BODIES) {
+      expect(body).not.toContain("overflow-x: hidden");
+      expect(body).not.toContain("overflow-x: clip");
+      expect(body).not.toContain("overflow: hidden");
+    }
+    // The four rows that could not hold their contents at 390 once the
+    // controls grew are WRAPPED, not clipped. `.banner` gets SHORTER doing it
+    // (measured 143.95 -> 138.78 at 390): its actions rail was `flex: none` at
+    // 232px inside a 368px box, so the body had 120px and broke over five
+    // lines.
+    for (const selector of [
+      ".banner",
+      ".reset-dialog__actions",
+      ".import-dialog__actions",
+      ".build-manager__list li",
+      ".build-manager__row-actions",
+    ]) {
+      expect(sRule(selector)[0], `${selector} does not wrap`).toContain("flex-wrap: wrap");
+    }
+    // POSITIVE CANARY: the banned literals are detectable, so this cannot pass
+    // by grepping for a string that never occurs.
+    expect("  overflow-x: hidden;").toContain("overflow-x: hidden");
+  });
+
+  it("27 — the census is exactly the stylesheet: not short, and not long", () => {
+    // Every selector that takes the floor below 768px, read back OUT of the
+    // stylesheet. A new control raised without a census entry fails here, and
+    // so does a census entry whose rule was deleted — which is the failure mode
+    // an allowlist normally rots into.
+    const declared = new Set<string>();
+    for (const body of S_BODIES) {
+      for (const rule of body.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (!(rule[2] as string).includes("min-height: var(--tap-target)")) continue;
+        for (const selector of (rule[1] as string).split(",")) {
+          declared.add(selector.trim().replace(/\s+/g, " "));
+        }
+      }
+    }
+    expect([...declared].sort()).toEqual([...S_TOUCH_FLOOR_CENSUS].sort());
+    // The three that already cleared it are NOT in the census and must not be
+    // — each is pinned where its own slice wrote it, and duplicating them here
+    // would let one be deleted while the other stayed green.
+    expect(PIP_W_S).toBeGreaterThanOrEqual(TAP); // .pip, F5.3 assertion 8
+    expect(px(app, /input\[type="range"\] \{\s*height:\s*(\d+)px/)).toBeGreaterThanOrEqual(TAP);
+    expect(sRule(".build-panel__reset")[0]).toContain("min-height: 44px"); // F5.3 assertion 20
+  });
+
+  it("28 — §5.3's sticky budget is re-derived, not re-typed, now layer 1 grew", () => {
+    // Layer 1 is the jump nav, and §5.3's table gives its composition
+    // literally: "44px chips + 2px padding each side". The chips are now the
+    // floor, so the padding is what the budget actually funds.
+    const navPadS = px(sRule(".jump-nav")[0] as string, /padding:\s*(\d+)px\s+0/);
+    const JUMP_NAV_H_S = 2 * navPadS + TAP;
+    expect(JUMP_NAV_H_S).toBe(48);
+    expect(JUMP_NAV_H_S).toBeLessThanOrEqual(STICKY_LAYER_1_MAX);
+    // Layer 2 is untouched — the digest measures 59 at 390 against its ≤88.
+    expect(JUMP_NAV_H_S + STICKY_LAYER_2_MAX).toBeLessThanOrEqual(STICKY_TOTAL_MAX);
+
+    // …and the offset the digest sits at. The base rule's `top: 44px` is the
+    // nav's height at M and L, where the chips stay 28px; at S a 44px offset
+    // would slide the digest 4px UNDER the nav. Derived from the same token.
+    const ledgerTopS = sRule(".category-ledger").find((rule) => rule.includes("top:")) as string;
+    const offset = /top:\s*calc\(var\(--tap-target\)\s*\+\s*(\d+)px\)/.exec(ledgerTopS);
+    expect(offset, "the S sticky offset is not derived from --tap-target").not.toBeNull();
+    expect(TAP + Number.parseInt((offset as RegExpExecArray)[1] as string, 10)).toBe(JUMP_NAV_H_S);
+    // The M/L offset is UNCHANGED and still equals the nav's height there:
+    // 2 x --space-2 of padding around a 28px chip.
+    // DISAMBIGUATED, and it has to be: `.jump-nav` now declares `padding` in
+    // TWO blocks, so spaceIn()'s exactly-one rule throws here by design. The
+    // base block is the one that declares the sticky, and the S block is the
+    // one that does not — named by a declaration, never by an ordinal.
+    const navBase = blocksFor(app, ".jump-nav").find((block) =>
+      block.includes("position: sticky"),
+    ) as string;
+    const navPadBase = spaceToken(
+      (/padding:\s*var\(--([a-z0-9-]+)\)\s+0/.exec(navBase) as RegExpExecArray)[1] as string,
+    );
+    expect(2 * navPadBase + px(app, /\.btn--sm \{[^}]*height:\s*(\d+)px/)).toBe(44);
+    expect(cssBlock(app, ".category-ledger")).toContain("top: 44px");
+  });
+
+  it("29 — the pass is S-ONLY: no F9 rule can reach 768 and above", () => {
+    // Bit-identical geometry at 768 / 1280 / 1440 is proved in the browser
+    // (docs/proof/f9-verification.txt: 2678 and 2681 elements, zero differing).
+    // What this file can prove is the reason it holds — every declaration is
+    // inside a max-width block, and none of the four horizontal knobs that
+    // would move the L layout was touched.
+    // EVERY occurrence of the token in the stylesheet is inside an S block.
+    // Subtracting the S bodies from the file must leave none behind — that is
+    // the whole claim, checked by counting rather than by reading.
+    const total = (cssPlain.match(/var\(--tap-target\)/g) ?? []).length;
+    const insideS = S_BODIES.reduce(
+      (sum, body) => sum + (body.match(/var\(--tap-target\)/g) ?? []).length,
+      0,
+    );
+    expect(total).toBeGreaterThan(0);
+    expect(insideS).toBe(total);
+    // …and no OTHER media query carries it either — a `min-width` block would
+    // satisfy the count above while moving the desktop layout.
+    for (const query of ["(min-width: 768px)", "(min-width: 1280px)"]) {
+      for (const body of mediaBodies(cssPlain, query)) {
+        expect(body).not.toContain("--tap-target");
+      }
+    }
+    // The four knobs the §16.5 right column's arithmetic rests on. A 3px move
+    // in any of them flips `.summary` between two and three tracks, so they are
+    // pinned by value here as well as measured in the browser.
+    expect(SPACE_4).toBe(16); // page padding at >=768
+    expect(SPACE_3).toBe(12); // the single column gap
+    expect(RAIL).toBe(300); // the one rail
+    expect(SECTION_CHROME).toBe(34); // 1px border + --space-4, both sides
+  });
+});
