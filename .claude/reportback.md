@@ -8339,8 +8339,10 @@ matching, and the loaded page reports exactly those two filenames).
 ─────────────────────────────────────────────
 ## F16 — the Loadout board: the 2K-native-shaped view (2026-08-26)
 
-**Branch** `loadout-board` · base `origin/dev` @`4d1ba88` (1433 tests / 69 files) ·
+**Branch** `loadout-board` · base `origin/dev` @`16c0569` (1496 tests / 72 files) ·
 worktree `/tmp/bb-board` · **pushed, not merged.**
+**Rebased twice while in flight** — through the Synergy Slot 8 ratification, then
+through the F8-R2 roll UI. Every figure below is the final tree.
 **Proof** `docs/proof/f16-verification.txt` + six screenshots.
 
 ### What landed
@@ -8436,22 +8438,27 @@ over-by strings are imported from the one builder.
 
 ### Gates
 
-`typecheck` clean · `build` clean · **1505 / 1505 across 70 / 70 files** ·
+`typecheck` clean · `build` clean · **1568 / 1568 across 73 / 73 files** ·
 the three RUN-never-edit gates **not one byte changed** and green (29/29) ·
 F9's touch census green, with `.board-tile` and `.board-panel__browse` registered.
 
 **Delta computed before the run and confirmed by it:** +72 = 32 (new file) + 20
 (layout-arithmetic 142 → 162) + 20 (five suites parameterised over `src/**` × 4 new
-files). No flake seen on this tree; no timeout was lowered, tightened, raised or added.
+files). **The delta was +72 / +1 against BOTH bases** — 1433/69 → 1505/70, and then
+1496/72 → 1568/73 — which is the useful form of the check: it is a property of this
+change, not of whatever the base happened to be that hour. No flake seen on this tree
+across five full runs; no timeout was lowered, tightened, raised or added.
 
 ### The additive guarantee, MEASURED
 
 Both builds served, the identical autosave seeded into each, every element in every
 shipped region censused by tag, class and region-relative box, compared as a multiset.
 At 1280×768, 1280×700, 768 and 390 the **only** difference anywhere is the jump nav's
-new `Board` chip. `#panel-synergy`, `#panel-summary`, `.ledger-panel`, `.setup-panel`,
-`header` and the physique strip are element-for-element, pixel-for-pixel and
-character-for-character identical; the grid's own box is unchanged to the pixel.
+new `Board` chip. `#panel-synergy`, `#panel-summary`, `.roll-panel`, `.ledger-panel`,
+`.setup-panel`, `header` and the physique strip are element-for-element, pixel-for-pixel
+and character-for-character identical; the grid's own box is unchanged to the pixel
+(936×6610 at 1280, 736×9007 at 768, 366×18135 at 390). Re-run after the roll UI landed,
+so its panel is covered too.
 
 ### Conflict forecast
 
@@ -8460,9 +8467,11 @@ character-for-character identical; the grid's own box is unchanged to the pixel.
   append to `S_TOUCH_FLOOR_CENSUS`. Purely additive, resolved by keeping both. The board
   reads `slot.magnitude` off state and hardcodes no capacity, so the eighth ratified
   Synergy Slot needed no board change — it renders `(+2)` on 7 and 8 with zero edits.
-- **`roll-ui` (`f8-r2`) — ONE conflict, and it is the log.** `git merge-tree` against
-  `684f8a9`: `src/App.tsx`, `src/styles/app.css` and `tests/ui/f8-roster.test.tsx` all
-  **auto-merge**; only `.claude/reportback.md` conflicts, as every pair of branches does.
+- **`roll-ui` (`f8-r2`) — FORECAST, THEN DISCHARGED.** `git merge-tree` predicted that
+  `src/App.tsx`, `src/styles/app.css` and `tests/ui/f8-roster.test.tsx` would all
+  auto-merge and that only `.claude/reportback.md` would conflict. The roll UI landed on
+  `dev` mid-slice and the real rebase behaved **exactly** as forecast: seven commits
+  replayed, one conflict, in the log.
   The two App.tsx mounts are at different anchors (`#panel-board` above `#panel-synergy`;
   the roll panel above `#panel-summary`) and the two CSS blocks are in different regions
   (F16 between F11-end and F14-start, roll between F14-end and A5-U). Roll-ui does not
@@ -8481,4 +8490,6 @@ character-for-character identical; the grid's own box is unchanged to the pixel.
 
 **OPERATOR ACTION:** branch pushed as `loadout-board`, **not merged**. Worktree
 `/tmp/bb-board` left in place. A second worktree `/tmp/bb-devbase` (detached at
-`4d1ba88`) was created purely for the before/after census and can be removed.
+`4d1ba88`) and `/tmp/bb-devbase2` (detached at `16c0569`) were created purely for the
+before/after census and can both be removed. The SynergyBoard duplicate-React-key defect
+was **not** touched — another slice fixed it on `dev` while this one was in flight.

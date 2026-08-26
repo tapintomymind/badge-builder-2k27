@@ -1,7 +1,9 @@
 F16 — the Loadout board (the 2K-native-shaped view, discipline panels)
 design    .claude/workspace/badge-builder-2k27/features/2k-native-view/design.md rev 1
           + architect-verification-rev1.md (authoritative where they disagree)
-branch    loadout-board · base origin/dev @4d1ba88 (1433 tests / 69 files)
+branch    loadout-board · base origin/dev @16c0569 (1496 tests / 72 files)
+          REBASED TWICE while in flight: through the Synergy Slot 8 ratification
+          and then through the F8-R2 roll UI. Every figure below is the final tree.
 ================================================================================
 
 1. SHIP GATES
@@ -50,9 +52,13 @@ $ git diff --stat origin/dev -- tests/ui/overlays.test.tsx tests/category-colors
 
 2. THE DELTA, ACCOUNTED FOR ELEMENT BY ELEMENT
 --------------------------------------------------------------------------------
-base origin/dev @4d1ba88   1433 tests / 69 files   (re-measured on the rebased base)
-this branch                1505 tests / 70 files
+base origin/dev @16c0569   1496 tests / 72 files   (re-measured on the final base)
+this branch                1568 tests / 73 files
 delta                        +72 tests / +1 file
+
+The delta is IDENTICAL across two rebases (it was +72/+1 against @4d1ba88's
+1433/69 as well), which is the useful form of the check: the number is a
+property of this change, not of whatever the base happened to be that hour.
 
   +32  tests/ui/f16-loadout-board.test.tsx          (the new file)
   +20  tests/layout-arithmetic.test.ts              (142 -> 162)
@@ -81,9 +87,11 @@ report a rect at the document origin, so their region-relative offset moves by
 exactly the region's displacement; they are counted, never positioned.
 
 Chrome/151, --headless=new, driven over CDP, dpr 1, scrollbars hidden.
+Re-run against @16c0569 after the roll UI landed, so `.roll-panel` is covered too.
 
   region            1280x768      1280x700      768x900       390x844
   ----------------  ------------  ------------  ------------  ------------
+  .roll-panel       0 diff        0 diff        0 diff        0 diff
   #panel-synergy    0 diff, text  0 diff, text  0 diff, text  0 diff, text
                     IDENTICAL     IDENTICAL     IDENTICAL     IDENTICAL
   #panel-summary    0 diff        0 diff        0 diff        0 diff
@@ -113,6 +121,8 @@ it adds nothing to the shell's permanent band:
                      board box   panels/row   panel track   tiles/row   tile w
   1280 x 768 (shell)   902          3           292.66         2        129.33
   1280 x 700 (doc)     902          3           292.66         2        129.33
+  (902 rather than 885 because headless Chrome overlays its scrollbar, s=0;
+   885 is the s=17 case the arithmetic in layout-arithmetic.test.ts pins.)
   768                  ~702         2             ~345         3          ~101
   390                  ~332         1              332         3         ~96.7
 
@@ -172,3 +182,26 @@ ruling in force. Asserted in tests/ui/f16-loadout-board.test.tsx group 4.
 No 2K27 number is modelled anywhere on this surface. Every figure on the board
 is one the engine already computes for another shipped surface, and the two
 over-by strings are imported from the one builder rather than authored here.
+
+8. GATES RE-RUN ON THE FINAL TREE (base @16c0569, roll UI landed)
+--------------------------------------------------------------------------------
+=== the three RUN-never-edit gates, still not one byte changed ===
+(empty above = untouched)
+ Test Files  3 passed (3)
+      Tests  29 passed (29)
+   Start at  10:13:29
+   Duration  2.35s (transform 625ms, setup 126ms, import 694ms, tests 1.79s, environment 322ms)
+
+
+=== F9 touch census ===
+      Tests  8 passed | 154 skipped (162)
+   Start at  10:13:32
+   Duration  378ms (transform 222ms, setup 31ms, import 246ms, tests 9ms, environment 0ms)
+
+
+=== full suite ===
+ Test Files  73 passed (73)
+      Tests  1568 passed (1568)
+   Start at  10:13:33
+   Duration  27.42s (transform 6.12s, setup 3.93s, import 15.70s, tests 170.65s, environment 19.81s)
+
