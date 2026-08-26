@@ -7585,3 +7585,120 @@ Header copy confirmed un-drifted in the live DOM: the controls read `Export` and
 `/tmp/bb-docs`) are left in place; the throwaway `docs-integrate` was deleted. The two design-spec
 contradictions the F15 entry raised (§3.2 button copy vs §3.1's quoted `Export JSON`; §3.2's "Two
 rows on desktop") are still UNRESOLVED and need the one-line rev it asked for.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · integration — Reset placement + Synergy Slot 8, onto `dev`
+
+**Event:** `integration-complete`
+**Landed:** `reset-and-slot8` (3 commits off `bc2002f`, worktree `/tmp/bb-small`). FAST-FORWARD.
+**`dev`:** `fdb0398` → `1ef969e`. **Merge commits 2 before, 2 after** — counted with
+`git rev-list --merges --count dev`, never `git log --merges | wc -l`, which counts LINES.
+
+Rebased through the two landings that went in after the branch was cut (F15 header compaction,
+then the three user-facing docs). The source branch is checked out on a worktree, so a throwaway
+`land-reset-slot8` was rebased and `dev` fast-forwarded onto it; the branch itself was never
+moved. Rebase commits: `2754ed5`→`e764f53`, `3d6dfba`→`08786b4`, `57e6ff6`→`1ef969e`.
+
+### Conflicts — ONE, and the forecast one did not materialise
+
+**`tests/layout-arithmetic.test.ts` did NOT conflict**, though the branch predicted it would and
+named it the highest risk. Both landings edit the file, but in DISJOINT regions: F15 appended new
+derivation assertions and re-derived the gate, while this branch edited assertions 18/20, the
+census array, 27's trio, and F13's 4. Git merged them without a marker. **That is exactly the
+case where "no conflict" is not the same as "correct"**, so it was verified rather than trusted:
+
+- Both sides' patch PAYLOADS (added/removed lines, hunk headers excluded, since line numbers
+  necessarily shift) are byte-identical in both directions on all four overlapping source files —
+  `base→dev` == `branch→HEAD`, and `base→branch` == `dev→HEAD`. Nothing was dropped to make the
+  file parse, on either side.
+- The whole-tree corroboration: `git diff --stat 57e6ff6 HEAD` reproduces `git diff --stat
+  bc2002f dev` exactly — same 18 files, same `1926 insertions(+), 138 deletions(-)`.
+- `SECTION_LEAD_Y`, `slidersVisible`, `HEADER_H`, `MIN_SHELL_H` are bit-identical between `dev`
+  and `HEAD` (12 / 16 / 23 / 14 references each), which is the branch's own composition claim,
+  now checked instead of assumed.
+- The census carries BOTH entries: `.synergy-board__button` (F9's) and `.build-panel__reset`
+  (this branch's).
+
+**`src/config/README.md` did not conflict either** — the docs landing rewrote the ROOT `README.md`
+and never touched `src/config/README.md`, so the +2-seam row rebased untouched.
+
+**`.claude/reportback.md`** — the one real conflict, resolved by RECONSTRUCTION, never by editing
+conflicted text. The three merge stages were first confirmed against their blobs (`:1` == `bc2002f`
+7111, `:2` == `dev` 7452, `:3` == branch 7246) and each side confirmed a PURE APPEND (first 7111
+lines byte-identical to base, `cmp`-verified).
+
+**ORDER — the authored-time rule bit again, and this is the second time it has.** The branch's
+entry was authored `09:02:24`; `dev`'s last block, the F15+docs integration entry, was authored
+`09:07:46`, and the F15 block before it `08:53:30`. So the new entry belongs **between them, NOT
+at EOF** — it lands third-from-last. Per the standing rule every entry survives verbatim in
+AUTHORED order, not at the seam where it was written. Resolved as base-through-F15 7360 + branch
+135 + F15/docs integration 92 = **7587**, computed BEFORE the result was measured, and each of the
+three segments then `cmp`-verified byte-identical against its own source blob. A sorted-byte
+comparison against the naive append-order build confirms the placement is a PURE reordering — not
+one byte of content differs — and the rebased commit reports `135 insertions(+), 0 deletions(-)`,
+which is the arithmetic proof that the insertion displaced nothing.
+
+The collapse hazard did not materialise: the branch block opens with its own blank + `---` and the
+integration block with its own `─────` rule, so each seam carries a separator from its own bytes.
+
+### Counts
+
+`dev` 1433 + branch net 0 (it adds no test, only rewrites existing assertions and appends one
+census string) = **1433 expected**, computed from the delta BEFORE the actual was read.
+**Actual: 1433 across 69 files.** Exact.
+
+### Gates
+
+`npm run typecheck` clean · `npm run build` clean (CSS 54.71 kB) · `npm test` **1433/69**.
+
+RUN-never-edit trio run EXPLICITLY: `tests/ui/overlays.test.tsx` + `tests/category-colors.test.ts`
++ `tests/feasibility-golden.test.ts` = **29/29**, and all three blobs are bit-identical to `dev`'s
+(`git rev-parse dev:<f>` == `HEAD:<f>`), so the 504-cell golden is untouched as well as unmoved —
+no cell moved, nothing to stop and report. F9's touch-floor census re-run: **9/9**.
+
+**One flake, classified and not "fixed."** `tests/ui/f4-slot7.test.tsx:200` failed the full run on
+a `findByRole` expiry — a DURATION, not a wrong value — with the suite reporting 278s of test time
+inside a 45s wall clock, i.e. heavy parallel load from the other agents. Re-run alone: **17/17 in
+3.45s.** Contention, per the documented class. **No timeout was lowered or tightened.**
+
+### Browser confirmation — production build, port 4319 (never 5173)
+
+5173 was confirmed still bound by a stray `node` from a previous day and was left alone.
+
+**METHOD NOTE worth carrying forward:** the browser tab initially served a STALE page — a previous
+agent's server had used 4319 earlier, exited (so the port probed free), and the tab still held its
+document. It was caught by comparing the page's asset hashes against the freshly built `dist`
+(`index-CltmqCEK.css` vs the build's `index-CrSicJCu.css`) and fixed with a forced reload. **Assert
+the served asset hash against `dist` before believing any measurement** — every number below was
+taken only after `index-CrSicJCu.css` / `index-BHNWQR75.js` were confirmed in the live document.
+
+1. **Shell activates at 1440×810 and 1280×768, degrades at 1280×767.** Probed on `.app-shell`'s
+   computed `position` (`fixed` only under the gate). 1440×810 ON, `height: 810px`,
+   `scrollHeight` 810 — no document scroll. 1280×768 ON, `height: 768px`, `scrollHeight` 768.
+   1280×767 OFF — `position: static`, `scrollHeight` **8968** > 767, the document scrolls again.
+   Exact at the boundary.
+2. **The composition risk, measured.** `.app-header` `offsetHeight` **62** at 1280 and the
+   Attributes `<summary>` **52** — both unchanged, with the Reset control riding the summary. The
+   control does release its height as designed: its own rect is 16px against the summary's 24px
+   line box, so the summary did not grow the 4px a `.btn--sm` drop-in would have cost. (The
+   header's fractional rect is 61.5 — `12 + 36.5 + 12 + 1` — rounding to `offsetHeight` 62; F15's
+   own record derives `HEADER_H = 12 + 37 + 12 + 1 = 62` and tabulates 62, so this is the same
+   sub-pixel layout, not drift. The branch's CSS delta never touches `.app-header` at all.)
+3. **Exactly one reset control at every width** — 1 at 1440×810, 1280×768, 1280×767 and at S; the
+   accessibility tree likewise shows a single `button "Reset build"`. A REAL mouse click
+   (`isTrusted: true`, logged through pointerdown/mousedown/mouseup/click) opens
+   `#reset-build-dialog` — "Reset build?", the full blast radius, Cancel / Save a copy and reset /
+   Reset build — and the Attributes `<details>` stays `open: true`. The `stopPropagation()` does
+   its job; the confirm is still mandatory and was neither added to nor removed from.
+   At S the control resolves `min-height: var(--tap-target)` to **44px** and renders exactly 44,
+   which is the new census entry proved in the live tree rather than only in the parser.
+4. **Anchors land flush.** Computed `scroll-padding-top: 120px` on `.col-right` and
+   `scroll-margin-top: -76px` on `.grid-section` → 120 + (−76) = **44**. Both stay DERIVED
+   (`--scroll-reserve: var(--sticky-stack-h)`, itself `calc(44px + 76px)`). Verified empirically
+   too, not just as arithmetic: clicking the `#cat-defense` jump-nav link lands the target
+   **43.75px** below the scrollport top — 44 within the same sub-pixel rounding as the header.
+
+**OPERATOR ACTION:** `dev` pushed. `main` NOT touched. The throwaway `land-reset-slot8` and its
+worktree were deleted; the source branch `reset-and-slot8` and worktree `/tmp/bb-small` are left
+in place for the operator to remove. The two design-spec contradictions the F15 entry raised are
+still UNRESOLVED — this landing did not touch them.
