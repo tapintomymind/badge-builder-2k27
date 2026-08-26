@@ -10457,3 +10457,50 @@ its production branch to `dev` unless told otherwise.
 never served against. The promotion worktree holds no commits and is left for the dispatcher to
 reap. The ~30 accumulated throwaway branches and worktrees still need the owner's hand: the
 permission layer refuses agent branch deletion, so none were removed.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · correction — the deploy claim in the promotion entry above
+
+**Event:** `correction`
+
+The entry above recorded the deploy as **NOT verified**, reasoning from the absence of GitHub
+deployments, check runs, webhooks and a `homepageUrl` that the repo was probably not yet connected
+to a Vercel project. **That conclusion was wrong, and the push disproved it.** Vercel *is*
+connected. The correction is recorded rather than the original silently amended, because the
+original was written before the push and its evidence was genuinely all that existed at the time —
+but a reader must not be left with the false claim.
+
+**What actually happened on the push of `a0b3233` to `main`:**
+
+- GitHub deployment **6108081800**, environment **Production**, ref `a0b3233` — status **success**,
+  *"Deployment has completed"*.
+- The Vercel commit status on `a0b3233` is **success**.
+- The canonical alias **https://badge-builder-2k27.vercel.app** serves it, publicly, **HTTP 200**.
+
+**The live site was proven to be this exact commit, not merely reachable.** The served
+`index.html` is **byte-identical** to the `dist/index.html` built locally from `a0b3233`, and both
+hashed assets match by **SHA-256**: `index-CaUagHFW.js` → `bb7529c1…`, `index-ByLFPND1.css` →
+`a3541a12…`. Every `vercel.json` rule is live and observable in the response headers — the
+immutable one-year `Cache-Control` on `/assets/*`, and `nosniff` / `DENY` /
+`strict-origin-when-cross-origin` on all routes — and the SPA rewrite resolves a deep route to
+**200** instead of a 404.
+
+**In the browser at 1280 desktop:** the shell renders in full (header, position + height row,
+Attributes pane, Ledger overview, Build panel), `dataset 2026-08-26.1` displayed — the same
+version INV-19's golden is pinned to. React mounted (2,992 DOM nodes, 81 buttons, 308 inputs) and
+**`documentElement.scrollWidth − clientWidth` is 0** — no horizontal overflow, the defect class the
+roll-panel fix closed, holding in production. **Zero console messages of any level.**
+
+**What stands from the original entry:** the `vercel` CLI's token genuinely is invalid, so none of
+the above came from the CLI — it is all GitHub deployment API plus direct HTTP against the live
+origin. The team-scoped deployment URL
+(`badge-builder-2k27-j8ip1298i-tapintomyminds-projects.vercel.app`) does sit behind Vercel's SSO
+wall and redirects to a login page; **no credentials were entered and no attempt was made to get
+past it**. That wall is deployment protection on the internal URL, not an app failure — the public
+alias is open, which is the one real users will use.
+
+One nuance the owner should still confirm: the repo's **default branch is `dev`**, and the
+deployment history shows `dev@67b0fef` deployed as *Production* at 16:58 while `dev@97016f3`
+deployed as *Preview* at 17:02 and `main@a0b3233` as *Production*. That pattern is consistent with
+the Vercel production branch having been set to `main`, which is what the promotion assumed — but
+it is inferred from the deployment record, not read from Vercel settings.
