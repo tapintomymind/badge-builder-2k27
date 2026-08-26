@@ -9845,3 +9845,70 @@ temporary fixture-emitting test was written under `tests/`, run once, and **dele
 staging** — `git status` was re-checked immediately after and showed only the pre-existing
 untracked `.claude/worktrees/`. No `npm install` was run.
 ─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · slice-complete — R12 slice 1: the workbench shell
+
+**Event:** `slice-complete`
+**Branch:** `claude/app-design-system-5e4dd6` (worktree)
+**Provenance:** User ruling 2026-08-26 — the workbench re-cut, approved from the mockup
+(`docs/mockups/workbench-recut.html`, published as the "Workbench Re-cut" artifact). Four decisions
+locked by the user in the same session: synergy docked at the rail's bottom (slice 2/3); budget
+entry behind the totals strip; phone gets a bottom tab bar (slice 3); compact cards default
+(slice 2). One amendment mid-build, honored: **the 2K-style Kanban Loadout board stays in the
+catalog column at every width** — a 348px rail would stack it 1-wide and lose the look the ruling
+names.
+
+### What shipped
+
+At L — now a COMPOUND gate, `(min-width: 1280px) and (min-height: 768px)`, asked identically by
+CSS and App.tsx (`isLarge`, two separate hook calls; the `&&`-over-two-hooks form short-circuits
+and was caught live by the F1 boot backstop) — `.layout` is three grid items, each its own
+scrollport:
+
+- **`.col-body` (300px)** — PhysiqueSection (the S component, reused verbatim, same storage key)
+  + AttributesSection. F5.4's sticky pane, its wrapper, and its containing-block machinery are
+  RETIRED: under a fixed-height shell a column that owns its scrollport has nothing left for
+  sticky to do.
+- **`.col-right` (minmax(0,1fr))** — FilterBar, JumpNav (category chips only at L; the panel
+  chips are an M/S surface now), the badge grid, and the Kanban Loadout board, unconditionally.
+- **`.col-build` (348px)** — the TotalsStrip (`src/ui/rail/TotalsStrip.tsx`, aside "Build
+  totals": six two-line cells, same engine readouts and over-by string builders as the retired
+  overview, `.ledger-over` + ⚠ + sr-only sentence per over metric, §2.8.1 channel rule intact)
+  pinned by flex order, then a scroller with Synergy Slots, Summary (RollPanel + SummaryPanel),
+  and the footer. `planPanels` is defined once and conditionally mounted (rail at L, end of
+  .col-right below the gate) so the two widths cannot drift.
+
+The base budget grid at L lives in **BudgetsDialog** (`#dialog-budgets`, the seventh dialog,
+BonusDialog's pattern: no Cancel, no draft state, every keystroke through the shared
+`handleBudgetCommit`). Below the gate everything is the shipped M/S document flow; the physique
+strip is the M band's surface (`isWide && !isLarge`).
+
+**Retired:** the Ledger overview panel + `.ledger-overview` CSS family and its A1 override;
+`.attr-pane`/`.attr-pane-column`; the plain `(min-width: 1280px)` layout tier; the
+`@supports not (height: 100dvh)` fallback (the vh-before-dvh pair is the whole fallback — desktop
+UAs do not retract chrome); `section-ledger-overview` (retired, never reassigned); F14's
+MIN_SHELL_H formula (the strip left the chrome; the 768 literal survives with a new derivation).
+
+### Gates
+
+- `npx vitest run` — **78 files, 1,711 tests, all green.** tests/layout-arithmetic.test.ts
+  re-derived for the workbench (three-track parse, compound gate, catalogBox/railBox, rail-based
+  synergy/summary/board seams, R12 shell describe); nine tests/ui files re-cut at full assertion
+  strength by three parallel implementer agents (routes moved — budgets dialog, TotalsStrip,
+  Physique aside — contracts unchanged; zero real defects found; over-by strings verified
+  character-identical across board fence and strip).
+- `npx tsc --noEmit` — clean. `npm run build` — clean (63.71 kB css / 342.89 kB js).
+- Live at 1440×900 (worktree dev server, port 5174): document scroll 900 (**zero page scroll**,
+  was 9,096px), columns 300/744/348 at 807px, strip pinned at 142px, board in catalog, synergy
+  in rail, Edit budgets… reachable. Boot, roll, overlays, autosave paths untouched.
+
+### Accepted slice-1 interim states, priced in the suite and re-cut by slice 2/3
+
+2-up comfortable cards in the catalog (3-up seam derived at 1465; compact card family restores
+≥3-up); synergy panel in the rail adopts the S stacked arrangement (dock lands slice 2/3); the
+Kanban is 1-panel-per-row at the 1280 gate, 2 at 1440 (tightest tile +1.4px over floor, stated);
+sliders visible at 900 drop to 4 until slice 2's compact rows (~36px) roughly double the counts.
+
+**Next:** slice 2 (compact card family, compact attribute rows, roster styling, synergy dock),
+slice 3 (lit-loop cross-column picking, phone bottom tabs). Design-spec rev 12 section to be
+drafted against this landing.

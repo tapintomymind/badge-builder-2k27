@@ -9,6 +9,13 @@
  * described the current behaviour would have passed just as happily against
  * the carve-out that made a bonus Badge Slot permanently inert in a
  * genuinely-zero discipline.
+ *
+ * R12 (the workbench re-cut; user ruling 2026-08-26) — jsdom renders the L
+ * workbench, where the base grid AND the bonus entry button live inside
+ * `#dialog-budgets`, opened from the rail TotalsStrip's `Edit budgets…`.
+ * The grid inside is THE BudgetGrid, unchanged, so every contract below
+ * holds at its original strength — only the ROUTE to the surface changed:
+ * `Edit budgets…` → #dialog-budgets → bonus entry → #dialog-bonus stacks.
  */
 
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
@@ -22,7 +29,7 @@ import { createDefaultSynergySlots } from "../../src/engine/synergy";
 import type { BonusBudget, Budget, SavedBuild } from "../../src/engine/types";
 import type { Category } from "../../src/engine/vocabulary";
 import { CATEGORIES } from "../../src/engine/vocabulary";
-import { writeAutosave, writeUiSectionOpen } from "../../src/persist/local-storage";
+import { writeAutosave } from "../../src/persist/local-storage";
 import { makeBuild, srcSources, stripComments } from "../helpers/test-utils";
 import { installMemoryLocalStorage } from "./storage-stub";
 
@@ -46,10 +53,10 @@ function perCategory(overrides: Partial<Record<Category, number>>): Record<Categ
   ) as Record<Category, number>;
 }
 
-/** Seeds a build through the autosave and mounts App with the setup panel
- * already open. The auto-collapse latch is pre-fired (`auto-collapsed: true`)
- * so a seeded build does not slam the panel shut under the assertions — the
- * latch's own behaviour is F5.4's test, not this file's. */
+/** Seeds a build through the autosave and mounts App. R12: jsdom renders the
+ * L workbench, where BuildPanel (and its pre-openable Sections) renders only
+ * below the gate — the old section-open seeding went with it. The grid is
+ * reached through `openBudgetsDialog()` instead. */
 function mountWith(options: { budgets?: Record<Category, Budget>; bonus?: BonusBudget } = {}) {
   const seeded: SavedBuild = {
     schemaVersion: SAVED_BUILD_SCHEMA_VERSION,
@@ -64,9 +71,6 @@ function mountWith(options: { budgets?: Record<Category, Budget>; bonus?: BonusB
     config: { ...defaultAppConfig },
   };
   expect(writeAutosave(seeded).ok).toBe(true);
-  writeUiSectionOpen("section-build-panel.auto-collapsed", true);
-  writeUiSectionOpen("section-build-panel", true);
-  writeUiSectionOpen("section-budget", true);
   render(<App />);
 }
 
@@ -79,7 +83,20 @@ function bonusNodes(): Element[] {
   );
 }
 
+/** R12 (user ruling 2026-08-26): at L the base grid — and with it the bonus
+ * entry row — renders inside `#dialog-budgets`, behind the rail TotalsStrip's
+ * `Edit budgets…`. Select by id, never by tag (the app's own dialog rule). */
+function openBudgetsDialog(): HTMLElement {
+  fireEvent.click(screen.getByRole("button", { name: /^Edit budgets/ }));
+  const dialog = document.querySelector("#dialog-budgets");
+  if (!(dialog instanceof HTMLElement)) throw new Error("no #dialog-budgets");
+  return dialog;
+}
+
 function openBonusMode(): HTMLElement {
+  // R12: the entry button lives inside the budgets dialog, so the route runs
+  // through it — #dialog-bonus then STACKS on #dialog-budgets (top layer).
+  if (document.querySelector("#dialog-budgets") === null) openBudgetsDialog();
   fireEvent.click(screen.getByRole("button", { name: /^Bonus Badge Tokens & Badge Slots/ }));
   const dialog = document.querySelector("#dialog-bonus");
   if (!(dialog instanceof HTMLElement)) throw new Error("no #dialog-bonus");
@@ -110,6 +127,9 @@ afterEach(() => {
 describe("A5-U states — the five rulings, rendered", () => {
   it("58 ZERO EARNED — one secondary Button and nothing else", () => {
     mountWith();
+    // R12: the entry point renders inside #dialog-budgets now — open it. The
+    // state-58 contract is unchanged on the surface that renders it.
+    openBudgetsDialog();
     expect(
       screen.getByRole("button", { name: /^Bonus Badge Tokens & Badge Slots/ }),
     ).toBeTruthy();
@@ -125,6 +145,8 @@ describe("A5-U states — the five rulings, rendered", () => {
       budgets: baseBudgets({ Finishing: { equipSlots: 5, points: 20 } }),
       bonus: bonusOf({ earnedEquipSlots: 3 }),
     });
+    // R12: the readout renders beside the entry point, inside #dialog-budgets.
+    openBudgetsDialog();
     const readout = document.querySelector(".bonus-readout");
     expect(readout?.textContent).toContain("3 bonus Badge Slots earned");
     expect(readout?.textContent).toContain("3 Badge Slots not yet placed.");
@@ -155,6 +177,8 @@ describe("A5-U states — the five rulings, rendered", () => {
         appliedPoints: perCategory({ Finishing: 4 }),
       }),
     });
+    // R12: the readout lives inside #dialog-budgets.
+    openBudgetsDialog();
     expect(document.querySelector(".bonus-readout")?.textContent).toBe(
       "4 bonus Badge Tokens and 1 bonus Badge Slot placed.",
     );
@@ -215,6 +239,8 @@ describe("A5-U states — the five rulings, rendered", () => {
       }),
       bonus,
     });
+    // R12: the readout lives inside #dialog-budgets.
+    openBudgetsDialog();
     const readout = document.querySelector(".bonus-readout");
     expect(readout?.querySelector(".bonus-readout__over")?.textContent).toBe(
       "4 bonus Badge Slots placed against 3 earned ⚠",
@@ -354,14 +380,21 @@ describe("A5-U canaries — each one fails a plausible wrong implementation", ()
   it("1 — ZERO STATE: three columns, and ZERO `.bonus-*` nodes in the DOM", () => {
     mountWith();
     // A canary asserting "looks the same" would pass against a
-    // hidden-with-CSS implementation. This one does not.
+    // hidden-with-CSS implementation. This one does not. R12: the sweep runs
+    // twice — once over the resting workbench tree, and once WITH the grid on
+    // screen inside #dialog-budgets, where a wrongly-mounted zero-state
+    // readout would actually render.
     expect(bonusNodes()).toHaveLength(0);
-    const table = document.querySelector(".budget-grid table");
+    const budgetsDialog = openBudgetsDialog();
+    expect(bonusNodes()).toHaveLength(0);
+    const table = budgetsDialog.querySelector(".budget-grid table");
     expect(table?.querySelectorAll("thead th")).toHaveLength(3);
     expect(table?.querySelectorAll("tbody tr:first-child td")).toHaveLength(3);
     // POSITIVE CANARY: the selector really does find `bonus-` nodes when they
-    // exist, so a green result above cannot be a broken query.
+    // exist, so a green result above cannot be a broken query. Same surface:
+    // the readout renders inside the dialog (R12), so open it first.
     remount({ bonus: bonusOf({ earnedEquipSlots: 1 }) });
+    openBudgetsDialog();
     expect(bonusNodes().length).toBeGreaterThan(0);
   });
 
@@ -379,6 +412,8 @@ describe("A5-U canaries — each one fails a plausible wrong implementation", ()
           ]),
         ) as Record<Category, Budget>,
       });
+      // R12: the grid — and its total row — renders inside #dialog-budgets.
+      openBudgetsDialog();
       const row = document.querySelector(".budget-total-row");
       expect(row).not.toBeNull();
       expect(row?.textContent).not.toContain("?");
@@ -457,6 +492,11 @@ describe("A5-U canaries — each one fails a plausible wrong implementation", ()
       expect(digest, category).toContain("Badge Slots 0");
       expect(digest, category).not.toContain("Badge Slots 0 /");
     }
+    // R12: the total row lives inside #dialog-budgets now. Open it, and pin
+    // that the row itself RENDERED, so the absence check below grades a
+    // suppressed annotation — never a vacuously-missing grid.
+    const budgetsDialog = openBudgetsDialog();
+    expect(budgetsDialog.querySelector(".budget-total-row")).not.toBeNull();
     expect(document.querySelector(".budget-total-row__default-note")).toBeNull();
   });
 

@@ -6,6 +6,13 @@
  *
  * jsdom's real localStorage backs the persistence tests; each test starts
  * from a cleared store.
+ *
+ * R12 (the workbench re-cut; user ruling 2026-08-26): jsdom has no
+ * matchMedia, so the compound isLarge is true and App renders the L
+ * workbench. The walk's budget entry therefore goes through the build
+ * rail's `Edit budgets…` dialog (#dialog-budgets) — at L the base grid no
+ * longer renders inline. The in-grid category ledgers (#cat-*) are
+ * unchanged surfaces at every width, so the ledger reads stand as shipped.
  */
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -76,14 +83,24 @@ describe("the M3 outcome: build → gate → buy → ledger → save → reload"
     // Enter a real attribute: Close 90 gates Float Game to Gold (HOF needs 96).
     commitNumber(screen.getByLabelText("Close"), "90");
     // Enter the Finishing budget (manual, behind the deriveBudget seam).
+    // R12: at L the base grid lives behind the rail's `Edit budgets…`
+    // (BudgetsDialog — #dialog-budgets, select by id, never by tag). jsdom
+    // lacks showModal, so the dialog stands open via the open attribute —
+    // the suite's existing dialog idiom.
+    fireEvent.click(screen.getByRole("button", { name: "Edit budgets…" }));
+    const budgetsDialog = document.querySelector("#dialog-budgets");
+    if (!(budgetsDialog instanceof HTMLElement)) throw new Error("budgets dialog not found");
     commitNumber(
-      screen.getByLabelText("Finishing Badge Tokens", { selector: "input" }),
+      within(budgetsDialog).getByLabelText("Finishing Badge Tokens", { selector: "input" }),
       "16",
     );
     commitNumber(
-      screen.getByLabelText("Finishing Badge Slots", { selector: "input" }),
+      within(budgetsDialog).getByLabelText("Finishing Badge Slots", { selector: "input" }),
       "3",
     );
+    // Done just closes: every keystroke already committed through the same
+    // onBudgetCommit seam the M/S panel grid uses — no draft state exists.
+    fireEvent.click(within(budgetsDialog).getByRole("button", { name: "Done" }));
 
     // The pips gate correctly: Gold selectable, HOF locked with the reason.
     const pips = floatGamePips();

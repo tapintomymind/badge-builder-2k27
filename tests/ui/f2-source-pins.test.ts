@@ -9,12 +9,15 @@
  * - E: only the CategoryLedger DIGEST is sticky (§5.3 rev 2 budget); the
  *   lede scrolls. PRE-FIX the whole ledger was the sticky layer → 198px of
  *   chrome against the budget.
- * - E: the L layout is TWO columns — one rail beside the grid, at one
- *   breakpoint, with no second fixed-rail tier above it. Successive re-cuts
- *   treated the rails as the free variable and kept re-sizing a third column
- *   that could not hold a ledger row on one line at any width 3-up-at-1280
- *   could afford; §13 removed the column instead. 3-up at 1280 and 2-up at
- *   768 still follow arithmetically.
+ * - E (R12-superseded; user ruling 2026-08-26, the workbench re-cut): the L
+ *   layout is ONE compound-gated block — (min-width: 1280px) AND
+ *   (min-height: 768px), the same pair App.tsx's isLarge asks — declaring
+ *   three columns: 300px body, fluid catalog, 348px build rail. F5.2's
+ *   "one rail, not two" pin rested on arithmetic about a ONE-LINE-per-
+ *   category ledger row; the rail's TotalsStrip cell is TWO-line, which
+ *   that arithmetic never priced. No plain width-only 1280 tier may
+ *   survive: below the height gate the M template must be the one that
+ *   applies, or DOM and CSS disagree on wide-but-short viewports.
  * - F: components import the engine's synergySlotDisabledByPreview rather
  *   than hand-negating synergySlotActive (QE hygiene: a future change to
  *   the activity rule must not desynchronize boost math from the
@@ -59,31 +62,69 @@ describe("E — sticky chrome budget (§5.3 rev 2): digest sticky, lede scrolls"
   });
 });
 
-describe("E — the F5.2 L re-cut: one rail, and one tier", () => {
+describe("E — the R12 workbench: one compound-gated block, three columns", () => {
   const css = read("src/styles/app.css");
 
-  it("L layout uses the F5.2 two-column geometry — one rail, not two", () => {
-    // Every three-column cut this repo shipped sized a right column that
-    // could not hold ONE ledger row on one line at any width 3-up-at-1280
-    // could afford (design-spec §13.2). The right rail is gone; the ledger
-    // moved into the single rail, which has a 266px content box. The
-    // ARITHMETIC is re-derived in tests/layout-arithmetic.test.ts — this is
-    // only the literal-drift guard.
-    //
-    // The trailing `;` below is load-bearing: without it this positive guard
-    // is a leading substring of a three-track declaration, and it would pass
-    // on the very layout it exists to forbid.
-    expect(css).toContain("grid-template-columns: 300px minmax(0, 1fr);");
-    // …and for the same reason the negative guards name the FULL three-track
-    // declaration. `not.toContain("grid-template-columns: 300px")` is now
-    // self-contradictory — the surviving declaration starts with it.
+  /** The css of ONE @media block, braces balanced. cssBlock's first-`}`
+   * slice cannot extract an at-rule (its rules nest a brace deep), and the
+   * containment below — "the template lives INSIDE the gated block" — is
+   * the pin, so a naive slice would grade the wrong text. */
+  function mediaBlock(source: string, atRule: string): string {
+    const start = source.indexOf(atRule);
+    if (start === -1) throw new Error(`at-rule not found: ${atRule}`);
+    let depth = 0;
+    for (let i = source.indexOf("{", start); i >= 0 && i < source.length; i += 1) {
+      if (source[i] === "{") depth += 1;
+      if (source[i] === "}" && (depth -= 1) === 0) return source.slice(start, i + 1);
+    }
+    throw new Error(`unclosed at-rule: ${atRule}`);
+  }
+
+  it("L is gated on width AND height and declares the three-track workbench template", () => {
+    // R12 (the workbench re-cut; user ruling 2026-08-26) SUPERSEDES the
+    // F5.2 pin that stood here ("one rail, not two"). That pin's arithmetic
+    // priced a ONE-LINE-per-category ledger row — 239px of content box no
+    // rail 3-up-at-1280 could afford ever held; the workbench rail's
+    // readout is the TotalsStrip's TWO-LINE cell (~78px floor), which that
+    // arithmetic never priced. The old conclusion was right about the old
+    // row; it does not bind the cell. The ARITHMETIC is re-derived in
+    // tests/layout-arithmetic.test.ts — this is only the literal-drift
+    // guard.
+    const code = stripComments(css);
+    // The gate is COMPOUND — the same width-AND-height pair App.tsx's
+    // isLarge asks, so DOM and CSS cannot disagree about which layout is
+    // live on a wide-but-short viewport (1366×768 laptop with chrome).
+    const workbench = mediaBlock(code, "@media (min-width: 1280px) and (min-height: 768px)");
+    // The three-track template lives INSIDE that block: 300px body column,
+    // fluid catalog, 348px build rail. The trailing `;` is load-bearing as
+    // ever: without it this positive guard is a leading substring of any
+    // wider four-track drift.
+    expect(workbench).toContain("grid-template-columns: 300px minmax(0, 1fr) 348px;");
+    // NO plain width-only `(min-width: 1280px)` tier survives — every
+    // occurrence of the width term is the compound gate's. Below the
+    // height gate the M template must be the one that applies; a width-only
+    // `.layout` rule (the superseded two-column block, or any successor)
+    // re-opens the DOM/CSS disagreement the compound gate exists to close.
+    const widthGates = code.match(/\(min-width: 1280px\)/g) ?? [];
+    const compoundGates =
+      code.match(/\(min-width: 1280px\) and \(min-height: 768px\)/g) ?? [];
+    expect(compoundGates.length).toBeGreaterThan(0);
+    expect(widthGates).toHaveLength(compoundGates.length);
+    // The superseded F5.2 two-column declaration itself is GONE. The same
+    // trailing-`;` reasoning, inverted: without it this negative would
+    // reject the three-track survivor it now licenses.
+    expect(code).not.toContain("grid-template-columns: 300px minmax(0, 1fr);");
+    // The pre-§13 three-column cuts stay forbidden BY NAME: R12 ratifies
+    // exactly one three-track template — the 348px-rail workbench above —
+    // and none of the rails the old re-cuts kept re-sizing may return.
     expect(css).not.toContain("grid-template-columns: 300px minmax(0, 1fr) 268px");
     expect(css).not.toContain("grid-template-columns: 258px minmax(0, 1fr) 204px");
     expect(css).not.toContain("grid-template-columns: 280px"); // the 280 rails
     expect(css).not.toContain("grid-template-columns: 248px"); // the 248 rails
     expect(css).not.toContain("grid-template-columns: 320px"); // the 320 rails
-    // M/S: still a single fluid column below 1280 (§5.2, unchanged).
-    expect(css).toContain("grid-template-columns: minmax(0, 1fr)");
+    // M/S: still a single fluid column below the gate (§5.2, unchanged) —
+    // scoped to the base `.layout` block, which IS the M template now.
+    expect(cssBlock(css, ".layout")).toContain("grid-template-columns: minmax(0, 1fr);");
   });
 
   it("cards keep the ≥240px floor", () => {

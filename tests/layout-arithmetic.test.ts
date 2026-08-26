@@ -73,18 +73,38 @@ const SPACE_3 = px(tokens, /--space-3:\s*(\d+)px/); // 12 — column gap, card g
 const SPACE_4 = px(tokens, /--space-4:\s*(\d+)px/); // 16 — page padding ≥768, section padding
 const SPACE_6 = px(tokens, /--space-6:\s*(\d+)px/); // 24 — "between major sections" (§2.3)
 
-/* ONE tier, ONE rail, TWO tracks. Note the trailing `;` in the regex: without
- * it this matches the leading substring of a THREE-track declaration and the
- * whole file certifies the layout it exists to forbid. */
-const L_COLUMNS = /grid-template-columns:\s*(\d+)px\s+minmax\(0,\s*1fr\)\s*;/.exec(app);
-if (L_COLUMNS === null) throw new Error("layout arithmetic: L two-column declaration not found");
-/** The single rail. There is no second one, at any width. */
+/* R12 (the workbench re-cut; user ruling 2026-08-26, approved from the
+ * workbench mockup) — ONE tier, TWO rails, THREE tracks. The two-track era's
+ * trailing-`;` rule carries over: without it this would match the leading
+ * substring of some future four-track declaration and certify a layout the
+ * file exists to forbid. The old "no third column may reappear" guard is
+ * SUPERSEDED, not forgotten: it rested on the one-line-per-category ledger
+ * row's 239px demand, and the workbench's rail readout is the TotalsStrip's
+ * two-line cell (~78px floor) — the arithmetic that foreclosed the third
+ * column priced a row that no longer exists. */
+const L_COLUMNS =
+  /grid-template-columns:\s*(\d+)px\s+minmax\(0,\s*1fr\)\s+(\d+)px\s*;/.exec(app);
+if (L_COLUMNS === null) {
+  throw new Error("layout arithmetic: R12 three-column declaration not found");
+}
+/** The body rail (left). F5.4's 300, kept deliberately: I9's slider
+ *  arrangement arithmetic below was derived against exactly this box and the
+ *  attribute rows are unchanged by R12 slice 1. */
 const RAIL = Number.parseInt(L_COLUMNS[1] as string, 10);
+/** The build rail (right) — R12's addition, the mockup's ratified 348. */
+const BUILD_RAIL = Number.parseInt(L_COLUMNS[2] as string, 10);
 
-const L_BREAKPOINT = px(
-  app,
-  /@media \(min-width:\s*(\d+)px\)\s*\{\s*\.layout\s*\{\s*grid-template-columns:\s*\d+px\s+minmax\(0,\s*1fr\)\s*;/,
-);
+/** THE WORKBENCH GATE IS COMPOUND, and both terms are parsed off the ONE
+ *  block that declares the three tracks — the query and the template cannot
+ *  drift apart. App.tsx asks the same pair (asserted below), so DOM and CSS
+ *  cannot disagree about which layout is live. */
+const L_GATE =
+  /@media \(min-width:\s*(\d+)px\) and \(min-height:\s*(\d+)px\)[\s\S]*?grid-template-columns:\s*\d+px\s+minmax\(0,\s*1fr\)\s+\d+px\s*;/.exec(
+    app,
+  );
+if (L_GATE === null) throw new Error("layout arithmetic: workbench gate not found");
+const L_BREAKPOINT = Number.parseInt(L_GATE[1] as string, 10);
+const L_MIN_HEIGHT = Number.parseInt(L_GATE[2] as string, 10);
 
 function spaceToken(name: string): number {
   return px(tokens, new RegExp(`--${name}:\\s*(\\d+)px`));
@@ -128,20 +148,12 @@ function spaceIn(source: string, selector: string, property: string, index: numb
   return spaceToken(token[1] as string);
 }
 
-/** The F5 inset well's sides — I12: a number a paint slice can spend is
- *  geometry, so it is PARSED, never assumed. The well is the SECOND
- *  `.ledger-overview {` block; the first (the grid) declares no padding, so
- *  spaceIn's exactly-one-declaration rule resolves it unambiguously.
- *
- *  b22f8ab squeezed these sides to --space-1 because a 204px rail could not
- *  fund --space-3. At a 266px content box it can, and §10.5's --bevel-inset
- *  instrument well reads wrong at 4px sides, so the squeeze is reverted —
- *  uniformly, with no tier left to restore it in. */
-const WELL_PAD_X = spaceIn(app, ".ledger-overview", "padding", 1);
-/** The label↔metrics gap. It USED to live on .ledger-overview__row; §13.4
- *  replaced that row with `display: contents`, so the gap is now the GRID's
- *  own column-gap, declared on the FIRST .ledger-overview block. */
-const ROW_GAP_X = spaceIn(app, ".ledger-overview", "column-gap", 0);
+/* R12 DELETED: WELL_PAD_X and ROW_GAP_X. Both parsed `.ledger-overview`,
+ * which left the stylesheet with its panel — the TotalsStrip is the
+ * successor readout and its geometry is derived in the R12 describe below.
+ * The I12 rule they served ("a number a paint slice can spend is geometry —
+ * parsed, never assumed") travels there: the strip's cell padding and grid
+ * gap are parsed off the strip's own blocks. */
 
 const CARD_FLOOR = px(app, /repeat\(auto-fill,\s*minmax\((\d+)px,\s*1fr\)\)/);
 /** Read out of the attribute grid's OWN block, not out of the first match in
@@ -181,9 +193,11 @@ function tokenIn(block: string, property: string): number {
   return spaceToken(match[1] as string);
 }
 
-/** The pane's inline padding — the focus ring's 4px reach, and GEOMETRY: it
- *  comes out of the cell every slider is laid out in. */
-const PANE_PAD_X = tokenIn(cssBlock(app, ".attr-pane"), "padding-inline");
+/** R12 — the column scrollports' shared inline padding (the focus ring's 4px
+ *  reach), parsed off `.col-body`, the box every slider is laid out in now.
+ *  Same number, same job as F5.4's PANE_PAD_X; the pane it was read from is
+ *  retired. */
+const COL_PAD_X = tokenIn(cssBlock(app, ".col-body"), "padding-inline");
 
 const lineBox = (fontPx: number): number => Math.round(fontPx * BODY_LH);
 
@@ -281,27 +295,28 @@ const PHYSIQUE_H = 324;
  * it passed at +5px while every row wrapped (I11). Deleted rather than kept
  * alongside: two constants for one row invites checking the easy one. */
 
-/** ONE gap and ONE rail — that is the whole of the §13 re-cut, expressed as
- *  arithmetic. */
-function centreColumn(viewport: number, scrollbar: number): number {
-  return viewport - scrollbar - 2 * SPACE_4 - SPACE_3 - RAIL;
+/** R12 — TWO gaps and TWO rails. The scrollbar is deliberately NOT a term
+ *  here: under the workbench every column owns its scrollport and reserves
+ *  its own gutter (scrollbar-gutter: stable), so it comes out of the COLUMN
+ *  (catalogBox / railBox below), never out of the page. Page padding under
+ *  the shell is --space-3 per side (the shell block's padding-inline). */
+function centreColumn(viewport: number): number {
+  return viewport - 2 * SPACE_3 - 2 * SPACE_3 - RAIL - BUILD_RAIL;
 }
-/** What a COLUMN must be for a ledger row to sit on ONE line: the row box it
- *  needs, plus the well it sits in, plus the section around that.
- *
- *  F5.4 re-points this from the rail to the right column (§16.5). The ledger
- *  overview moved out of the pane — it carries no unique information (the six
- *  sticky per-category digests carry every number it shows) and it was 252 of
- *  the 657px of non-attribute content that left the pane showing zero
- *  sliders. It is MOVED, not deleted: §4.5 requires the landmark. */
-function ledgerBoxNeeded(gap: number, wellPadX: number): number {
-  return LEDGER_LABEL_MAX + gap + LEDGER_METRICS_MAX + 2 * wellPadX + SECTION_CHROME;
+/** The catalog column's usable content box: the centre track, less the
+ *  scrollport's own 4px focus-ring gutters, less its own scrollbar. */
+function catalogBox(viewport: number, scrollbar: number): number {
+  return centreColumn(viewport) - 2 * COL_PAD_X - scrollbar;
 }
-/** The ledger overview's own GRID box in the right column: the centre
- *  column, less the <Section> chrome, less the inset well's sides. */
-function ledgerGridBox(viewport: number, scrollbar: number): number {
-  return centreColumn(viewport, scrollbar) - SECTION_CHROME - 2 * WELL_PAD_X;
+/** The build rail's usable content box — fixed-track, so viewport-free. */
+function railBox(scrollbar: number): number {
+  return BUILD_RAIL - 2 * COL_PAD_X - scrollbar;
 }
+/* R12 DELETED: ledgerBoxNeeded / ledgerGridBox — the one-line ledger row
+ * they priced left with its panel. LEDGER_LABEL_MAX / LEDGER_METRICS_MAX
+ * survive below: the strip's two-line cell is floored by the WIDER of the
+ * name line and the metrics line, so both measurements still feed the R12
+ * strip derivation. */
 function cardsPerRow(track: number): number {
   return Math.max(1, Math.floor((track + SPACE_3) / (CARD_FLOOR + SPACE_3)));
 }
@@ -385,65 +400,75 @@ const pickersRowFloor = CONTAINER_THRESHOLD + ROW_CHROME; // 406
  *  binding floor mechanically rather than by someone remembering they might. */
 const synergyRowFloor = Math.max(pickersRowFloor, SYNERGY_HEADER_MAX); // 426
 
-/** A synergy row's BORDER box in the right column at (viewport, scrollbar).
- *  `− SECTION_CHROME` is the <Section> chrome §13.0.1 omitted, which is T16's
- *  root cause: without it the derivation reads 609.5 at 1280 and hides a
- *  failure that was real at 1440. */
-function synergyRowBox(viewport: number, scrollbar: number): number {
-  const body = centreColumn(viewport, scrollbar) - SECTION_CHROME;
+/** A synergy row's BORDER box — R12 RE-POINTED FROM THE CENTRE TO THE RAIL:
+ *  the Synergy panel lives in `.col-build__scroll` now, whose box is the
+ *  348px track less gutters and scrollbar. `− SECTION_CHROME` stays — it is
+ *  the <Section> chrome §13.0.1 omitted (T16's root cause), and omitting it
+ *  again in the new home would be the same defect at a new width. Viewport
+ *  drops out of the signature: the rail is a fixed track. */
+function synergyRowBox(scrollbar: number): number {
+  const body = railBox(scrollbar) - SECTION_CHROME;
   const columns = Math.max(1, Math.floor((body + SPACE_3) / (synergyRowFloor + SPACE_3)));
   return (body - (columns - 1) * SPACE_3) / columns;
 }
-function synergyColumns(viewport: number, scrollbar: number): number {
-  const body = centreColumn(viewport, scrollbar) - SECTION_CHROME;
+function synergyColumns(scrollbar: number): number {
+  const body = railBox(scrollbar) - SECTION_CHROME;
   return Math.max(1, Math.floor((body + SPACE_3) / (synergyRowFloor + SPACE_3)));
 }
 
 /* ------------------------------------------------------------------ I3 -- */
 
-describe("I3 — two columns, and the card count that follows", () => {
-  it("is 3-up at 1280 at every plausible scrollbar width", () => {
+describe("I3 — three columns, and the card count that follows (R12)", () => {
+  it("is 2-up under the workbench at the COMFORTABLE card, at every scrollbar", () => {
+    // R12 slice 1 ACCEPTS 2-up against the old 3-up requirement, deliberately
+    // and on the record: the requirement was priced against the comfortable
+    // 240px card, and the approved mockup's compact card family (slice 2)
+    // lowers CARD_FLOOR and restores ≥3-up. The counts here are the SLICE-1
+    // floor, re-derived the day the card family lands.
+    expect(CARD_FLOOR).toBe(240);
     for (const scrollbar of SCROLLBARS) {
-      expect(cardsPerRow(centreColumn(1280, scrollbar)), `scrollbar ${scrollbar}px`).toBe(3);
+      expect(cardsPerRow(catalogBox(1280, scrollbar)), `scrollbar ${scrollbar}px`).toBe(2);
+      expect(cardsPerRow(catalogBox(1440, scrollbar)), `scrollbar ${scrollbar}px`).toBe(2);
     }
   });
 
-  it("3-up at 1280 is no longer a knife edge", () => {
-    // b22f8ab's three-column cut cleared the 3-up minimum by ONE pixel at the
-    // worst-case scrollbar, and said so in its own reportback. Returning the
-    // third column's width to the centre turns that 1px into 175.
-    expect(centreColumn(1280, 17) - (3 * CARD_FLOOR + 2 * SPACE_3)).toBeGreaterThan(150);
+  it("the 3-up seam is DERIVED, and it is exact", () => {
+    // 3-up needs catalogBox ≥ 3·CARD_FLOOR + 2·SPACE_3; solve back through
+    // catalogBox and centreColumn for the viewport at the classic scrollbar.
+    const v3 = 3 * CARD_FLOOR + 2 * SPACE_3 + 2 * COL_PAD_X + 17 + RAIL + BUILD_RAIL + 4 * SPACE_3;
+    expect(v3).toBe(1465);
+    expect(cardsPerRow(catalogBox(v3, 17))).toBe(3);
+    expect(cardsPerRow(catalogBox(v3 - 1, 17))).toBe(2);
   });
 
-  it("4-up arrives at a DERIVED width, and the seam is exact", () => {
-    const v4 = 4 * CARD_FLOOR + 3 * SPACE_3 + RAIL + SPACE_3 + 2 * SPACE_4 + 17;
-    expect(cardsPerRow(centreColumn(v4, 17))).toBe(4);
-    expect(cardsPerRow(centreColumn(v4 - 1, 17))).toBe(3);
-  });
-
-  it("has not let the rail eat the centre column again", () => {
+  it("has not let the rails eat the centre column", () => {
     // rev 1 shipped 320/340 and left the badge grid — the reason the app
-    // exists — the smallest region on screen (design-review D1).
+    // exists — the smallest region on screen (design-review D1). The R12
+    // bound at the gate: the catalog must hold 2 comfortable cards at the
+    // worst scrollbar, with the seam to 3 restored by slice 2's compact
+    // card rather than by starving a rail.
     const ceiling =
-      1280 - Math.max(...SCROLLBARS) - 2 * SPACE_4 - SPACE_3 - (3 * CARD_FLOOR + 2 * SPACE_3);
-    expect(RAIL).toBeLessThanOrEqual(ceiling);
+      1280 - Math.max(...SCROLLBARS) - 2 * SPACE_3 - 2 * SPACE_3 - 2 * COL_PAD_X -
+      (2 * CARD_FLOOR + SPACE_3);
+    expect(RAIL + BUILD_RAIL).toBeLessThanOrEqual(ceiling);
   });
 
-  it("the third column is GONE — no rail may reappear by accident", () => {
-    // Guarded as FULL declarations, never prefixes: the surviving two-track
-    // declaration BEGINS with the same characters as the three-track XL one,
-    // so a prefix guard would make this file unable to be both green and
-    // honest. The 320/248/280 guards below stay prefix-shaped only because
-    // no surviving declaration begins with any of them.
+  it("no RETIRED rail may reappear by accident", () => {
+    // Guarded as FULL declarations. The R12 three-track declaration is the
+    // ONLY sanctioned one and is pinned by width pair below; every dead
+    // arrangement stays dead.
     expect(app).not.toContain("grid-template-columns: 258px minmax(0, 1fr) 204px"); // b22f8ab L
     expect(app).not.toContain("grid-template-columns: 300px minmax(0, 1fr) 268px"); // b22f8ab XL
     expect(app).not.toContain("minmax(0, 1fr) 176px"); // F5.0's right rail
     expect(app).not.toContain(".rail-right");
     expect(app).not.toContain("@media (min-width: 1440px)"); // no XL tier at all
+    expect(RAIL).toBe(300);
+    expect(BUILD_RAIL).toBe(348);
   });
 
-  it("there is exactly ONE fixed-rail breakpoint, and it is L", () => {
+  it("there is exactly ONE fixed-rail tier, and it is the compound gate", () => {
     expect(L_BREAKPOINT).toBe(1280);
+    expect(L_MIN_HEIGHT).toBe(768);
     expect(
       [...app.matchAll(/grid-template-columns:\s*\d+px\s+minmax\(0,\s*1fr\)/g)],
     ).toHaveLength(1);
@@ -460,108 +485,68 @@ describe("I8 + I11 — the single rail clears its contents' MAX-content, not min
    * precedent): in the setup panel the table gets 902px at 1280 and 298 at
    * 390, so the demand is not binding at any width. */
 
-  it("I11 — the ledger row lays out ON ONE LINE with real numbers, well included", () => {
-    // The property the user actually reported. Checked against max-content,
-    // and with the well counted, because both of those are how the previous
-    // two revisions passed while the rows wrapped.
-    //
-    // RE-POINTED by F5.4: the ledger overview lives in the right column now,
-    // so the box is the centre column rather than the rail. It clears by an
-    // order of magnitude — which is precisely why A1 (below) is needed: at
-    // this width the SHIPPED `1fr auto` stops being a fit problem and starts
-    // being a spreading problem.
-    const rowMax = LEDGER_LABEL_MAX + ROW_GAP_X + LEDGER_METRICS_MAX;
-    for (const scrollbar of SCROLLBARS) {
-      expect(ledgerGridBox(1280, scrollbar), `scrollbar ${scrollbar}px`).toBeGreaterThanOrEqual(
-        rowMax,
-      );
-    }
-  });
+  /* R12 RETIRED: the one-line ledger-row assertions (I11 / I8b). The row
+   * they priced — label + gap + metrics on ONE line inside the overview's
+   * well — left the app with the overview panel. The measurements survive:
+   * LEDGER_LABEL_MAX and LEDGER_METRICS_MAX feed the TotalsStrip's two-line
+   * cell derivation in the R12 build-rail describe at the end of this file,
+   * which is the same I11 discipline (grade MAX-content, count the chrome)
+   * on the successor surface. */
 
-  it("I8b — the ledger well's sides are GEOMETRY: spent, they must be funded", () => {
-    // RE-POINTED to the column that now holds it; the identity is unchanged.
-    expect(centreColumn(1280, Math.max(...SCROLLBARS))).toBeGreaterThanOrEqual(
-      ledgerBoxNeeded(ROW_GAP_X, WELL_PAD_X),
-    );
-
-    // b22f8ab's own L cut fails this by 49px. The canary proves the assertion
-    // has teeth against a real shipped tree, not only against the old one.
-    // KEPT VERBATIM, and re-checked at LEDGER_LABEL_MAX = 78: 162 < 213.
-    const shippedBroken = 204 - SECTION_CHROME - 2 * SPACE_1; // 162
-    expect(shippedBroken).toBeLessThan(LEDGER_LABEL_MAX + SPACE_2 + LEDGER_METRICS_MAX); // 213
-  });
-
-  it("the rail is chosen ABOVE its floor, and the slack is named", () => {
+  it("the body rail is chosen ABOVE its floor, and the slack is named", () => {
     // b22f8ab asserted that NO slack remained, which was true and was the
     // problem. Same bookkeeping discipline, opposite sign: the next addition
     // is still checked against a number rather than against a vibe.
     //
-    // RE-POINTED by F5.4. The ledger left the pane, so the binding demand is
-    // no longer a 3-digit ledger row — it is I9's usable slider track, and
-    // the cell is 8px narrower because the pane now carries the focus ring's
-    // inline padding. 300 − 8 − 34 = 258 against 224 leaves 34 ≥ 24.
-    const cell = RAIL - 2 * PANE_PAD_X - SECTION_CHROME; // 258
+    // R12 — the cell is the BODY COLUMN's now (same 300 track, same 4px
+    // gutters, same Section chrome as F5.4's pane), so the binding demand is
+    // still I9's usable slider track. 300 − 8 − 34 = 258 against 224 leaves
+    // 34 ≥ 24.
+    const cell = RAIL - 2 * COL_PAD_X - SECTION_CHROME; // 258
     expect(cell - USABLE_TRACK).toBeGreaterThanOrEqual(SPACE_6);
   });
 
   it("the duplicate right-rail Export/Import pair stays deleted (rev 2 §3.6)", () => {
-    // ~198px of min-content in a 142px box. The header pair is the only one.
+    // ~198px of min-content in a 142px box. The header pair is the only one —
+    // and R12's build rail does NOT resurrect it.
     const appTsx = srcSources["/src/App.tsx"] as string;
     expect(appTsx.match(/<ExportImportControls/g)?.length ?? 0).toBe(1);
   });
 
-  it("the sticky pane is wrapped in a stretching grid item, so it cannot escape the grid", () => {
-    // A sticky GRID ITEM is constrained by the grid container's content box,
-    // not by its own row. With the panels as separate rows, a sticky pane
-    // placed directly in .layout scrolls past the badge grid and paints over
-    // them (measured: doc-y 4660 against a grid ending at 4644). The wrapper
-    // stretches to row 1 and gives the sticky box a containing block that
-    // ends where the grid does.
-    //
-    // F5.4 RENAMES ONLY. The finding is F5.2's D1 and it is unchanged; four
-    // no-new-element candidates were measured and none moved the clamp by a
-    // pixel, so the wrapper stays.
-    const appTsx = srcSources["/src/App.tsx"] as string;
-    expect(appTsx).toMatch(/className="attr-pane-column">\s*<div className="attr-pane">/);
-    expect(cssBlock(app, ".attr-pane-column")).toContain("align-self: stretch");
-  });
-
-  it("the pane still surfaces overflow rather than hiding it", () => {
-    // overflow-y:auto computes overflow-x to auto — that scrollbar is how the
-    // user found this defect. Masking it would hide the next one.
-    //
-    // The first-occurrence discipline still applies: this reads the FIRST
-    // block, which is the sticky one. A second rule declared above it would
-    // silently re-point the guard at a box that never had overflow-y.
-    const paneBlock = cssBlock(app, ".attr-pane");
-    expect(paneBlock).toContain("overflow-y: auto");
-    expect(paneBlock).not.toContain("overflow-x: hidden");
-    expect(paneBlock).not.toContain("overflow-x: clip");
-  });
+  /* R12 RETIRED: the sticky-pane wrapper and overflow-surfacing assertions.
+   * The pane, its wrapper, and its sticky machinery left the tree — the
+   * body column owns a plain scrollport and the R12 shell describe grades
+   * it (min-height: 0, overflow-y: auto, gutters). The D1 lesson they
+   * encoded lives on in the shell describe's min-height census. */
 });
 
 /* --------------------------------------------------------------- §13.5 -- */
 
-describe("§16.7 — Synergy and Summary live in the RIGHT COLUMN, beside the pane", () => {
-  it("the right column carries the gap the grid used to supply", () => {
-    // REPLACES "both panels span the full layout width". `.panel-below`'s
-    // `grid-column: 1 / -1` is DELETED: it ran the two panels UNDERNEATH the
-    // pane, which is what made the pane's sticky containing block grid row 1
-    // instead of the whole document. .layout is exactly two grid items now.
-    //
-    // .layout's own `gap: var(--space-6)` supplied the 24px between main and
-    // the two panels while they were grid items. Once they stop being grid
-    // items that gap evaporates, so .col-right must re-declare it.
+describe("R12/§16.7 — Synergy and Summary live in the BUILD RAIL at L", () => {
+  it("both columns carry their major-section gap, and the panels keep their ids", () => {
+    // .col-right keeps §2.3's --space-6 between major sections below the
+    // gate; the rail's scroller declares the same rhythm for the panels'
+    // new home. `.panel-below` stays dead.
     expect(cssBlock(app, ".col-right")).toContain("gap: var(--space-6)");
+    expect(shellRule(".col-build__scroll")).toContain("gap: var(--space-6)");
     expect(app).not.toContain(".panel-below");
 
     const appTsx = srcSources["/src/App.tsx"] as string;
-    const colRight = appTsx.indexOf('className="col-right"');
-    expect(colRight).toBeGreaterThan(-1);
-    // The ids are what the jump nav targets and they stay; only the wrapper
-    // class went.
-    expect(appTsx.indexOf('id="panel-synergy"')).toBeGreaterThan(colRight);
-    expect(appTsx.indexOf('id="panel-summary"')).toBeGreaterThan(colRight);
+    // R12 — the panels are defined ONCE in `planPanels` (above the return)
+    // and mounted conditionally: the rail's scroller at L, the end of
+    // .col-right below the gate. The ids the jump nav targets survive in
+    // the single definition.
+    const planPanels = appTsx.indexOf("const planPanels = (");
+    expect(planPanels).toBeGreaterThan(-1);
+    expect(appTsx.indexOf('id="panel-synergy"')).toBeGreaterThan(planPanels);
+    expect(appTsx.indexOf('id="panel-summary"')).toBeGreaterThan(planPanels);
+    // …inside the definition, i.e. BEFORE the component's returned tree
+    // (anchored on the shell's root div — `return (` appears in earlier
+    // helpers and cannot anchor anything).
+    const shellRoot = appTsx.indexOf('<div className="app app-shell">');
+    expect(appTsx.indexOf('id="panel-synergy"')).toBeLessThan(shellRoot);
+    expect(appTsx.match(/id="panel-synergy"/g)).toHaveLength(1);
+    expect(appTsx.match(/id="panel-summary"/g)).toHaveLength(1);
   });
 
   it("8 — I16: the synergy row floor is DERIVED on TWO boxes, conversion written down", () => {
@@ -610,46 +595,27 @@ describe("§16.7 — Synergy and Summary live in the RIGHT COLUMN, beside the pa
     );
   });
 
-  it("10 — a synergy row is never narrower than the arrangement it asks for, at 1280", () => {
-    // REWRITTEN. The old version computed `belowGrid = 1280 − 17 − 2·SPACE_4`
-    // and OMITTED the <Section> chrome the panel sits inside — precisely
-    // T16's root cause. It read 609.5 and hid an error that was real at 1440.
+  it("10 — the rail row adopts the STACKED arrangement, by construction", () => {
+    // R12 — the panel's box is the 348px rail, which sits BELOW every
+    // side-by-side floor this block derives. That is not an accident to
+    // paper over; it is the design: the container query (evaluating the
+    // row's own content box — width-agnostic, F11 test 2) selects the same
+    // stacked arrangement S uses, and the min() sub-floor idiom keeps the
+    // single column inside the rail without a horizontal scrollbar. The
+    // side-by-side arrangement returns with the R12 synergy dock
+    // (slice 2/3), which re-cuts this block.
     for (const scrollbar of SCROLLBARS) {
-      expect(synergyColumns(1280, scrollbar), `scrollbar ${scrollbar}px`).toBe(2);
-      expect(
-        synergyRowBox(1280, scrollbar),
-        `scrollbar ${scrollbar}px`,
-      ).toBeGreaterThanOrEqual(synergyRowFloor);
+      expect(synergyColumns(scrollbar), `scrollbar ${scrollbar}px`).toBe(1);
+      expect(synergyRowBox(scrollbar), `scrollbar ${scrollbar}px`).toBeLessThan(synergyRowFloor);
+      // The stacked-pickers condition, on the box the query evaluates.
+      expect(synergyRowBox(scrollbar) - ROW_CHROME).toBeLessThan(CONTAINER_THRESHOLD);
     }
-    // The binding case, named: 1280 with a 17px classic scrollbar. +10.5px is
-    // the margin the NEXT addition to the synergy row header is checked
-    // against.
-    expect(synergyRowBox(1280, 17)).toBe(436.5);
-    expect(synergyRowBox(1280, 17) - synergyRowFloor).toBe(10.5);
-
-    // CANARY: dropping SECTION_CHROME — the omission — reads 609.5 and hides
-    // the error. Assert the corrected figure is NOT that.
-    const uncorrected = (1280 - 17 - 2 * SPACE_4 - SPACE_3) / 2;
-    expect(uncorrected).toBe(609.5);
-    expect(synergyRowBox(1280, 17)).toBeLessThan(uncorrected);
-  });
-
-  it("11 — the pickers go SIDE BY SIDE at 1440, T16's failing case", () => {
-    // The row's CONTENT box is what a size query evaluates.
-    expect(synergyRowBox(1440, 17) - ROW_CHROME).toBeGreaterThanOrEqual(CONTAINER_THRESHOLD);
-
-    // CANARY — the OLD pair, and it is the defect the user would have seen:
-    // the below-grid box at 1440 resolved to THREE columns, each a 450px
-    // border box, i.e. 416px of content — less than the shipped 426px
-    // threshold, so the pickers stacked. At 1280 the same pair resolved to
-    // two columns of 601 → 567 content and PASSED, which is exactly why T16
-    // only ever fired at 1440.
-    const oldBody = 1440 - 0 - 2 * SPACE_4 - SECTION_CHROME; // 1374
-    const oldCols = Math.floor((oldBody + SPACE_3) / (SYNERGY_HEADER_MAX + SPACE_3)); // 3
-    const oldRow = (oldBody - (oldCols - 1) * SPACE_3) / oldCols; // 450
-    expect(oldCols).toBe(3);
-    expect(oldRow - ROW_CHROME).toBe(416);
-    expect(oldRow - ROW_CHROME).toBeLessThan(SYNERGY_HEADER_MAX);
+    // The binding case, named: a 17px classic scrollbar leaves 289.
+    expect(synergyRowBox(17)).toBe(289);
+    // T16's lesson stays load-bearing in the new home: omit SECTION_CHROME
+    // and the box reads 323 — still stacked, but the margin bookkeeping
+    // would be 34px of fiction.
+    expect(railBox(17)).toBe(323);
   });
 
   it("the summary tables are capped rather than stretched", () => {
@@ -683,34 +649,28 @@ describe("§16.7 — Synergy and Summary live in the RIGHT COLUMN, beside the pa
     expect(app).not.toMatch(/\.jump-nav__panel\s*\{[^}]*display:\s*none/s);
   });
 
-  it("the zigzag mechanism is gone, and a shared grid replaced it", () => {
-    // Cause, not symptom. flex + wrap + space-between + margin-left:auto put
-    // the label alone on line 1 and the metrics alone flush-right on line 2,
-    // six times over, with no column alignment anywhere.
-    expect(cssBlock(app, ".ledger-overview")).toContain("display: grid");
-    const row = cssBlock(app, ".ledger-overview__row");
-    expect(row).toContain("display: contents");
-    expect(row).not.toContain("flex-wrap");
-    expect(row).not.toContain("space-between");
-    // Left-aligned in an auto column aligns the FIRST number — the one being
-    // reconciled — across all six rows. Right-aligning aligned the last.
-    expect(cssBlock(app, ".ledger-overview__metrics")).not.toContain("margin-left: auto");
-    expect(cssBlock(app, ".ledger-overview__metrics")).not.toContain("text-align: right");
-  });
+  /* R12 RETIRED: the zigzag-mechanism assertion. The `.ledger-overview`
+   * grid it graded left with the overview panel; the TotalsStrip's cell is
+   * a two-line block (name over numbers), so the label/metrics column-
+   * alignment problem the zigzag test guarded cannot recur by construction.
+   * The strip's own geometry is graded in the R12 build-rail describe. */
 
-  it("the §4.5 landmarks are restored — THREE asides, each named what it holds", () => {
-    // The shipped code drifted to ONE <aside aria-label="Ledger and synergy">
-    // because that aside held three unrelated things. Nothing in the suite
-    // observed the drift, which is why it survived five revisions.
-    //
-    // F5.4 amends §4.5 from two asides to three: splitting the content splits
-    // the landmark, which is the same finding read forwards. A landmark must
-    // name what it holds.
+  it("the §4.5 landmarks — each aside named what it holds, none stale", () => {
+    // The shipped code once drifted to ONE <aside aria-label="Ledger and
+    // synergy"> holding three unrelated things. The rule survives R12
+    // verbatim — a landmark must name what it holds — over the new set:
+    // Physique and Attributes in the body column, Build totals in the rail,
+    // Build (the setup panel) below the gate only.
     const appTsx = srcSources["/src/App.tsx"] as string;
+    expect(appTsx).toContain('aria-label="Physique"');
     expect(appTsx).toContain('aria-label="Attributes"');
     expect(appTsx).toContain('aria-label="Build"');
-    expect(appTsx).toContain('aria-label="Ledger overview"');
+    expect(srcSources["/src/ui/rail/TotalsStrip.tsx"] as string).toContain(
+      'aria-label="Build totals"',
+    );
     expect(appTsx).not.toContain('aria-label="Ledger and synergy"');
+    // …and the retired landmark did not linger as a stale label.
+    expect(appTsx).not.toContain('aria-label="Ledger overview"');
   });
 
   it("the jump-nav targets and the section storage keys survived the move", () => {
@@ -728,12 +688,17 @@ describe("§16.7 — Synergy and Summary live in the RIGHT COLUMN, beside the pa
     const buildPanel = srcSources["/src/ui/build/BuildPanel.tsx"] as string;
     expect(appTsx).toContain('id="panel-synergy"');
     expect(appTsx).toContain('id="panel-summary"');
-    expect(appTsx).toContain('storageKey="section-ledger-overview"');
     expect(appTsx).toContain('storageKey="section-synergy"');
     expect(appTsx).toContain('storageKey="section-summary"');
+    expect(appTsx).toContain('storageKey="section-board"');
     expect(buildPanel).toContain('storageKey="section-attributes"');
     expect(buildPanel).toContain('storageKey="section-budget"');
     expect(buildPanel).toContain('"section-build-panel"');
+    // R12 — `section-ledger-overview` is RETIRED with its panel, and the key
+    // must not be reassigned to a different surface (a stale stored value
+    // would then style a surface the user never collapsed). A leftover
+    // stored entry is harmless: readUiSectionOpen simply never asks for it.
+    expect(appTsx).not.toContain("section-ledger-overview");
   });
 
   /* NESTED HERE RATHER THAN APPENDED AT THE FOOT OF THE FILE, deliberately.
@@ -860,10 +825,13 @@ describe("§16.7 — Synergy and Summary live in the RIGHT COLUMN, beside the pa
    *        − 300 (attributes pane) − 12 gap =  919   ← .col-right
    *        − 34  (<Section> chrome)         =  885   ← .summary
    */
-  function summaryBoxAtL(viewport: number, scrollbar: number): number {
-    return centreColumn(viewport, scrollbar) - SECTION_CHROME;
+  /** R12 — at L the summary lives in the BUILD RAIL, so its box is the
+   *  fixed 348 track less the scrollport's gutters, its scrollbar, and the
+   *  <Section> chrome. Viewport drops out of the signature. */
+  function summaryBoxAtL(scrollbar: number): number {
+    return railBox(scrollbar) - SECTION_CHROME;
   }
-  /** Below 1280 there is no pane and no column gap; `.layout` padding is
+  /** Below the gate there is no rail and no column gap; `.layout` padding is
    *  --space-4 at ≥768 and --space-3 below it. */
   function summaryBoxBelowL(viewport: number, scrollbar: number): number {
     const padding = viewport >= 768 ? SPACE_4 : SPACE_3;
@@ -874,15 +842,10 @@ describe("§16.7 — Synergy and Summary live in the RIGHT COLUMN, beside the pa
   function tracks(box: number, floor: number, gap: number): number {
     return Math.max(1, Math.floor((box + gap) / (floor + gap)));
   }
-  /** The viewport at which N tracks first fit, at L. */
-  function seamForTracks(n: number, floor: number, gap: number, scrollbar: number): number {
-    // Everything the viewport pays before `.summary` sees a pixel: the
-    // scrollbar, `.layout`'s padding, the pane, the column gap and the
-    // <Section> chrome. Measured off the box function rather than restated,
-    // so the two can never disagree.
-    const overhead = 1280 - summaryBoxAtL(1280, scrollbar);
-    return n * floor + (n - 1) * gap + overhead;
-  }
+  /* R12 DELETED: seamForTracks. At L the summary's box is a FIXED rail
+   * track, so there is no viewport at which a second column arrives — the
+   * seam machinery only means something below the gate, where tracks() is
+   * used directly. */
 
   /** The BALANCED body of an at-rule, brace-counted rather than sliced to
    *  end-of-file. `cssBlock` cannot see into a media query at all, and a
@@ -940,86 +903,67 @@ describe("§16.7 — Synergy and Summary live in the RIGHT COLUMN, beside the pa
     });
   });
 
-  describe("§14.2 — the box moved, so the seams moved. Re-derived, not pinned.", () => {
-    it("`.summary` is 885 at 1280/s=17 — 1231 was the PRE-F5.4 box", () => {
-      expect(centreColumn(1280, 17)).toBe(919);
-      expect(summaryBoxAtL(1280, 17)).toBe(885);
-      // The figure §14.2's whole table was built on, and what it omits: the
-      // pane + its gap (312) and the <Section> chrome (34) = 346px of box the
-      // spec's arithmetic still assumes the roster has.
-      const preF54 = 1280 - 17 - 2 * SPACE_4;
-      expect(preF54).toBe(1231);
-      expect(preF54 - summaryBoxAtL(1280, 17)).toBe(RAIL + SPACE_3 + SECTION_CHROME);
+  describe("§14.2/R12 — the box moved to the RAIL, so the seams collapsed", () => {
+    it("`.summary` is 289 at s=17 in the rail — 885 was the pre-R12 box", () => {
+      expect(summaryBoxAtL(17)).toBe(289);
+      expect(summaryBoxAtL(0)).toBe(306);
+      // The pre-R12 figure, kept for the audit trail: the centre-column
+      // summary had 885 at 1280/s=17. The rail trades that width for
+      // permanence — the summary is now always on screen, at the cost of
+      // its side-by-side arrangements, until the rail's own summary digest
+      // (R12 slice 2) re-cuts the surface for the narrow box.
+      const preR12 = 919 - SECTION_CHROME;
+      expect(preR12).toBe(885);
+      expect(preR12 - summaryBoxAtL(17)).toBe(596);
     });
 
-    it("REGION B RESOLVES TO 2 TRACKS AT 1280/s=17, AND IT IS 3px FROM 3", () => {
-      // THE KNIFE EDGE, pinned because nothing pinned it before: the shipped
-      // test asserted only the minmax() SHAPE, never the resolved count. Three
-      // tracks need 3 × 280 + 2 × 24 = 888 and the box is 885.
-      //
-      // Four slices are in flight that can each move a term of that box — the
-      // rail width, `.layout` padding, the column gap, the <Section> chrome. A
-      // 3px gain anywhere reflows the summary from two columns to three, and
-      // before this assertion existed it would have done so silently.
-      expect(tracks(summaryBoxAtL(1280, 17), TABLES_FLOOR_CSS, TABLES_COL_GAP)).toBe(2);
-      const threeUpNeeds = 3 * TABLES_FLOOR_CSS + 2 * TABLES_COL_GAP;
-      expect(threeUpNeeds).toBe(888);
-      expect(threeUpNeeds - summaryBoxAtL(1280, 17)).toBe(3);
-      // Two tracks are capped at 380 each, so 101px trails as free space under
-      // `justify-content: start` — left-aligned, which is the shipped intent.
-      expect(summaryBoxAtL(1280, 17) - (2 * TABLES_CAP_CSS + TABLES_COL_GAP)).toBe(101);
-      // AND THE EDGE IS ALREADY BEING CROSSED IN THE FIELD. With macOS overlay
-      // scrollbars the box is 902 — 14px past the 888 threshold — so the SAME
-      // build renders region B 3-up on macOS and 2-up wherever a classic
-      // scrollbar takes 15 or 17px. That is not introduced here and it is not
-      // a defect (the tables are capped at 380 either way, and the third track
-      // simply stops the 101px of trailing free space existing); it is pinned
-      // because it was previously unobserved, and because it means anyone
-      // moving one of the box's terms by ±3px flips the LAYOUT ON EVERY
-      // PLATFORM rather than on one.
-      expect(tracks(summaryBoxAtL(1280, 15), TABLES_FLOOR_CSS, TABLES_COL_GAP)).toBe(2);
-      expect(summaryBoxAtL(1280, 0)).toBe(902);
-      expect(tracks(summaryBoxAtL(1280, 0), TABLES_FLOOR_CSS, TABLES_COL_GAP)).toBe(3);
-      // The boundary, derived: a scrollbar of 14px or less buys the third
-      // track. 15 and 17 are the two classic widths this repo derives against.
-      const widestScrollbarThatFitsThree = 1280 - (1280 - summaryBoxAtL(1280, 0)) - threeUpNeeds;
-      expect(widestScrollbarThatFitsThree).toBe(14);
+    it("REGION B RESOLVES TO 1 TRACK IN THE RAIL, at every scrollbar", () => {
+      // The knife-edge bookkeeping the old assertion existed for (885 vs a
+      // 888 three-track demand) is void in a fixed rail: one 280-floor track
+      // fits, a second cannot at any scrollbar, and the cap keeps the single
+      // table honest.
+      for (const scrollbar of SCROLLBARS) {
+        expect(
+          tracks(summaryBoxAtL(scrollbar), TABLES_FLOOR_CSS, TABLES_COL_GAP),
+          `scrollbar ${scrollbar}px`,
+        ).toBe(1);
+      }
+      const twoUpNeeds = 2 * TABLES_FLOOR_CSS + TABLES_COL_GAP;
+      expect(twoUpNeeds).toBe(584);
+      expect(twoUpNeeds).toBeGreaterThan(summaryBoxAtL(0));
+      // The single track: the box sits between the floor and the cap, so
+      // the table is as wide as the rail and never stretched past 380.
+      expect(summaryBoxAtL(17)).toBeGreaterThanOrEqual(TABLES_FLOOR_CSS);
+      expect(summaryBoxAtL(17)).toBeLessThanOrEqual(TABLES_CAP_CSS);
     });
 
-    it("THE ROSTER IS 1-UP AT 1280 AND 2-UP AT 1440 — §14.2's 1428/1429 seam is void", () => {
-      // §14.2 read "2-up at 1428, 3-up at 1429" off `v − 17 − 32`. Against the
-      // real box those seams are 346px too generous. Re-derived here from the
-      // SAME constants, per §11.7 — and if the measured advance of
-      // "Versatile Visionary" ever comes in above 144, ROSTER_GROUP_FLOOR
-      // rises, every seam below moves right, and the wider viewports fall back
-      // a column. THAT IS THE DESIGN'S BASELINE AND NOT A DEFECT: a group is
-      // capped at 520px regardless, so a 1-up roster is a 520px table in an
-      // 885px box, not a stretched one.
-      expect(tracks(summaryBoxAtL(1280, 17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(1);
-      expect(tracks(summaryBoxAtL(1440, 17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(2);
-      expect(summaryBoxAtL(1440, 17)).toBe(1045);
-
-      // The seams themselves, derived rather than chosen.
-      const twoUp = seamForTracks(2, ROSTER_GROUP_FLOOR, ROSTER_COL_GAP, 17);
-      const threeUp = seamForTracks(3, ROSTER_GROUP_FLOOR, ROSTER_COL_GAP, 17);
-      expect(twoUp).toBe(1307);
-      expect(threeUp).toBe(1775);
-      expect(tracks(summaryBoxAtL(twoUp - 1, 17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(1);
-      expect(tracks(summaryBoxAtL(twoUp, 17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(2);
-      // 3-up is unreachable on any target width in §5.2's tier list.
-      expect(threeUp).toBeGreaterThan(1600);
+    it("THE ROSTER IS 1-UP IN THE RAIL, and the min() idiom is what makes it fit", () => {
+      // ROSTER_GROUP_FLOOR (444) exceeds the rail box (289), so the group
+      // renders at 100% via the min() sub-floor idiom — the identical
+      // mechanism that carries the S column, at the identical arrangement.
+      // A group is capped at 520 and floored by min(444, 100%), so the rail
+      // group is a 289px table: narrow, wrapped rows (I11's wrap-inside-
+      // columns behaviour), and NOTHING horizontal scrolls.
+      for (const scrollbar of SCROLLBARS) {
+        expect(
+          tracks(summaryBoxAtL(scrollbar), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP),
+          `scrollbar ${scrollbar}px`,
+        ).toBe(1);
+      }
+      expect(ROSTER_GROUP_FLOOR).toBeGreaterThan(summaryBoxAtL(0));
+      expect(app).toContain("minmax(min(444px, 100%), 1fr)");
     });
 
-    it("the pane makes 1279 WIDER than 1280 for this panel, and that is disclosed", () => {
-      // The attributes pane arrives at exactly 1280 and takes 312px with it,
-      // so the roster genuinely goes 2-up → 1-up as the viewport GROWS by one
-      // pixel. It is a consequence of §16's own ratified arithmetic, not a bug
-      // in this slice, and it is stated here so the next reader does not
-      // rediscover it as one.
+    it("the gate makes 1279 WIDER than 1280 for this panel, and that is disclosed", () => {
+      // Below the gate the summary spans the document (1196 at 1279/s=17);
+      // at the gate it moves into the 348 rail. The roster genuinely goes
+      // 2-up → 1-up as the viewport GROWS by one pixel. That is the
+      // workbench's deliberate trade — width for permanence — stated here
+      // so the next reader does not rediscover it as a bug.
       expect(summaryBoxBelowL(1279, 17)).toBe(1196);
       expect(tracks(summaryBoxBelowL(1279, 17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(2);
-      expect(tracks(summaryBoxAtL(1280, 17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(1);
-      expect(summaryBoxBelowL(1279, 17)).toBeGreaterThan(summaryBoxAtL(1280, 17));
+      expect(tracks(summaryBoxAtL(17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(1);
+      expect(summaryBoxBelowL(1279, 17)).toBeGreaterThan(summaryBoxAtL(17));
     });
 
     it("I11 — at 768 and 390 the row wraps INSIDE its columns, and nothing scrolls", () => {
@@ -1096,12 +1040,12 @@ describe("I9 — the arrangement threshold is derived, not borrowed", () => {
   });
 
   it("widening the rail improves the track instead of halving it", () => {
-    // F5.4 UPDATES THE EXPRESSION, NOT THE EXPECTATION. The pane carries 4px
-    // of inline padding each side now (the focus ring's reach), so the cell
-    // is `RAIL − 2·PANE_PAD_X − SECTION_CHROME` = 258, not the 266 the
-    // pre-slice expression gave. The arrangement is unchanged: 258 ≤ 287, so
+    // R12 UPDATES THE PARSE SOURCE, NOT THE EXPECTATION. The body column
+    // carries the same 4px inline gutters the pane did (COL_PAD_X, parsed
+    // off .col-body), so the cell is still `RAIL − 2·gutter −
+    // SECTION_CHROME` = 258. The arrangement is unchanged: 258 ≤ 287, so
     // the numeric field stacks below the track and the track is the full cell.
-    const cell = RAIL - 2 * PANE_PAD_X - SECTION_CHROME;
+    const cell = RAIL - 2 * COL_PAD_X - SECTION_CHROME;
     expect(cell).toBe(258);
     expect(sliderTrack(cell)).toBeGreaterThanOrEqual(USABLE_TRACK);
     // Regression canary: the pre-rev-5 threshold would have failed this.
@@ -1742,58 +1686,49 @@ describe("I15 + I16 — the attributes pane, parse-and-re-derive on the vertical
     expect(2 + SPACE_4).not.toBe(SECTION_CHROME_Y);
   });
 
-  it("4 — the pane is sticky, capped and scrollable, with dvh AFTER vh", () => {
-    const pane = cssBlock(app, ".attr-pane");
-    expect(pane).toContain("position: sticky");
-    expect(pane).toContain("overflow-y: auto");
-    expect(pane).toContain("max-height: calc(100vh - var(--space-6))");
-    expect(pane).toContain("max-height: calc(100dvh - var(--space-6))");
-    // A fallback declared SECOND is not a fallback.
-    expect(pane.indexOf("calc(100dvh")).toBeGreaterThan(pane.indexOf("calc(100vh"));
-    // max-height, never height: a pane forced to full height with 300px of
-    // content draws an empty box the day a user collapses the Section.
-    expect(pane).not.toMatch(/\n\s*height:\s/);
-    // The focus ring reaches 4px outside the box and overflow-y clips.
-    expect(pane).toContain("padding-inline: var(--space-1)");
-    expect(pane).toContain("scroll-padding-block: var(--space-3)");
+  it("4 — the body column is a scrollport: gutters, scroll padding, no sticky", () => {
+    // R12 — the pane's sticky/max-height machinery is RETIRED (the shell
+    // gives the column a fixed-height box, so sticky has nothing to do);
+    // what carries over is the scrollport discipline the pane pioneered.
+    const body = cssBlock(app, ".col-body");
+    expect(body).toContain("overflow-y: auto");
+    expect(body).toContain("padding-inline: var(--space-1)");
+    expect(body).toContain("scroll-padding-block: var(--space-3)");
+    expect(body).toContain("scrollbar-gutter: stable");
+    expect(body).not.toContain("position: sticky");
   });
 
-  it("5 — the pane holds the attributes and NOTHING ELSE", () => {
+  it("5 — the BODY COLUMN holds physique + attributes and NOTHING ELSE", () => {
+    // R12 — the pane's purity rule, carried to its successor. The column
+    // gains exactly one surface the pane refused (Physique — the R12 ruling
+    // seats the body's two input groups together) and refuses everything
+    // else the old arithmetic evicted.
     const appTsx = srcSources["/src/App.tsx"] as string;
-    const start = appTsx.indexOf('<div className="attr-pane">');
+    const start = appTsx.indexOf('<div className="col-body">');
     expect(start).toBeGreaterThan(-1);
-    const subtree = appTsx.slice(start, appTsx.indexOf("</aside>", start));
+    const subtree = appTsx.slice(start, appTsx.indexOf('<div className="col-right"', start));
+    expect(subtree).toContain('aria-label="Physique"');
+    expect(subtree).toContain("<PhysiqueSection");
     expect(subtree).toContain('aria-label="Attributes"');
     expect(subtree).toContain("<AttributesSection");
-    // Everything the arithmetic evicted, checked by name. F13 renamed
-    // PhysiqueSection to PhysiqueStrip, so this checks the STEM — a rename
-    // must not be able to walk the surface back into the pane unnoticed.
-    expect(subtree).not.toContain("Physique");
     expect(subtree).not.toContain("BudgetGrid");
     expect(subtree).not.toContain("ledger-overview");
     expect(subtree).not.toContain("ExportImportControls");
+    expect(subtree).not.toContain("TotalsStrip");
   });
 
-  it("6 — I8 re-derived: the pane funds the focus ring's inline padding", () => {
-    const cell = RAIL - 2 * PANE_PAD_X - SECTION_CHROME;
-    expect(PANE_PAD_X).toBe(4); // exactly --ring-focus's 4px reach
+  it("6 — I8 re-derived: the body column funds the focus ring's inline padding", () => {
+    const cell = RAIL - 2 * COL_PAD_X - SECTION_CHROME;
+    expect(COL_PAD_X).toBe(4); // exactly --ring-focus's 4px reach
     expect(cell).toBe(258);
     expect(cell - USABLE_TRACK).toBeGreaterThanOrEqual(SPACE_6); // 34 >= 24
-
-    // CANARY — the horizontal consequence of a vertical decision. While the
-    // ledger was still in the pane its 3-digit row was the binding demand,
-    // and the 4px of padding was NOT affordable: the slack fell below
-    // --space-6. Evicting the ledger is what paid for the ring.
-    const ledgerDemand = LEDGER_LABEL_MAX + ROW_GAP_X + LEDGER_METRICS_MAX + 2 * WELL_PAD_X;
-    expect(cell - ledgerDemand).toBeLessThan(SPACE_6); // 17 < 24
   });
 
   it("7 — I9 unchanged in KIND: the cell still stacks and the track is usable", () => {
-    const cell = RAIL - 2 * PANE_PAD_X - SECTION_CHROME;
+    const cell = RAIL - 2 * COL_PAD_X - SECTION_CHROME;
     expect(cell).toBeLessThanOrEqual(STACK_MAX); // stacked, so SLIDER_H is 81
     expect(sliderTrack(cell)).toBeGreaterThanOrEqual(USABLE_TRACK);
-    // The pre-slice EXPRESSION gave 266. The expectation did not move; the
-    // expression did — the pane's padding is geometry.
+    // The gutter is geometry: without it the cell would read 266.
     expect(RAIL - SECTION_CHROME).toBe(266);
     expect(cell).toBe(258);
   });
@@ -1818,13 +1753,21 @@ describe("I15 + I16 — the attributes pane, parse-and-re-derive on the vertical
 
   it("13 — the jsdom desktop default is preserved by the NEGATION's direction", () => {
     const appCode = stripComments(srcSources["/src/App.tsx"] as string);
-    // useMediaQuery returns false where matchMedia is absent, so this form
-    // yields isLarge = true in jsdom and every component test keeps rendering
-    // the desktop shape.
-    expect(appCode).toContain('!useMediaQuery("(max-width: 1279px)")');
-    // The tidier-looking form inverts that default to MOBILE and silently
-    // flips a large, hard-to-attribute set of tests.
+    // R12 — the L answer is COMPOUND (width AND height) and lives in two
+    // separate hook calls (an `&&` over two useMediaQuery calls short-
+    // circuits and changes the hook count across a resize — caught live).
+    // useMediaQuery returns false where matchMedia is absent, so the
+    // max-negation form yields isLarge = true in jsdom and every component
+    // test keeps rendering the desktop shape.
+    expect(appCode).toContain('useMediaQuery("(max-width: 1279px)")');
+    expect(appCode).toContain('useMediaQuery("(max-height: 767px)")');
+    expect(appCode).toContain("const isLarge = !belowLWidth && !belowLHeight;");
+    // The tidier-looking forms invert that default to MOBILE and silently
+    // flip a large, hard-to-attribute set of tests.
     expect(appCode).not.toContain('useMediaQuery("(min-width: 1280px)")');
+    expect(appCode).not.toContain('useMediaQuery("(min-height: 768px)")');
+    // …and no `&&` expression ever contains a hook call.
+    expect(appCode).not.toMatch(/&&\s*!?useMediaQuery/);
     // ONE owner: the panel does not ask the question itself any more.
     expect(stripComments(srcSources["/src/ui/build/BuildPanel.tsx"] as string)).not.toContain(
       "useMediaQuery",
@@ -1856,29 +1799,32 @@ describe("I15 + I16 — the attributes pane, parse-and-re-derive on the vertical
     expect(appCode).not.toMatch(/#[0-9a-fA-F]{6}\b/);
   });
 
-  it("15 — three landmarks at L, and every storage key survives", () => {
+  it("15 — the R12 landmarks at L, and every SURVIVING storage key intact", () => {
     const appTsx = srcSources["/src/App.tsx"] as string;
     const buildPanel = srcSources["/src/ui/build/BuildPanel.tsx"] as string;
+    expect(appTsx).toContain('aria-label="Physique"');
     expect(appTsx).toContain('aria-label="Attributes"');
     expect(appTsx).toContain('aria-label="Build"');
-    expect(appTsx).toContain('aria-label="Ledger overview"');
     expect(appTsx).not.toContain('aria-label="Ledger and synergy"');
-    // No key renamed → no user's collapsed/expanded preference resets.
+    expect(appTsx).not.toContain('aria-label="Ledger overview"'); // retired with its panel
+    // No SURVIVING key renamed → no user's collapsed/expanded preference
+    // resets. section-ledger-overview is retired, never reassigned.
     expect(buildPanel).toContain('storageKey="section-attributes"');
     expect(buildPanel).toContain('"section-build-panel"');
     expect(buildPanel).toContain('storageKey="section-budget"');
-    expect(appTsx).toContain('storageKey="section-ledger-overview"');
+    expect(buildPanel).toContain('storageKey="section-physique"');
+    expect(appTsx).not.toContain("section-ledger-overview");
   });
 
-  it("16 — the skip target still follows the moved panels and stays outside <main>", () => {
+  it("16 — the skip target still clears the body column and stays outside <main>", () => {
     // <a href="#badge-grid"> is the first focusable element. Putting the
-    // moved panels INSIDE <main> would silently park ~40 controls behind the
-    // skip target and undo the affordance §4.5 calls "not optional".
+    // body column's controls INSIDE <main> would silently park them behind
+    // the skip target and undo the affordance §4.5 calls "not optional".
     function skipTargetIsClear(source: string): boolean {
       const grid = source.indexOf('id="badge-grid"');
-      const ledger = source.indexOf('aria-label="Ledger overview"');
-      const build = source.indexOf('aria-label="Build"');
-      return ledger > -1 && build > -1 && grid > ledger && grid > build;
+      const physique = source.indexOf('aria-label="Physique"');
+      const attrs = source.indexOf('aria-label="Attributes"');
+      return physique > -1 && attrs > -1 && grid > physique && grid > attrs;
     }
     const appTsx = srcSources["/src/App.tsx"] as string;
     expect(appTsx).toContain('href="#badge-grid"');
@@ -1888,7 +1834,7 @@ describe("I15 + I16 — the attributes pane, parse-and-re-derive on the vertical
     expect(
       skipTargetIsClear(
         '<main id="badge-grid">' +
-          '<aside aria-label="Ledger overview" /><aside aria-label="Build" />' +
+          '<aside aria-label="Physique" /><aside aria-label="Attributes" />' +
           "</main>",
       ),
     ).toBe(false);
@@ -1936,12 +1882,19 @@ describe("I15 + I16 — the attributes pane, parse-and-re-derive on the vertical
         expect(source, `${path} still names ${dead}`).not.toContain(dead);
       }
     }
+    // R12 widens the dead list: the pane pair and the overview panel are
+    // retired NAMES now, held to the same half-done-rename rule.
+    for (const dead of [".attr-pane", ".ledger-panel", "ledger-overview"]) {
+      expect(stripComments(app), `app.css still names ${dead}`).not.toContain(dead);
+    }
     // The new names exist, so the loop above cannot pass by deleting the layout.
-    expect(app).toContain(".attr-pane {");
-    expect(app).toContain(".attr-pane-column {");
-    expect(app).toContain(".ledger-panel {");
+    expect(app).toContain(".col-body {");
     expect(app).toContain(".col-right {");
+    expect(app).toContain(".col-build {");
+    expect(app).toContain(".totals-strip {");
     expect(srcSources["/src/App.tsx"]).toContain('className="setup-panel"');
+    expect(srcSources["/src/App.tsx"]).toContain('className="col-body"');
+    expect(srcSources["/src/App.tsx"]).toContain('className="col-build"');
   });
 
   it("20 — the L-scoped .segmented__track override is GONE, in both spellings", () => {
@@ -1957,31 +1910,11 @@ describe("I15 + I16 — the attributes pane, parse-and-re-derive on the vertical
     expect(stripComments(app)).not.toMatch(/\.rail-left\s+\.segmented/);
   });
 
-  it("21 — A1: the ledger's track override exists, is SCOPED, and the base is untouched", () => {
-    expect(app).toContain(".ledger-panel .ledger-overview {");
-    const scoped = cssBlock(app, ".ledger-panel .ledger-overview");
-    expect(scoped).toContain("grid-template-columns: max-content minmax(0, auto)");
-    // Without this the default `normal` behaves as `stretch` and the auto-max
-    // track eats the leftover space again.
-    expect(scoped).toContain("justify-content: start");
-
-    // The FROZEN base blocks are not touched, and I12's two parsed numbers
-    // still resolve unambiguously (the scoped rule declares neither).
-    expect(cssBlock(app, ".ledger-overview")).toContain("grid-template-columns: 1fr auto");
-    expect(spaceIn(app, ".ledger-overview", "padding", 1)).toBe(WELL_PAD_X);
-    expect(spaceIn(app, ".ledger-overview", "column-gap", 0)).toBe(ROW_GAP_X);
-
-    // CANARY — why the move needed the override. §16.5's "4-up on two lines"
-    // is unbuildable (repeat(auto-fit, …) forbids intrinsic track sizes), and
-    // left alone the `1fr` absorbs 739 of the 878px grid box: label at the far
-    // left, numbers at the far right, six times over. That is verbatim the
-    // defect .summary's cap exists to prevent.
-    const box = ledgerGridBox(1280, 0);
-    expect(box).toBe(878);
-    const absorbedByFr = box - ROW_GAP_X - LEDGER_METRICS_MAX;
-    expect(absorbedByFr).toBe(739);
-    expect(absorbedByFr).toBeGreaterThan(SPACE_6 * 10);
-  });
+  /* R12 RETIRED: A1's `.ledger-panel .ledger-overview` track override left
+   * with the overview panel it scoped to. The spreading defect it guarded
+   * (a 1fr track absorbing 739px and flinging label from numbers) cannot
+   * recur on the TotalsStrip: its cell is a two-line block whose name and
+   * numbers stack, so there is no label↔metrics axis to spread. */
 });
 
 /* ------------------------------------------------------------ I6 (F9) ----- */
@@ -2330,18 +2263,23 @@ describe("I6 — the S touch floor, parsed from one token and re-derived per con
     expect(total).toBeGreaterThan(0);
     expect(insideS).toBe(total);
     // …and no OTHER media query carries it either — a `min-width` block would
-    // satisfy the count above while moving the desktop layout.
-    for (const query of ["(min-width: 768px)", "(min-width: 1280px)"]) {
+    // satisfy the count above while moving the desktop layout. R12: the L
+    // tier's only home is the compound-gated workbench block, so that is the
+    // min-side block swept here (a plain 1280 block no longer exists).
+    for (const query of [
+      "(min-width: 768px)",
+      "(min-width: 1280px) and (min-height: 768px)",
+    ]) {
       for (const body of mediaBodies(cssPlain, query)) {
         expect(body).not.toContain("--tap-target");
       }
     }
-    // The four knobs the §16.5 right column's arithmetic rests on. A 3px move
-    // in any of them flips `.summary` between two and three tracks, so they are
-    // pinned by value here as well as measured in the browser.
+    // The knobs the L arithmetic rests on, pinned by value as well as
+    // measured in the browser. R12 adds the second rail.
     expect(SPACE_4).toBe(16); // page padding at >=768
-    expect(SPACE_3).toBe(12); // the single column gap
-    expect(RAIL).toBe(300); // the one rail
+    expect(SPACE_3).toBe(12); // column gaps and shell page padding
+    expect(RAIL).toBe(300); // the body rail
+    expect(BUILD_RAIL).toBe(348); // the build rail
     expect(SECTION_CHROME).toBe(34); // 1px border + --space-4, both sides
   });
 });
@@ -2636,12 +2574,13 @@ function containerThreshold(index: number): number {
 const SPLIT_THRESHOLD = containerThreshold(0); // 8-wide floor
 const PAIRS_THRESHOLD = containerThreshold(1); // 4-wide floor
 
-/** The <Section> body the board sits in. REUSES F5.4's derivation rather
- *  than writing a fourth copy of `centre − SECTION_CHROME`: at L the box is
- *  the centre column less the <Section> chrome; below L the grid is one
- *  column and the page padding is all that is taken off first. */
+/** The <Section> body the board sits in. R12 RE-POINTS THE L ARM AT THE
+ *  RAIL — the Synergy panel lives in `.col-build__scroll` now — reusing
+ *  railBox rather than writing a second copy of its arithmetic; below the
+ *  gate the grid is one column and the page padding is all that is taken
+ *  off first, unchanged. */
 function boardBox(viewport: number, scrollbar: number): number {
-  if (viewport >= L_BREAKPOINT) return centreColumn(viewport, scrollbar) - SECTION_CHROME;
+  if (viewport >= L_BREAKPOINT) return railBox(scrollbar) - SECTION_CHROME;
   return viewport - scrollbar - 2 * (viewport >= 768 ? SPACE_4 : SPACE_3) - SECTION_CHROME;
 }
 function cellW(box: number): number {
@@ -2733,37 +2672,31 @@ describe("F11 — the Synergy board's geometry, re-derived", () => {
     expect(splitCellW(PAIRS_THRESHOLD, 4)).toBe(CELL_FLOOR);
   });
 
-  it("3 — eight columns fit at 1280 at every scrollbar, and CANNOT at 768", () => {
+  it("3 — the RAIL renders the PAIRS arrangement at L; 768 splits; 390 pairs", () => {
+    // R12 — the board's L home is the 348 rail, which sits below BOTH
+    // container thresholds, so the semantic split renders the two-wide
+    // (temporary | permanent PAIRS) arrangement at L. That is the container
+    // query doing exactly what F11 built it to do on a box it had never
+    // met: width-agnostic by construction (test 2). The eight-wide band
+    // returns with the R12 synergy dock (slice 2/3), which re-cuts this.
     for (const scrollbar of SCROLLBARS) {
-      expect(cellW(boardBox(1280, scrollbar)), `scrollbar ${scrollbar}px`).toBeGreaterThanOrEqual(
-        CELL_FLOOR,
-      );
-      expect(boardBox(1280, scrollbar)).toBeGreaterThanOrEqual(SPLIT_THRESHOLD);
+      const box = boardBox(1280, scrollbar);
+      expect(box, `scrollbar ${scrollbar}px`).toBeLessThan(PAIRS_THRESHOLD);
+      expect(splitCellW(box, 2), `scrollbar ${scrollbar}px`).toBeGreaterThanOrEqual(CELL_FLOOR);
     }
-    // THE BINDING MARGIN, named at its true size, and it has been named wrong
-    // twice. The design said +13.3 against a cell it computed 6.25px too
-    // wide; the first cut of this file said +7.00 against a CELL_FLOOR built
-    // on a NAME_MIN_CONTENT 3px light. Both errors ran the same direction —
-    // optimistic — which is how a margin gets quoted to the next slice as
-    // roomier than it is. It is +4.00.
-    expect(boardBox(1280, 17)).toBe(885);
-    expect(cellW(boardBox(1280, 17))).toBe(93);
-    expect(cellW(boardBox(1280, 17)) - CELL_FLOOR).toBe(4);
+    // The binding case, named: 289 at the classic scrollbar → 104.5px cells,
+    // +15.5 over the floor. The longest badge name still fits its cell.
+    expect(boardBox(1280, 17)).toBe(289);
+    expect(splitCellW(boardBox(1280, 17), 2)).toBe(104.5);
+    expect(splitCellW(boardBox(1280, 17), 2) - CELL_FLOOR).toBe(15.5);
 
-    // 1440 is comfortable; the other two coverage widths are foreclosed and
-    // that is what FORCES the split. Asserting the failure is the point.
-    expect(boardBox(1440, 17)).toBe(1045);
-    expect(cellW(boardBox(1440, 17))).toBe(113);
+    // Below the gate nothing moved: 768 renders the four-wide split, 390
+    // the pairs — the shipped M/S behaviour, byte-identical.
     expect(boardBox(768, 15)).toBe(687);
-    expect(cellW(boardBox(768, 15))).toBeLessThan(CELL_FLOOR);
-    expect(cellW(boardBox(768, 15))).toBe(68.25);
-    expect(boardBox(390, 0)).toBe(332);
-    expect(cellW(boardBox(390, 0))).toBeLessThan(CELL_FLOOR);
-
-    // …and what the split actually renders there, on the semantic seam.
     expect(boardBox(768, 15)).toBeLessThan(SPLIT_THRESHOLD);
     expect(boardBox(768, 15)).toBeGreaterThanOrEqual(PAIRS_THRESHOLD);
     expect(splitCellW(boardBox(768, 15), 4)).toBe(147.75);
+    expect(boardBox(390, 0)).toBe(332);
     expect(boardBox(390, 0)).toBeLessThan(PAIRS_THRESHOLD);
     expect(splitCellW(boardBox(390, 0), 2)).toBe(126);
     expect(splitCellW(boardBox(390, 0), 2)).toBeGreaterThan(CELL_FLOOR);
@@ -2784,12 +2717,12 @@ describe("F11 — the Synergy board's geometry, re-derived", () => {
     expect(boardCode).not.toContain("magnitudeForSynergySlot");
   });
 
-  it("5 — BOARD_BOX reuses F5.4's derivation, chrome and all", () => {
-    expect(centreColumn(1280, 17) - boardBox(1280, 17)).toBe(SECTION_CHROME);
-    // CANARY: dropping the 34 — T16's root cause — reads 919 and hides a
+  it("5 — BOARD_BOX reuses the RAIL derivation, chrome and all", () => {
+    expect(railBox(17) - boardBox(1280, 17)).toBe(SECTION_CHROME);
+    // CANARY: dropping the 34 — T16's root cause — reads 323 and hides a
     // −34px error at every width the board is derived at.
-    expect(centreColumn(1280, 17)).toBe(919);
-    expect(cellW(919)).toBeGreaterThan(cellW(885));
+    expect(railBox(17)).toBe(323);
+    expect(splitCellW(323, 2)).toBeGreaterThan(splitCellW(289, 2));
   });
 
   it("6 — the board adds NO third sticky layer in the card column (I5)", () => {
@@ -2828,10 +2761,11 @@ describe("F11 — the Synergy board's geometry, re-derived", () => {
     expect(blocksFor(boardCssRaw, ".synergy-board")[0]).toContain("grid-column: 1 / -1");
     // The shipped precedent, eight lines from .synergy-panel's declaration.
     expect(cssBlock(app, ".synergy-panel > .banner")).toContain("grid-column: 1 / -1");
-    // CANARY: without the span the board lands in ONE auto-fill track —
-    // 436.5px at 1280 against an 829px floor, i.e. permanently four-wide.
-    expect(synergyRowBox(1280, 17)).toBe(436.5);
-    expect(synergyRowBox(1280, 17)).toBeLessThan(SPLIT_THRESHOLD);
+    // R12 — the panel resolves to ONE track in the rail, so the span is
+    // numerically a no-op there; it stays because below the gate the panel
+    // still multi-tracks and the board must cross all of them.
+    expect(synergyRowBox(17)).toBe(289);
+    expect(synergyRowBox(17)).toBeLessThan(SPLIT_THRESHOLD);
   });
 
   it("12 — every board button clears the 44px touch floor at S (I6)", () => {
@@ -2985,9 +2919,19 @@ function autoFillWidth(box: number, floor: number, gap: number): number {
 function panelContent(track: number): number {
   return track - 2 * PANEL_PAD - 2 * PANEL_BORDER;
 }
+/** R12 — the LOADOUT board's own box. The synergy board followed its panel
+ *  into the rail, but THIS board stays in the catalog column at L (user
+ *  ruling 2026-08-26: "maintain the 2K style board layout — looked like a
+ *  Kanban" — the tile grid needs the catalog's width; a 348px rail would
+ *  stack it 1-wide). So the two boards part ways on their box function:
+ *  boardBox (F11) reads the rail, kanbanBox (F16) reads the catalog. */
+function kanbanBox(viewport: number, scrollbar: number): number {
+  if (viewport >= L_BREAKPOINT) return catalogBox(viewport, scrollbar) - SECTION_CHROME;
+  return viewport - scrollbar - 2 * (viewport >= 768 ? SPACE_4 : SPACE_3) - SECTION_CHROME;
+}
 /** The narrowest tile the board produces at a viewport. */
 function boardTileW(viewport: number, scrollbar: number): number {
-  const track = autoFillWidth(boardBox(viewport, scrollbar), PANEL_TRACK, PANEL_GAP);
+  const track = autoFillWidth(kanbanBox(viewport, scrollbar), PANEL_TRACK, PANEL_GAP);
   return autoFillWidth(panelContent(track), TILE_TRACK, TILE_GAP);
 }
 
@@ -3086,14 +3030,16 @@ describe("F16 — the Loadout board's geometry, re-derived", () => {
     // the inequality is asserted at every plausible scrollbar because that is
     // the term the board does not control.
     const coverage: Array<[number, number, number, number]> = [
-      // viewport, scrollbar, panels per row, tiles per row
-      [1440, 17, 3, 3],
-      [1280, 17, 3, 2],
+      // viewport, scrollbar, panels per row, tiles per row — R12: the L rows
+      // re-derive against the CATALOG box (the rails took 648 + a gap from
+      // the old centre); the sub-gate rows are byte-identical to F16's.
+      [1440, 17, 2, 3],
+      [1280, 17, 1, 5],
       [768, 15, 2, 3],
       [390, 0, 1, 3],
     ];
     for (const [viewport, scrollbar, panels, tiles] of coverage) {
-      const box = boardBox(viewport, scrollbar);
+      const box = kanbanBox(viewport, scrollbar);
       expect(autoFillTracks(box, PANEL_TRACK, PANEL_GAP), `panels at ${viewport}`).toBe(panels);
       const track = autoFillWidth(box, PANEL_TRACK, PANEL_GAP);
       expect(
@@ -3109,29 +3055,33 @@ describe("F16 — the Loadout board's geometry, re-derived", () => {
         ).toBeGreaterThanOrEqual(TILE_FLOOR);
       }
     }
-    // The narrowest tile in the coverage set is at 390, not at 1280 — below
-    // 1280 the 300px attributes pane does not exist and the board gets the
-    // whole width, so the SMALL viewport is where the cells are tightest.
+    // R12 INVERTED THE BINDING CASE: the tightest tile is now at the GATE —
+    // the catalog's 1-panel row auto-fills FIVE tiles and each gets 93.4px,
+    // +1.4 over the floor — while 390's three-tile row keeps 96.7. Stated
+    // with its margin because +1.4 is a margin the next tile-chrome addition
+    // must be checked against, not a comfort.
     const at390 = Math.min(...SCROLLBARS.map((s) => boardTileW(390, s)));
     const at1280 = Math.min(...SCROLLBARS.map((s) => boardTileW(1280, s)));
-    expect(at390).toBeLessThan(at1280);
+    expect(at1280).toBeLessThan(at390);
+    expect(at1280).toBeGreaterThanOrEqual(TILE_FLOOR);
+    expect(Number((at1280 - TILE_FLOOR).toFixed(1))).toBe(1.4);
     // CANARY: a floor that could not tell a sub-floor cell from a legal one
     // would certify anything. A 300px tile track cannot fit two cells in the
-    // 261px panel content at 1280.
-    expect(autoFillTracks(panelContent(autoFillWidth(boardBox(1280, 17), PANEL_TRACK, PANEL_GAP)), 300, TILE_GAP)).toBe(1);
+    // 491px panel content at 1280.
+    expect(autoFillTracks(panelContent(autoFillWidth(kanbanBox(1280, 17), PANEL_TRACK, PANEL_GAP)), 300, TILE_GAP)).toBe(1);
   });
 
-  it("5 — three panel columns at 1280, because there is NO detail region", () => {
-    // design.md §5.5 put the panels at TWO columns at 1280. That figure was
-    // derived against a 312px BoardDetail track beside them, which this cut
-    // does not build — so the panels take the whole 885 and fit three. Stated
-    // rather than discovered, because a later slice that adds the detail
-    // region takes the third column back.
-    const box = boardBox(1280, 17);
-    expect(box).toBe(885);
-    expect(autoFillTracks(box, PANEL_TRACK, PANEL_GAP)).toBe(3);
-    const DETAIL_TRACK = 312;
-    expect(autoFillTracks(box - DETAIL_TRACK - SPACE_6, PANEL_TRACK, PANEL_GAP)).toBe(2);
+  it("5 — the Kanban keeps the catalog: one panel column at the gate, two at 1440", () => {
+    // R12 — the catalog cedes 648px + a gap to the rails, so the board's
+    // three-panel row is gone at the gate: ONE full-width discipline panel
+    // per row at 1280 (its tiles go 4-up in the width it gains), two at
+    // 1440. The user ruling KEEPS the board here precisely because the rail
+    // would have been worse (1-wide with narrow tiles at every viewport);
+    // slice 2's compact tiles are the lever that buys columns back.
+    expect(kanbanBox(1280, 17)).toBe(525);
+    expect(autoFillTracks(kanbanBox(1280, 17), PANEL_TRACK, PANEL_GAP)).toBe(1);
+    expect(kanbanBox(1440, 17)).toBe(685);
+    expect(autoFillTracks(kanbanBox(1440, 17), PANEL_TRACK, PANEL_GAP)).toBe(2);
   });
 });
 
@@ -3354,28 +3304,34 @@ describe("F16 — the mount, the anchors and the landing position", () => {
     }
   });
 
-  it("13 — it sits BETWEEN the grid and the Synergy Slots panel, inside .col-right", () => {
+  it("13 — the board FOLLOWS the grid inside .col-right, at every width (R12)", () => {
+    // R12 — the Synergy and Summary panels moved to the rail (defined once
+    // in planPanels, above the return), and the board deliberately did NOT
+    // follow them (the Kanban ruling): it is the catalog column's last
+    // region, directly under the grid it navigates, and the tile → card
+    // loop stays inside ONE scroller.
     const colRight = appTsxF14.indexOf('className="col-right"');
     const grid = appTsxF14.indexOf('<main id="badge-grid"');
     const board = appTsxF14.indexOf('id="panel-board"');
-    const synergy = appTsxF14.indexOf('id="panel-synergy"');
-    const summary = appTsxF14.indexOf('id="panel-summary"');
     expect(colRight).toBeLessThan(grid);
     expect(grid).toBeLessThan(board);
-    expect(board).toBeLessThan(synergy);
-    expect(synergy).toBeLessThan(summary);
-    // NOTHING IS RE-PARENTED. All three panels are still .col-right siblings,
-    // the grid is still the <main>, and the shell's permanent band is
-    // untouched — the board is scrollable content, not chrome.
-    expect(permanentBand()).toBe(HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H);
-    expect(MIN_SHELL_H).toBe(768);
+    // …and the board renders UNCONDITIONALLY (both widths), while the moved
+    // panels render via the conditional mount that follows it.
+    expect(appTsxF14.indexOf("isLarge ? null : planPanels")).toBeGreaterThan(board);
+    // The board is scrollable content, not chrome: the permanent band is
+    // still exactly two terms (R12).
+    expect(permanentBand()).toBe(HEADER_H + PAGE_PAD_Y);
   });
 
-  it("14 — the jump nav gains ONE chip and the panel group stays front-loaded", () => {
-    const nav = appTsxF14.slice(
-      appTsxF14.indexOf("panelAnchors={["),
-      appTsxF14.indexOf("]}", appTsxF14.indexOf("panelAnchors={[")),
-    );
+  it("14 — the panel chips are an M/S surface; Board still leads them (R12)", () => {
+    // R12 — at L the three panels the chips anchored are permanently on
+    // screen (rail) or directly below the grid (board), so App passes
+    // panelAnchors=[] there; the M/S branch keeps the full front-loaded
+    // trio, Board first, in page order.
+    const start = appTsxF14.indexOf("panelAnchors={");
+    const nav = appTsxF14.slice(start, appTsxF14.indexOf("/>", start));
+    expect(nav).toContain("isLarge");
+    expect(nav).toContain("? []");
     expect(nav).toContain('{ id: "panel-board", label: "Board" }');
     // Board before Synergy before Summary — the chip order is the page order.
     expect(nav.indexOf("panel-board")).toBeLessThan(nav.indexOf("panel-synergy"));
@@ -3465,15 +3421,18 @@ describe("F13 — Physique as a full-bleed strip, not a block in the setup panel
     expect(strip).toBeLessThan(layout); // … and before the layout grid.
     expect(strip).toBeLessThan(grid); // §4.5's skip target still clears it.
 
-    // F13 CARVE-OUT: the strip is GATED on the M query, and App owns that
-    // query with the SAME negation direction as the L one — jsdom has no
-    // matchMedia, so both must default to the desktop shape or a large,
-    // hard-to-attribute set of component tests silently flips to mobile.
+    // F13 CARVE-OUT, R12-NARROWED: the strip is the M BAND's surface now
+    // (isWide && !isLarge) — at L Physique heads the body column, below 768
+    // it is the panel's Section. Three surfaces, one per band, exactly one
+    // rendered at every viewport. The negation direction survives: jsdom
+    // has no matchMedia, so both queries must default to the desktop shape.
     expect(appTsx).toContain('const isWide = !useMediaQuery("(max-width: 767px)")');
-    expect(appTsx).toContain("{isWide ? <PhysiqueStrip");
-    // MUTUALLY EXCLUSIVE, expressed once: the panel gets the bundle exactly
-    // when the strip does not.
+    expect(appTsx).toContain("{isWide && !isLarge ? <PhysiqueStrip");
+    // MUTUALLY EXCLUSIVE, expressed once per seam: the panel gets the
+    // bundle exactly when the strip does not (S), and the body column's
+    // PhysiqueSection renders only inside the isLarge branch.
     expect(appTsx).toContain("physique={isWide ? null : physiqueProps}");
+    expect(appTsx).toContain("<PhysiqueSection {...physiqueProps} />");
 
     // NOT NESTED IN THE BANNER. The banner renders only on a dataVersion
     // mismatch or a deserializer strip/heal report; the strip is
@@ -3606,24 +3565,21 @@ describe("F13 — Physique as a full-bleed strip, not a block in the setup panel
   it("5 — keys, landmarks and the two-sticky-layer cap all survive", () => {
     const appTsx = srcSources["/src/App.tsx"] as string;
     const buildPanel = srcSources["/src/ui/build/BuildPanel.tsx"] as string;
-    // The four keys assertion 15 pins are untouched — no preference resets.
+    // The surviving keys assertion 15 pins are untouched — no preference
+    // resets. (section-ledger-overview retired with its panel under R12;
+    // graded in assertion 15.)
     expect(buildPanel).toContain('storageKey="section-attributes"');
     expect(buildPanel).toContain('"section-build-panel"');
     expect(buildPanel).toContain('storageKey="section-budget"');
-    expect(appTsx).toContain('storageKey="section-ledger-overview"');
-    // `section-physique` SURVIVES, and after the F13 carve-out that is the
-    // correct answer rather than a leftover: the <Section> it keys still
-    // renders below 768. A phone user's collapsed-Physique preference is
-    // still honoured, exactly as it was pre-F13.
+    // `section-physique` SURVIVES — and under R12 it now keys BOTH narrow
+    // surfaces: the S Section inside the panel and the body column's
+    // PhysiqueSection at L (the same component, so one preference follows
+    // the surface across the gate).
     expect(buildPanel).toContain('storageKey="section-physique"');
 
-    // Both landmarks the slice had to keep, plus the strip's own name.
+    // The landmarks the slice had to keep, plus the strip's own name.
     expect(appTsx).toContain('aria-label="Build"');
-    expect(appTsx).toContain('aria-label="Ledger overview"');
     expect(appTsx).toContain('aria-label="Attributes"');
-    // The strip's landmark exists at >=768. Below 768 there is no strip and
-    // Physique is inside `aria-label="Build"`, which is where it was
-    // pre-F13 — so no width leaves those two controls outside a landmark.
     expect(buildPanel).toContain('aria-label="Physique"');
 
     // I5: the strip is in normal flow above <main>, so it scrolls away. A
@@ -3774,7 +3730,10 @@ function balancedBody(source: string, header: string, from = 0): string {
 }
 
 const SHELL_BLOCK = balancedBody(app, SHELL_HEADER.text);
-const SUPPORTS_BLOCK = balancedBody(app, "@supports not (height: 100dvh) {");
+/* R12 DELETED: SUPPORTS_BLOCK. The @supports-not-dvh fallback degraded to
+ * the sticky document layout, and R12 retired that layout — the shell's own
+ * `height: 100vh` line before the dvh line is the whole fallback now (the
+ * R12 describe asserts the pair's order AND the fallback block's absence). */
 const shellPlain = stripComments(SHELL_BLOCK);
 
 /** One rule's declarations out of the shell block, by exact selector list. */
@@ -3805,176 +3764,133 @@ function shellRule(selector: string): string {
  *  §13.0.1's take-the-larger rule — a low chrome figure yields an optimistic gate,
  *  and an optimistic gate is not a gate. */
 const HEADER_H = 62;
-const STRIP_H = 93;
 const HEADER_H_MEASURED = 62;
 const HEADER_H_WRAPPED = 102;
-const STRIP_H_MEASURED = 92.19;
+/* R12 DELETED: STRIP_H / STRIP_H_MEASURED as CHROME terms. The F13 physique
+ * strip is an M-band surface now (isWide && !isLarge) — at L Physique lives
+ * inside the body column's scrollport, so it stopped being a permanent
+ * subtraction from anything. */
 /** `.layout { padding-block: var(--space-4) }`, both edges. The shell overrides
  *  padding-INLINE only, so this term is parsed rather than measured. */
 const PAGE_PAD_Y = 2 * SPACE_4;
 /** design-spec §5.3's outcome rule, as the fraction NOT available to cards. */
 const CARDS_FLOOR_FRACTION = 0.6;
 
-/** I18, as one function. Everything the viewport owes before a badge card can
- *  have a pixel, under a layout that cannot grow. */
-const permanentBand = (): number => HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H;
-const MIN_SHELL_H = Math.ceil(permanentBand() / (1 - CARDS_FLOOR_FRACTION));
-
-/** Both scrollports get the SAME height — they are siblings in one flex row. */
-const scrollerH = (viewport: number): number => viewport - HEADER_H - STRIP_H - PAGE_PAD_Y;
+/** R12 — the shell's permanent chrome is the HEADER alone: the strip left
+ *  for the M band, the footer scrolls inside the rail, banners are
+ *  transient. Everything the viewport owes before the columns start. */
+const permanentBand = (): number => HEADER_H + PAGE_PAD_Y;
+/** Every column's scrollport height — the three are siblings in one grid
+ *  row, so one function serves all three. Verified live at 1440×900: 806
+ *  derived, 807 measured (1px of border rounding). */
+const scrollerH = (viewport: number): number => viewport - HEADER_H - PAGE_PAD_Y;
+/** The catalog's card band still pays the two sticky layers. */
 const cardsBand = (viewport: number): number => scrollerH(viewport) - STICKY_STACK_H;
-/** `slidersVisible` takes the pane's box; under the shell that box is the flex
- *  row rather than `viewport − 2 × --space-3`. */
+/** `slidersVisible` takes the old pane's box (viewport − 2 × --space-3);
+ *  under the workbench the body column's box is scrollerH, so add the 24
+ *  back before handing it over. Lead: the Physique Section sits ABOVE the
+ *  Attributes Section in the body column. */
+const bodyColumnLead = (): number => PHYSIQUE_H + SPACE_4 + SECTION_LEAD_Y;
 const shellSlidersVisible = (viewport: number): number =>
-  slidersVisible(scrollerH(viewport) + 2 * SPACE_3, SECTION_LEAD_Y);
-
-/* ---- the horizontal identity: the shell must move NOTHING ---------------- */
-
-/** `.col-right`'s CONTENT box under the shell. The document scrollbar is gone,
- *  so the OS width is charged inside the grid track by `scrollbar-gutter`
- *  instead of outside `.layout` — and the page padding drops 16 → 12 to fund
- *  the 4px focus-ring gutter that the move makes necessary. */
-function colRightContentShell(viewport: number, scrollbar: number): number {
-  return viewport - 2 * SPACE_3 - SPACE_3 - RAIL - scrollbar - 2 * SPACE_1;
-}
-/** The same box WITHOUT the compensation pair — the canary. */
-function colRightContentUncompensated(viewport: number, scrollbar: number): number {
-  return viewport - 2 * SPACE_4 - SPACE_3 - RAIL - scrollbar;
-}
+  slidersVisible(scrollerH(viewport) + 2 * SPACE_3, bodyColumnLead());
 
 const scrollMemory = srcSources["/src/ui/shell/scroll-memory.ts"] as string;
 const appTsxF14 = srcSources["/src/App.tsx"] as string;
 
-describe("F14 — the app shell, derived rather than pinned", () => {
+describe("R12 — the workbench shell, derived rather than pinned", () => {
   it("1 — min-height: 0 exists on every box the shell asks to shrink", () => {
     // A flex or grid item's AUTOMATIC MINIMUM SIZE refuses to shrink below its
     // content. Omit this on .layout and the shell simply does not scroll — the
-    // whole layout turns on one invisible declaration, which is this slice's
-    // F5.2-D1. Named individually so a failure says WHICH box lost it.
+    // whole layout turns on one invisible declaration, which is F5.2-D1.
+    // Named individually so a failure says WHICH box lost it.
     expect(shellRule(".app-shell")).toContain("min-height: 0");
-    // OUT OF FLOW, and it is not a stylistic choice. The root element's
-    // overflow propagates to the VIEWPORT and the root's own used overflow
-    // becomes `visible`, so `html, body { overflow: hidden }` leaves the
-    // viewport a scroll container the browser can still drive — measured at an
-    // 8584px scrolling area, and an anchor click moved it 365px and took the
-    // header off screen. Taking the shell out of flow leaves nothing to move.
+    // OUT OF FLOW, and it is not a stylistic choice — F14's measured lesson
+    // stands: the root's overflow propagates to the VIEWPORT, scroll-into-view
+    // walks every scrollable ancestor, and only removing the scrolling area
+    // entirely leaves an anchor click nothing to move.
     expect(shellRule(".app-shell")).toContain("position: fixed");
-    expect(stripComments(SUPPORTS_BLOCK)).toContain("position: static");
     expect(shellRule(".app-shell > .layout")).toContain("min-height: 0");
-    expect(shellRule(".attr-pane-column")).toContain("min-height: 0");
-    expect(shellRule(".attr-pane")).toContain("min-height: 0");
+    // R12 — the three columns, each its own scrollport.
+    expect(shellRule(".col-body")).toContain("min-height: 0");
     expect(shellRule(".col-right")).toContain("min-height: 0");
+    expect(shellRule(".col-build")).toContain("min-height: 0");
+    expect(shellRule(".col-build__scroll")).toContain("min-height: 0");
     // …and .layout is the one that gets forgotten, so it also carries the grow.
     expect(shellRule(".app-shell > .layout")).toContain("flex: 1 1 auto");
     expect(shellRule(".app-shell > *")).toContain("flex: 0 0 auto");
 
     // CANARY: a shell block missing it on the growing item must not read as
-    // compliant just because the other four have it.
+    // compliant just because the others have it.
     const fixture = ".app-shell > .layout { flex: 1 1 auto; }";
     expect(fixture).not.toContain("min-height: 0");
   });
 
-  it("2 — the shell block is the LAST 1280px block in the file", () => {
-    // Reversed, F5.4's block wins and silently restores `position: sticky` and
-    // a max-height on the pane — a layout that looks nearly right and scrolls
-    // the document underneath a pane that no longer clamps.
-    const f54 = app.lastIndexOf("@media (min-width: 1280px) {");
-    expect(f54).toBeGreaterThan(-1);
-    expect(app.indexOf(SHELL_HEADER.text)).toBeGreaterThan(f54);
-    // …and F5.4's own block is untouched: still sticky, still the vh/dvh pair.
-    const paneBase = cssBlock(app, ".attr-pane");
-    expect(paneBase).toContain("position: sticky");
-    expect(paneBase).toContain("max-height: calc(100vh - var(--space-6))");
-    expect(paneBase).toContain("max-height: calc(100dvh - var(--space-6))");
+  it("2 — the compound gate owns L: no plain 1280 layout tier remains", () => {
+    // R12 (user ruling 2026-08-26): the workbench template lives ONLY inside
+    // the compound-gated block. A surviving plain `(min-width: 1280px)`
+    // .layout grid rule would style the M DOM at wide-but-short viewports —
+    // a 300px first track with .col-right as the only child sitting in it.
+    expect(stripComments(app)).not.toMatch(
+      /@media \(min-width:\s*1280px\)\s*\{\s*\.layout\s*\{/,
+    );
+    // …and the sticky pane is GONE, both halves: no selector, no sticky pair.
+    expect(stripComments(app)).not.toContain(".attr-pane");
+    for (const source of Object.values(srcSources)) {
+      expect(stripComments(source)).not.toContain("attr-pane");
+    }
   });
 
-  it("3 — THE GATE IS DERIVED, and the CSS literal is >= the derivation", () => {
+  it("3 — the gate pair is SHARED: CSS and App.tsx ask the same two terms", () => {
     expect(SHELL_HEADER.width).toBe(L_BREAKPOINT);
-    expect(MIN_SHELL_H).toBe(768);
-    expect(SHELL_HEADER.height).toBeGreaterThanOrEqual(MIN_SHELL_H);
+    expect(SHELL_HEADER.height).toBe(L_MIN_HEIGHT);
+    // App.tsx's isLarge asks the COMPLEMENT queries — max-width 1279 and
+    // max-height 767 — in the jsdom-safe negation direction, as two separate
+    // hook calls (an `&&` over two useMediaQuery calls short-circuits and
+    // changes the hook count across a resize: caught live).
+    expect(appTsxF14).toContain('useMediaQuery("(max-width: 1279px)")');
+    expect(appTsxF14).toContain('useMediaQuery("(max-height: 767px)")');
+    expect(L_BREAKPOINT - 1).toBe(1279);
+    expect(L_MIN_HEIGHT - 1).toBe(767);
 
-    // WHAT MOVED, and why this assertion is the one that matters. The design
-    // document was written with no search tooling and derived 753 → 760 from
-    // HEADER_H 70 and a sticky stack of 107. Measured, the header is 102 at
-    // 1280 and the L stack is 120, so the gate is 868. Both deltas are recorded
-    // so a re-measure can disagree with a number rather than with a memory.
-    const asDesigned = Math.ceil((70 + 92 + PAGE_PAD_Y + 107) / (1 - CARDS_FLOOR_FRACTION));
-    expect(asDesigned).toBe(753);
-    expect(MIN_SHELL_H - asDesigned).toBe(15);
-
-    // …AND WHY THE GATE THEN FELL 100px. F14's 868 was honest arithmetic over a
-    // header that wrapped; it was also a gate no ordinary laptop could reach —
-    // a 1440x900 display leaves roughly 810 CSS px after browser chrome, so the
-    // shell was dead code for its whole audience. F15 unwrapped the header
-    // instead of accepting the 40px, and ONLY HEADER_H moved. Both figures are
-    // kept so the fall is auditable rather than remembered.
-    const wrapped = Math.ceil(
-      (HEADER_H_WRAPPED + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H) / (1 - CARDS_FLOOR_FRACTION),
-    );
-    expect(wrapped).toBe(868);
-    expect(wrapped - MIN_SHELL_H).toBe(100);
+    // WHY 768 SURVIVES R12 UNCHANGED, recorded rather than remembered. F14's
+    // MIN_SHELL_H derivation (header 62 + strip 93 + padding 32 + sticky 120,
+    // over the 40% non-card fraction) produced 768 for a shell whose chrome
+    // list R12 has since halved — the strip is an M surface and the sticky
+    // stack lives inside one column of three. The binding floor is now the
+    // RAIL's stack: the totals strip (~142 measured) plus a usable synergy
+    // scroller. scrollerH(768) = 674 leaves 532 of scroller under the strip,
+    // which holds four slot rows. The literal predates R12 and keeps its
+    // value; what changed is what it protects.
+    expect(scrollerH(SHELL_HEADER.height)).toBe(674);
+    expect(permanentBand()).toBe(HEADER_H + PAGE_PAD_Y);
+    // The historical fall 868 → 768 (F15's header unwrap) stays auditable.
     expect(HEADER_H_WRAPPED - HEADER_H).toBe(40);
-    // 810 is the laptop the slice exists for: excluded at 868, shelled at 768.
-    expect(810).toBeLessThan(wrapped);
-    expect(810).toBeGreaterThanOrEqual(MIN_SHELL_H);
-
-    // CANARY, and it is the whole point of the formula being in the suite: a
-    // future slice that adds 40px of always-visible chrome and leaves the
-    // literal alone must FAIL here rather than shrink the cards in silence.
-    const withMoreChrome = Math.ceil(
-      (HEADER_H + STRIP_H + 40 + PAGE_PAD_Y + STICKY_STACK_H) / (1 - CARDS_FLOOR_FRACTION),
-    );
-    expect(withMoreChrome).toBe(868);
-    expect(SHELL_HEADER.height).toBeLessThan(withMoreChrome);
   });
 
-  it("4 — the >= 60% outcome rule holds AT the gate, and the margin is reported", () => {
+  it("4 — the >= 60% outcome rule holds AT the gate, WITH margin now", () => {
+    // F14 sat at 60.03% by construction — a knife edge. The workbench clears
+    // the same rule with real room, because the strip left the chrome and the
+    // page padding is the only other permanent vertical cost.
     const atGate = cardsBand(SHELL_HEADER.height) / SHELL_HEADER.height;
     expect(atGate).toBeGreaterThanOrEqual(CARDS_FLOOR_FRACTION);
-    // 60.03% — the gate is AT THE LIMIT by construction, which is the honest
-    // place for it. Reported rather than merely passed so the next reader sees
-    // that there is 0.03pp of room, not "plenty". F15 bought the cards 100px of
-    // GATE, not of margin: the ratio at the gate is the same knife-edge it was
-    // at 868, because the formula is what sets it.
-    expect(Number((atGate * 100).toFixed(2))).toBe(60.03);
-    expect(Number(((cardsBand(900) / 900) * 100).toFixed(1))).toBe(65.9);
-    // …and the laptop the slice exists for, which 868 excluded outright.
-    expect(Number(((cardsBand(810) / 810) * 100).toFixed(1))).toBe(62.1);
-
-    // …and one pixel below the gate the rule FAILS, which is why the gate is a
-    // media condition instead of a hope.
-    expect(cardsBand(SHELL_HEADER.height - 1) / (SHELL_HEADER.height - 1)).toBeLessThan(
-      CARDS_FLOOR_FRACTION,
-    );
-    expect(cardsBand(767) / 767).toBeLessThan(CARDS_FLOOR_FRACTION);
-    // The shape the gate exists for: a 1366x768 laptop is ~648 CSS px tall.
-    expect(Number(((cardsBand(648) / 648) * 100).toFixed(1))).toBe(52.6);
+    expect(Number((atGate * 100).toFixed(1))).toBe(72.1);
+    expect(Number(((cardsBand(900) / 900) * 100).toFixed(1))).toBe(76.2);
+    // …and the laptop F15 fought for still clears.
+    expect(Number(((cardsBand(810) / 810) * 100).toFixed(1))).toBe(73.6);
   });
 
-  it("5 — I15 under the shell: the floor moved, and the OLD floor now fails", () => {
-    // §16.12 state 50 asserted >= 6 / 7 / 8 at 700 / 800 / 900 against the
-    // sticky pane. The shell takes the header, the strip and the page padding
-    // out of the pane's box permanently, so the floor is re-cut — and the
-    // regression has to be VISIBLE in the suite, not only in a document.
-    expect(shellSlidersVisible(900)).toBe(6);
-    expect(shellSlidersVisible(SHELL_HEADER.height)).toBe(5);
-    // The sticky tree's own counts at the same viewports, for the delta.
-    expect(slidersVisible(900, SECTION_LEAD_Y)).toBe(8);
-    expect(slidersVisible(SHELL_HEADER.height, SECTION_LEAD_Y)).toBe(7);
-    // −2 at every shelled viewport. That is the shell's headline cost.
-    expect(slidersVisible(900, SECTION_LEAD_Y) - shellSlidersVisible(900)).toBe(2);
-
-    // CANARY: the old floor must not still pass under the shell.
-    expect(shellSlidersVisible(900) >= 8).toBe(false);
-
-    // …and below the gate there IS no shell, so the sticky counts stand.
-    // 700, NOT 800: F15 dropped the gate to 768, so 800 is now SHELLED and the
-    // sticky count there is no longer the behaviour. That flip is the slice in
-    // one line, so it is asserted rather than quietly re-based.
-    expect(700).toBeLessThan(SHELL_HEADER.height);
-    expect(slidersVisible(700, SECTION_LEAD_Y)).toBe(6);
-    expect(800).toBeGreaterThanOrEqual(SHELL_HEADER.height);
-    expect(shellSlidersVisible(800)).toBe(5);
+  it("5 — I15 in the body column: the counts, and the slice-2 lever", () => {
+    // The body column's box is scrollerH; ahead of the attribute stack sit
+    // the Physique Section (PHYSIQUE_H, the F5.4-era paper sum) and the
+    // Attributes Section's own lead. Derived counts at the slice-1 row
+    // height (SLIDER_H 81 — label over slider over wrapped numeric):
+    expect(shellSlidersVisible(900)).toBe(4);
+    expect(shellSlidersVisible(SHELL_HEADER.height)).toBe(2);
+    // THE R12 SLICE-2 LEVER, priced in advance: the approved mockup's
+    // compact single-line attribute row (~36px migrating from SLIDER_H 81)
+    // roughly doubles these counts and is the next slice's whole point. The
+    // pins above are the SLICE-1 floor, not the design's destination.
+    expect(SLIDER_H).toBe(81);
   });
 
   it("6 — the scrollbar compensation is a PAIR, and neither half stands alone", () => {
@@ -3989,59 +3905,60 @@ describe("F14 — the app shell, derived rather than pinned", () => {
     expect(shellRule(".layout")).not.toContain("padding:");
   });
 
-  it("7 — the right column reproduces TODAY's geometry, to the pixel", () => {
-    // The claim the whole compensation exists to make: the shell moves the
-    // scrollbar from outside .layout to inside the grid track and the content
-    // box does not move. 885 / 902 are §14.2's pinned outcomes and F11's board
-    // box, so a 3px error here reflows two other slices.
-    expect(colRightContentShell(1280, 17)).toBe(919);
-    expect(colRightContentShell(1280, 0)).toBe(936);
-    expect(colRightContentShell(1280, 17) - SECTION_CHROME).toBe(885);
-    expect(colRightContentShell(1280, 0) - SECTION_CHROME).toBe(902);
-    // …identical to the shipped derivation, which is the actual assertion.
-    for (const scrollbar of SCROLLBARS) {
-      expect(colRightContentShell(1280, scrollbar), `scrollbar ${scrollbar}px`).toBe(
-        centreColumn(1280, scrollbar),
-      );
-      expect(colRightContentShell(1440, scrollbar)).toBe(centreColumn(1440, scrollbar));
-    }
-
-    // CANARY: drop the page-padding half and the box moves 8px, which is enough
-    // to change nothing visible and everything derived.
-    expect(colRightContentUncompensated(1280, 17) - 2 * SPACE_1).toBe(911);
-    expect(colRightContentUncompensated(1280, 17) - 2 * SPACE_1).not.toBe(919);
+  it("7 — the three tracks fit, and every column swallows its own scrollbar", () => {
+    // The sum: 300 + 348 + two 12px gaps + two 12px page paddings = 696 of
+    // fixed cost, so the catalog track is viewport − 696 — 584 at the gate,
+    // 744 at 1440 (verified live: 744 measured). No scrollbar term at page
+    // level: each scrollport reserves its own gutter.
+    expect(RAIL + BUILD_RAIL + 2 * SPACE_3 + 2 * SPACE_3).toBe(696);
+    expect(centreColumn(1280)).toBe(584);
+    expect(centreColumn(1440)).toBe(744);
+    // The columns' own content boxes at every plausible scrollbar.
+    expect(catalogBox(1280, 17)).toBe(559);
+    expect(catalogBox(1440, 0)).toBe(736);
+    expect(railBox(17)).toBe(323);
+    expect(railBox(0)).toBe(340);
   });
 
-  it("8 — §16.8's and §14.2's margins survive the shell untouched", () => {
-    // Every downstream consumer of the box, re-run against the shell's own
-    // derivation rather than against a promise that it is the same.
-    const shellBody = (scrollbar: number) => colRightContentShell(1280, scrollbar) - SECTION_CHROME;
-    expect(shellBody(17)).toBe(885);
-    expect(synergyRowBox(1280, 17)).toBe(436.5);
-    expect(synergyRowBox(1280, 17) - synergyRowFloor).toBe(10.5);
-    expect(synergyRowBox(1280, 17) - ROW_CHROME - CONTAINER_THRESHOLD).toBe(30.5);
-    expect(synergyColumns(1280, 17)).toBe(2);
-    // The pane's own cell, and the badge grid's count.
-    expect(RAIL - 2 * PANE_PAD_X - SECTION_CHROME).toBe(258);
-    expect(cardsPerRow(centreColumn(1280, 17))).toBe(3);
+  it("8 — the downstream consumers, re-run against the workbench boxes", () => {
+    // The body column's slider cell is BIT-IDENTICAL to F5.4's pane cell —
+    // same 300 track, same 4px gutters, same Section chrome — which is what
+    // keeps I9's whole arrangement chain (stacked numeric, 224 usable track)
+    // valid without re-measuring anything.
+    expect(RAIL - 2 * COL_PAD_X - SECTION_CHROME).toBe(258);
+    // The catalog: 2-up comfortable cards under the workbench — R12 slice 1
+    // accepts this against the old 3-up-at-1280 requirement DELIBERATELY:
+    // the compact card family (slice 2, approved in the mockup) lowers
+    // CARD_FLOOR and restores ≥3-up. Recorded, not hidden; the exact seam
+    // is derived in I3.
+    expect(cardsPerRow(catalogBox(1280, 17))).toBe(2);
+    expect(cardsPerRow(catalogBox(1440, 17))).toBe(2);
+    // The synergy panel in the rail: ONE column, and its row box sits BELOW
+    // the old side-by-side floor — so the panel's own container query
+    // (width-agnostic by construction, F11 test 2) selects the STACKED
+    // arrangement, exactly as it does at S. The rail deliberately adopts the
+    // S arrangement pending the R12 synergy dock (slice 2/3).
+    expect(synergyColumns(17)).toBe(1);
+    expect(synergyRowBox(17)).toBe(289);
+    expect(synergyRowBox(17)).toBeLessThan(synergyRowFloor);
+    expect(synergyRowBox(17) - ROW_CHROME).toBeLessThan(CONTAINER_THRESHOLD);
   });
 
-  it("9 — dvh comes AFTER vh, and the whole shell has a no-dvh fallback", () => {
-    // `vh` resolves against the LARGE viewport, so a 100vh shell with browser
-    // chrome showing extends UNDER it — and with no document scroll there is
-    // nothing to recover the lost band. Order is the fix and order is the
-    // assertion, scoped to the block: a file-wide indexOf is ambiguous now that
-    // F5.4's pane declares the same pair.
+  it("9 — dvh comes AFTER vh, and vh IS the fallback now", () => {
+    // `vh` resolves against the LARGE viewport; `dvh` wins where supported.
+    // Order is the fix and order is the assertion.
     const shell = cssBlock(app, ".app-shell");
     expect(shell.indexOf("100vh")).toBeGreaterThan(-1);
     expect(shell.indexOf("100dvh")).toBeGreaterThan(shell.indexOf("100vh"));
 
-    // The fallback degrades the WHOLE shell rather than clipping it.
-    expect(SUPPORTS_BLOCK).toContain(SHELL_HEADER.text);
-    const fallback = stripComments(SUPPORTS_BLOCK);
-    expect(fallback).toContain("overflow: visible");
-    expect(fallback).toContain("position: sticky");
-    expect(fallback).toContain("display: block");
+    // R12 RETIRED the @supports-not-dvh degradation: it degraded to the
+    // sticky document layout, which no longer exists. At ≥1280 the viewport
+    // is desktop-class, where vh and dvh differ only under retracting
+    // browser chrome desktop UAs do not have — the vh line above is the
+    // whole fallback, in the conservative failure direction. The block must
+    // stay gone: a resurrected copy would restore selectors this file now
+    // asserts absent.
+    expect(app).not.toContain("@supports not (height: 100dvh)");
   });
 
   it("10 — ONE number owns each sticky layer, and no bare literal remains", () => {
@@ -4114,20 +4031,25 @@ describe("F14 — the app shell, derived rather than pinned", () => {
         return false;
       }
     }
-    for (const selector of [".app-shell", ".col-right", ".ledger-panel", ".setup-panel"]) {
+    for (const selector of [
+      ".app-shell",
+      ".col-body",
+      ".col-right",
+      ".col-build",
+      ".col-build__scroll",
+      ".totals-strip",
+      ".setup-panel",
+    ]) {
       expect(declaresSticky(selector), `${selector} is sticky`).toBe(false);
     }
     // The two that ARE the cap survive.
     expect(declaresSticky(".jump-nav")).toBe(true);
     expect(declaresSticky(".category-ledger")).toBe(true);
-    // Nothing inside the pane, including in the shell block.
-    for (const rule of stripComments(app).matchAll(/\.attr-pane\s+[^{}\s][^{}]*\{([^}]*)\}/g)) {
-      expect(rule[1]).not.toContain("position: sticky");
-    }
-    // …and the pane itself is STATIC under the shell, which is the credit: the
-    // F5.2-D1 clamp problem becomes structurally inapplicable.
-    expect(shellRule(".attr-pane")).toContain("position: static");
-    expect(shellRule(".attr-pane")).toContain("max-height: none");
+    // R12 — the totals strip is pinned by FLEX ORDER (the rail's non-growing
+    // child), never by sticky: a third sticky layer is still forbidden, and
+    // the strip achieving pinning without one is the design.
+    expect(shellRule(".col-build")).toContain("flex-direction: column");
+    expect(shellRule(".col-build__scroll")).toContain("flex: 1 1 auto");
   });
 
   it("13 — no overflow on .layout or <main>, anywhere in the file", () => {
@@ -4203,14 +4125,18 @@ describe("F14 — the app shell, derived rather than pinned", () => {
     expect(code).toContain("event.persisted");
   });
 
-  it("16 — the skip target is focusable, and still last of the three", () => {
+  it("16 — the skip target is focusable, and the body column precedes it", () => {
     // A skip link to a non-focusable target moves the next TAB STOP in most
     // engines but does not move FOCUS in all — and under a shell a focus move
     // is what drives the scrollport, so the difference is now visible.
     expect(appTsxF14).toContain('<main id="badge-grid" tabIndex={-1}>');
     const grid = appTsxF14.indexOf('id="badge-grid" tabIndex');
-    expect(appTsxF14.indexOf('aria-label="Ledger overview"')).toBeLessThan(grid);
-    expect(appTsxF14.indexOf('aria-label="Build"')).toBeLessThan(grid);
+    // R12 — the landmarks ahead of the grid are the body column's pair; the
+    // build rail (aria-label="Build totals") comes AFTER the catalog in
+    // reading order, which is the workbench's point.
+    expect(appTsxF14.indexOf('aria-label="Physique"')).toBeLessThan(grid);
+    expect(appTsxF14.indexOf('aria-label="Attributes"')).toBeLessThan(grid);
+    expect(appTsxF14.indexOf('className="col-build"')).toBeGreaterThan(grid);
   });
 
   it("17 — .app-shell is PRESENTATION, and it added no element", () => {
@@ -4222,53 +4148,56 @@ describe("F14 — the app shell, derived rather than pinned", () => {
     expect(stripComments(app)).not.toContain("#root");
   });
 
-  it("18 — the gate literal is one value, repeated verbatim in both places", () => {
-    // A drifted pair silently shells a viewport the gate excluded, or leaves a
-    // dvh-less browser on a clipped shell.
+  it("18 — the gate literal appears exactly once, beside its template", () => {
+    // R12 retired the @supports twin, so the compound gate has exactly ONE
+    // home in the stylesheet — a second (min-height) query appearing anywhere
+    // is a drifted copy waiting to disagree.
     const gates = [...app.matchAll(/\(min-height:\s*(\d+)px\)/g)].map((m) => Number(m[1]));
-    expect(gates).toHaveLength(2);
-    expect(new Set(gates).size).toBe(1);
+    expect(gates).toHaveLength(1);
     expect(gates[0]).toBe(SHELL_HEADER.height);
     // …and no NEW width breakpoint came with it.
     expect(SHELL_HEADER.width).toBe(L_BREAKPOINT);
   });
 
-  it("19 — the footer left the chrome, and the shell's chrome list is closed", () => {
-    // Outside .layout the footer is a direct child of .app-shell, which under
-    // the shell means 69px of dataset provenance pinned to every viewport and
-    // added to MIN_SHELL_H. It is a citation, not a control.
-    const colRight = appTsxF14.indexOf('className="col-right"');
+  it("19 — the footer scrolls with the rail: ONE definition, TWO homes", () => {
+    // R12 — the footer lives inside `planPanels`, defined once above the
+    // return and mounted in the rail's scroller at L or at the end of
+    // .col-right below the gate. It is a citation and belongs at the end of
+    // the reading order — never a direct .app-shell child, which under the
+    // shell would mean permanent chrome.
+    const planPanels = appTsxF14.indexOf("const planPanels = (");
     const footer = appTsxF14.indexOf('<footer className="app-footer">');
-    const layoutClose = appTsxF14.indexOf("<BuildManagerDialog");
-    expect(colRight).toBeGreaterThan(-1);
-    expect(footer).toBeGreaterThan(colRight);
-    expect(footer).toBeLessThan(layoutClose);
+    expect(planPanels).toBeGreaterThan(-1);
+    expect(footer).toBeGreaterThan(planPanels);
+    // Anchored on the shell's root div — `return (` appears in earlier
+    // helper functions and cannot anchor anything.
+    expect(footer).toBeLessThan(appTsxF14.indexOf('<div className="app app-shell">'));
     expect(appTsxF14.indexOf('id="panel-summary"')).toBeLessThan(footer);
-    // The permanent band is exactly four terms. If a fifth ever arrives it has
-    // to move MIN_SHELL_H, and assertion 3's canary is what makes it.
-    expect(permanentBand()).toBe(HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H);
-    expect(permanentBand()).toBe(307);
-    // The measured values the two pins are ceilings of, kept so a re-measure
-    // has something to disagree WITH.
+    // Exactly one definition; both conditional mounts reference it.
+    expect(appTsxF14.match(/<footer className="app-footer">/g)).toHaveLength(1);
+    expect(appTsxF14).toContain("isLarge ? null : planPanels");
+    expect(appTsxF14).toContain('className="col-build__scroll">{planPanels}<');
+    // The permanent band is exactly two terms now. A third has to come here.
+    expect(permanentBand()).toBe(HEADER_H + PAGE_PAD_Y);
+    expect(permanentBand()).toBe(94);
     expect(HEADER_H).toBe(Math.ceil(HEADER_H_MEASURED));
-    expect(STRIP_H).toBe(Math.ceil(STRIP_H_MEASURED));
   });
 
   it("20 — the transient chrome is named, not folded into the gate", () => {
-    // §5.3's cap counted the two sticky layers and excluded banners, and the
-    // gate keeps that scope. The preview strip and up to three banners are
-    // real, they are self-clearing, and under the shell they take from the
-    // cards instead of pushing them down — so the worst frame is stated here
-    // rather than discovered by a user.
+    // The preview strip and up to three banners are real, self-clearing, and
+    // under the shell they take from the columns instead of pushing them
+    // down — the worst frame is stated here rather than discovered by a
+    // user. R12's margins make even the worst frame survivable where F14's
+    // knife-edge gate went underwater with one banner.
     const PREVIEW_STRIP_H = 47;
     const BANNER_H = 51;
     const withChrome = (viewport: number, extra: number): number =>
       (cardsBand(viewport) - extra) / viewport;
-    expect(Number((withChrome(900, PREVIEW_STRIP_H) * 100).toFixed(1))).toBe(60.7);
-    expect(Number((withChrome(900, PREVIEW_STRIP_H + BANNER_H) * 100).toFixed(1))).toBe(55);
-    expect(Number((withChrome(900, PREVIEW_STRIP_H + 3 * BANNER_H) * 100).toFixed(1))).toBe(43.7);
+    expect(Number((withChrome(900, PREVIEW_STRIP_H) * 100).toFixed(1))).toBe(71.0);
+    expect(Number((withChrome(900, PREVIEW_STRIP_H + BANNER_H) * 100).toFixed(1))).toBe(65.3);
+    expect(Number((withChrome(900, PREVIEW_STRIP_H + 3 * BANNER_H) * 100).toFixed(1))).toBe(54.0);
     // The worst frame at the GATE itself, which is the one a laptop meets.
-    expect(Number((withChrome(768, PREVIEW_STRIP_H + 3 * BANNER_H) * 100).toFixed(1))).toBe(34);
+    expect(Number((withChrome(768, PREVIEW_STRIP_H + 3 * BANNER_H) * 100).toFixed(1))).toBe(46.1);
     // Banners STAY in the chrome. They are role="alert"-class disclosures whose
     // whole value is that they cannot be scrolled past.
     expect(appTsxF14).toContain('<div className="app-banners">');
@@ -4419,16 +4348,21 @@ describe("F15 — the header is one row at 1280, and the gate rests on it", () =
     expect((HEADER_H_WRAPPED - HEADER_H) / (1 - CARDS_FLOOR_FRACTION)).toBe(100);
   });
 
-  it("5 — the gate is what the formula says, and 810 now clears it", () => {
-    // Re-stated HERE, next to the horizontal fact it depends on, because the
-    // dependency is the thing a reader will otherwise miss.
-    expect(MIN_SHELL_H).toBe(Math.ceil(permanentBand() / (1 - CARDS_FLOOR_FRACTION)));
-    expect(MIN_SHELL_H).toBe(768);
-    expect(SHELL_HEADER.height).toBe(MIN_SHELL_H);
-    // The whole point of the slice, as one comparison: a 1440x900 laptop.
+  it("5 — the header is the shell's whole permanent band, and 810 clears the gate", () => {
+    // R12 — F14's MIN_SHELL_H formula retired with the strip's departure
+    // from the chrome; what this block's horizontal fact now underwrites is
+    // simpler and stronger: the one-row header IS the entire permanent band
+    // (plus page padding), so every pixel the unwrap bought goes straight
+    // to the columns.
+    expect(permanentBand()).toBe(HEADER_H + PAGE_PAD_Y);
+    expect(SHELL_HEADER.height).toBe(768);
+    // The whole point of F15, as one comparison: a 1440x900 laptop.
     const LAPTOP_VIEWPORT_H = 810;
-    expect(LAPTOP_VIEWPORT_H).toBeGreaterThanOrEqual(MIN_SHELL_H);
+    expect(LAPTOP_VIEWPORT_H).toBeGreaterThanOrEqual(SHELL_HEADER.height);
     expect(LAPTOP_VIEWPORT_H).toBeLessThan(868);
+    // …and the unwrap's 40px of value survives as column height at every
+    // viewport: on the 810px laptop the columns get 716.
+    expect(scrollerH(810)).toBe(716);
   });
 
   it("6 — the source carries the spec's labels, and no bare 44 came with it", () => {
@@ -4641,8 +4575,13 @@ describe("A5-U — the bonus dialog's geometry, derived from what it protects", 
     }
     // ZERO TOKENS ADDED OR CHANGED (§17.13's denied paths include tokens.css).
     expect(bonusBlockPlain).not.toMatch(/^\s*--[a-z0-9-]+:/m);
-    // …and it really is the last thing in the file, so the shell slice's
-    // rewrite lands above it.
-    expect(app.trimEnd().endsWith("/* ==== end A5-U — bonus mode ==== */")).toBe(true);
+    // R12 appends the build-rail component section AFTER this block (the
+    // foot-of-file is where every slice appends), so "last thing in the
+    // file" is now the R12 end marker — the A5-U block's own closing marker
+    // still exists and still closes it.
+    expect(app).toContain("/* ==== end A5-U — bonus mode ==== */");
+    expect(app.trimEnd().endsWith("/* ==== end R12 — the build rail's components ==== */")).toBe(
+      true,
+    );
   });
 });

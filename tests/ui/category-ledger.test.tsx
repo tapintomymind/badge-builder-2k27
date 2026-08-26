@@ -237,12 +237,17 @@ describe("F5.3/B — a collapsed category is hidden, never subtracted", () => {
     expect(shootingDigest().textContent).toContain("⚠");
   });
 
-  it("(3) a collapsed category STILL APPEARS in the rail ledger overview and the Summary", () => {
+  it("(3) a collapsed category STILL APPEARS in the rail TotalsStrip and the Summary", () => {
     seedShootingBuild();
     collapseShooting();
     render(<App />);
     expect(shootingDisclosure().open).toBe(false);
-    expect(document.querySelector(".ledger-overview")?.textContent).toContain("Shooting");
+    // R12: the rail Ledger overview is retired; the rail's always-visible
+    // readout is its successor, the TotalsStrip — a collapsed category still
+    // holds its cell there, and its Badge Slot is still counted (1 of 4).
+    const cell = document.querySelector('.totals-strip__cell[data-category="Shooting"]');
+    expect(cell?.textContent).toContain("Shooting");
+    expect(cell?.textContent).toContain("1/4");
     expect(document.querySelector(".summary")?.textContent).toContain("Shooting");
     // And `N of 53` stays the FILTER's count: a collapsed category's badges
     // are still SHOWN, otherwise the readout lies about the filter.

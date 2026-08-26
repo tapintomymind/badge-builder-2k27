@@ -1,0 +1,983 @@
+<title>The Workbench Re-cut</title>
+<style>
+  /* ============================================================
+     Single-theme page, deliberately: the product is dark-only by
+     binding ruling (design-spec §2.1 — used beside a console in a
+     dim room), and this proposal renders IN the product's own
+     tokens. Every surface is painted explicitly; nothing borrows
+     the host ground.
+     ============================================================ */
+  :root {
+    /* -- verbatim from src/styles/tokens.css -- */
+    --bg-canvas: #0d1117;
+    --bg-surface: #161b22;
+    --bg-raised: #1c2128;
+    --bg-inset: #010409;
+    --fg-primary: #e6edf3;
+    --fg-secondary: #c9d1d9;
+    --fg-muted: #8b949e;
+    --border-subtle: #30363d;
+    --border: #484f58;
+    --border-strong: #6e7681;
+    --accent: #4c8df6;
+    --accent-quiet: #1f3a66;
+    --success: #3fb950;
+    --warning: #d29922;
+    --danger: #f85149;
+    --danger-quiet: #3d1517;
+    --info: #58a6ff;
+    --lvl-bronze: #cd8b47;
+    --lvl-silver: #c9d1d9;
+    --lvl-gold: #e3b341;
+    --lvl-hof: #a371f7;
+    --lvl-legend: #f778ba;
+    --cat-finishing: #3d93e9;
+    --cat-shooting: #1caf61;
+    --cat-playmaking: #f58236;
+    --cat-defense: #ef5a64;
+    --cat-rebounding: #e467bb;
+    --cat-physicals: #beb448;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-num: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --glow-fuse: 0 0 0 1px rgba(76, 141, 246, 0.35), 0 0 16px -4px rgba(76, 141, 246, 0.55);
+    --shadow-raised: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 2px 6px rgba(0, 0, 0, 0.45);
+    --ring-focus: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--accent);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-canvas);
+    color: var(--fg-secondary);
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  a { color: var(--info); }
+
+  /* ---------------- proposal chrome (page framing) ------------- */
+  .wrap { max-width: 1520px; margin: 0 auto; padding: 0 24px; }
+  .intro { padding: 56px 0 36px; border-bottom: 1px solid var(--border-subtle); }
+  .eyebrow {
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--fg-muted); margin-bottom: 14px;
+  }
+  .eyebrow b { color: var(--accent); font-weight: 600; }
+  h1 {
+    color: var(--fg-primary); font-size: 42px; line-height: 1.08;
+    letter-spacing: -0.015em; font-weight: 700; text-wrap: balance; max-width: 20ch;
+  }
+  .dek { max-width: 66ch; margin-top: 16px; color: var(--fg-secondary); font-size: 16.5px; }
+  .dek strong { color: var(--fg-primary); font-weight: 600; }
+
+  .meterrow { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+  .meter {
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    border-radius: 10px; padding: 10px 14px; min-width: 158px;
+  }
+  .meter .m-label { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-muted); }
+  .meter .m-val { font-family: var(--font-num); font-size: 15px; color: var(--fg-primary); margin-top: 3px; }
+  .meter .m-val .to { color: var(--success); }
+  .meter .m-val .was { color: var(--fg-muted); text-decoration: line-through; text-decoration-color: rgba(139,148,158,.6); }
+
+  .decisions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .decision {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid var(--accent-quiet); background: rgba(31,58,102,.28);
+    color: var(--fg-secondary); border-radius: 999px; padding: 5px 12px; font-size: 12.5px;
+  }
+  .decision::before { content: "✓"; color: var(--accent); font-weight: 700; }
+
+  section { padding: 44px 0 12px; }
+  .sec-head { margin-bottom: 20px; max-width: 78ch; }
+  .sec-kicker { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 8px; }
+  h2 { color: var(--fg-primary); font-size: 24px; letter-spacing: -0.01em; font-weight: 650; }
+  .sec-head p { margin-top: 8px; color: var(--fg-muted); font-size: 14.5px; max-width: 72ch; }
+  .sec-head p b { color: var(--fg-secondary); font-weight: 600; }
+
+  /* ---------------- the framed screens ------------------------- */
+  .frame-scroller { overflow-x: auto; padding: 4px 2px 18px; }
+  .frame {
+    width: 1440px; height: 832px; flex: none;
+    background: var(--bg-canvas);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 0 6px rgba(255,255,255,.02);
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .frame, .phone { font-size: 13px; }
+
+  /* ---- app header (mock) ---- */
+  .m-header {
+    height: 50px; flex: none; display: flex; align-items: center; gap: 12px;
+    padding: 0 16px; background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle);
+  }
+  .m-logo { color: var(--fg-primary); font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .m-build {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--bg-raised); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 10px; color: var(--fg-primary); font-size: 12.5px;
+  }
+  .m-build .dirty { color: var(--warning); font-size: 11.5px; }
+  .m-build::after { content: "▾"; color: var(--fg-muted); font-size: 10px; }
+  .m-chip {
+    font-family: var(--font-num); font-size: 11px; color: var(--fg-muted);
+    border: 1px solid var(--border-subtle); border-radius: 999px; padding: 3px 9px;
+  }
+  .m-spacer { flex: 1; }
+  .m-toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-muted); font-size: 12px; }
+  .m-switch { width: 26px; height: 15px; border-radius: 999px; background: var(--bg-inset); border: 1px solid var(--border); position: relative; }
+  .m-switch::after { content: ""; position: absolute; top: 1.5px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--fg-muted); }
+  .m-btn {
+    border: 1px solid var(--border); background: var(--bg-raised); color: var(--fg-primary);
+    border-radius: 6px; padding: 5px 11px; font-size: 12px; font-weight: 500;
+  }
+  .m-btn.quiet { background: none; color: var(--fg-secondary); }
+
+  /* ---- three-column workbench ---- */
+  .m-cols {
+    flex: 1; min-height: 0; display: grid;
+    grid-template-columns: 300px 1fr 348px; gap: 12px; padding: 12px;
+  }
+  .m-col { min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+  .m-scroll { overflow-y: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .panel {
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+  }
+  .panel-h {
+    display: flex; align-items: baseline; gap: 8px; padding: 10px 14px 8px;
+    color: var(--fg-primary); font-weight: 650; font-size: 13px;
+  }
+  .panel-h .sub { color: var(--fg-muted); font-weight: 400; font-size: 11.5px; margin-left: auto; }
+
+  /* ---- LEFT: body ---- */
+  .physique { padding: 4px 14px 12px; display: grid; gap: 10px; }
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; width: max-content; }
+  .seg span { padding: 4px 9px; font-size: 11.5px; color: var(--fg-muted); border-right: 1px solid var(--border-subtle); }
+  .seg span:last-child { border-right: 0; }
+  .seg .on { background: var(--accent-quiet); color: var(--fg-primary); font-weight: 600; }
+  .h-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-muted); }
+  .h-field { font-family: var(--font-num); background: var(--bg-inset); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; color: var(--fg-primary); font-size: 12px; }
+
+  .attr-group { padding: 2px 14px 10px; }
+  .attr-group + .attr-group { border-top: 1px solid var(--border-subtle); padding-top: 8px; }
+  .ag-title { font-size: 10.5px; letter-spacing: 0.09em; text-transform: uppercase; font-weight: 700; margin: 4px 0 2px; }
+  .attr { display: grid; grid-template-columns: 108px 1fr 30px; align-items: center; gap: 10px; height: 31px; }
+  .attr .a-name { font-size: 12px; color: var(--fg-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track { position: relative; height: 4px; border-radius: 999px; background: var(--bg-inset); border: 1px solid rgba(48,54,61,.8); }
+  .fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--cat, var(--accent)); }
+  .thumb { position: absolute; top: 50%; translate: -50% -50%; width: 10px; height: 10px; border-radius: 50%; background: var(--fg-primary); border: 1px solid var(--bg-canvas); }
+  .attr .a-val { font-family: var(--font-num); font-size: 12px; color: var(--fg-primary); text-align: right; }
+
+  /* ---- CENTER: catalog ---- */
+  .filterbar {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 10px;
+    padding: 9px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .f-chip {
+    border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px;
+    font-size: 11.5px; color: var(--fg-secondary); background: var(--bg-raised);
+  }
+  .f-chip.on { border-color: var(--accent); color: var(--fg-primary); background: var(--accent-quiet); }
+  .f-cat { border-radius: 999px; padding: 3px 10px; font-size: 11.5px; border: 1px solid var(--border-subtle); color: var(--fg-secondary); }
+  .f-cat i { font-style: normal; margin-right: 5px; color: var(--cat); }
+  .f-count { margin-left: auto; font-size: 11.5px; color: var(--fg-muted); }
+  .f-sep { width: 1px; height: 16px; background: var(--border-subtle); }
+
+  .catsec { margin-top: 12px; }
+  .catsec-h {
+    position: sticky; top: 46px; z-index: 4;
+    display: flex; align-items: baseline; gap: 10px;
+    background: var(--bg-canvas);
+    padding: 8px 4px 8px 10px; border-left: 3px solid var(--cat);
+    margin-bottom: 8px;
+  }
+  .catsec-h .c-name { color: var(--cat); font-weight: 750; font-size: 12.5px; letter-spacing: 0.07em; text-transform: uppercase; }
+  .catsec-h .c-digest { font-family: var(--font-num); font-size: 11.5px; color: var(--fg-secondary); }
+  .catsec-h .c-digest .over { color: var(--danger); font-weight: 600; }
+  .catsec-h .c-collapse { margin-left: auto; color: var(--fg-muted); font-size: 11px; }
+
+  .cardgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+  .bcard {
+    position: relative; background: var(--bg-raised); border: 1px solid var(--border-subtle);
+    border-left: 3px solid var(--cat, var(--border-subtle));
+    border-radius: 8px; padding: 8px 10px 7px; min-height: 62px;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 6px;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .bcard:hover { border-color: var(--border-strong); }
+  .bc-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .bc-name { color: var(--fg-primary); font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tier {
+    flex: none; width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--border);
+    display: grid; place-items: center; font-family: var(--font-num); font-size: 9.5px; color: var(--fg-secondary);
+    background: var(--bg-inset);
+  }
+  .newdot { flex: none; font-size: 8.5px; font-weight: 700; letter-spacing: .06em; color: var(--info); border: 1px solid rgba(88,166,255,.4); border-radius: 999px; padding: 0 5px; }
+  .bc-bottom { display: flex; align-items: center; gap: 4px; }
+  .pips { display: flex; gap: 3px; }
+  .pip {
+    width: 15px; height: 15px; border-radius: 3.5px; border: 1px solid var(--border);
+    display: grid; place-items: center; font-family: var(--font-num); font-size: 8.5px; color: var(--fg-muted);
+    background: var(--bg-inset);
+  }
+  .pip.own { border-color: transparent; color: #0d1117; font-weight: 700; }
+  .pip.own.b { background: var(--lvl-bronze); } .pip.own.s { background: var(--lvl-silver); }
+  .pip.own.g { background: var(--lvl-gold); } .pip.own.h { background: var(--lvl-hof); }
+  .pip.reach { border-color: var(--border-strong); color: var(--fg-secondary); }
+  .bc-cost { margin-left: auto; font-family: var(--font-num); font-size: 11px; color: var(--fg-muted); }
+  .bc-cost b { color: var(--fg-primary); font-weight: 600; }
+
+  .bcard.owned { border-color: rgba(76,141,246,.45); border-left-color: var(--cat); background: linear-gradient(180deg, rgba(31,58,102,.18), rgba(28,33,40,1) 70%); }
+  .bcard.blocked { opacity: .62; }
+  .bcard.blocked .bc-lock { font-size: 10.5px; color: var(--fg-muted); }
+  .bcard.blocked .bc-lock b { color: var(--fg-secondary); font-weight: 600; }
+
+  .bcard.candidate { border-color: rgba(76,141,246,.7); box-shadow: var(--glow-fuse); }
+  .bcard.candidate::after {
+    content: "tap to fuse"; position: absolute; top: -8px; right: 8px;
+    background: var(--accent); color: #0d1117; font-size: 9px; font-weight: 700;
+    border-radius: 999px; padding: 1px 7px; letter-spacing: .04em;
+  }
+  .m-center.picking .bcard:not(.candidate) { opacity: .38; }
+  .m-center.picking .catsec-h, .m-center.picking .filterbar { opacity: .85; }
+
+  /* ---- RIGHT: the build sheet ---- */
+  .totals { padding: 4px 10px 10px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .tcell {
+    background: var(--bg-inset); border: 1px solid var(--border-subtle); border-radius: 7px;
+    padding: 6px 8px;
+  }
+  .tcell .t-name { font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--cat); }
+  .tcell .t-nums { font-family: var(--font-num); font-size: 11px; color: var(--fg-primary); margin-top: 2px; }
+  .tcell .t-nums .dim { color: var(--fg-muted); }
+  .tcell.over { border-color: rgba(248,81,73,.5); background: var(--danger-quiet); }
+  .tcell.over .t-nums .overnum { color: var(--danger); font-weight: 700; }
+  .t-actions { display: flex; gap: 8px; padding: 0 10px 12px; align-items: center; }
+  .t-warn { font-size: 11px; color: var(--warning); margin-left: auto; }
+
+  .roster { padding: 0 10px 10px; }
+  .r-group { margin-top: 8px; }
+  .rg-h { display: flex; align-items: baseline; gap: 8px; padding: 2px 4px; }
+  .rg-h .c-name { color: var(--cat); font-size: 10px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+  .rg-h .rg-sum { margin-left: auto; font-family: var(--font-num); font-size: 10.5px; color: var(--fg-muted); }
+  .r-row {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg-raised); border: 1px solid var(--border-subtle); border-radius: 7px;
+    padding: 5px 9px; margin-top: 4px;
+  }
+  .r-name { color: var(--fg-primary); font-size: 12px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lvl {
+    flex: none; width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center;
+    font-family: var(--font-num); font-size: 9.5px; font-weight: 700; color: #0d1117;
+  }
+  .lvl.b { background: var(--lvl-bronze); } .lvl.s { background: var(--lvl-silver); }
+  .lvl.g { background: var(--lvl-gold); } .lvl.h { background: var(--lvl-hof); }
+  .r-cost { margin-left: auto; font-family: var(--font-num); font-size: 10.5px; color: var(--fg-muted); }
+  .r-role { flex: none; font-size: 9px; font-weight: 700; color: var(--accent); border: 1px solid rgba(76,141,246,.45); border-radius: 999px; padding: 1px 6px; }
+  .r-row.stale { border-color: rgba(210,153,34,.5); }
+  .r-row.stale .r-stale { flex: none; font-size: 9.5px; color: var(--warning); }
+
+  .dock {
+    flex: none; background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    border-radius: 10px; padding: 10px 10px 10px; box-shadow: 0 -8px 24px rgba(0,0,0,.35);
+  }
+  .dock-h { display: flex; align-items: baseline; gap: 8px; padding: 0 4px 8px; }
+  .dock-h b { color: var(--fg-primary); font-size: 12.5px; font-weight: 650; }
+  .dock-h .sub { margin-left: auto; color: var(--fg-muted); font-size: 11px; }
+  .slot-picker {
+    border: 1px dashed rgba(76,141,246,.75); background: rgba(31,58,102,.22);
+    border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;
+  }
+  .slot-picker .sp-t { color: var(--fg-primary); font-size: 12px; font-weight: 600; }
+  .slot-picker .sp-t .tag { font-size: 9px; font-weight: 700; color: var(--warning); border: 1px solid rgba(210,153,34,.5); border-radius: 999px; padding: 1px 6px; margin-left: 6px; vertical-align: 1px; }
+  .slot-picker .sp-d { font-size: 11px; color: var(--fg-secondary); margin-top: 2px; }
+  .slot-picker .sp-d b { color: var(--accent); }
+  .slot-picker .sp-cancel { font-size: 10.5px; color: var(--fg-muted); margin-top: 4px; }
+  .slotgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .slot {
+    border: 1px solid var(--border-subtle); background: var(--bg-inset); border-radius: 7px;
+    padding: 5px 7px; min-height: 44px; font-size: 10px; color: var(--fg-muted);
+  }
+  .slot .s-id { font-family: var(--font-num); font-size: 9.5px; color: var(--fg-muted); display: flex; gap: 4px; align-items: baseline; }
+  .slot .s-id .boost { color: var(--fg-secondary); }
+  .slot .s-pair { margin-top: 3px; color: var(--fg-primary); font-size: 10px; line-height: 1.3; }
+  .slot.assigned { border-color: rgba(76,141,246,.5); background: rgba(31,58,102,.18); }
+  .slot.picking { border: 1px dashed var(--accent); background: rgba(31,58,102,.3); color: var(--fg-secondary); }
+  .slot.locked { opacity: .55; }
+  .slotlabel { grid-column: 1 / -1; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-muted); padding: 2px 2px 0; }
+
+  /* ---------------- captions & specimens ----------------------- */
+  .caps { display: grid; grid-template-columns: 300fr 792fr 348fr; gap: 12px; width: 1440px; }
+  .cap { border-top: 3px solid var(--capline, var(--border)); padding: 12px 4px 0; }
+  .cap h3 { color: var(--fg-primary); font-size: 14px; font-weight: 650; }
+  .cap h3 .role { color: var(--fg-muted); font-weight: 400; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; margin-left: 7px; }
+  .cap p { font-size: 13px; color: var(--fg-muted); margin-top: 5px; }
+  .cap p b { color: var(--fg-secondary); font-weight: 600; }
+
+  .callout {
+    margin-top: 26px; border: 1px solid var(--accent-quiet); background: rgba(31,58,102,.16);
+    border-radius: 12px; padding: 18px 22px; max-width: 1440px;
+  }
+  .callout h3 { color: var(--fg-primary); font-size: 15px; }
+  .callout p { color: var(--fg-secondary); font-size: 13.5px; margin-top: 6px; max-width: 100ch; }
+  .callout p b { color: var(--accent); }
+
+  .specimens { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: start; }
+  .spec { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 14px; }
+  .spec .sp-label { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 10px; }
+  .spec .sp-note { font-size: 12px; color: var(--fg-muted); margin-top: 10px; }
+  .spec .sp-note b { color: var(--fg-secondary); font-weight: 600; }
+  .spec .stage { display: grid; gap: 8px; }
+
+  .xcard {
+    background: var(--bg-raised); border: 1px solid var(--border-subtle); border-left: 3px solid var(--cat-finishing);
+    border-radius: 8px; padding: 10px 12px;
+  }
+  .xcard .bc-desc { font-size: 11.5px; color: var(--fg-secondary); margin-top: 6px; }
+  .xcard .bc-req { font-size: 11px; color: var(--fg-muted); margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-subtle); }
+  .xcard .bc-req b { color: var(--fg-secondary); }
+  .xcard .bc-acts { display: flex; gap: 6px; margin-top: 8px; }
+  .xcard .bc-acts .m-btn { font-size: 10.5px; padding: 3px 8px; }
+
+  /* ---------------- phones ------------------------------------- */
+  .phones { display: flex; gap: 22px; align-items: flex-start; }
+  .phoneblock { flex: none; }
+  .phone {
+    width: 375px; height: 720px; flex: none;
+    background: var(--bg-canvas); border: 1px solid var(--border);
+    border-radius: 22px; overflow: hidden; display: flex; flex-direction: column;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+  .p-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 12px 14px 10px; border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); }
+  .p-body { flex: 1; min-height: 0; overflow: hidden; padding: 10px 12px; position: relative; }
+  .p-fade { position: absolute; inset: auto 0 0 0; height: 54px; background: linear-gradient(180deg, transparent, var(--bg-canvas)); pointer-events: none; }
+  .p-totals {
+    flex: none; display: flex; gap: 5px; overflow: hidden; padding: 7px 10px;
+    background: var(--bg-surface); border-top: 1px solid var(--border-subtle);
+  }
+  .p-tcell { flex: none; display: flex; gap: 5px; align-items: baseline; background: var(--bg-inset); border: 1px solid var(--border-subtle); border-radius: 999px; padding: 3px 9px; }
+  .p-tcell i { font-style: normal; font-size: 9px; font-weight: 800; color: var(--cat); letter-spacing: .04em; }
+  .p-tcell span { font-family: var(--font-num); font-size: 10px; color: var(--fg-primary); }
+  .p-tcell.over { border-color: rgba(248,81,73,.55); }
+  .p-tcell.over span { color: var(--danger); }
+  .p-tabs {
+    flex: none; display: grid; grid-template-columns: repeat(3, 1fr);
+    background: var(--bg-surface); border-top: 1px solid var(--border-subtle); padding: 6px 8px 10px;
+  }
+  .p-tab { display: grid; place-items: center; gap: 2px; color: var(--fg-muted); font-size: 10px; padding: 4px 0; }
+  .p-tab .ic { font-size: 16px; line-height: 1; }
+  .p-tab.on { color: var(--accent); font-weight: 650; }
+  .phonecap { margin-top: 12px; max-width: 375px; font-size: 12.5px; color: var(--fg-muted); }
+  .phonecap b { color: var(--fg-secondary); }
+
+  /* ---------------- retire / staging --------------------------- */
+  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1200px; }
+  .list-panel { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 18px 22px; }
+  .list-panel h3 { color: var(--fg-primary); font-size: 14px; margin-bottom: 10px; }
+  .list-panel ul { list-style: none; display: grid; gap: 7px; }
+  .list-panel li { font-size: 13px; color: var(--fg-muted); padding-left: 18px; position: relative; }
+  .list-panel li b { color: var(--fg-secondary); font-weight: 600; }
+  .list-panel li::before { position: absolute; left: 0; top: 0; }
+  .retire li::before { content: "−"; color: var(--danger); font-weight: 700; }
+  .keep li::before { content: "+"; color: var(--success); font-weight: 700; }
+
+  .stages { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; max-width: 1200px; margin-top: 16px; }
+  .stage-card { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px 18px; }
+  .stage-card .s-n { font-family: var(--font-num); color: var(--accent); font-size: 12px; }
+  .stage-card h3 { color: var(--fg-primary); font-size: 14px; margin-top: 4px; }
+  .stage-card p { font-size: 12.5px; color: var(--fg-muted); margin-top: 6px; }
+
+  footer.colophon {
+    margin-top: 48px; padding: 22px 0 40px; border-top: 1px solid var(--border-subtle);
+    font-size: 12px; color: var(--fg-muted); max-width: 90ch;
+  }
+
+  @media (max-width: 900px) {
+    h1 { font-size: 32px; }
+    .twocol, .stages { grid-template-columns: 1fr; }
+    .phones { flex-wrap: wrap; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="intro">
+    <p class="eyebrow"><b>Badge Builder — 2K27</b> · design proposal · master-layout re-cut (spec rev 12 candidate)</p>
+    <h1>The Workbench Re-cut</h1>
+    <p class="dek">
+      The planning loop — <strong>nudge attributes → see what unlocks → buy → pair synergy → check budget</strong> —
+      currently crosses a 9,096&hairsp;px document twice per lap. This proposal gives each station of the loop its own
+      column: the same engine, the same tokens, no page-level scrolling. Only the catalog scrolls.
+    </p>
+    <div class="meterrow">
+      <div class="meter"><div class="m-label">Page scroll @1440×900</div><div class="m-val"><span class="was">13 screens</span> → <span class="to">0</span></div></div>
+      <div class="meter"><div class="m-label">Grid ↔ synergy travel</div><div class="m-val"><span class="was">~6,500 px</span> → <span class="to">0 px</span></div></div>
+      <div class="meter"><div class="m-label">Catalog height</div><div class="m-val"><span class="was">6,210 px</span> → <span class="to">~2,400 px</span></div></div>
+      <div class="meter"><div class="m-label">Surfaces showing the six category totals</div><div class="m-val"><span class="was">5</span> → <span class="to">2</span></div></div>
+      <div class="meter"><div class="m-label">Badges visible on first paint</div><div class="m-val"><span class="was">0</span> → <span class="to">~15</span></div></div>
+    </div>
+    <div class="decisions">
+      <span class="decision">Synergy docked at the rail's bottom</span>
+      <span class="decision">Budget entry moves behind the totals strip</span>
+      <span class="decision">Phone gets a bottom tab bar</span>
+      <span class="decision">Compact cards by default, expand on demand</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <p class="sec-kicker">The desktop shell · ≥1280px</p>
+      <h2>Three columns, one loop</h2>
+      <p>A populated state — a point-guard slasher mid-plan — because empty states hide layout problems.
+      The frame below is live: <b>each column scrolls independently</b>. The right rail is shown
+      mid-gesture: Synergy Slot 2 is choosing its Fuse badge, and the catalog is answering.</p>
+    </div>
+
+    <div class="frame-scroller">
+    <div>
+    <div class="frame">
+      <div class="m-header">
+        <span class="m-logo">Badge Builder — 2K27</span>
+        <span class="m-build">Slasher v2 <span class="dirty">· unsaved</span></span>
+        <button class="m-btn quiet">Manage</button>
+        <span class="m-chip num">dataset 2026-08-26.1</span>
+        <span class="m-spacer"></span>
+        <span class="m-toggle"><span class="m-switch"></span> Reactions activated</span>
+        <span class="m-toggle"><span class="m-switch"></span> Season-reset preview</span>
+        <button class="m-btn">Export</button>
+        <button class="m-btn">Import</button>
+      </div>
+
+      <div class="m-cols">
+
+        <!-- ===== LEFT: THE BODY ===== -->
+        <div class="m-col">
+          <div class="panel m-scroll">
+            <div class="panel-h">Body <span class="sub">position · height · attributes</span></div>
+            <div class="physique">
+              <div class="seg"><span>Any</span><span class="on">PG</span><span>SG</span><span>SF</span><span>PF</span><span>C</span></div>
+              <div class="h-row">Height <span class="h-field">6</span> ft <span class="h-field">4</span> in <span class="num" style="color:var(--fg-secondary)">= 76 in</span> <span style="font-size:10.5px">5'9"–6'8" for PG</span></div>
+            </div>
+
+            <div class="attr-group" style="--cat: var(--cat-finishing)">
+              <div class="ag-title" style="color: var(--cat-finishing)">Finishing</div>
+              <div class="attr"><span class="a-name">Close</span><span class="track"><span class="fill" style="width:85%"></span><span class="thumb" style="left:85%"></span></span><span class="a-val">85</span></div>
+              <div class="attr"><span class="a-name">Layup</span><span class="track"><span class="fill" style="width:88%"></span><span class="thumb" style="left:88%"></span></span><span class="a-val">88</span></div>
+              <div class="attr"><span class="a-name">Driving Dunk</span><span class="track"><span class="fill" style="width:92%"></span><span class="thumb" style="left:92%"></span></span><span class="a-val">92</span></div>
+              <div class="attr"><span class="a-name">Standing Dunk</span><span class="track"><span class="fill" style="width:40%"></span><span class="thumb" style="left:40%"></span></span><span class="a-val">40</span></div>
+              <div class="attr"><span class="a-name">Post Control</span><span class="track"><span class="fill" style="width:25%"></span><span class="thumb" style="left:25%"></span></span><span class="a-val">25</span></div>
+            </div>
+
+            <div class="attr-group" style="--cat: var(--cat-shooting)">
+              <div class="ag-title" style="color: var(--cat-shooting)">Shooting</div>
+              <div class="attr"><span class="a-name">Mid</span><span class="track"><span class="fill" style="width:70%"></span><span class="thumb" style="left:70%"></span></span><span class="a-val">70</span></div>
+              <div class="attr"><span class="a-name">Three-Point</span><span class="track"><span class="fill" style="width:77%"></span><span class="thumb" style="left:77%"></span></span><span class="a-val">77</span></div>
+            </div>
+
+            <div class="attr-group" style="--cat: var(--cat-playmaking)">
+              <div class="ag-title" style="color: var(--cat-playmaking)">Playmaking</div>
+              <div class="attr"><span class="a-name">Pass Accuracy</span><span class="track"><span class="fill" style="width:75%"></span><span class="thumb" style="left:75%"></span></span><span class="a-val">75</span></div>
+              <div class="attr"><span class="a-name">Ball Handle</span><span class="track"><span class="fill" style="width:90%"></span><span class="thumb" style="left:90%"></span></span><span class="a-val">90</span></div>
+              <div class="attr"><span class="a-name">Speed With Ball</span><span class="track"><span class="fill" style="width:88%"></span><span class="thumb" style="left:88%"></span></span><span class="a-val">88</span></div>
+            </div>
+
+            <div class="attr-group" style="--cat: var(--cat-defense)">
+              <div class="ag-title" style="color: var(--cat-defense)">Defense</div>
+              <div class="attr"><span class="a-name">Interior Defense</span><span class="track"><span class="fill" style="width:30%"></span><span class="thumb" style="left:30%"></span></span><span class="a-val">30</span></div>
+              <div class="attr"><span class="a-name">Perimeter Defense</span><span class="track"><span class="fill" style="width:62%"></span><span class="thumb" style="left:62%"></span></span><span class="a-val">62</span></div>
+              <div class="attr"><span class="a-name">Steal</span><span class="track"><span class="fill" style="width:55%"></span><span class="thumb" style="left:55%"></span></span><span class="a-val">55</span></div>
+              <div class="attr"><span class="a-name">Block</span><span class="track"><span class="fill" style="width:25%"></span><span class="thumb" style="left:25%"></span></span><span class="a-val">25</span></div>
+            </div>
+
+            <div class="attr-group" style="--cat: var(--cat-rebounding)">
+              <div class="ag-title" style="color: var(--cat-rebounding)">Rebounding</div>
+              <div class="attr"><span class="a-name">Offensive Reb.</span><span class="track"><span class="fill" style="width:25%"></span><span class="thumb" style="left:25%"></span></span><span class="a-val">25</span></div>
+              <div class="attr"><span class="a-name">Defensive Reb.</span><span class="track"><span class="fill" style="width:40%"></span><span class="thumb" style="left:40%"></span></span><span class="a-val">40</span></div>
+            </div>
+
+            <div class="attr-group" style="--cat: var(--cat-physicals)">
+              <div class="ag-title" style="color: var(--cat-physicals)">Physicals</div>
+              <div class="attr"><span class="a-name">Speed</span><span class="track"><span class="fill" style="width:90%"></span><span class="thumb" style="left:90%"></span></span><span class="a-val">90</span></div>
+              <div class="attr"><span class="a-name">Agility</span><span class="track"><span class="fill" style="width:88%"></span><span class="thumb" style="left:88%"></span></span><span class="a-val">88</span></div>
+              <div class="attr"><span class="a-name">Strength</span><span class="track"><span class="fill" style="width:60%"></span><span class="thumb" style="left:60%"></span></span><span class="a-val">60</span></div>
+              <div class="attr"><span class="a-name">Vertical</span><span class="track"><span class="fill" style="width:85%"></span><span class="thumb" style="left:85%"></span></span><span class="a-val">85</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== CENTER: THE CATALOG ===== -->
+        <div class="m-col m-center picking">
+          <div class="m-scroll" style="padding: 0 2px;">
+            <div class="filterbar">
+              <span class="f-chip on">A</span><span class="f-chip">B</span><span class="f-chip">C</span>
+              <span class="f-sep"></span>
+              <span class="f-cat" style="--cat: var(--cat-finishing)"><i>●</i>Finishing</span>
+              <span class="f-cat" style="--cat: var(--cat-shooting)"><i>●</i>Shooting</span>
+              <span class="f-cat" style="--cat: var(--cat-playmaking)"><i>●</i>Playmaking</span>
+              <span class="f-cat" style="--cat: var(--cat-defense)"><i>●</i>Defense</span>
+              <span class="f-sep"></span>
+              <span class="f-chip">Legal for my build</span>
+              <span class="f-chip on">Purchased</span>
+              <span class="f-count num">53 / 53 shown</span>
+            </div>
+
+            <div class="catsec" style="--cat: var(--cat-finishing)">
+              <div class="catsec-h">
+                <span class="c-name">Finishing</span>
+                <span class="c-digest">tokens <span class="over">6/5 · over by 1 ⚠</span> &nbsp;·&nbsp; slots 4/4</span>
+                <span class="c-collapse">collapse ▾</span>
+              </div>
+              <div class="cardgrid">
+                <div class="bcard owned candidate">
+                  <div class="bc-top"><span class="tier">A</span><span class="bc-name">Layup Mixmaster</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip own b">B</span><span class="pip reach">S</span><span class="pip reach">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost"><b>2</b> pts</span></div>
+                </div>
+                <div class="bcard owned candidate">
+                  <div class="bc-top"><span class="tier">C</span><span class="bc-name">Ghost Stepper</span><span class="newdot">NEW</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip own b">B</span><span class="pip reach">S</span><span class="pip reach">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost"><b>1</b> pt</span></div>
+                </div>
+                <div class="bcard owned">
+                  <div class="bc-top"><span class="tier">A</span><span class="bc-name">Posterizer</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip own g">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="r-role">Fuse S1</span><span class="bc-cost"><b>6</b> pts</span></div>
+                </div>
+                <div class="bcard owned">
+                  <div class="bc-top"><span class="tier">A</span><span class="bc-name">Float Game</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip own s">S</span><span class="pip reach">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="r-role">Reac S1</span><span class="bc-cost"><b>4</b> pts</span></div>
+                </div>
+                <div class="bcard">
+                  <div class="bc-top"><span class="tier">C</span><span class="bc-name">Aerial Wizard</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip reach">B</span><span class="pip reach">S</span><span class="pip reach">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost">from <b>1</b></span></div>
+                </div>
+                <div class="bcard">
+                  <div class="bc-top"><span class="tier">C</span><span class="bc-name">Rise Up</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip reach">B</span><span class="pip reach">S</span><span class="pip">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost">from <b>1</b></span></div>
+                </div>
+                <div class="bcard blocked">
+                  <div class="bc-top"><span class="tier">C</span><span class="bc-name">Post Powerhouse</span></div>
+                  <div class="bc-bottom"><span class="bc-lock">needs <b>60 Post Control</b> — now 25</span></div>
+                </div>
+                <div class="bcard blocked">
+                  <div class="bc-top"><span class="tier">C</span><span class="bc-name">Hook Specialist</span></div>
+                  <div class="bc-bottom"><span class="bc-lock">needs <b>60 Post Control</b> — now 25</span></div>
+                </div>
+                <div class="bcard blocked">
+                  <div class="bc-top"><span class="tier">C</span><span class="bc-name">Post Spin Catalyst</span><span class="newdot">NEW</span></div>
+                  <div class="bc-bottom"><span class="bc-lock">needs <b>55 Post Control</b> — now 25</span></div>
+                </div>
+                <div class="bcard">
+                  <div class="bc-top"><span class="tier">C</span><span class="bc-name">Paint Prodigy</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip reach">B</span><span class="pip reach">S</span><span class="pip">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost">from <b>1</b></span></div>
+                </div>
+                <div class="bcard">
+                  <div class="bc-top"><span class="tier">B</span><span class="bc-name">Physical Finisher</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip reach">B</span><span class="pip reach">S</span><span class="pip reach">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost">from <b>1</b></span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="catsec" style="--cat: var(--cat-shooting)">
+              <div class="catsec-h">
+                <span class="c-name">Shooting</span>
+                <span class="c-digest">tokens 3/4 &nbsp;·&nbsp; slots 2/3</span>
+                <span class="c-collapse">collapse ▾</span>
+              </div>
+              <div class="cardgrid">
+                <div class="bcard owned">
+                  <div class="bc-top"><span class="tier">A</span><span class="bc-name">Deadeye</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip own s">S</span><span class="pip reach">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="r-role">Fuse S5</span><span class="bc-cost"><b>3</b> pts</span></div>
+                </div>
+                <div class="bcard owned">
+                  <div class="bc-top"><span class="tier">A</span><span class="bc-name">Quick Trigger</span><span class="newdot">NEW</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip own b">B</span><span class="pip reach">S</span><span class="pip">H</span><span class="pip">L</span></span><span class="r-role">Reac S5</span><span class="bc-cost"><b>2</b> pts</span></div>
+                </div>
+                <div class="bcard">
+                  <div class="bc-top"><span class="tier">A</span><span class="bc-name">Limitless Range</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip reach">B</span><span class="pip">S</span><span class="pip">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost">from <b>2</b></span></div>
+                </div>
+                <div class="bcard">
+                  <div class="bc-top"><span class="tier">A</span><span class="bc-name">Arc Cadence</span><span class="newdot">NEW</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip reach">B</span><span class="pip reach">S</span><span class="pip">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost">from <b>2</b></span></div>
+                </div>
+                <div class="bcard">
+                  <div class="bc-top"><span class="tier">A</span><span class="bc-name">Smooth Operator</span><span class="newdot">NEW</span></div>
+                  <div class="bc-bottom"><span class="pips"><span class="pip reach">B</span><span class="pip reach">S</span><span class="pip">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost">from <b>2</b></span></div>
+                </div>
+                <div class="bcard blocked">
+                  <div class="bc-top"><span class="tier">B</span><span class="bc-name">Post Fade Phenom</span></div>
+                  <div class="bc-bottom"><span class="bc-lock">needs <b>58 Post Control</b> — now 25</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== RIGHT: THE BUILD SHEET ===== -->
+        <div class="m-col">
+          <div class="panel" style="flex: none;">
+            <div class="panel-h">The build <span class="sub">totals · engine readouts</span></div>
+            <div class="totals">
+              <div class="tcell over" style="--cat: var(--cat-finishing)"><div class="t-name">Fin</div><div class="t-nums"><span class="overnum">6/5</span> <span class="dim">·</span> 4/4</div></div>
+              <div class="tcell" style="--cat: var(--cat-shooting)"><div class="t-name">Sho</div><div class="t-nums">3/4 <span class="dim">·</span> 2/3</div></div>
+              <div class="tcell" style="--cat: var(--cat-playmaking)"><div class="t-name">Play</div><div class="t-nums">4/4 <span class="dim">·</span> 2/3</div></div>
+              <div class="tcell" style="--cat: var(--cat-defense)"><div class="t-name">Def</div><div class="t-nums">0/3 <span class="dim">·</span> 0/2</div></div>
+              <div class="tcell" style="--cat: var(--cat-rebounding)"><div class="t-name">Reb</div><div class="t-nums">0/1 <span class="dim">·</span> 0/1</div></div>
+              <div class="tcell" style="--cat: var(--cat-physicals)"><div class="t-name">Phys</div><div class="t-nums">2/3 <span class="dim">·</span> 1/2</div></div>
+            </div>
+            <div class="t-actions">
+              <button class="m-btn quiet" style="font-size: 11px;">Edit budgets…</button>
+              <button class="m-btn quiet" style="font-size: 11px;">Fill remaining ▸</button>
+              <span class="t-warn">⚠ 1 over budget</span>
+            </div>
+          </div>
+
+          <div class="panel m-scroll" style="flex: 1;">
+            <div class="panel-h">Loadout <span class="sub">9 badges · 27 pts</span></div>
+            <div class="roster">
+              <div class="r-group" style="--cat: var(--cat-finishing)">
+                <div class="rg-h"><span class="c-name">Finishing</span><span class="rg-sum">4 · 13 pts</span></div>
+                <div class="r-row"><span class="lvl g">G</span><span class="r-name">Posterizer</span><span class="r-role">Fuse S1</span><span class="r-cost">6</span></div>
+                <div class="r-row"><span class="lvl s">S</span><span class="r-name">Float Game</span><span class="r-role">Reac S1</span><span class="r-cost">4</span></div>
+                <div class="r-row"><span class="lvl b">B</span><span class="r-name">Layup Mixmaster</span><span class="r-cost">2</span></div>
+                <div class="r-row"><span class="lvl b">B</span><span class="r-name">Ghost Stepper</span><span class="r-cost">1</span></div>
+              </div>
+              <div class="r-group" style="--cat: var(--cat-shooting)">
+                <div class="rg-h"><span class="c-name">Shooting</span><span class="rg-sum">2 · 5 pts</span></div>
+                <div class="r-row"><span class="lvl s">S</span><span class="r-name">Deadeye</span><span class="r-role">Fuse S5</span><span class="r-cost">3</span></div>
+                <div class="r-row"><span class="lvl b">B</span><span class="r-name">Quick Trigger</span><span class="r-role">Reac S5</span><span class="r-cost">2</span></div>
+              </div>
+              <div class="r-group" style="--cat: var(--cat-playmaking)">
+                <div class="rg-h"><span class="c-name">Playmaking</span><span class="rg-sum">2 · 7 pts</span></div>
+                <div class="r-row"><span class="lvl g">G</span><span class="r-name">Ankle Assassin</span><span class="r-cost">5</span></div>
+                <div class="r-row stale"><span class="lvl s">S</span><span class="r-name">Unpluckable</span><span class="r-stale">⚠ no longer qualifies</span><span class="r-cost">2</span></div>
+              </div>
+              <div class="r-group" style="--cat: var(--cat-physicals)">
+                <div class="rg-h"><span class="c-name">Physicals</span><span class="rg-sum">1 · 2 pts</span></div>
+                <div class="r-row"><span class="lvl b">B</span><span class="r-name">Flash</span><span class="r-cost">2</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="dock">
+            <div class="dock-h"><b>Synergy Slots</b><span class="sub num">3/8 assigned · 2 unlocked</span></div>
+            <div class="slot-picker">
+              <div class="sp-t">Slot 2 — choosing a Fuse <span class="tag">Temporary</span></div>
+              <div class="sp-d"><b>2 candidates</b> lit in the catalog — purchased badges without a role.</div>
+              <div class="sp-cancel">esc to cancel</div>
+            </div>
+            <div class="slotgrid">
+              <div class="slotlabel">Temporary — resets at season end</div>
+              <div class="slot assigned"><div class="s-id">S1 <span class="boost">+1</span></div><div class="s-pair">Posterizer ⇄ Float Game</div></div>
+              <div class="slot picking"><div class="s-id">S2 <span class="boost">+1</span></div><div class="s-pair">choosing fuse…</div></div>
+              <div class="slot locked"><div class="s-id">S3</div><div class="s-pair">🔒 locked</div></div>
+              <div class="slot locked"><div class="s-id">S4</div><div class="s-pair">🔒 locked</div></div>
+              <div class="slotlabel">Permanent — survives the reset</div>
+              <div class="slot assigned"><div class="s-id">S5 <span class="boost">+1</span></div><div class="s-pair">Deadeye ⇄ Quick Trigger</div></div>
+              <div class="slot locked"><div class="s-id">S6</div><div class="s-pair">🔒 locked</div></div>
+              <div class="slot locked"><div class="s-id">S7 <span class="boost">+2</span></div><div class="s-pair">🔒 locked</div></div>
+              <div class="slot locked"><div class="s-id">S8 <span class="boost">+2</span></div><div class="s-pair">🔒 locked</div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="caps" style="margin-top: 16px;">
+      <div class="cap" style="--capline: var(--cat-physicals)">
+        <h3>Body <span class="role">cause</span></h3>
+        <p>Physique folds back in from the full-bleed strip; the 20 attributes become <b>31px single-line rows</b> —
+        2,076px of pane content drops to ~950px. Nearly the whole body fits one viewport.</p>
+      </div>
+      <div class="cap" style="--capline: var(--accent)">
+        <h3>Catalog <span class="role">market</span></h3>
+        <p>The only tall scroller, and the only place scrolling remains. Filter bar pinned; category headers sticky,
+        carrying their own token digests. JumpNav's chips become <b>filters</b> — its anchors point at
+        panels that are now simply always on screen.</p>
+      </div>
+      <div class="cap" style="--capline: var(--cat-shooting)">
+        <h3>The build <span class="role">result</span></h3>
+        <p>What you're making, permanently visible: <b>totals strip</b> (entry moves behind <i>Edit budgets…</i>),
+        the <b>roster</b> (absorbing the Loadout board), and the <b>synergy dock</b> pinned at the bottom —
+        the slot is always in reach.</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <h3>The lit loop — why this feels connected</h3>
+      <p>Synergy assignment stops being a dropdown 6,500px below the grid and becomes a <b>cross-column gesture</b>:
+      press a slot's empty Fuse in the dock → eligible purchased badges <b>glow in the catalog</b> (everything else
+      dims) → click one → it snaps into the slot. Same mechanic in reverse: hovering a roster row or a slot pair
+      flashes its cards in the catalog. The three columns aren't three pages sharing a screen — the highlight system
+      is what makes them one machine. Category hue is the second thread: the same six accents key the attribute
+      groups, the section headers, the totals cells, and the roster groups, so a category reads as one horizontal
+      band across all three columns.</p>
+    </div>
+    </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="sec-kicker">Component family</p>
+      <h2>One card anatomy, five members</h2>
+      <p>Every badge-shaped surface shares zones — <b>identity</b> (name · tier · category edge), <b>status</b>
+      (level pips, B/S/G/H/L lettered, never color alone), <b>meta</b> (cost, requirement), <b>actions</b>.
+      Prose appears only when it's actionable: blocked cards state their gate, everything else waits for expand.</p>
+    </div>
+    <div class="specimens">
+
+      <div class="spec">
+        <div class="sp-label">Catalog card — compact states</div>
+        <div class="stage" style="--cat: var(--cat-finishing)">
+          <div class="bcard">
+            <div class="bc-top"><span class="tier">C</span><span class="bc-name">Aerial Wizard</span></div>
+            <div class="bc-bottom"><span class="pips"><span class="pip reach">B</span><span class="pip reach">S</span><span class="pip reach">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost">from <b>1</b></span></div>
+          </div>
+          <div class="bcard owned">
+            <div class="bc-top"><span class="tier">A</span><span class="bc-name">Posterizer</span></div>
+            <div class="bc-bottom"><span class="pips"><span class="pip own g">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="r-role">Fuse S1</span><span class="bc-cost"><b>6</b> pts</span></div>
+          </div>
+          <div class="bcard blocked">
+            <div class="bc-top"><span class="tier">C</span><span class="bc-name">Post Powerhouse</span></div>
+            <div class="bc-bottom"><span class="bc-lock">needs <b>60 Post Control</b> — now 25</span></div>
+          </div>
+          <div class="bcard candidate owned">
+            <div class="bc-top"><span class="tier">C</span><span class="bc-name">Ghost Stepper</span><span class="newdot">NEW</span></div>
+            <div class="bc-bottom"><span class="pips"><span class="pip own b">B</span><span class="pip reach">S</span><span class="pip reach">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost"><b>1</b> pt</span></div>
+          </div>
+        </div>
+        <p class="sp-note">Idle · <b>purchased</b> (accent wash + role chip) · <b>blocked</b> (dimmed, gate stated —
+        the one compact state that carries prose) · <b>candidate</b> (fuse glow, only during a pick).
+        62px tall vs today's 307px.</p>
+      </div>
+
+      <div class="spec">
+        <div class="sp-label">Catalog card — expanded (click / focus / “?”)</div>
+        <div class="xcard">
+          <div class="bc-top"><span class="tier">A</span><span class="bc-name">Posterizer</span></div>
+          <p class="bc-desc">Chance to trigger aggressive dunk attempts in traffic — and drop the poster.</p>
+          <div class="bc-bottom" style="margin-top: 8px;"><span class="pips"><span class="pip own g">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost"><b>6</b> pts at Gold</span></div>
+          <p class="bc-req">B needs <b>84 Driving Dunk</b> · G needs <b>92</b> ✓ · H needs <b>96</b> — now 92 · L via <b>boost only</b></p>
+          <div class="bc-acts"><button class="m-btn quiet">Pin to rolls</button><button class="m-btn quiet">Exclude</button></div>
+        </div>
+        <p class="sp-note">Today's full card becomes the <b>expanded</b> state: description, the per-level
+        requirement ladder with your current numbers, and the roll controls (pin/exclude) — which stop being
+        permanent chrome on all 53 cards.</p>
+      </div>
+
+      <div class="spec">
+        <div class="sp-label">Roster row + synergy slot</div>
+        <div class="stage">
+          <div style="--cat: var(--cat-shooting)">
+            <div class="r-row"><span class="lvl s">S</span><span class="r-name">Deadeye</span><span class="r-role">Fuse S5</span><span class="r-cost">3</span></div>
+          </div>
+          <div style="--cat: var(--cat-playmaking)">
+            <div class="r-row stale"><span class="lvl s">S</span><span class="r-name">Unpluckable</span><span class="r-stale">⚠ no longer qualifies</span><span class="r-cost">2</span></div>
+          </div>
+          <div class="slotgrid" style="grid-template-columns: repeat(2, 1fr);">
+            <div class="slot assigned"><div class="s-id">S5 <span class="boost">+1</span></div><div class="s-pair">Deadeye ⇄ Quick Trigger</div></div>
+            <div class="slot picking"><div class="s-id">S2 <span class="boost">+1</span></div><div class="s-pair">choosing fuse…</div></div>
+          </div>
+        </div>
+        <p class="sp-note">Same identity zone at one-line density. The <b>stale</b> treatment (warning edge, stated
+        reason) and the <b>role chip</b> travel with the badge to every surface it appears on — grid, roster,
+        and slot agree because they are one component family.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="sec-kicker">The phone · &lt;768px</p>
+      <h2>Each column becomes a tab</h2>
+      <p>Per the F13 ruling the phone-beside-console is a primary device, not a degraded view. The totals strip
+      stays pinned above the tab bar on every tab — budget truth never leaves the screen. Tab names are
+      placeholders; <b>Build / Badges / Synergy</b> per the locked decision, naming to be settled in the spec pass.</p>
+    </div>
+    <div class="frame-scroller">
+    <div class="phones">
+
+      <div class="phoneblock">
+        <div class="phone">
+          <div class="p-head"><span class="m-logo" style="font-size: 13px;">Slasher v2</span><span class="m-chip" style="margin-left:auto">2026-08-26.1</span></div>
+          <div class="p-body">
+            <div class="physique" style="padding: 0 0 10px;">
+              <div class="seg"><span>Any</span><span class="on">PG</span><span>SG</span><span>SF</span><span>PF</span><span>C</span></div>
+              <div class="h-row">Height <span class="h-field">6</span> ft <span class="h-field">4</span> in</div>
+            </div>
+            <div class="attr-group" style="--cat: var(--cat-finishing); padding: 0;">
+              <div class="ag-title" style="color: var(--cat-finishing)">Finishing</div>
+              <div class="attr"><span class="a-name">Close</span><span class="track"><span class="fill" style="width:85%"></span><span class="thumb" style="left:85%"></span></span><span class="a-val">85</span></div>
+              <div class="attr"><span class="a-name">Layup</span><span class="track"><span class="fill" style="width:88%"></span><span class="thumb" style="left:88%"></span></span><span class="a-val">88</span></div>
+              <div class="attr"><span class="a-name">Driving Dunk</span><span class="track"><span class="fill" style="width:92%"></span><span class="thumb" style="left:92%"></span></span><span class="a-val">92</span></div>
+              <div class="attr"><span class="a-name">Standing Dunk</span><span class="track"><span class="fill" style="width:40%"></span><span class="thumb" style="left:40%"></span></span><span class="a-val">40</span></div>
+            </div>
+            <div class="attr-group" style="--cat: var(--cat-shooting); padding: 8px 0 0;">
+              <div class="ag-title" style="color: var(--cat-shooting)">Shooting</div>
+              <div class="attr"><span class="a-name">Mid</span><span class="track"><span class="fill" style="width:70%"></span><span class="thumb" style="left:70%"></span></span><span class="a-val">70</span></div>
+              <div class="attr"><span class="a-name">Three-Point</span><span class="track"><span class="fill" style="width:77%"></span><span class="thumb" style="left:77%"></span></span><span class="a-val">77</span></div>
+            </div>
+            <div class="p-fade"></div>
+          </div>
+          <div class="p-totals">
+            <span class="p-tcell over" style="--cat: var(--cat-finishing)"><i>FIN</i><span>6/5⚠</span></span>
+            <span class="p-tcell" style="--cat: var(--cat-shooting)"><i>SHO</i><span>3/4</span></span>
+            <span class="p-tcell" style="--cat: var(--cat-playmaking)"><i>PLY</i><span>4/4</span></span>
+            <span class="p-tcell" style="--cat: var(--cat-defense)"><i>DEF</i><span>0/3</span></span>
+            <span class="p-tcell" style="--cat: var(--cat-rebounding)"><i>REB</i><span>0/1</span></span>
+          </div>
+          <div class="p-tabs">
+            <span class="p-tab on"><span class="ic">👤</span>Build</span>
+            <span class="p-tab"><span class="ic">▦</span>Badges</span>
+            <span class="p-tab"><span class="ic">⇄</span>Synergy</span>
+          </div>
+        </div>
+        <p class="phonecap"><b>Build tab.</b> Physique + compact attribute rows — the same 31px row component as the
+        desktop rail, unchanged.</p>
+      </div>
+
+      <div class="phoneblock">
+        <div class="phone">
+          <div class="p-head"><span class="m-logo" style="font-size: 13px;">Badges</span><span class="f-chip on" style="margin-left:auto">A</span><span class="f-chip">B</span><span class="f-chip">C</span></div>
+          <div class="p-body" style="--cat: var(--cat-finishing)">
+            <div class="catsec-h" style="position: static; margin-bottom: 8px;">
+              <span class="c-name">Finishing</span>
+              <span class="c-digest">tokens <span class="over">6/5 ⚠</span> · slots 4/4</span>
+            </div>
+            <div class="stage">
+              <div class="bcard owned">
+                <div class="bc-top"><span class="tier">A</span><span class="bc-name">Posterizer</span></div>
+                <div class="bc-bottom"><span class="pips"><span class="pip own g">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="r-role">Fuse S1</span><span class="bc-cost"><b>6</b> pts</span></div>
+              </div>
+              <div class="bcard owned">
+                <div class="bc-top"><span class="tier">A</span><span class="bc-name">Float Game</span></div>
+                <div class="bc-bottom"><span class="pips"><span class="pip own s">S</span><span class="pip reach">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="r-role">Reac S1</span><span class="bc-cost"><b>4</b> pts</span></div>
+              </div>
+              <div class="bcard">
+                <div class="bc-top"><span class="tier">A</span><span class="bc-name">Layup Mixmaster</span></div>
+                <div class="bc-bottom"><span class="pips"><span class="pip own b">B</span><span class="pip reach">S</span><span class="pip reach">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost"><b>2</b> pts</span></div>
+              </div>
+              <div class="bcard blocked">
+                <div class="bc-top"><span class="tier">C</span><span class="bc-name">Post Powerhouse</span></div>
+                <div class="bc-bottom"><span class="bc-lock">needs <b>60 Post Control</b> — now 25</span></div>
+              </div>
+              <div class="bcard">
+                <div class="bc-top"><span class="tier">C</span><span class="bc-name">Paint Prodigy</span></div>
+                <div class="bc-bottom"><span class="pips"><span class="pip reach">B</span><span class="pip reach">S</span><span class="pip">G</span><span class="pip">H</span><span class="pip">L</span></span><span class="bc-cost">from <b>1</b></span></div>
+              </div>
+            </div>
+            <div class="p-fade"></div>
+          </div>
+          <div class="p-totals">
+            <span class="p-tcell over" style="--cat: var(--cat-finishing)"><i>FIN</i><span>6/5⚠</span></span>
+            <span class="p-tcell" style="--cat: var(--cat-shooting)"><i>SHO</i><span>3/4</span></span>
+            <span class="p-tcell" style="--cat: var(--cat-playmaking)"><i>PLY</i><span>4/4</span></span>
+            <span class="p-tcell" style="--cat: var(--cat-defense)"><i>DEF</i><span>0/3</span></span>
+            <span class="p-tcell" style="--cat: var(--cat-rebounding)"><i>REB</i><span>0/1</span></span>
+          </div>
+          <div class="p-tabs">
+            <span class="p-tab"><span class="ic">👤</span>Build</span>
+            <span class="p-tab on"><span class="ic">▦</span>Badges</span>
+            <span class="p-tab"><span class="ic">⇄</span>Synergy</span>
+          </div>
+        </div>
+        <p class="phonecap"><b>Badges tab.</b> Compact cards single-file. The same card component; the tier/category
+        chips ride the header.</p>
+      </div>
+
+      <div class="phoneblock">
+        <div class="phone">
+          <div class="p-head"><span class="m-logo" style="font-size: 13px;">Synergy &amp; loadout</span><span class="m-chip num" style="margin-left:auto">27 pts</span></div>
+          <div class="p-body">
+            <div class="slotgrid" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 12px;">
+              <div class="slotlabel">Temporary</div>
+              <div class="slot assigned"><div class="s-id">S1 <span class="boost">+1</span></div><div class="s-pair">Posterizer ⇄ Float Game</div></div>
+              <div class="slot picking"><div class="s-id">S2 <span class="boost">+1</span></div><div class="s-pair">choosing fuse…</div></div>
+              <div class="slotlabel">Permanent</div>
+              <div class="slot assigned"><div class="s-id">S5 <span class="boost">+1</span></div><div class="s-pair">Deadeye ⇄ Quick Trigger</div></div>
+              <div class="slot locked"><div class="s-id">S7 <span class="boost">+2</span></div><div class="s-pair">🔒 locked</div></div>
+            </div>
+            <div class="r-group" style="--cat: var(--cat-finishing)">
+              <div class="rg-h"><span class="c-name">Finishing</span><span class="rg-sum">4 · 13 pts</span></div>
+              <div class="r-row"><span class="lvl g">G</span><span class="r-name">Posterizer</span><span class="r-role">Fuse S1</span><span class="r-cost">6</span></div>
+              <div class="r-row"><span class="lvl s">S</span><span class="r-name">Float Game</span><span class="r-role">Reac S1</span><span class="r-cost">4</span></div>
+              <div class="r-row"><span class="lvl b">B</span><span class="r-name">Layup Mixmaster</span><span class="r-cost">2</span></div>
+            </div>
+            <div class="p-fade"></div>
+          </div>
+          <div class="p-totals">
+            <span class="p-tcell over" style="--cat: var(--cat-finishing)"><i>FIN</i><span>6/5⚠</span></span>
+            <span class="p-tcell" style="--cat: var(--cat-shooting)"><i>SHO</i><span>3/4</span></span>
+            <span class="p-tcell" style="--cat: var(--cat-playmaking)"><i>PLY</i><span>4/4</span></span>
+            <span class="p-tcell" style="--cat: var(--cat-defense)"><i>DEF</i><span>0/3</span></span>
+            <span class="p-tcell" style="--cat: var(--cat-rebounding)"><i>REB</i><span>0/1</span></span>
+          </div>
+          <div class="p-tabs">
+            <span class="p-tab"><span class="ic">👤</span>Build</span>
+            <span class="p-tab"><span class="ic">▦</span>Badges</span>
+            <span class="p-tab on"><span class="ic">⇄</span>Synergy</span>
+          </div>
+        </div>
+        <p class="phonecap"><b>Synergy tab.</b> Slots first, roster beneath. Starting a pick here jumps to the Badges
+        tab in picking mode — the lit loop, translated to tabs.</p>
+      </div>
+
+    </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <p class="sec-kicker">Cost, honestly</p>
+      <h2>What this retires, what it keeps</h2>
+    </div>
+    <div class="twocol">
+      <div class="list-panel retire">
+        <h3>Retired or superseded</h3>
+        <ul>
+          <li><b>JumpNav</b> — its panel anchors point at things that are now always on screen; its category chips become filters.</li>
+          <li><b>PhysiqueStrip (F13)</b> — dissolves into the Body rail at L; the &lt;768 carve-out becomes the Build tab.</li>
+          <li><b>Ledger overview panel + Loadout board tiles</b> — merge into the totals strip and roster groups.</li>
+          <li><b>Budget grid as always-mounted panel</b> — becomes the <i>Edit budgets…</i> drawer (the Bonus dialog's pattern).</li>
+          <li><b>F14 shell arithmetic</b> — MIN_SHELL_H, col-right scroll memory scope, and <span class="num">tests/layout-arithmetic.test.ts</span> get recut for three scrollports.</li>
+          <li><b>Section auto-collapse latch</b> — mostly moot when nothing shares an axis with the grid.</li>
+        </ul>
+      </div>
+      <div class="list-panel keep">
+        <h3>Carried through unchanged</h3>
+        <ul>
+          <li><b>Every token</b> — surfaces, metals, category hues, spacing, motion. This is a re-cut, not a re-skin.</li>
+          <li><b>The engine seam</b> — every number on every new surface is still an engine readout; no rule moves into the UI.</li>
+          <li><b>H2 overlay discipline</b> — preview toggles stay display-only; the totals strip renders the "current" basis, projections stay labelled.</li>
+          <li><b>Levels lettered, never color alone</b> — pips keep B/S/G/H/L; stale and over states keep their stated reasons.</li>
+          <li><b>Persistence machinery</b> — autosave, quarantine, drift disclosures, the switcher guard: untouched.</li>
+          <li><b>44px touch floor</b> at S; compact desktop densities never ship below it on phone.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stages">
+      <div class="stage-card"><div class="s-n num">Slice 1</div><h3>The shell</h3><p>Three-column grid, per-column scrollports, totals strip, roster (absorbing board + overview), synergy dock, budgets drawer. Existing components move; none redesigned yet.</p></div>
+      <div class="stage-card"><div class="s-n num">Slice 2</div><h3>The card family</h3><p>Compact/expanded catalog card, roster row, slot chip — one anatomy, all states (owned / blocked / stale / candidate), roll controls into the expanded state.</p></div>
+      <div class="stage-card"><div class="s-n num">Slice 3</div><h3>The lit loop + phone</h3><p>Cross-column picking and hover-tracing; then the tab bar, per-tab scroll memory, and the picking flow across tabs.</p></div>
+    </div>
+  </section>
+
+  <footer class="colophon">
+    Built verbatim from <span class="num">src/styles/tokens.css</span> · badge names and tiers from dataset
+    <span class="num">2026-08-26.1</span> (53 badges) · attribute/budget/synergy numbers are illustrative, not engine
+    output · measurements taken against the shipped app at 1440×900. Single dark theme by binding ruling
+    (design-spec §2.1). A rev 12 spec pass follows once this direction is confirmed.
+  </footer>
+
+</div>
