@@ -6221,3 +6221,151 @@ NEXT
 Branch `f11-synergy-board` pushed. `dev` untouched at `a5fe8e1`; `main`
 untouched. Not merged.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-25 · F13 — the Physique strip · slice-complete
+branch `f13-physique-strip` (worktree /tmp/bb-f13) · base `dev` @a5fe8e1
+Full proof: `docs/proof/f13-verification.txt` · 13 frames `docs/proof/f13-*.png`
+─────────────────────────────────────────────
+
+THE ASK (user, verbatim)
+"Move the physique card into this full horizontal where [the dataset-drift
+banner] is held. This will save space. The badges aren't even shown on the top
+so it's not easily viewable and accessible."
+
+THE NUMBER — top of page → first badge card, zero state (first load, panel open)
+  1280 x 900   1596.70 → 1386.33   −210.37
+   768 x 900   2212.70 → 2011.89   −200.81
+   390 x 844   3396.86 → 3274.67   −122.19
+Exactly accounted for: the Physique <Section> + its --space-3 gap cost 302.56
+at 1280 / 321.75 at 390; the strip that replaced it is 92.19 / 199.56. Nothing
+else moved. Measured in headless Chrome over CDP against the production
+`vite build` output loaded from file:// — NO DEV SERVER WAS STARTED.
+
+THE COST, SURFACED NOT BURIED — the LATCHED state
+Once F5.3's one-shot latch fires, the setup panel collapses to 53px and — before
+this slice — took Physique down with it, out of sight. The strip does not
+collapse, so there it is pure additive lead:
+  1280    753.00 → 845.19   +92.19  (= the strip)
+   390    656.00 → 855.56  +199.56  (= the strip)
+At 390 that crosses an 844px fold the first card was previously just above.
+That 199.56px is what permanent access to Position and Height costs — the
+second half of the ask. The lever to buy it back is priced and unspent
+(hide the strip below 768, render Physique back in the panel at S: restores
+656 at 390, forfeits the −122.19 zero-state gain there, and re-introduces a
+second width-conditional structure F5.4 §16.10 spent a slice removing).
+**If the orchestrator wants the 390 fold back, that is a one-media-query
+decision and it is the only open question in this slice.**
+
+WHAT SHIPPED
+  · `PhysiqueStrip` (was `PhysiqueSection`) mounts in App between
+    `.app-banners` and `.layout` — a SIBLING of the banner region, never a
+    child of the DriftBanner. Different lifetimes: the banner is conditional
+    on a dataVersion mismatch, the strip is unconditional. AFTER the banners,
+    because `.app-banners` is 0px tall when empty and a warning must not be
+    pushed below a toolbar. Verified with the banner up: strip top 102 → 178.78,
+    height unchanged.
+  · A 3-track grid that CAPS: `max-content max-content minmax(0, 1fr)`. The
+    two number inputs measure 56×56 in every state at every width — the base
+    `width: 56px` is untouched and no rule in the strip re-declares it. A
+    `1fr`-per-input split of the same 1248px box would give 600px each.
+  · The <Section> wrapper is GONE from Physique and that is NOT the §16.9
+    mistake: §16.9's argument is the keyboard bypass (one <summary>, twenty
+    sliders out of the tab order). Physique is three tab stops, and the
+    Section cost 70px of chrome around content that lays out in ~50.
+  · HeightField returns a FRAGMENT — the clamp notice is a sibling of the
+    fieldset, placed at `grid-column: 1 / -1; grid-row: 2`. Measured: the
+    notice's arrival grows the strip by exactly 27.19px (one --text-xs line at
+    `.hint`'s 1.6 line-height + one --space-2 gap) at BOTH widths, and neither
+    control moves. aria-describedby still wired.
+
+COPY — an ORCHESTRATOR-RATIFIED AMENDMENT, recorded as one
+scope.md §0.1 A2's copy consequence is amended: the Position hint's
+`(Position: min–max)` parenthetical is dropped, and NOTHING else in the
+sentence changed. The range was rendering THREE times at once; in the strip
+the HeightField hint is inches away. Counted in the browser: 1 recitation at
+rest, 2 with a clamp standing (the second being the ⚠ notice, byte-unchanged).
+Both load-bearing facts survive verbatim — "No badge has a position
+requirement" is still stated outright, and "Sets the available height range"
+still makes it discoverable that changing position moves your height.
+The survivor is LIVE and that assertion was RE-POINTED, never dropped:
+tests/ui/position-height-clamp.test.tsx's guard describe now pins Any → SF → C
+on the HeightField hint, adds a canary that fails on the OLD copy, and counts
+recitations as NODES (a by-name assertion cannot see a duplicate it was not
+told about).
+
+THE SETUP PANEL
+Keeps Badge Points & Badge Slots + Reset at L; + Attributes at M/S. The outer
+`<Section title="Build">` STAYS — it is what the latch closes, and closing it
+turns 595.14px into a 53px digest. Unwrapping the nested inner Section at L
+would buy 65px and split one behaviour across the 1280 seam: priced, unspent.
+The latch predicate FOLLOWED the surface — `build.position` is out of the L
+branch (same §16.5 scoping rule F5.4 wrote), which fixes the surprise F5.4's
+own addendum flagged: picking a position no longer collapses the panel under
+the user. Verified in-browser: position pick → open; budget commit → collapsed.
+The digest dropped height and position, which the strip now shows permanently.
+`section-physique` retired with its Section; the other four keys untouched.
+
+GATES
+  tsc --noEmit clean · npm run build clean · vitest 62 files / 1212 passed
+  (was 1204). RUN-never-edit, all UNMODIFIED and all green: overlays 4,
+  category-colors 15, feasibility-golden 4 (no cell moved), architecture 185,
+  f2-source-pins 14, f2-disclosure-surfaces 11, primitives 12 (`= 78 in` still
+  exact), reset-build 16. Runtime deps exactly { react, react-dom }; tokens.css
+  untouched; engine untouched; zero network; no horizontal overflow at 1280,
+  1279, 768 or 390 in any state measured.
+  Casualties: exactly ONE, the ratified guard — nothing else in 1204 broke.
+
+MUST-SURVIVE, each checked
+  --cat computed live off the grid sections (#3d93e9 / #1caf61 / #ef5a64);
+  both landmarks intact plus a new `aria-label="Physique"` on the strip (two
+  fieldsets would otherwise be orphan content); skip target still clear with
+  zero net new tab stops; clamp notice + stale-count intact; I5's two-sticky
+  cap untouched (the strip declares no sticky).
+  44×44 at 390: NO REGRESSION AND NO IMPROVEMENT. `.segmented label` is 29px
+  and `.number-field input` 26px on BOTH trees — those controls were below the
+  floor before this slice and are the same pixels after it. The floors that
+  exist today (range slider, `.build-panel__reset`) are untouched.
+
+CONFLICT FORECAST
+  · a6-e-cap-breakers — LOW. No shared source file. Textual conflict likely at
+    the TAIL of tests/layout-arithmetic.test.ts, where both append.
+  · f9-touch-floors — MEDIUM, and it inherits new ground. (1) It must switch
+    `.physique-strip .number-field` to `align-items: center` at S rather than
+    delete the rule, or a 44px input against a baseline-aligned label sits
+    wrong. (2) Raising both controls to 44 grows the 390 strip by ~33px
+    (199.56 → ~233) and the latched-390 lead to ~889 — f9 must re-measure that
+    number, not just the hit boxes.
+  · a5-u-bonus-mode — MEDIUM, one live seam and it got SHARPER. F5.4 §12
+    flagged that a bonus-only user never latches because `BonusBudget` is not
+    in `budgets`. F13 removed the `build.position` term, so at L
+    `hasBudgetValues` is now the ENTIRE predicate: a5-u must add the bonus
+    totals to it or the gap is total at L rather than partial.
+  · f10-feedback-loop — CANNOT FORECAST. Not a local branch and not on the
+    remote; there is no tree here to diff against. Noting only that the strip
+    added one landmark and that `.app > p.sr-only[role="status"]` — the live
+    region every position clamp announces through — is unchanged in position,
+    selector and copy.
+
+CARRIED FORWARD — recorded, NOT resolved here
+  · `src/ui/README.md` line 14 still reads "BuildPanel (+ PhysiqueSection)".
+    The symbol is `PhysiqueStrip` and it is not a Section. That path is not in
+    this slice's allowlist (`src/ui/build/**` is; the README is one level up),
+    so it is left stale and reported. One-line fix for whoever owns it.
+  · design-spec §16.5 describes Physique as a setup-panel Section. The
+    implementation now differs by ratified instruction; the spec text is not
+    in this slice's allowlist and has NOT been amended.
+  · Everything the F5.4 entry carried forward is unchanged by this slice.
+
+MEASUREMENT NOTE worth keeping — it made two probe runs lie
+The app flushes its autosave on pagehide/visibilitychange. Clearing
+localStorage from the app's own page and then reloading re-persists what you
+just deleted, and re-stamping the autosave's dataVersion from the app's page
+gets overwritten by the flush on the way out — which is why the drift banner
+"would not render" twice before the method was fixed. Do both from a neutral
+page in the same origin's storage bucket. Any future slice probing persisted
+state in a real browser will hit this.
+
+NEXT
+Branch pushed, NOT merged. `dev` untouched, `main` untouched.
+─────────────────────────────────────────────
