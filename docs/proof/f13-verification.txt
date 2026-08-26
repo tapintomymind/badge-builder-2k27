@@ -645,3 +645,103 @@ A9. FRAMES REFRESHED FOR THE CARVE-OUT
   f13-before-390.png           unchanged, and now byte-equivalent in layout
                                to f13-after-390.png by design
   every 1280 frame             unchanged — >= 768 is untouched by the ruling
+
+
+================================================================================
+ADDENDUM 2 — RE-MEASURED AGAINST CURRENT dev, AND A CORRECTION TO §A8
+================================================================================
+CORRECTION FIRST. §A8 says f9-touch-floors and f8-s2-summary are "sealed on
+their own branches and NOT reachable from dev". That was TRUE when it was
+checked and is FALSE NOW: `dev` moved from a5fe8e1 to c6f52f1 while this slice
+was being written, and A6-E, F9 and F8-S2 all landed in it — as re-commits
+(6a8dfbe, e1b95c0, …), which is why an `is-ancestor` check on the ORIGINAL
+branch SHAs still answers "no" and why the first check was misleading rather
+than wrong. §A8 is left standing as the forecast it was; this section replaces
+it with a measurement.
+
+
+B1. TRIAL MERGE — dev @c6f52f1 INTO THIS BRANCH
+--------------------------------------------------------------------------------
+Run in a throwaway worktree; THIS BRANCH IS NOT REBASED OR MERGED. Three
+conflicts, and the shape of each matters more than the count:
+
+  src/ui/build/BuildPanel.tsx      ONE SEMANTIC CONFLICT — and it composes.
+    A6-E widened the latch's `withAttributes` TRUE arm with
+    `hasCapBreakers(build)`. F13 narrowed the FALSE arm by dropping
+    `build.position !== undefined`. Different arms, same expression, so git
+    sees adjacent lines and a human sees two independent edits. Resolution:
+
+      const hasValues = withAttributes
+        ? hasBudgetValues ||
+          Object.values(build.attributes).some((value) => value > 0) ||
+          hasCapBreakers(build)
+        : hasBudgetValues;
+
+  tests/layout-arithmetic.test.ts  APPEND vs APPEND at the tail, exactly as
+    forecast. Deterministic resolution: take dev's file, re-append the F13
+    describe block verbatim (it begins at the `F13 — the physique strip`
+    banner comment and runs to EOF). No hand-merging.
+
+  .claude/reportback.md            APPEND vs APPEND. dev's entry first.
+
+  src/App.tsx and src/styles/app.css AUTO-MERGED with no conflict.
+
+
+B2. THE MERGED TREE IS GREEN
+--------------------------------------------------------------------------------
+  npx tsc --noEmit         clean
+  npm run build            clean
+  npx vitest run           67 files, 1331 passed
+
+
+B3. EVERY HEADLINE NUMBER RE-MEASURED ON THE MERGED TREE
+--------------------------------------------------------------------------------
+dev @c6f52f1 alone vs dev-merged-into-F13, same driver, same session.
+
+  state                    dev        merged      delta
+  1280 zero state        1596.70     1386.33     −210.37
+  1280 latched            753.00      845.19      +92.19
+   768 zero state        2238.70     2037.89     −200.81
+   767 zero state        2632.70     2632.70    IDENTICAL
+   390 zero state        3638.86     3638.86    IDENTICAL
+   390 clamp standing    3626.86     3626.86    IDENTICAL
+   390 latched            757.00      757.00    IDENTICAL
+
+EVERY DELTA IS UNCHANGED FROM WHAT §A2 MEASURED AGAINST a5fe8e1 — −210.37,
++92.19, −200.81, and zero at 390 — even though dev's own 390 numbers moved
+(3396.86 → 3638.86 at rest, 656 → 757 latched) because F9 made the phone
+taller. That is the carve-out's mechanism showing its worth: "390 is
+unchanged" holds because the strip is NOT RENDERED there, not because a
+number happened to line up. A pinned figure would have gone stale the moment
+F9 landed; an absence cannot.
+
+Latch at 390 on the merged tree: position pick → panel OPEN, budget commit →
+COLLAPSED. Identical to dev. Clamp notice renders and stays aria-describedby-
+wired. No horizontal overflow at 390, 767, 768 or 1280 in any state.
+
+
+B4. F9 — THE FORECAST IS NOW A MEASUREMENT, AND IT IS CLOSED
+--------------------------------------------------------------------------------
+Measured on the merged tree:
+
+  390   .height-field .number-field input   56 x 44   ← F9's floor, applied
+  1280  .height-field .number-field input   56 x 26   ← the strip, untouched
+
+F9's S floors land on the Physique <Section>'s controls inside the setup
+panel — the same controls, in the same place, as pre-F13 — and F9's own two
+hazards about `.physique-strip` are moot because no rule inside
+`.physique-strip` is ever evaluated below 768. Nothing in F9 had to change,
+and nothing in this slice had to change for F9. **F9 may delete its
+`.physique-strip` note.**
+
+The widths are the whole story: F9 floors at S, the strip only exists at
+>= 768, so the two never meet.
+
+
+B5. F8-S2 — NO CONTACT, CONFIRMED ON THE MERGED TREE
+--------------------------------------------------------------------------------
+F8-S2's 885px (s=17) / 902px (overlay scrollbars) summary box and its
+resolved column counts at s=0/15/17 are derived from page padding, the rail,
+the column gap and Section chrome. This slice touches none of them, and the
+strip is full-bleed OUTSIDE `.layout` — it changes the y of the grid, never
+its x. The merged suite includes F8-S2's own pins and they pass: 1331/1331.
