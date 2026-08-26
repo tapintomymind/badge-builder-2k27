@@ -8337,3 +8337,133 @@ matching, and the loaded page reports exactly those two filenames).
       `tsc` and the suite, which is why every gate above was run in a CLEAN worktree at the exact
       commit. It was not touched, moved, or committed.
 ─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · hygiene — gitignore symlink, spec revs, I6 width census
+
+Branch `hygiene-sweep` off `origin/dev` @`16c0569`. Four unrelated concerns, one commit each.
+Nothing merged; `dev` and `main` untouched.
+
+### 1. `.gitignore` — `node_modules/` -> `node_modules`
+
+The trailing slash constrains the pattern to DIRECTORIES, so it never matched the bare
+`node_modules` SYMLINK every parallel worktree creates. Reported twice before (most recently by
+the F8-R2 landing, note (b)) and reproduced here before the fix: a fresh worktree with the
+symlink showed `?? node_modules`, one `git add -A` away from committing the link.
+
+Verified in BOTH directions, because dropping a slash could plausibly narrow the pattern:
+  · symlink now ignored — `git status` clean in the worktree, `git check-ignore -v node_modules`
+    reports `.gitignore:2:node_modules`
+  · real directory still ignored — a throwaway repo with the bare pattern and an actual
+    `node_modules/pkg/index.js` leaves it untracked (`git check-ignore` hits)
+
+### 2. `tests/ui/zz-probe.test.tsx` — NOT FOUND, nothing deleted
+
+The task was to read and reap it. It does not exist. Searched the main checkout, every registered
+worktree and the whole `App Development` tree: zero hits for `zz-probe`. `git status
+--untracked-files=all` in the main checkout lists only `.claude/worktrees/`. It was removed by
+someone between the F8-R2 landing (note (c), which reported it) and now.
+
+Its diagnosis in that note was also wrong on the facts, worth recording so it is not re-derived:
+the probe was said to import "a non-existent `./m4-rig`". `tests/ui/m4-rig.ts` has been TRACKED
+since the M4 commit `3be4210` and is imported by ~20 test files. Whatever made the probe
+uncollectable, a missing `m4-rig` module was not it.
+
+No file was deleted, moved, or staged for this item.
+
+### 3. `design-spec.md` §3.1 / §3.2 — two stale lines revved
+
+Both are workspace documents, not repo files; edited in place and NOT part of the branch.
+
+  · **§3.1 touch-floor bullet** quoted the shipped ``Manage`` / ``Export JSON`` while §3.2 item 5
+    specifies ``Export`` / ``Import``, and the tree ships §3.2's names (`SummaryPanel.tsx`
+    `ExportImportControls`, pinned by F15 assertion 6, which asserts `Export JSON` is absent).
+    Re-pointed at ``Export``, with a parenthetical recording that the design-review measurement it
+    cites predates the F15 rename — the citation stays honest rather than being retro-fitted.
+
+  · **§3.2's opening sentence** read "Two rows on desktop, three on mobile." BOTH halves were
+    wrong, and mobile was verified rather than carried over. `docs/proof/f15-verification.txt` §4
+    measures the header at every breakpoint: **1440 = 1 row · 1280 = 1 row (post-F15; 2 before) ·
+    768 = 2 rows · 390 = 5 rows**. Mobile is five, not three, and it is unchanged by F15 — the
+    spec figure was simply never right. Replaced with the measured counts, the reason the count is
+    content-driven (`flex-wrap: wrap`, no declared height) and a citation to the proof file.
+
+F15's own report had already flagged the §3.2 sentence and the §3.1 contradiction and explicitly
+declined to re-pin them ("Reported, not silently re-pinned"). This closes both.
+
+### 4. `tests/layout-arithmetic.test.ts` — the I6 census now covers WIDTH
+
+§5.3's floor is 44x44; the census graded `min-height` only, so it was blind on two axes at once —
+a control tall enough and too NARROW, and a floor spelled as a `44px` LITERAL, which no
+`var(--tap-target)` probe can see. Three escapes came through those holes: `.synergy-board__button`
+(literal, F11), `.build-panel__reset` (literal, [A7]), and `.pin-control` + `.roll-seed__regen`
+(36px and 34px wide at S, 44 tall for free through `.btn`).
+
+Escape 3's FIX was held by nothing at all. The stylesheet comment beside it says so in as many
+words — "a min-width does not match its probe and the census stays exact" — so the rule could have
+been deleted with every assertion staying green.
+
+Added, without touching the height check:
+  · **30** — each width-census control takes the floor from the token, sets no fixed `width` and
+    no `max-width` cap that would defeat it
+  · **31** — the width census is read back OUT of the stylesheet and must equal it in both
+    directions (27's contract on the other axis), plus a literal sweep that bans a numeric
+    `min-height`/`min-width` outright and permits a numeric `height`/`width` only for four frozen
+    rules, each named with the assertion that pins its literal
+  · **32** — canaries, fired through the SAME scanners the assertions use
+
+27's inline scan was hoisted VERBATIM into `floorSelectors()` so the canaries exercise the shipped
+code path rather than a copy of it. 27's behaviour is unchanged.
+
+**Mutation-tested against the real stylesheet**, one run per escape shape:
+  · delete the `min-width` fix ............ 30 and 31 RED (and 32 refuses to pass vacuously —
+    it asserts its own precondition and reports "the canary did not actually remove the rule")
+  · add a hard-coded `min-height: 44px` ... 31 RED, 27 GREEN — the exact shape that escaped twice
+  · add a 44-tall / 34-wide control ....... 27 and 31 RED
+
+`S_TOUCH_FLOOR_WIDTH_CENSUS` = `.filter-chip`, `.pin-control`, `.roll-seed__regen`.
+
+### Pre-existing violations surfaced — REPORTED, not fixed
+
+None that are wrong by VALUE. Every touch target that declares a floor declares it at 44+.
+
+What the new sweep does surface is four rules that spell a size as a NUMBER inside an S block:
+`.pip { width: 44px }` and the F3 slider trio (`.attr-slider__row input[type="range"]` plus its
+`::-webkit-slider-thumb` / `::-moz-range-thumb`, height and width). These are the same SHAPE as
+escapes 1 and 2 — correct value, token-invisible spelling — but each is frozen by an assertion
+that matches the literal verbatim (assertion 8 for `.pip`, 27 for the range input), so re-pointing
+them at `--tap-target` would redden the assertion that pins them. They are allowlisted in
+`S_LITERAL_SIZE_EXEMPT` with the citation, and assertion 32(d) proves the allowlist is exactly the
+shipped set rather than a wildcard. **Whether that trio should be re-pointed and its pins rewritten
+is a separate decision and was not taken here.**
+
+Two further stale-spec observations, NOT actioned (outside this sweep's scope):
+  (a) §3.1's size bullet still says "`sm` -> 36px and `md` -> 44px" at S and calls `md` "the one
+      used for every header and dialog action". Assertion 25 already contradicts both: BOTH sizes
+      clear 44 at S, and no `md` Button renders anywhere in `src/ui/**` — every call site passes
+      `size="sm"`. Assertion 25 pins the divergence so it is not silent; the bullet needs a rev.
+  (b) `.app-header`'s S comment in `layout-arithmetic.test.ts` says the stylesheet has five S media
+      blocks; it now has six. Cosmetic — `mediaBodies()` brace-matches all of them.
+
+### What this sweep did NOT do
+
+Nothing was width-fixed in the stylesheet. `src/styles/app.css` is byte-identical to `origin/dev`
+(it was mutated three times for the tests above and restored from a backup each time; `git status`
+confirms only the test file changed). The three RUN-never-edit gates are untouched — `git diff
+origin/dev...HEAD` over them is empty.
+
+### Counts — predicted before they were read
+
+Baseline `dev` 1496 / 72 files. Items 1-3 add no tests; item 4 adds exactly 3 (assertions 30, 31,
+32). Predicted **1499 / 72**. Read: **1499 passed / 72 files**. No flakes, no re-runs needed.
+
+### Gates
+
+  · `npm test` ................ 1499 passed, 72 files, 33.6s
+  · `npm run typecheck` ....... clean (`tsc --noEmit`, no output)
+  · `npm run build` ........... clean, 83 modules, 127ms
+  · the three never-edit gates  29 passed / 3 files, run explicitly
+  · F9's census (`-t "I6"`) ... 12 passed, assertions 20 / 23-32 all green
+
+Every gate run in this worktree; no dev server started, no watch mode.
+
+─────────────────────────────────────────────
