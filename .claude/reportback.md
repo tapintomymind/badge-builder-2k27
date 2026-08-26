@@ -9662,6 +9662,174 @@ roll-panel slices own; this slice's only engine change is one additive report fi
 `dependencies` still exactly `{react, react-dom}`. **No persisted key or serialized field was
 renamed**; the one storage change is additive.
 
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · `refactor` — the roll-panel roster rows left their cards; measured, then fixed
+
+**Branch:** `rollpanel-overflow`, off `origin/dev` `44de81f`. **Not merged.** `main` untouched and
+still diverged exactly as the correction above records.
+
+**Scope:** layout and presentation only. `src/engine/` was not opened. A refund defect visible in
+the same user screenshot (`13 / 12 pts over by 1` in Finishing) is another agent's slice and was
+left alone — no ledger arithmetic, no refund path, no `pts` abbreviation, and no change to the
+annotation's wording beyond letting it wrap.
+
+### What was measured, before anything was changed
+
+Chrome, production build (`vite preview`, port 5199 — **not** 5173), served asset hashes
+reconciled against `dist/index.html` before every reading. The reported state was reproduced by
+seeding an autosave: six populated categories, two Fuse holders, one Reaction holder, one stale
+purchase, three names that wrap.
+
+**Seeding an autosave takes a page that is not the app.** Writing the key and calling
+`location.reload()` looks like it works and does not: the outgoing page's `pagehide` flush writes
+its own (empty) working state over the seed, so the app boots fresh every time with no quarantine
+key to explain it. A `<head>` probe reading `localStorage` before the bundle ran is what showed
+the seed already overwritten at boot. Seed from a same-origin page with no app on it — the served
+JSON fixture works — then navigate to `/`.
+
+At 1920×1080 the roster is 3-up on 498px tracks, giving each group a **464px content box**:
+
+| group | table width | past the card's content box |
+|---|---|---|
+| Finishing | 571.2px | **107.2px** |
+| Shooting | 643.1px | **179.1px** |
+| Defense | 557.2px | **93.2px** |
+| Playmaking / Rebounding / Physicals | 464px | 0 |
+
+At 375: 571.2 / 643.1 / 557.2px against a **283px** box — 274–360px outside the card and **314px
+of document horizontal scroll**.
+
+### The cause, and the four things it was NOT
+
+`.summary-roster__pin` carries `white-space: nowrap`, which is right for the Pin button. The
+implicit-pin sentence rendered as a **sibling of that button inside the same `<td>`**, inherited
+the nowrap, and a table column is sized by the intrinsic width of what is in it: the pin column's
+min-content measured **286.7px** against the **60px** `PIN_CHIP_MAX` the row arithmetic budgets —
+4.8× its allowance, from one declaration written for a different element in the same box.
+
+Ruled out by measurement, each of which looked likelier:
+
+- **Not a fixed-column grid.** The row is an auto-layout `<table>`; every other column sat at its
+  natural width (77 / 43 / 61 / 85 / 16 — sum 282.4, +288.7 pin = the 571.2 measured).
+- **Not a positioned or absolutely-placed annotation.** `.pin-control__reason` is
+  `display: block`, `position: static`, fully in flow — which is exactly *why* it could size a
+  column. Taking it out of flow would have hidden the cause.
+- **Not a negative offset, and not an `overflow` that should have clipped.** `.col-right` reported
+  `scrollWidth === clientWidth === 1584` — it never clipped anything, because the overflow lands
+  on the *neighbouring card*, not past the scrollport. The "truncated mid-sentence" symptom is the
+  **next group's opaque `--bg-surface` painting over the overflow** (later in DOM order). Where the
+  neighbour was shorter — the ragged-height defect — there was no background to overpaint and the
+  text showed in the open. Same overflow, two appearances.
+- **`.summary-roster__table { max-width: 520px }` looked like the guard and was inoperative.** A
+  table is never laid out narrower than its min-content.
+
+The other two reported defects had their own causes, also measured:
+
+- **Rows misaligned when a name wraps:** a `<td>`'s used `vertical-align` is `middle`, invisible
+  until a cell wraps. With "Post Spin Catalyst" on two lines the row grew to 50.8px and the
+  single-line cells re-centred — the cost digit landed **10.3px below** the name's first line and
+  **10.4px above** its second, reading against neither.
+- **Ragged card heights:** `.summary-roster { align-items: start }`. Measured on one 3-up row:
+  346.1 / 256.1 / 248.9 against 316.3 / 214.1 / 214.1.
+
+### A SECOND, INDEPENDENT OVERFLOW at S, which the first fix did not touch
+
+With the pin column returned to the button, 375 still overflowed by 59.2 / 65.8px. Two more
+measured causes, neither related to the pin reason:
+
+1. **Every gutter was double.** §14.2 prices the row over *"four `--space-2` gutters"* and
+   `.summary-roster__head th` has always padded on one side for exactly that reason — but the body
+   cells padded on **both**, so every seam was 16px against a budget of 8, 66px across the row
+   instead of 33, and the header columns did not sit over the body columns they label.
+2. **`.summary-roster__effective { white-space: nowrap }`** made `→ HOF ⚡2` a single **85.2px**
+   min-content token. §14.2's own stated mechanism is that a table wraps its cells natively; this
+   one cell had it switched off. Letting it wrap unheld strands the arrow on a **12.5px** line of
+   its own (measured), so the arrow and the level get a wrapping-boundary span that adds no text.
+
+### After
+
+| viewport | tracks | table width | past content box | past card border | doc h-scroll |
+|---|---|---|---|---|---|
+| 1920×1080 | 3 × 498px | 464px (all six) | **0** | **0** | **0** |
+| 1280×768 | 1 × 902px | 520px (all six) | **0** | **0** | **0** |
+| 375×812 | 1 × 317px | 283–290.8px | 0 · except **3.1 / 7.8** | **0** | **0** |
+
+Card heights are now uniform per grid row (341.3 × 3 and 277.7 × 3 at 1920). Annotations wrap to
+1–3 lines and none is clipped (`scrollWidth === clientWidth` on every one); every sentence ends in
+its full stop with its Synergy Slot number intact. Cells share the row's first baseline: with
+"Paint Prodigy" on two lines the cost digit is **0.5px** off line 1's baseline (was 10.3px adrift)
+and the Pin chip sits on line 1 rather than centred against line 2. The chip is still 44px tall and
+57.8px wide at S, through `var(--tap-target)` — **no `44px` literal was introduced**, asserted.
+
+### `decision-needed` — ROSTER_ROW_MAX is optimistic by ~45px, and this slice did not re-cut it
+
+Two cards at 375 still put **3.1px** and **7.8px** into the card's own 16px inner padding. Nothing
+crosses any card's border box and the document does not scroll horizontally, so nothing renders
+outside a card — but the row genuinely needs 290.8px where the box offers 283.
+
+`tests/layout-arithmetic.test.ts` derives `rowMinWithPin = 246` and asserts **+86px of headroom at
+390**. Measured, the row's min-content is **290.8px** and the headroom is **−7.8px**. The
+derivation is wrong in three ways at once: it prices the name column off *"Visionary"* (68) where
+`Immovable` measures 65.6 **plus a gutter**, prices the level column off *"Gold"* (30) where the
+data says `Bronze` (45), and folds the **effective column into the level column** rather than
+counting it as the sixth cell it is. It is a pre-existing gap — not introduced here, and not
+papered over: closing it needs either a re-cut of §14.2's five constants or a design call on the
+S row, and both are Tier 1's to make.
+
+### Verification
+
+`npm test` **74 files / 1662 tests green** — 1653 on `origin/dev` plus the 9 added, count computed
+before the run. `npm run typecheck` and `npm run build` clean. The three RUN-never-edit gates
+(`tests/ui/overlays.test.tsx`, `tests/category-colors.test.ts`, `tests/feasibility-golden.test.ts`)
+run explicitly: **29 green, no cell moved in the 504-cell golden**. Vocabulary lint 183 green — the
+surface says **Badge Tokens · Badge Slots · Synergy Slots**, never a bare "slot". F9's touch-floor
+census green on **both** axes.
+
+Nine assertions added. `R0` is the one worth naming: `blocksFor()` scans to a rule's closing brace,
+so a brace written **inside a CSS comment inside a block** truncates what every stylesheet lint
+reads and silently stops grading the declarations after it. One of the new comments did exactly
+that and turned a real assertion green-then-red; `R0` now holds every roster rule to it.
+
+**One shipped test was edited**, and only its mechanism: `tests/ui/f8-pin-exclude.test.tsx` 1.4
+asserted `reason.parentElement === pin.parentElement`. §6's rule is *"never inside a dimmed
+element"*, and the sentence now satisfies it **more** strongly — it is not even in the same cell.
+The identity check is replaced by not-a-descendant-either-way, no dimming ancestor, and the new
+structure named explicitly, applied to **both** hosts so a later pass cannot collapse
+`PinControl` back to one placement. The card host is unchanged and still renders its own sibling
+span (measured: 158.9px in a 249px card, zero overflow — the card never had this defect).
+
+### Housekeeping
+
+Worktree `/private/tmp/bb-rollfix` with `node_modules` symlinked from the main checkout; no
+`npm install` in a worktree. **Nothing staged with `git add -A`** — paths named explicitly and
+`git status` re-checked before each of the four commits. The 5199 preview server was stopped. One
+Chrome tab was closed to free a tab slot; it was a duplicate origin, not a live surface.
+
+### Conflict forecast against the refund fix in flight
+
+**Low, and file-disjoint on the likely shape of that slice.** This branch touches
+`src/ui/summary/LoadoutRoster.tsx`, `src/ui/primitives/PinControl.tsx`, `src/styles/app.css`,
+`tests/layout-arithmetic.test.ts`, `tests/ui/f8-roster.test.tsx`,
+`tests/ui/f8-pin-exclude.test.tsx`. A refund fix lives in `src/engine/` (`ledger.ts`,
+`synergy-ledger.ts`, `budget.ts`) and its tests, none of which is opened here.
+
+Three contact points to watch, in order of likelihood:
+
+1. **`rosterDigestParts()` in `LoadoutRoster.tsx`.** If the refund fix changes what
+   `CategorySummary.readout` carries, it lands in this function — which this branch leaves
+   byte-identical, so the merge is textual and clean, but re-run `tests/ui/f8-roster.test.tsx`
+   after: the `<tfoot>` assertions read the shared over-by builders.
+2. **`tests/ui/f8-roster.test.tsx`.** Both slices plausibly append here. This branch adds `1.14`
+   and `1.15` immediately before the closing *"the App always supplies the summary"* test; an
+   append at the end of the same `describe` is a two-hunk conflict at worst.
+3. **`tests/feasibility-golden.test.ts`.** Untouched here and green; if the refund fix moves a cell
+   in the 504-cell golden, that is theirs and it is a stop-and-report on their side, not a merge
+   conflict with this branch.
+
+No shared line is expected in `src/styles/app.css` — a refund fix has no reason to enter it, and
+this branch's edits are confined to the `.summary-roster*` / `.pin-control*` rules.
+
 ## 2026-08-26 · Tier 2 · integration — F16.1 the fuse refund defect, onto `dev`
 
 **Event:** `integration-complete`
