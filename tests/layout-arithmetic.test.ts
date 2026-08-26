@@ -1588,7 +1588,13 @@ describe("F5.3/C — `Reset build`: the scope, pinned where it is written", () =
   });
 
   it("18 — the button opens the confirm and never resets directly", () => {
-    expect(buildPanel).toContain("onClick={onResetRequest}");
+    // [A7] The handler is no longer the bare `onClick={onResetRequest}` it was
+    // at the panel foot: riding a <summary> means it must ALSO stop
+    // propagation, or pressing Reset collapses the Attributes Section under
+    // it. The INVARIANT is unchanged and is what is asserted — the click
+    // reaches `onResetRequest` and NOTHING else resets anything.
+    expect(buildPanel).toContain("onResetRequest()");
+    expect(buildPanel).toContain("event.stopPropagation()");
     expect(buildPanel).not.toContain("handleReset");
     expect(buildPanel).not.toContain("zeroAttributes");
     // …and `canReset` is the NEW predicate over the default reset's own
@@ -1622,13 +1628,22 @@ describe("F5.3/C — `Reset build`: the scope, pinned where it is written", () =
     expect(stripComments(dialog).toLowerCase()).not.toContain("undo");
   });
 
-  it("20 — the control clears the I6 touch floor at S", () => {
+  it("20 — the control clears the I6 touch floor at S, FROM THE TOKEN", () => {
     // SCOPED here on purpose: the app-wide `.btn--sm` 28 / `.btn--md` 36
     // defect is F9's, because raising it reflows six surfaces this slice does
     // not own. C must simply not arrive below the floor itself.
-    expect(app).toMatch(
-      /@media \(max-width: 767px\) \{\s*\.build-panel__reset \{\s*min-height: 44px;/,
-    );
+    //
+    // [A7] The value is now `var(--tap-target)`, not a literal. F5.3's
+    // scoping decision is unchanged and still pinned right here — what
+    // changed is that the census (assertion 27) can now SEE the rule, which
+    // it could not while the rule spelled the number out. Derived, so a
+    // future move of the floor carries this control with it.
+    const rule = sRule(".build-panel__reset");
+    expect(rule).toHaveLength(1);
+    expect(rule[0]).toContain("min-height: var(--tap-target)");
+    expect(TAP).toBeGreaterThanOrEqual(WCAG_TARGET_SIZE);
+    // …and the literal is GONE, which is the half a substring check misses.
+    expect(stripComments(app)).not.toMatch(/\.build-panel__reset \{[^}]*min-height:\s*44px/);
   });
 
   it("21 — it is a danger-ghost, never a gold primary", () => {
@@ -2097,6 +2112,14 @@ const S_TOUCH_FLOOR_CENSUS = [
   // to catch and is the one shape that escapes it. Re-pointed at
   // `--tap-target`, F11's standalone rule deleted, and registered here.
   ".synergy-board__button",
+  // …and the SECOND escape of the same shape, folded in by [A7]. F5.3 shipped
+  // `.build-panel__reset { min-height: 44px }` as a LITERAL — deliberately
+  // scoped, correctly valued, and structurally invisible to assertion 27,
+  // which matches on the token. It sat outside the census for two slices.
+  // Re-pointed at `--tap-target` when the control moved onto the Attributes
+  // summary, and registered here so it can never silently drop below the
+  // floor again.
+  ".build-panel__reset",
 ] as const;
 
 describe("I6 — the S touch floor, parsed from one token and re-derived per control", () => {
@@ -2199,7 +2222,11 @@ describe("I6 — the S touch floor, parsed from one token and re-derived per con
     // would let one be deleted while the other stayed green.
     expect(PIP_W_S).toBeGreaterThanOrEqual(TAP); // .pip, F5.3 assertion 8
     expect(px(app, /input\[type="range"\] \{\s*height:\s*(\d+)px/)).toBeGreaterThanOrEqual(TAP);
-    expect(sRule(".build-panel__reset")[0]).toContain("min-height: 44px"); // F5.3 assertion 20
+    // [A7] `.build-panel__reset` LEFT this trio and joined the census above —
+    // it stopped being "pinned where its own slice wrote it" the moment its
+    // rule started naming the token. Assertion 20 still owns the scoping
+    // claim; the census now owns the floor claim, and 27 proves the two lists
+    // do not overlap by construction.
   });
 
   it("28 — §5.3's sticky budget is re-derived, not re-typed, now layer 1 grew", () => {
@@ -2778,10 +2805,20 @@ describe("F13 — Physique as a full-bleed strip, not a block in the setup panel
   it("4 — Physique is out of the panel AND out of the pane, and the latch followed it", () => {
     const buildPanel = srcSources["/src/ui/build/BuildPanel.tsx"] as string;
     const body = buildPanel.slice(buildPanel.indexOf("export function BuildPanel"));
-    // The panel's own subtree names Budgets and Reset, never Physique.
+    // The panel's own subtree names Budgets, never Physique.
     expect(body).not.toContain("<PhysiqueStrip");
     expect(body).toContain("<BudgetGrid");
-    expect(body).toContain("build-panel__reset");
+    // [A7] …and no longer Reset. The control moved OUT of the panel's own
+    // subtree and onto the Attributes <Section>'s summary, which is declared
+    // above `export function BuildPanel` in this file — so it must be absent
+    // here and present there. Asserted BOTH ways: a one-sided check would go
+    // green if the control were simply deleted.
+    expect(body).not.toContain("build-panel__reset");
+    const attrSection = buildPanel.slice(
+      buildPanel.indexOf("export function AttributesSection"),
+      buildPanel.indexOf("export function BuildPanel"),
+    );
+    expect(attrSection).toContain("build-panel__reset");
 
     // THE LATCH IS SCOPED TO WHAT THE PANEL RENDERS — the same §16.5 rule
     // F5.4 wrote, applied to the surface F13 moved. With Physique in the

@@ -18,6 +18,21 @@ export interface SectionProps {
   defaultOpen?: boolean;
   /** Live digest rendered in the summary (mobile Build panel, §5.3). */
   digest?: ReactNode;
+  /** [A7] A control rendered in the summary BESIDE the heading, right-aligned.
+   *
+   * NESTED INTERACTIVE CONTENT IS THE COST, AND IT IS PAID DELIBERATELY.
+   * `<summary>`'s content model is phrasing content optionally intermixed
+   * with heading content, so a `<button>` here is CONFORMING (the same
+   * reading CategoryLedger relies on to put an `<h2>` and a `<span>` row in
+   * its own summary). What it is not is free: a click anywhere in a
+   * `<summary>` toggles the `<details>`, so anything passed here MUST stop
+   * propagation or it collapses the section it sits on. BadgeCard's
+   * description `<details>` is the shipped precedent for that idiom.
+   *
+   * It renders AFTER the digest and takes `margin-left: auto` in CSS, so the
+   * heading keeps its intrinsic width and the action is pushed to the far
+   * end — the heading cannot be crowded by construction, at any width. */
+  action?: ReactNode;
   headingLevel?: "h2" | "h3";
 }
 
@@ -27,6 +42,7 @@ export function Section({
   storageKey,
   defaultOpen = true,
   digest,
+  action,
   headingLevel: Heading = "h2",
 }: SectionProps) {
   const [open, setOpen] = useState<boolean>(() => {
@@ -50,6 +66,7 @@ export function Section({
       <summary>
         <Heading style={{ fontSize: "inherit" }}>{title}</Heading>
         {digest !== undefined ? <span className="section__digest">{digest}</span> : null}
+        {action}
       </summary>
       <div className="section__body">{children}</div>
     </details>
