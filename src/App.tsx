@@ -1463,9 +1463,16 @@ export default function App() {
           <div className="attr-pane-column">
             <div className="attr-pane">
               <aside aria-label="Attributes">
+                {/* [A7] The pane's mount takes the SAME two reset props the
+                    panel's mount takes below — the control rides the Section,
+                    so there is exactly one placement to keep correct. */}
                 <AttributesSection
                   attributes={working.build.attributes}
                   onCommit={handleAttributeCommit}
+                  onResetRequest={() => {
+                    setResetOpen(true);
+                  }}
+                  canReset={playerHasContent(working)}
                 />
               </aside>
             </div>

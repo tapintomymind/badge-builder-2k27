@@ -3557,13 +3557,46 @@ main#badge-grid {
  * phone screen, and is SPLIT OUT as F9 because raising it reflows six surfaces
  * this slice does not own. C must simply not arrive below the floor itself. */
 .build-panel__reset {
-  align-self: flex-start;
-  margin-top: var(--space-2);
+  /* [A7] The control moved from the panel's foot into the Attributes
+   * <Section>'s <summary> (see AttributesSection). `margin-left: auto` in a
+   * flex summary is what makes "beside the heading" safe at every width: the
+   * heading keeps its intrinsic width and the button is pushed to the far
+   * end, so crowding is structurally unreachable rather than checked at one
+   * breakpoint. `.section__digest` uses the identical mechanism.
+   *
+   * HEIGHT IS RELEASED ON PURPOSE, AND IT IS THE LOAD-BEARING LINE HERE.
+   * `.btn--sm` ships `height: 28px`, and the summary's content box is one
+   * --text-base line box (24px) inside 2 x --space-3-5. Dropping a 28px
+   * control in would have grown EVERY Attributes summary by 4px — and
+   * tests/layout-arithmetic.test.ts models that box as
+   * SECTION_LEAD_Y = 1 + (2 x --space-3-5 + lineBox(--text-base)) = 53,
+   * derived from TOKENS, not measured. The suite would have stayed green
+   * while `slidersVisible()` silently over-reported how much of the pane the
+   * user can see. Releasing the height keeps the summary's geometry
+   * BIT-IDENTICAL, so SECTION_LEAD_Y stays honest and MIN_SHELL_H is
+   * untouched — which matters twice over while a sibling slice is moving the
+   * shell's height gate.
+   *
+   * min-height: 0 is not redundant: it defeats `.btn--sm`'s height at equal
+   * specificity from a later rule, and leaves the S floor below free to win
+   * on the used value. */
+  margin-left: auto;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  padding-block: 0;
+  white-space: nowrap;
 }
 
 @media (max-width: 767px) {
   .build-panel__reset {
-    min-height: 44px;
+    /* [A7] THE TOKEN, not the literal `44px` this rule shipped with. F9's
+     * assertion 27 reads the stylesheet back by matching
+     * `min-height: var(--tap-target)`, so the literal was invisible to the
+     * census and could rot silently — the identical escape F11's
+     * `.synergy-board__button` made and was folded in for. Registered in
+     * S_TOUCH_FLOOR_CENSUS with it. */
+    min-height: var(--tap-target);
   }
 }
 
@@ -3679,12 +3712,16 @@ main#badge-grid {
  * this block. The three rows that genuinely could not hold their contents at
  * 390 are given `flex-wrap: wrap` — a reflow, not a clip.
  *
- * `.build-panel__reset` IS NOT TOUCHED. F5.3 shipped its own scoped
- * `min-height: 44px` at S precisely so its new control was not born below the
- * floor, and layout-arithmetic assertion 20 pins that scoping decision where
- * it is written. Rule 1 below subsumes it (the reset button is a `.btn`), so
- * it is now belt-and-braces at the same value — never a conflict, and left in
- * place rather than deleted so the assertion keeps checking what F5.3 meant.
+ * `.build-panel__reset` KEEPS ITS OWN RULE, in the F5.3 block where F5.3
+ * wrote it, and layout-arithmetic assertion 20 still pins that scoping
+ * decision there. Rule 1 below subsumes it (the reset button is a `.btn`), so
+ * it is belt-and-braces at the same value — never a conflict.
+ * [A7] What DID change is that F5.3's rule now reads `var(--tap-target)`
+ * rather than a hard-coded `44px`, so the census can finally see it; it is
+ * registered in S_TOUCH_FLOOR_CENSUS alongside the others. The control also
+ * releases its base `height` now that it rides the Attributes summary, which
+ * is exactly why the S floor has to be a `min-height`: it must win on the
+ * used value over an `auto` height without out-specifying it.
  *
  * OUT OF SCOPE, NAMED. `src/main.tsx`'s RecoveryBoundary renders three
  * UNSTYLED native <button>s with inline styles, deliberately: that screen has

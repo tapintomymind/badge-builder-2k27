@@ -154,9 +154,93 @@ export interface BuildPanelProps {
  * slider) and it buys the keyboard bypass — no pass may unwrap it to reclaim
  * the pixels (§16.9). If it looks removable, that is the stop condition, not
  * the optimisation. */
-export function AttributesSection({ attributes, onCommit }: AttributeGridProps) {
+export interface AttributesSectionProps extends AttributeGridProps {
+  /** [A7] F5.3/C's `Reset build` confirm-opener, moved here. The control
+   * NEVER resets directly — it opens ResetBuildDialog, which is the entire
+   * destructive-safety story now (see below). */
+  onResetRequest: () => void;
+  canReset: boolean;
+}
+
+/** [A7] RESET NOW RIDES THE ATTRIBUTES HEADING — placed against the tree as it
+ * STANDS, because design-spec §15.18 is stale in two independent ways and
+ * following it literally would put the control somewhere that no longer
+ * exists.
+ *
+ * WHERE §15.18 IS WRONG.
+ *
+ *  1. "The foot of the LEFT RAIL, after the Build panel's last block." There
+ *     is no left rail. F5.4 (§16.7) cut `.layout` into exactly two grid items
+ *     at L — the attributes pane and `.col-right` — and the Build panel went
+ *     into the RIGHT column with everything else. §15.18's companion claim,
+ *     that "§13.0.1 puts the Ledger overview first and the Build panel
+ *     second", describes a single rail that was split in two.
+ *  2. "…the far end of a long scroll, where a mis-click is not available."
+ *     THIS WAS THE ENTIRE SAFETY ARGUMENT and F14 dissolved it. The rail's
+ *     `max-height: calc(100vh − --space-6)` scroll is gone; `.col-right` is
+ *     now a fixed-height flex row inside a `position: fixed; height: 100dvh`
+ *     shell, and the pane is a STATIC scrollport (`position: static;
+ *     height: 100%`). A bounded scrollport's foot is one flick away, so
+ *     "reaching it is a deliberate act" stopped being true before this slice
+ *     touched anything. BuildPanel's own comment had already re-based the
+ *     argument once, onto F5.4's collapsible; F14 moved it again.
+ *
+ * SO THE SAFETY COMES FROM THE CONFIRM, WHICH IS WHERE IT ALWAYS ACTUALLY WAS.
+ * `ResetBuildDialog` is untouched by this slice and is still mandatory — this
+ * button opens it and never resets. Placement was only ever the second lock,
+ * and it had already quietly failed open.
+ *
+ * WHY THE SUMMARY AND NOT THE BODY. "Beside the heading" is the ask, and the
+ * heading lives inside the `<Section>`'s `<summary>`. The action slot takes
+ * `margin-left: auto`, so the heading keeps its intrinsic width and CANNOT be
+ * crowded — at 1280 the pane's summary content box is 258px against roughly
+ * 78px of "Attributes" and a ~60px control. Riding the summary also means the
+ * control follows the Attributes Section to BOTH its mounts (the pane at L,
+ * this panel below 1280) with no second placement to keep in sync, and it
+ * stays reachable while the Section is collapsed.
+ *
+ * THE COST, PAID KNOWINGLY: a `<button>` inside a `<summary>` is nested
+ * interactive content. It is CONFORMING (summary takes phrasing content), but
+ * a click there toggles the `<details>` unless propagation is stopped — hence
+ * the handler below, which is BadgeCard's shipped idiom. The disabled reason
+ * moves to `sr-only`: a full sentence does not fit beside a heading, and the
+ * visible carrier is the disabled control itself. */
+export function AttributesSection({
+  attributes,
+  onCommit,
+  onResetRequest,
+  canReset,
+}: AttributesSectionProps) {
+  const resetReasonId = useId();
   return (
-    <Section title="Attributes" storageKey="section-attributes">
+    <Section
+      title="Attributes"
+      storageKey="section-attributes"
+      action={
+        <>
+          <button
+            type="button"
+            className="btn btn--danger-ghost btn--sm build-panel__reset"
+            onClick={(event) => {
+              // MANDATORY, not defensive: without it every press of this
+              // button also collapses the Attributes Section under it.
+              event.stopPropagation();
+              onResetRequest();
+            }}
+            disabled={!canReset}
+            aria-describedby={canReset ? undefined : resetReasonId}
+          >
+            Reset build
+          </button>
+          {canReset ? null : (
+            <span id={resetReasonId} className="sr-only">
+              Nothing to reset — no attributes, purchased badges, Synergy Slot assignments, height
+              or position are set.
+            </span>
+          )}
+        </>
+      }
+    >
       <AttributeGrid attributes={attributes} onCommit={onCommit} />
     </Section>
   );
@@ -309,7 +393,6 @@ export function BuildPanel(props: BuildPanelProps) {
     onResetRequest,
     canReset,
   } = props;
-  const resetReasonId = useId();
   const [autoCollapsed, setAutoCollapsed] = useState<boolean>(
     () => readUiSectionOpen(BUILD_PANEL_AUTO_COLLAPSED_KEY) === true,
   );
@@ -451,8 +534,18 @@ export function BuildPanel(props: BuildPanelProps) {
           Below 768 the strip is not rendered and this is where Physique
           lives, as the Section it was pre-F13. */}
       {physique !== null ? <PhysiqueSection {...physique} /> : null}
+      {/* [A7] Below 1280 the Attributes Section lives HERE, and it now carries
+          `Reset build` in its summary. Above 1280 App mounts the same
+          component in the pane and passes the same two props — ONE placement,
+          both surfaces, which is what moving the control onto the Section
+          bought. The panel no longer renders a reset of its own. */}
       {withAttributes ? (
-        <AttributesSection attributes={build.attributes} onCommit={onAttributeCommit} />
+        <AttributesSection
+          attributes={build.attributes}
+          onCommit={onAttributeCommit}
+          onResetRequest={onResetRequest}
+          canReset={canReset}
+        />
       ) : null}
       <Section title="Badge Points & Badge Slots" storageKey="section-budget">
         <BudgetGrid
@@ -462,43 +555,6 @@ export function BuildPanel(props: BuildPanelProps) {
           onOpenBonus={onOpenBonus}
         />
       </Section>
-      {/* F5.3/C — `Reset build`, at the foot of the panel.
-       *
-       * PLACEMENT IS ONE RULING FOR EVERY WIDTH, and it is deliberate. The
-       * button sits INSIDE the collapsible, at the foot of an expanded
-       * panel: reaching it is an act, and a mis-click is not available. F5.4
-       * made the panel a collapsible <details> at every width (§16.5), so
-       * that one mechanism now carries the property everywhere — where
-       * before it was a long sticky rail at L and the collapsible at M/S.
-       * One placement, one behaviour.
-       *
-       * Text only, NO GLYPH: `↺` already means *Reaction* on the badge cards,
-       * and re-using a glyph that means something else is H1's doctrine broken
-       * by a symbol. Flat, never metallic (§2.7.4: metals are enclosed faces
-       * with a bevel; semantics are flat). No --cat — §12.5/§12.12's placement
-       * law permits four surfaces and this is none of them.
-       *
-       * `disabled` here is NOT the H4 class. H4 forbids disabling BECAUSE OF
-       * an overspend; this is a control with no object. The reason rides an
-       * aria-describedby sibling rather than a title tooltip, which is
-       * unreachable by keyboard and by touch — Button.tsx's own idiom, spelled
-       * out here because this control needs a className the primitive cannot
-       * carry. */}
-      <button
-        type="button"
-        className="btn btn--danger-ghost btn--sm build-panel__reset"
-        onClick={onResetRequest}
-        disabled={!canReset}
-        aria-describedby={canReset ? undefined : resetReasonId}
-      >
-        Reset build
-      </button>
-      {canReset ? null : (
-        <span id={resetReasonId} className="hint">
-          Nothing to reset — no attributes, purchased badges, Synergy Slot assignments, height
-          or position are set.
-        </span>
-      )}
     </div>
   );
 
