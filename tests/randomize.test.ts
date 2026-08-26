@@ -2168,33 +2168,50 @@ describe("A5 group 5 — an applied bonus Badge Slot lets the roll equip one mor
     expect(richCount).toBeGreaterThan(poorCount);
   });
 
-  it("5.3 THE CARVE-OUT — a bonus applied to a BASE-0 category changes nothing: the roll still declines as capacity-unset", () => {
+  it("5.3 THE DEADLOCK BREAK — a bonus applied to a BASE-0 category is REAL capacity, and the roll fills it; nothing applied still declines", () => {
+    // A5-U INVERTED THIS TEST (design-spec §17.9 Ruling ②, canary 4). It used
+    // to pin the zero-base carve-out: a bonus placed in a genuinely-zero
+    // discipline granted nothing, forever, because "the base is entered, at
+    // zero" made the carve-out's escape hatch unreachable. Low attributes in a
+    // discipline is precisely when a player reaches for a reassignable bonus
+    // slot, so the old rule made the LIKELY case impossible.
+    //
+    // The roll is the sharpest place to assert it: the fill loop reads capacity
+    // to decide how much fits, so if the composition were still absorbing at
+    // zero this would decline.
     const base = { ...budgets(200, 4), Shooting: { equipSlots: 0, points: 200 } };
     const bonus: BonusBudget = {
       ...zeroBonus(),
       earnedEquipSlots: 3,
       appliedEquipSlots: { ...zeroBonus().appliedEquipSlots, Shooting: 3 },
     };
-    const request = requestOf({
-      state: stateOf({ budgets: effectiveBudgets(base, bonus), bonus }),
-      build: makeBuild(78, 99),
-      seed: "a5-carve-out",
-    });
-    const report = rollCategory(request, "Shooting", dataset);
-    expect(report.outcome).toBe("declined");
-    expect(report.decline).toEqual({ kind: "badgeSlotsCapacityUnset" });
-    // Byte-identical to the same roll with no bonus at all.
-    const withoutBonus = rollCategory(
+    const report = rollCategory(
       requestOf({
-        state: stateOf({ budgets: effectiveBudgets(base, zeroBonus()) }),
+        state: stateOf({ budgets: effectiveBudgets(base, bonus), bonus }),
         build: makeBuild(78, 99),
-        seed: "a5-carve-out",
+        seed: "a5-deadlock-break",
       }),
       "Shooting",
       dataset,
     );
-    expect(report.steps).toEqual(withoutBonus.steps);
-    expect(report.decline).toEqual(withoutBonus.decline);
+    expect(report.outcome).toBe("rolled");
+    expect(report.decline).toBeNull();
+    expect(report.steps.length).toBeGreaterThan(0);
+
+    // …AND THE ZERO STATE IS UNDISTURBED (canary 4b): the SAME base with
+    // NOTHING placed still declines as capacity-unset, so Ruling ② did not
+    // loosen §4.7 for a category nobody has touched.
+    const nothingPlaced = rollCategory(
+      requestOf({
+        state: stateOf({ budgets: effectiveBudgets(base, zeroBonus()) }),
+        build: makeBuild(78, 99),
+        seed: "a5-deadlock-break",
+      }),
+      "Shooting",
+      dataset,
+    );
+    expect(nothingPlaced.outcome).toBe("declined");
+    expect(nothingPlaced.decline).toEqual({ kind: "badgeSlotsCapacityUnset" });
   });
 
   it("5.4 rollIterationBound grows with the EFFECTIVE capacity and the walk still terminates", () => {

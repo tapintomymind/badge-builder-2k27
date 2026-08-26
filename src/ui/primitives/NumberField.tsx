@@ -21,6 +21,20 @@ export interface NumberFieldProps {
   /** Visually hide the label where visible text already labels the field
    * (the BudgetGrid table's column + row headers). Stays accessible. */
   hideLabel?: boolean;
+  /** A5-U (design-spec §17.3) — select the whole value on focus, so a touch
+   * user taps once and types one digit instead of tap → clear → type.
+   *
+   * DEFAULT OFF, and opt-in is the whole point: this is a feel change to a
+   * primitive with twelve existing consumers, and flipping it globally
+   * mid-project in a slice that is not about it is how a shipped control
+   * changes under people. §17.3 prices that as a NAMED TRIGGER — if the base
+   * budget fields turn out to feel clumsy, that is the fix, and it is the
+   * user's call.
+   *
+   * Safe here because these are one-to-two-digit fields and because a native
+   * number input steps from its VALUE regardless of selection, so ArrowUp /
+   * Shift+ArrowUp are unaffected. */
+  selectOnFocus?: boolean;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -36,6 +50,7 @@ export function NumberField({
   unverified,
   describedBy,
   hideLabel,
+  selectOnFocus,
 }: NumberFieldProps) {
   const id = useId();
   /** Local text while editing so blur-clamping never fights the keystroke. */
@@ -75,6 +90,13 @@ export function NumberField({
         step={1}
         value={shown}
         aria-describedby={describedBy}
+        onFocus={
+          selectOnFocus === true
+            ? (event) => {
+                event.currentTarget.select();
+              }
+            : undefined
+        }
         onChange={(event) => {
           setDraft(event.currentTarget.value);
         }}

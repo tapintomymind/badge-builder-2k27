@@ -142,28 +142,72 @@ export function bonusHasContent(bonus: BonusBudget): boolean {
 }
 
 /**
- * THE COMPOSITION. base + applied bonus, per category, with the zero-base
- * carve-out.
+ * HOW MANY bonus fields currently hold a value — the blast-radius count for
+ * the `Reset build` confirm's "Also clear Badge Points and Badge Slots"
+ * checkbox (design-spec §17.11's F5.3 amendment: the count is DERIVED over
+ * the set of fields the checkbox actually clears, never pinned and never
+ * hand-counted).
  *
- * THE ZERO-BASE CARVE-OUT, AND WHY IT IS HERE RATHER THAN IN A PREDICATE.
- * A base of 0 means "the user has not entered this yet" (design-spec §4.7) —
- * it never means "a capacity of zero". So the base is UNKNOWN, and
- * unknown + 2 is not 2. A category with an unset base stays UNSET no matter
- * what bonus is applied to it: the allocation is recorded, kept and disclosed
- * ("applied and waiting"), and it starts counting the moment a base is
- * entered. Treating it as 2 would (a) flip an untouched category to
- * fully-live-and-red on a single click in a DIFFERENT surface — the exact
- * false-alarm class §4.7 exists to kill — and (b) let the roll engine fill
- * that category against a capacity the user never entered, this project's
- * named cardinal failure shape.
+ * Bonus totals and placements ARE budgets (§17.13/5): they clear with that
+ * checkbox and never with the player reset. A confirm that under-reports its
+ * own blast radius is the one thing a confirm may not do, and before A5-U the
+ * count saw only the twelve base fields while the checkbox would clear
+ * fourteen more.
  *
- * Expressing this in the COMPOSITION rather than in `badgeSlotsCapacityUnset`
- * makes every downstream consumer — ledger, validateLoadout, feasibility,
- * steps.ts, randomize.ts, summary.ts — correct with NO EDIT and no
- * possibility of a missed reader. The alternative (a base/bonus split
- * travelling on the `Budget` type) was rejected: it churns 68 budget literals
- * across 29 test files and buys nothing this does not already guarantee.
- * [scope.md §0.1 A5-R4]
+ * The two earned totals are named because there are exactly two of them and
+ * they are build-level; the twenty-four applied cells go through CATEGORIES,
+ * so a seventh category is counted automatically.
+ */
+export function bonusFieldsSet(bonus: BonusBudget): number {
+  return (
+    (bonus.earnedEquipSlots > 0 ? 1 : 0) +
+    (bonus.earnedPoints > 0 ? 1 : 0) +
+    CATEGORIES.filter((category) => bonus.appliedEquipSlots[category] > 0).length +
+    CATEGORIES.filter((category) => bonus.appliedPoints[category] > 0).length
+  );
+}
+
+/**
+ * THE COMPOSITION. base + applied bonus, per category. PLAIN ADDITION, and
+ * the absence of a carve-out is the ruling rather than an omission.
+ *
+ * A PLACED BONUS IS AN ENTRY ACT (design-spec §17.9 Ruling ②), and this
+ * function is where that ruling lives. The first cut of A5 shipped
+ * `base === 0 ? 0 : base + applied` on §4.7's premise that a base of 0 always
+ * means "not entered". THAT PREMISE IS FALSE: the user confirmed a build can
+ * genuinely have 0 Badge Slots in a discipline when its attributes are low
+ * enough [user 2026-08-26], and `scope.md` §0.1 A3 already had it — the
+ * spread is attribute-driven, so Σ = 20 admits zero-valued members.
+ *
+ * Under the carve-out a bonus Badge Slot applied to a genuinely-zero
+ * discipline was PERMANENTLY INERT, and the escape the carve-out offered
+ * ("it counts the moment a base is entered") was unreachable, because the
+ * base IS entered, at zero. Low attributes in a discipline is precisely the
+ * situation a player reaches for a reassignable bonus slot in, so the rule
+ * made the likely case impossible. Design-spec §17.13 canary 4 is inverted
+ * against that form on purpose: if it ever reads the other way round, the
+ * carve-out has been restored.
+ *
+ * THE PREDICATE FOLLOWS FOR FREE, and that is why this is the right seam.
+ * With plain addition and both contributors non-negative,
+ *
+ *     effective.equipSlots === 0   ⟺   base.equipSlots === 0 && applied === 0
+ *
+ * which is EXACTLY design-spec §17.9's `badgeSlotsCapacityUnset` — so
+ * `src/engine/ledger.ts` keeps reading the composed record, unchanged, and
+ * every downstream consumer (ledger, validateLoadout, feasibility, steps.ts,
+ * randomize.ts, summary.ts) is correct with NO EDIT. Unset-ness is a property
+ * of the ENTRY ACT, not of the base number; the app has two observable entry
+ * acts today — a non-zero base, and a placed bonus.
+ *
+ * The zero state is UNDISTURBED: base 0 + bonus 0 still composes to 0, so
+ * every §4.7 consequence fires at boot exactly as it did (canary 4b).
+ *
+ * The alternative (a base/bonus split travelling on the `Budget` type) stays
+ * rejected for A5-R4's own reason: it churns 68 budget literals across 29
+ * test files and buys nothing this does not already guarantee.
+ * [design-spec §17.9 Ruling ② · §17.13 canary 4 / 4b — supersedes scope.md
+ *  §0.1 A5-R4's carve-out]
  *
  * NEVER CLAMPS. An over-applied bonus composes exactly as given — H8:
  * disclose, never repair. Pure: neither argument is mutated and the result is
@@ -179,11 +223,8 @@ export function effectiveBudgets(
       return [
         category,
         {
-          equipSlots:
-            baseBudget.equipSlots === 0
-              ? 0
-              : baseBudget.equipSlots + bonus.appliedEquipSlots[category],
-          points: baseBudget.points === 0 ? 0 : baseBudget.points + bonus.appliedPoints[category],
+          equipSlots: baseBudget.equipSlots + bonus.appliedEquipSlots[category],
+          points: baseBudget.points + bonus.appliedPoints[category],
         },
       ];
     }),
@@ -196,10 +237,13 @@ export function effectiveBudgets(
  * `summary.ts`'s `totalBaseEquipSlots`, which feeds `badgeSlotsBaselineText`
  * ("N of the 20 a build starts with" describes the BASE spread — A5-R3).
  *
- * Exact because the carve-out is absorbing at zero: effective 0 ⇒ base 0, and
- * above zero the applied amount was added unconditionally. It lives HERE, next
- * to the composition, so the two can never drift apart in separate files.
+ * Exact, and now UNCONDITIONALLY so: the composition above is plain addition
+ * at every value (design-spec §17.9 Ruling ②), so subtraction inverts it with
+ * no special case. The `effective === 0 ? 0 : …` guard the carve-out needed is
+ * GONE rather than merely unreachable — a dead branch here would be a second,
+ * silent copy of a rule that no longer exists. It lives next to the
+ * composition so the two can never drift apart in separate files.
  */
 export function baseEquipSlotsOf(effectiveEquipSlots: number, appliedEquipSlots: number): number {
-  return effectiveEquipSlots === 0 ? 0 : effectiveEquipSlots - appliedEquipSlots;
+  return effectiveEquipSlots - appliedEquipSlots;
 }

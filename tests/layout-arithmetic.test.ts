@@ -1562,8 +1562,14 @@ describe("F5.3/C — `Reset build`: the scope, pinned where it is written", () =
     expect(handleReset).not.toContain("createDefaultSynergySlots");
     expect(handleReset).not.toContain("unlocked");
     expect(handleReset).not.toContain("plusTwoSlotIds");
-    // The budgets are written ONLY on the checkbox branch.
-    expect(handleReset).toContain("alsoBudgets ? { budgets: zeroBudgets() } : {}");
+    // The budgets are written ONLY on the checkbox branch — and A5-U put the
+    // bonus layer on that same branch, because bonus totals and placements ARE
+    // budgets (design-spec §17.13/5). A confirm whose checkbox says "Also
+    // clear Badge Points and Badge Slots" while fourteen bonus fields survive
+    // would be telling a half-truth.
+    expect(handleReset).toContain(
+      "alsoBudgets ? { budgets: zeroBudgets(), bonus: zeroBonus() } : {}",
+    );
     // A fixture that writes `unlocked` must FAIL the check above.
     expect("synergy: createDefaultSynergySlots(null)").toContain("createDefaultSynergySlots");
     // T16: never through handlePositionChange — it would announce a clamp
@@ -3451,5 +3457,187 @@ describe("F14 — the app shell, derived rather than pinned", () => {
     // Banners STAY in the chrome. They are role="alert"-class disclosures whose
     // whole value is that they cannot be scrolled past.
     expect(appTsxF14).toContain('<div className="app-banners">');
+  });
+});
+
+/* ============================================================== A5-U — the
+ * bonus mode's dialog geometry, and the one string that must NOT have widened
+ * (design-spec §17.4 · §17.13/⑧) ============================================
+ *
+ * WHY THIS BLOCK IS SHORT. The mode is a `<dialog>`, so it has its own width
+ * and NO rail arithmetic enters the feature at all — which is why §17.4's
+ * "what gives?" answer is "nothing". Two things are still worth deriving: the
+ * threshold at which the two pool groups stack, and the claim that the rail's
+ * metrics string did not widen even though the pools it prints can now reach
+ * three digits for the first time.
+ */
+
+/** `.bonus-dialog`'s own width function, from the shipped declaration rather
+ *  than from the design note: min(680, v - 2 x --space-8). */
+const BONUS_DIALOG_MAX_W = px(app, /\.bonus-dialog \{[^}]*width:\s*min\((\d+)px/);
+const BONUS_DIALOG_GUTTERS = 2 * px(tokens, /--space-8:\s*(\d+)px/);
+const bonusDialogW = (viewport: number) =>
+  Math.min(BONUS_DIALOG_MAX_W, viewport - BONUS_DIALOG_GUTTERS);
+/** The table's containing box: the dialog less `.bonus-dialog__body`'s padding
+ *  on both sides. This is the CONTENT box, which is what a size query reads
+ *  (invariant I16) — hence the threshold below is written as one too. */
+const bonusContentW = (viewport: number) => bonusDialogW(viewport) - 2 * SPACE_4;
+
+/** MEASURED ON PAPER, pinned deliberately (§0.1's "budget with slack, name the
+ *  measurement"), and each one named so a later pass moves it by hand:
+ *   - LABEL   79 — "Playmaking" at --text-sm, the widest of the six.
+ *   - PAD      8 — --space-2, the cell padding this block declares.
+ *   - NUMERIC 56 — PARSED, because `.number-field input` owns it and F13's
+ *                  comment pins it twice already.
+ *   - EFFECT  67 — "99 → 198" at the §16.11 monospace bridge of 8.429 px/char.
+ *                  It affects ONLY the stacking threshold, which clears by
+ *                  68px, so a +/-10px error cannot move the arrangement. */
+const BONUS_LABEL_MAX = 79;
+const BONUS_CELL_PAD = SPACE_2;
+const BONUS_NUMERIC_W = px(app, /\.number-field input \{[^}]*width:\s*(\d+)px/);
+const BONUS_EFFECTIVE_W = 67;
+
+/** The four-column arrangement's min-content demand: category + (bonus,
+ *  effective) x 2 pools. */
+const BONUS_FOUR_COL =
+  BONUS_LABEL_MAX +
+  BONUS_CELL_PAD +
+  2 * (BONUS_NUMERIC_W + BONUS_CELL_PAD + BONUS_EFFECTIVE_W + BONUS_CELL_PAD);
+/** …and the stacked one: category + ONE pool group. */
+const BONUS_TWO_GROUP =
+  BONUS_LABEL_MAX + BONUS_CELL_PAD + BONUS_NUMERIC_W + BONUS_CELL_PAD + BONUS_EFFECTIVE_W +
+  BONUS_CELL_PAD;
+
+/** The A5-U block, taken from its OPENING `/*` so comment-stripping works —
+ *  slicing from the marker text leaves an unterminated opener behind. */
+const bonusBlock = (() => {
+  const marker = app.indexOf("A5-U — bonus mode");
+  if (marker === -1) return "";
+  return app.slice(app.lastIndexOf("/*", marker), app.indexOf("==== end A5-U — bonus mode ===="));
+})();
+const bonusBlockPlain = bonusBlock.replace(/\/\*[\s\S]*?\*\//g, " ");
+
+describe("A5-U — the bonus dialog's geometry, derived from what it protects", () => {
+  it("30 — the dialog's own width, and the content box the table is sized against", () => {
+    expect(BONUS_DIALOG_MAX_W).toBe(680);
+    expect(bonusDialogW(1280)).toBe(680);
+    expect(bonusDialogW(768)).toBe(680);
+    expect(bonusDialogW(390)).toBe(326);
+    expect(bonusContentW(1280)).toBe(648);
+    expect(bonusContentW(768)).toBe(648);
+    expect(bonusContentW(390)).toBe(294);
+  });
+
+  it("31 — the STACKING THRESHOLD is derived from the four-column demand, not pasted", () => {
+    expect(BONUS_FOUR_COL).toBe(365);
+    expect(BONUS_TWO_GROUP).toBe(226);
+    // Side by side at L and M, with room to spare.
+    expect(bonusContentW(1280) - BONUS_FOUR_COL).toBe(283);
+    expect(bonusContentW(768) - BONUS_FOUR_COL).toBe(283);
+    // Short at S — by 71px — so the two pool groups stack, and the stacked
+    // demand clears by 68.
+    expect(bonusContentW(390)).toBeLessThan(BONUS_FOUR_COL);
+    expect(BONUS_FOUR_COL - bonusContentW(390)).toBe(71);
+    expect(bonusContentW(390) - BONUS_TWO_GROUP).toBe(68);
+
+    // …and the shipped query says exactly that. `max-width: N` is "< N+1"
+    // written the way a size query spells it, so the declared figure must be
+    // the demand minus one — not a breakpoint borrowed from a neighbour.
+    const declared = /@container bonus \(max-width:\s*(\d+)px\)/.exec(cssPlain);
+    expect(declared, "no @container query for the bonus dialog table").not.toBeNull();
+    expect(Number.parseInt((declared as RegExpExecArray)[1] as string, 10)).toBe(
+      BONUS_FOUR_COL - 1,
+    );
+    // It is a CONTAINER query, not a media query: the dialog's width is a
+    // function of the viewport but the table is sized against the dialog, and
+    // a media query would re-derive that relationship in a second place.
+    expect(cssPlain).toContain("container-type: inline-size");
+  });
+
+  it("32 — CANARY 5: the rail metrics string did NOT widen, re-derived from the shipped maxima", () => {
+    // The bound that changed. Before A5-U a category pool could not exceed the
+    // base field's max; now it is base + bonus, and "112/116" — a THREE-digit
+    // pool §13.0.1 pinned one digit more generous than reality — became
+    // REACHABLE for the first time. LEDGER_METRICS_MAX goes from conservative
+    // to EXACTLY RIGHT, with 0.56px of margin and no slack left.
+    //
+    // Parsed, never pinned: a future `max` change must fail HERE.
+    const grid = stripComments(srcSources["/src/ui/build/BudgetGrid.tsx"] as string);
+    const pointsMax = px(grid, /BUDGET_POINTS_MAX = (\d+)/);
+    const equipSlotsMax = px(grid, /BUDGET_EQUIP_SLOTS_MAX = (\d+)/);
+    const digits = (value: number) => String(value).length;
+
+    // Each per-category bonus field takes its BASE TWIN'S max (§17.4), so the
+    // effective ceiling is twice the base ceiling.
+    const effectivePointsDigits = digits(2 * pointsMax); // 198 -> 3
+    const effectiveEquipSlotsDigits = digits(2 * equipSlotsMax); // 24 -> 2
+    // `spent` is unchanged by A5-U and cannot exceed the pool it is spent
+    // from; `equipSlotsUsed` is bounded by the badges in the largest category.
+    const largestCategory = Math.max(
+      ...[...new Set(shippedDataset.badges.map((badge) => badge.category))].map(
+        (category) => shippedDataset.badges.filter((badge) => badge.category === category).length,
+      ),
+    );
+    const usedDigits = digits(largestCategory); // 12 -> 2
+
+    // "NNN/NNN · NN/NN" — the widest EFFECTIVE-ONLY metrics string.
+    const widestChars =
+      effectivePointsDigits + 1 + effectivePointsDigits + 3 + usedDigits + 1 +
+      effectiveEquipSlotsDigits;
+    expect(widestChars).toBe(15);
+    // The §16.11 monospace bridge, restated rather than re-measured.
+    const CHAR_W = 8.429;
+    expect(widestChars * CHAR_W).toBeLessThanOrEqual(LEDGER_METRICS_MAX);
+    expect(LEDGER_METRICS_MAX - widestChars * CHAR_W).toBeCloseTo(0.56, 1);
+    // …and LEDGER_LABEL_MAX measures a CATEGORY NAME, which A5-U does not
+    // touch. Both constants stand unchanged; I8 and I11 need no re-derivation.
+    expect(LEDGER_METRICS_MAX).toBe(127);
+    expect(LEDGER_LABEL_MAX).toBe(78);
+
+    // THE COMPOSITION WOULD NOT FIT, and that is the fourth reason §17.4 keeps
+    // it out of the digest. "112/116 +12 · 13/15 +3" is 22 chars.
+    expect(22 * CHAR_W).toBeGreaterThan(LEDGER_METRICS_MAX);
+  });
+
+  it("33 — the mode adds NO new touch-floor control: the census is unchanged and still exact", () => {
+    // Every interactive control in the dialog is a `.number-field input` or a
+    // `.btn`, and both were already in S_TOUCH_FLOOR_CENSUS — so the floor
+    // arrives through the token with no new rule, and assertion 27's
+    // exactly-the-stylesheet check still passes untouched.
+    //
+    // A HARD-CODED `44px` HERE WOULD BE INVISIBLE TO 27, which reads the
+    // stylesheet back by matching `var(--tap-target)`. That is precisely how
+    // F11's synergy board floor escaped the census. So: the A5-U block
+    // declares no min-height at all, and this asserts it.
+    // Comments stripped, and the block is taken from its OPENING `/*` — this
+    // file's own rationale quotes the very literals it bans, and a scan that
+    // starts mid-comment leaves an unterminated opener the stripper cannot see.
+    expect(bonusBlock, "the A5-U css block is missing").not.toBe("");
+    expect(bonusBlockPlain).not.toMatch(/min-height:/);
+    expect(bonusBlockPlain).not.toMatch(/\b44px\b/);
+    expect(bonusBlockPlain).not.toContain("--tap-target");
+    expect(S_TOUCH_FLOOR_CENSUS).toContain(".number-field input");
+    expect(S_TOUCH_FLOOR_CENSUS).toContain(".btn");
+  });
+
+  it("34 — the A5-U block is SELF-CONTAINED: it defines no token and touches no layout selector", () => {
+    // The merge contract with the app-shell slice running in parallel. A
+    // dialog renders in the TOP LAYER and has no stake in the page grid, so
+    // every rule in the block is either `.bonus-*`, `.budget-grid__actions` or
+    // inside the block's own container query.
+    for (const forbidden of [
+      ".layout",
+      ".col-right",
+      ".attr-pane",
+      ".rail-column",
+      ".setup-panel",
+    ]) {
+      expect(bonusBlockPlain, `the A5-U block reaches ${forbidden}`).not.toContain(forbidden);
+    }
+    // ZERO TOKENS ADDED OR CHANGED (§17.13's denied paths include tokens.css).
+    expect(bonusBlockPlain).not.toMatch(/^\s*--[a-z0-9-]+:/m);
+    // …and it really is the last thing in the file, so the shell slice's
+    // rewrite lands above it.
+    expect(app.trimEnd().endsWith("/* ==== end A5-U — bonus mode ==== */")).toBe(true);
   });
 });

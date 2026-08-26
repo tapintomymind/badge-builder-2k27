@@ -48,13 +48,28 @@ describe("F4 group 11 — the four ruled display states", () => {
     expect(badgeSlotsCell([4, 3, 3, 5, 2, 3]).textContent).toContain("20 / 20 default");
   });
 
-  it("11.2 Σ > 20, all six set → the BONUS phrasing, with the delta arithmetic asserted", () => {
-    // 5·4·3·6·2·3 = 23. Assert the DELTA (3), not merely that some annotation
-    // rendered — an off-by-one in Σ − 20 is the likeliest defect here, and a
-    // substring check for "bonus" cannot see it.
+  it("11.2 Σ > 20, all six set → THE SAME FLAT PHRASING as under. The guess is DELETED", () => {
+    // A5-U (design-spec §17.8). Slice C shipped a guess here — "23 / 20
+    // default — 3 bonus Badge Slots?" — because bonus Badge Slots were the
+    // most likely explanation for an over-20 total and nothing in the app
+    // recorded them. The app records them now, in a separate layer that never
+    // enters these six fields, so the comparison is base-against-base and
+    // EXACT for the first time. The row may not ASK a question the app can now
+    // ANSWER, and "3 bonus Badge Slots?" beside a mode where the user declared
+    // 2 is the app arguing with the user.
+    //
+    // Identical treatment on both sides of 20: the disclosure IS the
+    // comparison. Still H4 soft — no red, no ⚠, no gate.
     const text = badgeSlotsCell([5, 4, 3, 6, 2, 3]).textContent ?? "";
-    expect(text).toContain("23 / 20 default — 3 bonus Badge Slots?");
-    expect(text).toContain("?"); // interrogative, never accusatory
+    expect(text).toContain("23 / 20 default");
+    // CANARY 2, both halves. The `?` is gone from this row's output entirely,
+    // and the word "bonus" never appears in the Σ-vs-20 annotation.
+    expect(text).not.toContain("?");
+    expect(text.toLowerCase()).not.toContain("bonus");
+    // …and it reads EXACTLY as the under case does, modulo the numbers, so the
+    // two cannot drift into two phrasings of one fact.
+    const under = badgeSlotsCell([3, 2, 2, 4, 2, 2]).textContent ?? "";
+    expect(text.replace("23", "N")).toBe(under.replace("15", "N"));
   });
 
   it("11.3 Σ < 20, all six set → the FLAT under phrasing, with no bonus/warning language", () => {

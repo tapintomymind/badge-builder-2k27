@@ -114,9 +114,10 @@ export interface BuildSummary {
   /**
    * [A5] Σ of the six BASE capacities — the "20 a build starts with" spread,
    * with the bonus layer taken back out. Recovered exactly via
-   * `baseEquipSlotsOf` (the carve-out is absorbing at zero, so effective 0 ⇒
-   * base 0). Equals `totalEquipSlots` whenever no bonus is applied, and
-   * whenever `state.bonus` is absent.
+   * `baseEquipSlotsOf` — the composition is plain addition at every value
+   * (design-spec §17.9 Ruling ②), so subtraction inverts it unconditionally.
+   * Equals `totalEquipSlots` whenever no bonus is applied, and whenever
+   * `state.bonus` is absent.
    *
    * THIS, not `totalEquipSlots`, is what `badgeSlotsBaselineText` compares
    * against the baseline: the user's clarification settles the frame — "we
@@ -307,6 +308,33 @@ export function buildSummary(
     (summary) => summary.badgeSlotsCapacityUnset,
   ).length;
 
+  /**
+   * [A5-U] THE BASE Σ, PER CATEGORY, recovered from the composed record
+   * through the inverse in src/engine/budget.ts so the two can never drift.
+   *
+   * IT IS A DIFFERENT GATE FROM `categoriesWithoutCapacity`, AND THAT
+   * SEPARATION IS THE RULING (design-spec §17.9 consequence 6). A placed bonus
+   * is an ENTRY ACT for the capacity predicate — the category has real,
+   * spendable capacity and every §4.7 consequence switches on. It is NOT a
+   * base value, and it must never enter the Σ-vs-20 comparison, which measures
+   * the base spread against the 20 a build starts with. Before A5-U the two
+   * questions had one answer because the composition absorbed at zero; they
+   * are now genuinely different questions and are asked separately.
+   *
+   * The Σ row's absence therefore has TWO causes after this slice, and one of
+   * them is PERMANENT: mid-entry (returns when the twelfth field is typed),
+   * and a build with a genuinely-zero discipline (never returns). The gate is
+   * still correct — a partial Σ against a whole-build baseline is a wrong
+   * answer, not a noisy one — and the fix is the `entered` channel, which
+   * inherits this as its second and stronger justification.
+   */
+  const baseEquipSlotsByCategory = CATEGORIES.map((category) =>
+    baseEquipSlotsOf(
+      state.budgets[category].equipSlots,
+      state.bonus?.appliedEquipSlots[category] ?? 0,
+    ),
+  );
+
   return {
     categories,
     countsByLevel,
@@ -320,17 +348,10 @@ export function buildSummary(
     // by subtracting the applied allocation back out — through the inverse in
     // src/engine/budget.ts, never re-derived here, so the two cannot drift.
     // `state.bonus` absent ⇒ nothing was applied ⇒ base Σ === effective Σ.
-    totalBaseEquipSlots: CATEGORIES.reduce(
-      (sum, category) =>
-        sum +
-        baseEquipSlotsOf(
-          state.budgets[category].equipSlots,
-          state.bonus?.appliedEquipSlots[category] ?? 0,
-        ),
-      0,
-    ),
+    totalBaseEquipSlots: baseEquipSlotsByCategory.reduce((sum, value) => sum + value, 0),
     equipSlotsBaseline: EQUIP_SLOTS_BASELINE,
-    equipSlotsBaselineComparable: categoriesWithoutCapacity === 0,
+    // [A5-U] BASE-GATED, not capacity-gated — see baseEquipSlotsByCategory.
+    equipSlotsBaselineComparable: baseEquipSlotsByCategory.every((value) => value > 0),
     categoriesWithoutCapacity,
     bonus: state.bonus ?? zeroBonus(),
     dataVersion: dataset.dataVersion,

@@ -22,7 +22,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { defaultAppConfig, deriveBudget } from "./config";
 import { hasCapBreakers } from "./engine/attributes";
-import { bonusHasContent, effectiveBudgets, zeroBonus } from "./engine/budget";
+import {
+  bonusFieldsSet,
+  bonusHasContent,
+  effectiveBudgets,
+  zeroBonus,
+} from "./engine/budget";
 import { shippedDataset } from "./engine/dataset";
 import { levelPasses, validateBadge } from "./engine/eligibility";
 import { whatIf } from "./engine/cost";
@@ -76,6 +81,7 @@ import {
   writeAutosave,
 } from "./persist/local-storage";
 import type { NamedBuildSummary, PersistResult } from "./persist/local-storage";
+import { BonusDialog } from "./ui/build/BonusDialog";
 import { AttributesSection, BuildPanel, PhysiqueStrip } from "./ui/build/BuildPanel";
 import type { HeightClampNotice } from "./ui/build/BuildPanel";
 import { ResetBuildDialog } from "./ui/build/ResetBuildDialog";
@@ -363,13 +369,20 @@ function resetBlastRadius(working: WorkingState): ResetBlastRadius {
       (synergySlot) =>
         synergySlot.fuseBadgeId !== null || synergySlot.reactionBadgeId !== null,
     ).length,
-    budgetFieldsSet: CATEGORIES.reduce(
-      (count, category) =>
-        count +
-        (working.budgets[category].points > 0 ? 1 : 0) +
-        (working.budgets[category].equipSlots > 0 ? 1 : 0),
-      0,
-    ),
+    // A5-U (design-spec §17.11's F5.3 amendment) — DERIVED OVER THE SET OF
+    // FIELDS THE CHECKBOX ACTUALLY CLEARS, never pinned and never
+    // hand-counted. Bonus totals and placements ARE budgets (§17.13/5), so
+    // the checkbox clears fourteen more fields than the twelve counted here
+    // before this slice, and a confirm that under-reports its own blast
+    // radius is the one thing a confirm may not do.
+    budgetFieldsSet:
+      CATEGORIES.reduce(
+        (count, category) =>
+          count +
+          (working.budgets[category].points > 0 ? 1 : 0) +
+          (working.budgets[category].equipSlots > 0 ? 1 : 0),
+        0,
+      ) + bonusFieldsSet(working.bonus),
     heightChanged: working.build.heightInches !== DEFAULT_HEIGHT_INCHES,
     positionSet: working.build.position !== undefined,
   };
@@ -553,6 +566,11 @@ export default function App() {
   const [buildAnnouncement, setBuildAnnouncement] = useState("");
   /** F5.3/C — the `Reset build` confirm. The button never resets directly. */
   const [resetOpen, setResetOpen] = useState(false);
+  /** A5-U — the bonus mode's open state, and it is the ONLY state this
+   * feature adds. There is no draft buffer anywhere: every keystroke inside
+   * the dialog commits through `applyEdit` exactly as the twelve base fields
+   * do (design-spec §17.3, §4.2). */
+  const [bonusOpen, setBonusOpen] = useState(false);
 
   /** F5.4 (design-spec §16.10) — THE ONE OWNER of the L breakpoint. It used
    * to live inside BuildPanel; the pane, the two-grid-item layout and the
@@ -993,7 +1011,11 @@ export default function App() {
           fuseBadgeId: null,
           reactionBadgeId: null,
         })),
-        ...(alsoBudgets ? { budgets: zeroBudgets() } : {}),
+        // A5-U — bonus rides WITH the budgets checkbox and NEVER with the
+        // player reset (design-spec §17.13/5). The two are one quantity from
+        // the user's side; clearing the base six and leaving fourteen bonus
+        // fields behind would be the confirm telling a half-truth.
+        ...(alsoBudgets ? { budgets: zeroBudgets(), bonus: zeroBonus() } : {}),
       }));
       // A reset is not a load ROUTE: droppedEntries, clearedSynergyRefs and
       // ratifiedMagnitudeNormalized are route-scoped disclosures and are
@@ -1527,6 +1549,10 @@ export default function App() {
             <BuildPanel
               build={working.build}
               budgets={baseBudgets}
+              bonus={working.bonus}
+              onOpenBonus={() => {
+                setBonusOpen(true);
+              }}
               compact={!isLarge}
               withAttributes={!isLarge}
               physique={isWide ? null : physiqueProps}
@@ -1599,6 +1625,15 @@ export default function App() {
                         budget={budget}
                         feasibility={feasibilityByCategory[category]}
                         projection={projections?.[category]}
+                        // [A5-U] BOTH halves of the composition, so the lede
+                        // does no arithmetic to recover a split the engine
+                        // already holds. `budget` above is the EFFECTIVE
+                        // record; these two are what it was composed from.
+                        baseBudget={baseBudgets[category]}
+                        appliedBonus={{
+                          points: working.bonus.appliedPoints[category],
+                          equipSlots: working.bonus.appliedEquipSlots[category],
+                        }}
                       />
                     )}
                   >
@@ -1726,6 +1761,38 @@ export default function App() {
           }}
           onConfirm={handleReset}
           onSaveCopyAndReset={handleSaveCopyAndReset}
+        />
+      ) : null}
+
+      {/* A5-U (design-spec §17) — the SIXTH dialog. Mounted only while open,
+          like the reset confirm: at zero earned the tree is byte-identical to
+          the pre-A5-U tree except for one secondary Button (§17.10, canary
+          1), and a permanently-mounted closed dialog would put six rows of
+          `.bonus-*` nodes in the DOM to be "identical" with. */}
+      {bonusOpen ? (
+        <BonusDialog
+          baseBudgets={baseBudgets}
+          bonus={working.bonus}
+          onEarnedCommit={(pool, value) => {
+            applyEdit((prev) => {
+              const field = pool === "points" ? "earnedPoints" : "earnedEquipSlots";
+              if (prev.bonus[field] === value) return prev;
+              return { ...prev, bonus: { ...prev.bonus, [field]: value } };
+            });
+          }}
+          onAppliedCommit={(pool, category, value) => {
+            applyEdit((prev) => {
+              const field = pool === "points" ? "appliedPoints" : "appliedEquipSlots";
+              if (prev.bonus[field][category] === value) return prev;
+              return {
+                ...prev,
+                bonus: { ...prev.bonus, [field]: { ...prev.bonus[field], [category]: value } },
+              };
+            });
+          }}
+          onDone={() => {
+            setBonusOpen(false);
+          }}
         />
       ) : null}
 

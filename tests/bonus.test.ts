@@ -172,7 +172,18 @@ describe("A5 group 1 — the bonus model and its invariants", () => {
     expect(() => buildSummary(state, makeBuild(78, 60), dataset)).not.toThrow();
   });
 
-  it("1.5 the ZERO-BASE CARVE-OUT: base 0 + applied 3 ⇒ effective 0; base 1 + applied 3 ⇒ effective 4", () => {
+  it("1.5 A PLACED BONUS IS AN ENTRY ACT: base 0 + applied 3 ⇒ effective 3 and ENTERED; base 0 + applied 0 stays UNSET", () => {
+    // A5-U INVERTED THIS TEST, and the inversion is the point (design-spec
+    // §17.9 Ruling ②, canary 4). Its first form pinned the zero-base carve-out
+    // `base === 0 ? 0 : base + applied`, on §4.7's premise that a base of 0
+    // always means "not entered". The user falsified that premise: a build can
+    // genuinely have 0 Badge Slots in a discipline when its attributes are low
+    // enough [user 2026-08-26]. Under the carve-out a bonus placed there was
+    // PERMANENTLY INERT, and the escape it offered ("it counts once the base is
+    // entered") was unreachable, because the base IS entered, at zero.
+    //
+    // IF THIS TEST EVER READS THE OTHER WAY ROUND AGAIN, the carve-out has been
+    // restored and the deadlock is back.
     const bonus = bonusOf({
       earnedEquipSlots: 3,
       earnedPoints: 3,
@@ -186,12 +197,17 @@ describe("A5 group 1 — the bonus model and its invariants", () => {
     };
     const effective = effectiveBudgets(base, bonus);
 
-    // unknown + known = unknown. The allocation is recorded and waiting.
-    expect(effective.Shooting).toEqual({ equipSlots: 0, points: 0 });
-    expect(badgeSlotsCapacityUnset(effective.Shooting)).toBe(true);
-    // above zero it simply adds.
+    // The deliberate act of allocating counts as entering the discipline.
+    expect(effective.Shooting).toEqual({ equipSlots: 3, points: 3 });
+    expect(badgeSlotsCapacityUnset(effective.Shooting)).toBe(false);
+    // Above zero it simply adds, exactly as before.
     expect(effective.Defense).toEqual({ equipSlots: 4, points: 4 });
     expect(badgeSlotsCapacityUnset(effective.Defense)).toBe(false);
+
+    // …AND THE ZERO STATE IS UNDISTURBED (canary 4b). Nothing placed ⇒ still
+    // unset, so every §4.7 consequence fires at boot exactly as it did.
+    expect(effective.Rebounding).toEqual({ equipSlots: 0, points: 0 });
+    expect(badgeSlotsCapacityUnset(effective.Rebounding)).toBe(true);
   });
 
   it("1.6 effectiveBudgets is PURE — neither argument is mutated and the result is a fresh record", () => {
@@ -254,15 +270,23 @@ describe("A5 group 1 — the bonus model and its invariants", () => {
     expect(effective.Shooting.equipSlots).toBe(6);
   });
 
-  it("1.10 baseEquipSlotsOf inverts the composition exactly, carve-out included", () => {
+  it("1.10 baseEquipSlotsOf inverts the composition exactly, at every value", () => {
+    // A5-U: the composition is plain addition now, so the inverse is exact
+    // unconditionally rather than "exact because the carve-out absorbs at
+    // zero". The expected effective figure below is DERIVED THROUGH
+    // effectiveBudgets rather than re-typed, so this test cannot certify an
+    // inverse against a composition it no longer matches.
     for (const [base, applied] of [
       [0, 0],
       [0, 4],
       [1, 0],
       [5, 2],
     ] as const) {
-      const effective = base === 0 ? 0 : base + applied;
-      expect(baseEquipSlotsOf(effective, applied)).toBe(base);
+      const composed = effectiveBudgets(
+        { ...budgetsOf(0, 0), Shooting: { equipSlots: base, points: 0 } },
+        bonusOf({ appliedEquipSlots: { Shooting: applied } }),
+      ).Shooting.equipSlots;
+      expect(baseEquipSlotsOf(composed, applied)).toBe(base);
     }
   });
 });
@@ -341,7 +365,14 @@ describe("A5 group 2 — the zero-bonus identity gate", () => {
     );
   });
 
-  it("2.4 the base Σ recovery survives the zero-base carve-out — an applied bonus on an unset category moves neither total", () => {
+  it("2.4 the base Σ recovery is EXACT across a zero base, and the Σ-vs-20 gate stays BASE-keyed", () => {
+    // A5-U (design-spec §17.9 consequence 6). Two gates, two questions, and
+    // after Ruling ② they genuinely differ:
+    //   - the CAPACITY predicate reads both contributors, so Shooting is
+    //     entered and its one bonus Badge Slot is spendable;
+    //   - the Σ-vs-20 comparison reads the BASE only, because a placed bonus
+    //     is not a base value and must never enter a sum measured against the
+    //     20 a build starts with.
     const base = { ...budgetsOf(4, 20), Shooting: { equipSlots: 0, points: 0 } };
     const bonus = bonusOf({ earnedEquipSlots: 1, appliedEquipSlots: { Shooting: 1 } });
     const summary = buildSummary(
@@ -349,9 +380,14 @@ describe("A5 group 2 — the zero-bonus identity gate", () => {
       makeBuild(78, 60),
       dataset,
     );
-    expect(summary.totalEquipSlots).toBe(20);
+    // Five categories at 4, plus Shooting's single bonus Badge Slot.
+    expect(summary.totalEquipSlots).toBe(21);
+    // …and the base Σ recovers to 20 exactly, with the bonus taken back out.
     expect(summary.totalBaseEquipSlots).toBe(20);
-    // …and §4.7 still suppresses the comparison outright.
+    // The Σ row is STILL SUPPRESSED, and this is the permanent second cause of
+    // its absence: Shooting's BASE is zero, so a partial Σ against a
+    // whole-build baseline would be a wrong answer, not a noisy one. The fix
+    // is the `entered` channel, not a looser gate.
     expect(summary.equipSlotsBaselineComparable).toBe(false);
     expect(badgeSlotsBaselineText(summary)).toBeNull();
   });
