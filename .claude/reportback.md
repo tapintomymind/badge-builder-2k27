@@ -10889,3 +10889,40 @@ change (e.g. `3+` for `from 3`, which frees ~21px and would allow a much larger 
 
 Gates: tsc clean · 80 files / 1,781 tests green · vite build clean · 3-up re-verified in Chrome at
 1280 across all three simulated scrollbar widths.
+
+## 2026-08-26 · Tier 2 · fyi — the cost readout, part 2: `3+` buys the big numeral AND the floor back
+
+**Event:** `fyi`
+**Provenance:** user call 2026-08-26 — "Push it to main", taken against the one open lever offered
+in the entry above (the `from 3` → `3+` copy change).
+
+**Supersedes the sizing half of the previous entry.** That pass reached `--text-sm` and stopped
+there because `from 3` measured 38.08 of a ~39px budget, which took the card floor to its 181px
+ceiling and left 3-up at 1280/s=17 with ZERO slack. The word was the whole problem: `from` was the
+only term in row 2 rendered in `--font-ui`, so it was both the widest single item AND the only one
+whose advance varies with the platform's UI face.
+
+**Rendering the same fact as a `+` SUFFIX removes that term entirely.** `3+` is two monospace
+glyphs — 24.09px even at `--text-lg` — so:
+
+- the numeral went `--text-sm` → **`--text-lg`** (12 → 20px across the two passes) and is now the
+  largest element on the tile, which is right for the number the whole app is about spending;
+- `COST_MAX` 39 → **25**, `ROW2_MIN` 161 → **147**, and the card floor came back **181 → 180**,
+  restoring the 3px of 3-up margin the first pass had spent;
+- row 2 is now entirely `--font-num`, so its measurement is stable across platforms and the
+  wrap-on-a-wider-UI-face failure mode named in the previous entry is GONE, not merely tolerated.
+
+**A concept split fell out of it, and it is the durable part.** The floor used to be pinned EQUAL to
+the content minimum, which was only ever true because the cost label happened to be the binding
+term. With the label 14px narrower the two genuinely differ, so the suite now asserts a
+RELATIONSHIP instead: `CARD_FLOOR >= CONTENT_FLOOR` (or the row wraps) and `CARD_FLOOR > 178` (or
+1440 silently goes 4-up and the ratified density is lost). The floor is CHOSEN for density and
+BOUNDED by content — pinning equality again would make the catalog's density a hostage of the price
+label's typography.
+
+**Seen and heard deliberately diverge.** Sighted readers get `3+`; the `+` is `aria-hidden` and
+flanked by sr-only words, so a screen reader still hears the full "from 3 tokens" it heard before.
+A suffix read aloud as "three plus" would be a worse sentence, not a shorter one.
+
+Gates: tsc clean · 80 files / 1,781 tests green · vite build clean · 3-up re-verified at 1280 and
+1440, card heights unchanged (73px compact).

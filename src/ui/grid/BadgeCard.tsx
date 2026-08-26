@@ -546,12 +546,28 @@ export function BadgeCard(props: BadgeCardProps) {
           </span>
         ) : costTokens === null ? null : (
           <span className="badge-card__cost">
-            {/* The NUMBER takes --font-num (§2.2's tabular figures, via the
-                app's own `.num` utility) and the word does not: `from ` in the
-                monospace face measures 36px against 27 in the UI face, and
-                that 9px is a third of the compact row's whole cost budget. */}
-            {purchased === null ? "from " : ""}
-            <span className="num">{costTokens}</span>
+            {/* THE PRICE, AND IT IS ALL NUMERALS NOW (user ask 2026-08-26:
+                "make the badge cost more apparent", then the copy call that
+                unlocked it).
+
+                `from 3` spent 38 of the row's ~39px cost budget on a
+                PROPORTIONAL word, which capped the numeral at --text-sm and
+                took the card floor to its 181px ceiling with zero slack. The
+                same fact as a `+` SUFFIX is two monospace glyphs — `3+` is
+                ~24px at --text-lg — so the number can be the biggest thing
+                on the tile and still leave the budget half unspent.
+
+                THE SEEN AND THE HEARD DIVERGE ON PURPOSE, and neither is
+                abbreviated. Sighted readers get `3+`; the `+` is
+                aria-hidden and flanked by sr-only words, so a screen reader
+                still hears the whole sentence — "from 3 tokens" — exactly as
+                it did before. A suffix that read aloud as "three plus" would
+                be a worse sentence, not a shorter one. */}
+            {purchased === null ? <span className="sr-only">from </span> : null}
+            <span className="num">
+              {costTokens}
+              {purchased === null ? <span aria-hidden="true">+</span> : null}
+            </span>
             <span className="sr-only"> {costTokens === 1 ? "token" : "tokens"}</span>
           </span>
         )}
