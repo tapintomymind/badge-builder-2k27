@@ -2413,7 +2413,16 @@ main#badge-grid {
   main,
   .summary__copy,
   .export-import,
-  .app-footer {
+  .app-footer,
+  /* F8-R2 — the roll surface is SESSION control, not build content. A pin
+     chip, an exclusion chip and a transcript of "what the dice did" are all
+     meaningless on paper; the roster they acted on is what prints. */
+  .roll-panel,
+  .pin-control,
+  .pin-control__reason,
+  .badge-card__action,
+  .summary-roster__pin,
+  .summary-roster__pin-mode {
     display: none !important;
   }
 
@@ -4537,6 +4546,250 @@ main#badge-grid {
   }
 }
 /* ==== F14 app shell — end ================================================= */
+
+/* ==== F8-R2 roll surface ===================================================
+ *
+ * IDENTITY VIA TOKENS ONLY. Not one literal hex, not one font stack and not
+ * one token DEFINITION lives in this block — tokens.css owns the palette and
+ * §14 adds ZERO tokens.
+ *
+ * NO TOUCH-FLOOR RULE APPEARS HERE, AND THAT IS DELIBERATE. Every interactive
+ * control in this slice renders with the `.btn` class, which already declares
+ * `min-height: var(--tap-target)` below 768 and is already registered in
+ * tests/layout-arithmetic.test.ts's S_TOUCH_FLOOR_CENSUS. Assertion 27 requires
+ * the censused selector set to EXACTLY equal the set of rules declaring that
+ * floor, and that test file is RUN-never-edit — so a bespoke `.pin-control`
+ * floor would redden a gate, and a bespoke `44px` literal would slip past the
+ * gate while breaking the doctrine it encodes. Reusing `.btn` needs neither.
+ * The pin-mode radios ride `.segmented label`, censused for the same reason.
+ * ========================================================================= */
+
+.roll-panel {
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+.roll-panel__title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-base);
+}
+
+/* Containment rule 5, discharged at the point of action. `max-width` is the
+ * user's own prose preference, not decoration: two sentences set across a
+ * 900px column are two sentences nobody reads. */
+.roll-panel__lede {
+  margin: 0 0 var(--space-3);
+  max-width: 68ch;
+  color: var(--fg-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+/* WRAPS, never clips — the same treatment §I6 gave `.banner` and the three
+ * dialog action rows when the S touch floor grew them. */
+.roll-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.roll-panel__exclusions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin: var(--space-3) 0 0;
+  color: var(--fg-secondary);
+  font-size: var(--text-sm);
+}
+
+/* ---- seed --------------------------------------------------------------- */
+
+.roll-seed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.roll-seed__label {
+  color: var(--fg-secondary);
+  font-size: var(--text-sm);
+}
+
+.roll-seed__input {
+  width: 12ch;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--fg-primary);
+  font-family: var(--font-num);
+}
+
+/* The honesty sentence takes the WHOLE line under the field. It is mandatory
+ * copy: without it the seed silently over-promises, and a silently-wrong
+ * reproduction is worse than none. */
+.roll-seed__honesty {
+  flex-basis: 100%;
+  margin: var(--space-1) 0 0;
+  max-width: 68ch;
+}
+
+/* ---- report ------------------------------------------------------------- */
+
+.roll-report {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* WHERE A POST-ROLL FOCUS SCROLL LANDS. The heading is programmatically
+ * focused after every roll, and a focus scroll inside `.col-right` is subject
+ * to that scrollport's `scroll-padding-top` — which under the shell reserves
+ * the WHOLE 120px sticky stack. scroll-padding-top and scroll-margin-top ADD,
+ * so the reserve is subtracted back out here exactly as `.grid-section` and
+ * the three panel anchors do it (see --scroll-reserve).
+ *
+ * `--space-3` is the target, matching #panel-summary: this heading sits deep
+ * inside the summary region, well below the jump nav's own sticky container,
+ * so nothing pins over it and it takes the page gutter rather than an offset
+ * it does not need. Under the shell the declaration evaluates to −108px and
+ * the landing is 12px; on the document scroller the reserve is 0 and it is a
+ * plain 12px. ONE landing position, expressed once, correct in both regimes —
+ * and asserted by LANDING POSITION in the browser proof, never by reading the
+ * declaration back. */
+.roll-report__heading {
+  scroll-margin-top: calc(var(--space-3) - var(--scroll-reserve));
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--fg-primary);
+}
+
+/* NO :focus-visible RULE HERE. The global `:focus-visible` at the top of this
+ * file already paints --ring-focus on anything focusable, and tabindex="-1"
+ * makes this heading focusable — so the post-roll focus move is visible to a
+ * sighted keyboard user for free. A second rule would be duplication that can
+ * drift from the one the rest of the app uses. */
+
+.roll-report__lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* NOT A ONE-LINE SURFACE (invariant I11). Decline reasons wrap, and that is
+ * intended — a truncated explanation of what the roll could not do is worse
+ * than no explanation. */
+.roll-report__line {
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.roll-report__cat {
+  color: var(--fg-primary);
+  font-weight: 600;
+}
+
+.roll-report__detail {
+  color: var(--fg-secondary);
+}
+
+/* §4.7 consequence 12: an unset capacity is NOT a failure and must not read as
+ * one. Muted, and with no ⚠ anywhere near it, while the declines beside it
+ * stay --fg-secondary. */
+.roll-report__detail--unset {
+  color: var(--fg-muted);
+}
+
+.roll-report__closing {
+  margin: var(--space-2) 0 0;
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+}
+
+/* ---- pin / exclude ------------------------------------------------------ */
+
+/* COLOUR AND PADDING ONLY. No height, no min-height — see the block header.
+ * §10.5: active is interaction, so --accent is correct here; a pin touches
+ * neither the identity/gold channel nor the --danger state channel. */
+.pin-control {
+  padding-inline: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--fg-secondary);
+  font-size: var(--text-xs);
+}
+
+.pin-control[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-quiet);
+  color: var(--fg-primary);
+}
+
+/* THE REASON IS NEVER DIMMED (§6) and is never a `title` (§3.1): it is a
+ * SIBLING of the button, so `:disabled` styling cannot reach it. */
+.pin-control__reason {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--fg-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.summary-roster__pin {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* The pin-mode radios get their own <tr> and NEVER share a line with the five
+ * data columns — which is what keeps ROSTER_ROW_MAX one-line at 1280. It
+ * renders only on pinned rows, so it costs nothing on the others. */
+.summary-roster__pin-mode > td {
+  padding: 0 0 var(--space-2);
+}
+
+/* The card's action line: below the cost line, above the status line, exactly
+ * one control. NO opacity, NO recede treatment and NO new card state for an
+ * excluded card (invariant I2) — the pressed chip IS the marker. */
+.badge-card__action {
+  display: flex;
+  margin-top: var(--space-2);
+}
+
+/* THE WIDTH AXIS AT S, and it is the `.filter-chip` case exactly. Both of
+ * these clear 44 on the HEIGHT axis for free, because they carry `.btn` and
+ * F9 raised `.btn` below 768. Both FAIL IT ON WIDTH FIRST: measured in Chrome
+ * at the S breakpoint, `Pin` is 36px wide and the single-glyph `⟳` is 34px.
+ * §3.1's floor is 44x44, not 44 tall.
+ *
+ * `.filter-chip` is the shipped precedent — the census comments call the tier
+ * chips "the ONLY targets narrower than they are tall … so they take the floor
+ * twice", and these two join them.
+ *
+ * min-WIDTH ONLY, deliberately. tests/layout-arithmetic.test.ts assertion 27
+ * reads the stylesheet back by matching `min-height: var(--tap-target)` and
+ * requires that selector set to EQUAL S_TOUCH_FLOOR_CENSUS. That file is
+ * RUN-never-edit, so a min-height here would redden it; a min-width does not
+ * match its probe and the census stays exact. The token is still the source of
+ * the number — never a `44px` literal, which is the one shape that escapes the
+ * gate while breaking the doctrine (F11 shipped exactly that and had to be
+ * re-pointed). */
+@media (max-width: 767px) {
+  .pin-control,
+  .roll-seed__regen {
+    min-width: var(--tap-target);
+  }
+}
 
 /* ==================================================== A5-U — bonus mode
  * (design-spec §17) ==========================================================

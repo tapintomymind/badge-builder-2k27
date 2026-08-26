@@ -51,13 +51,45 @@
  * component's whole screen-reader value.
  */
 
+import type { PinMode } from "../../engine/randomize";
 import type { BuildSummary, CategorySummary, RosterRow } from "../../engine/summary";
 import { rowIsBoosted } from "../../engine/summary";
 import type { Budget } from "../../engine/types";
 import type { Category } from "../../engine/vocabulary";
 import { LEVEL_LABELS } from "../../engine/vocabulary";
 import { overByBadgePoints, overByBadgeSlots } from "../grid/CategoryLedger";
+import { Button } from "../primitives/Button";
 import { Chip } from "../primitives/Chip";
+import { PinControl } from "../primitives/PinControl";
+import { SegmentedControl } from "../primitives/SegmentedControl";
+import type { RollControls } from "../roll/roll-controls";
+import { useRollControls } from "../roll/roll-controls";
+
+/**
+ * F8-R2 — THE PIN COLUMN. S2 deliberately did not stub it: an empty <td> would
+ * have taken the layout decision away from the slice that owns the control.
+ *
+ * Everything below is SESSION state handed down from App.tsx. Nothing here is
+ * persisted, nothing here is derived, and nothing here reads a Synergy Slot.
+ * The two IMPLICIT pins (synergy-role holder, stale purchase) arrive as
+ * pre-built reason strings — this component does not decide who is pinned.
+ */
+export type RosterRollControls = RollControls;
+
+/** The user-visible mode names. `exact` / `include` are the ENGINE's words and
+ *  they stay in the engine — §14.1's vocabulary ruling is about what the user
+ *  reads. */
+const PIN_MODE_OPTIONS = ["this level", "any level"] as const;
+type PinModeOption = (typeof PIN_MODE_OPTIONS)[number];
+
+const MODE_OF: Record<PinModeOption, PinMode> = {
+  "this level": "exact",
+  "any level": "include",
+};
+const OPTION_OF: Record<PinMode, PinModeOption> = {
+  exact: "this level",
+  include: "any level",
+};
 
 /**
  * The <tfoot> digest, in parts, so `--danger` can land PER-METRIC rather than
@@ -118,8 +150,19 @@ function roleGlyph(kind: "fuse" | "reaction"): string {
 // RosterRow — one purchased badge, on one line at a group box ≥ 444px.
 // ---------------------------------------------------------------------------
 
-function RosterRowCells({ row }: { row: RosterRow }) {
+function RosterRowCells({
+  row,
+  controls,
+}: {
+  row: RosterRow;
+  controls: RosterRollControls;
+}) {
   const boosted = rowIsBoosted(row);
+  const implicitReason = controls.implicitPinReasons[row.badgeId];
+  // An implicit pin renders PRESSED and DISABLED: the engine pins it whether
+  // or not the user did, so showing it unpressed would be a lie about what the
+  // roll will do.
+  const pinned = implicitReason !== undefined || controls.pinnedBadgeIds.has(row.badgeId);
   return (
     <tr>
       <th scope="row" className="summary-roster__name">
@@ -150,6 +193,17 @@ function RosterRowCells({ row }: { row: RosterRow }) {
         )}
       </td>
       <td className="summary-roster__cost num">{row.cost}</td>
+      <td className="summary-roster__pin">
+        <PinControl
+          kind="pin"
+          pressed={pinned}
+          badgeName={row.name}
+          onToggle={() => {
+            controls.onTogglePin(row.badgeId);
+          }}
+          {...(implicitReason === undefined ? {} : { disabledReason: implicitReason })}
+        />
+      </td>
     </tr>
   );
 }
@@ -161,9 +215,10 @@ function RosterRowCells({ row }: { row: RosterRow }) {
 export interface RosterGroupProps {
   summary: CategorySummary;
   budget: Budget;
+  controls: RosterRollControls;
 }
 
-export function RosterGroup({ summary, budget }: RosterGroupProps) {
+export function RosterGroup({ summary, budget, controls }: RosterGroupProps) {
   const digest = rosterDigestParts(summary, budget);
   return (
     <div className="summary-roster__group" data-category={summary.category.toLowerCase()}>
@@ -185,6 +240,13 @@ export function RosterGroup({ summary, budget }: RosterGroupProps) {
             <th scope="col">lvl</th>
             <th scope="col">eff</th>
             <th scope="col">cost</th>
+            {/* The pin column's header is off-screen for the same reason the
+                name and tier headers are: a visible "pin" label above a column
+                of buttons that already say Pin is noise on screen and required
+                off it. */}
+            <th scope="col" className="sr-only">
+              Pin
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -192,12 +254,12 @@ export function RosterGroup({ summary, budget }: RosterGroupProps) {
               the loadout, so the order is the dataset's. Sorting by level or
               cost would be a ranking by another name (§14.1 item 8). */}
           {summary.rows.map((row) => (
-            <RosterRowFragment key={row.badgeId} row={row} />
+            <RosterRowFragment key={row.badgeId} row={row} controls={controls} />
           ))}
         </tbody>
         <tfoot className="summary-roster__foot">
           <tr>
-            <td colSpan={5}>
+            <td colSpan={6}>
               <span className="summary-roster__digest">
                 <span>{digest.badges}</span>
                 <span className="num">{digest.points}</span>
@@ -209,6 +271,21 @@ export function RosterGroup({ summary, budget }: RosterGroupProps) {
                   <span className="ledger-over num">{digest.badgeSlotsOver}</span>
                 ) : null}
               </span>
+              {/* §14.7 puts the per-category re-roll HERE and not in
+                  CategoryLedger, whose digest is the sticky layer capped at
+                  ≤88px by invariant I5 and which §3.4 keeps numbers-only for
+                  reconciliation. The <tfoot> is already this group's summary
+                  line, and the control that rebuilds the group belongs at the
+                  end of it. */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  controls.onRerollCategory(summary.category);
+                }}
+              >
+                Re-roll {summary.category}…
+              </Button>
             </td>
           </tr>
         </tfoot>
@@ -238,13 +315,40 @@ export function RosterGroup({ summary, budget }: RosterGroupProps) {
  *
  * H8 — this DISCLOSES. Nothing here removes, clamps or repairs the entry.
  */
-function RosterRowFragment({ row }: { row: RosterRow }) {
+function RosterRowFragment({
+  row,
+  controls,
+}: {
+  row: RosterRow;
+  controls: RosterRollControls;
+}) {
+  const implicitReason = controls.implicitPinReasons[row.badgeId];
+  // The mode sub-row is offered only where it can DO something: an implicit
+  // pin is not the user's to re-aim.
+  const showMode = implicitReason === undefined && controls.pinnedBadgeIds.has(row.badgeId);
   return (
     <>
-      <RosterRowCells row={row} />
+      <RosterRowCells row={row} controls={controls} />
+      {showMode ? (
+        // A SECOND <tr>, and it renders ONLY on pinned rows — so it costs
+        // nothing on the other ten. It never shares a line with the five data
+        // columns, which is what keeps ROSTER_ROW_MAX one-line at 1280.
+        <tr className="summary-roster__pin-mode">
+          <td colSpan={6}>
+            <SegmentedControl
+              legend={`Pin mode for ${row.name}`}
+              options={PIN_MODE_OPTIONS}
+              value={OPTION_OF[controls.pinModes[row.badgeId] ?? "exact"]}
+              onChange={(option) => {
+                controls.onPinModeChange(row.badgeId, MODE_OF[option]);
+              }}
+            />
+          </td>
+        </tr>
+      ) : null}
       {row.stale ? (
         <tr className="summary-roster__stale">
-          <td colSpan={5}>
+          <td colSpan={6}>
             <span className="summary-roster__stale-glyph">⚠</span> Purchased at{" "}
             {LEVEL_LABELS[row.purchasedLevel]}; this build no longer qualifies
             {row.staleReasons.length > 0 ? ` — ${row.staleReasons.join("; ")}` : ""}.
@@ -264,7 +368,11 @@ export interface LoadoutRosterProps {
   budgets: Readonly<Record<Category, Budget>>;
 }
 
+/** S2's props, UNCHANGED. The pin column's state arrives through
+ *  RollControlsContext so SummaryPanel -- which renders this component and has
+ *  no business knowing a randomizer exists -- needs no diff at all. */
 export function LoadoutRoster({ summary, budgets }: LoadoutRosterProps) {
+  const controls = useRollControls();
   const populated = summary.categories.filter((category) => category.rows.length > 0);
   const empty = summary.categories
     .filter((category) => category.rows.length === 0)
@@ -284,6 +392,7 @@ export function LoadoutRoster({ summary, budgets }: LoadoutRosterProps) {
             key={category.category}
             summary={category}
             budget={budgets[category.category]}
+            controls={controls}
           />
         ))
       )}

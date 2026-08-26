@@ -224,8 +224,12 @@ describe("1 — the roster names every badge you own", () => {
 
     const disclosure = roster().querySelector(".summary-roster__stale") as HTMLElement;
     expect(disclosure).not.toBeNull();
-    // It spans the table rather than sitting in a column.
-    expect(disclosure.querySelector("td")?.getAttribute("colspan")).toBe("5");
+    // It spans the table rather than sitting in a column. SIX since F8-R2:
+    // the pin column is the sixth, and a disclosure that spanned only the five
+    // data columns would leave the pin cell hanging off the end of the row.
+    // This is the one S2 assertion the pin column could not leave untouched —
+    // "spans the table" is the invariant, and 5 was only ever its arithmetic.
+    expect(disclosure.querySelector("td")?.getAttribute("colspan")).toBe("6");
 
     // ASSERTED AGAINST THE ENGINE, NOT A LITERAL: recompute the reasons from
     // validateBadge and require each one to appear verbatim.
