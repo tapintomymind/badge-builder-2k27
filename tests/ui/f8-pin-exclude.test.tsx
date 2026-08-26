@@ -127,17 +127,47 @@ describe("1 — the pin control", () => {
     const pin = rosterPin("Posterizer");
     const reason = document.getElementById(pin.getAttribute("aria-describedby") as string);
     expect(reason).not.toBeNull();
-    // STRUCTURAL, not computed: the reason is a SIBLING of the button, so no
+    // STRUCTURAL, not computed: the reason is OUTSIDE the button, so no
     // :disabled treatment on the button's own box can reach it (§6).
-    expect(reason?.parentElement).toBe(pin.parentElement);
+    //
+    // THE SIBLING CHECK THIS ASSERTION USED TO MAKE HAS BEEN REPLACED, NOT
+    // DROPPED, and the replacement is stricter. §6's rule is "never inside a
+    // dimmed element"; `reason.parentElement === pin.parentElement` was one
+    // way to satisfy it and the roster now satisfies it more strongly — the
+    // sentence is not even in the same <td>. It moved because a table column
+    // is sized by what is in it, and a 47-character sentence in the pin cell
+    // made that column's min-content 286.7px against a 60px budget, taking
+    // the table out of its card by up to 179.1px (see the layout assertions
+    // in tests/ui/f8-roster.test.tsx). What §6 actually cares about — the
+    // sentence is never a descendant of the disabled control and nothing
+    // between it and the document dims it — is asserted below, on BOTH hosts.
     expect((reason as HTMLElement).contains(pin)).toBe(false);
     expect(pin.contains(reason as HTMLElement)).toBe(false);
-    for (
-      let node: HTMLElement | null = reason as HTMLElement;
-      node !== null;
-      node = node.parentElement
-    ) {
-      expect(node.style.opacity, `${node.className} dims the reason`).toBe("");
+    // …and in the roster the move is deliberate, so pin it: the sentence
+    // lives in a spanning row of its own, which is what lets it wrap.
+    expect((reason as HTMLElement).closest("td")?.getAttribute("colspan")).toBe("6");
+    expect((reason as HTMLElement).closest("tr")?.className).toBe("summary-roster__reason");
+    expect(pin.closest("td")?.className).toBe("summary-roster__pin");
+
+    // The CARD host is unchanged and still renders its own sibling span — the
+    // opt-out is the roster's alone, and asserting it here stops a later pass
+    // "tidying" PinControl into one placement for both.
+    const cardPin = [...document.querySelectorAll(".badge-card__action .pin-control")].find(
+      (control) => control.hasAttribute("aria-describedby"),
+    ) as HTMLButtonElement;
+    const cardReason = document.getElementById(
+      cardPin.getAttribute("aria-describedby") as string,
+    );
+    expect(cardReason?.parentElement).toBe(cardPin.parentElement);
+
+    for (const node of [reason, cardReason] as HTMLElement[]) {
+      for (
+        let cursor: HTMLElement | null = node;
+        cursor !== null;
+        cursor = cursor.parentElement
+      ) {
+        expect(cursor.style.opacity, `${cursor.className} dims the reason`).toBe("");
+      }
     }
   });
 

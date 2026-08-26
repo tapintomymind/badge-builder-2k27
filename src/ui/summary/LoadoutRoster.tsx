@@ -51,6 +51,8 @@
  * component's whole screen-reader value.
  */
 
+import { useId } from "react";
+
 import type { PinMode } from "../../engine/randomize";
 import type { BuildSummary, CategorySummary, RosterRow } from "../../engine/summary";
 import { rowIsBoosted } from "../../engine/summary";
@@ -153,9 +155,13 @@ function roleGlyph(kind: "fuse" | "reaction"): string {
 function RosterRowCells({
   row,
   controls,
+  reasonId,
 }: {
   row: RosterRow;
   controls: RosterRollControls;
+  /** Where the implicit-pin sentence LIVES — a spanning <tr> of this group's
+   *  own, never this cell. See `.summary-roster__reason` below. */
+  reasonId: string;
 }) {
   const boosted = rowIsBoosted(row);
   const implicitReason = controls.implicitPinReasons[row.badgeId];
@@ -193,6 +199,13 @@ function RosterRowCells({
         )}
       </td>
       <td className="summary-roster__cost num">{row.cost}</td>
+      {/* THE PIN COLUMN HOLDS THE CONTROL AND NOTHING ELSE. `PIN_CHIP_MAX` is
+          60px in tests/layout-arithmetic.test.ts and the whole 412px
+          ROSTER_ROW_MAX is derived over it; a 47-character sentence in here
+          made the column's min-content 286.7px, which a table cannot lay out
+          narrower than — so `.summary-roster__table { max-width: 520px }` went
+          inoperative and the table left its card by up to 179.1px. The
+          sentence is rendered below, across the whole row. */}
       <td className="summary-roster__pin">
         <PinControl
           kind="pin"
@@ -201,7 +214,9 @@ function RosterRowCells({
           onToggle={() => {
             controls.onTogglePin(row.badgeId);
           }}
-          {...(implicitReason === undefined ? {} : { disabledReason: implicitReason })}
+          {...(implicitReason === undefined
+            ? {}
+            : { disabledReason: implicitReason, reasonId })}
         />
       </td>
     </tr>
@@ -322,13 +337,38 @@ function RosterRowFragment({
   row: RosterRow;
   controls: RosterRollControls;
 }) {
+  const reasonId = useId();
   const implicitReason = controls.implicitPinReasons[row.badgeId];
   // The mode sub-row is offered only where it can DO something: an implicit
   // pin is not the user's to re-aim.
   const showMode = implicitReason === undefined && controls.pinnedBadgeIds.has(row.badgeId);
   return (
     <>
-      <RosterRowCells row={row} controls={controls} />
+      <RosterRowCells row={row} controls={controls} reasonId={reasonId} />
+      {implicitReason === undefined ? null : (
+        // THE IMPLICIT-PIN SENTENCE, ON ITS OWN LINE. Third use of the device
+        // this file already runs twice (pin mode, stale disclosure): a
+        // spanning <tr> costs nothing on the rows that do not have one and
+        // takes the sentence out of the pin column's intrinsic width, which is
+        // what let a 47-character string size a 60px column and push the table
+        // out of its card.
+        //
+        // IT WRAPS AND IS NEVER TRUNCATED. "which Synergy Slot does this badge
+        // hold" appears NOWHERE ELSE on this surface, so a clipped sentence is
+        // a lost fact, not a cosmetic one — `.summary-roster__reason td` caps
+        // the measure and the span wraps inside it.
+        //
+        // §6 IS NOT WEAKENED BY THE MOVE. The rule is that the sentence is
+        // never inside a dimmed element; here it is not even in the same cell
+        // as the disabled button, and `aria-describedby` still binds them.
+        <tr className="summary-roster__reason">
+          <td colSpan={6}>
+            <span id={reasonId} className="pin-control__reason">
+              {implicitReason}
+            </span>
+          </td>
+        </tr>
+      )}
       {showMode ? (
         // A SECOND <tr>, and it renders ONLY on pinned rows — so it costs
         // nothing on the other ten. It never shares a line with the five data
