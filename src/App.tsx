@@ -78,6 +78,7 @@ import {
   exportRawPersistedData,
   listNamedBuilds,
   newBuildId,
+  preserveAutosaveOriginal,
   quarantineAutosave,
   readAutosaveQuarantine,
   readAutosaveResult,
@@ -85,7 +86,8 @@ import {
   renameNamedBuild,
   saveNamedBuild,
   deleteNamedBuild,
-  writeAutosave,
+  writeAutosaveIfUnmoved,
+  writeAutosaveTracked,
 } from "./persist/local-storage";
 import type { NamedBuildSummary, PersistResult } from "./persist/local-storage";
 import { BonusDialog } from "./ui/build/BonusDialog";
@@ -495,6 +497,54 @@ export default function App() {
   const [bootRestore] = useState(() =>
     boot.kind === "ok" ? fromSaved(boot.value.saved, null) : null,
   );
+  /**
+   * F2.3 A3 — DID THE BOOT READ LOSE SOMETHING?
+   *
+   * A successful read is not the same as a faithful one. Four channels turn
+   * the stored bytes into a strictly poorer in-memory build, and every one of
+   * them is a transformation the user has not agreed to yet:
+   *
+   *   1. `droppedEntries`        — loadout rows whose badge id left the dataset
+   *   2. `clearedSynergyRefs`    — stranded fuse/reaction references, healed
+   *   3. ratified magnitudes     — a persisted magnitude overridden at load
+   *   4. `droppedUnknownFields`  — top-level fields the fixed-list reassembly
+   *                                did not carry across
+   *
+   * LOSSY, NOT MERELY DIFFERENT [R3]. A schema MIGRATION is a transformation
+   * the app intends to persist, and it produces none of these four: the
+   * dropped-field measurement runs after migrations, so a field a migration
+   * retires is not reported. Nor is this a byte comparison — re-serializing
+   * differs from the stored text for reasons as trivial as key order and a
+   * fresh `savedAt`, which would make every boot "lossy" and suppress
+   * autosave for everyone.
+   *
+   * On the HEALTHY path all four are empty and every seed below is exactly
+   * what it was before this slice.
+   */
+  const bootWasLossy =
+    boot.kind === "ok" &&
+    (boot.value.droppedEntries.length > 0 ||
+      boot.value.clearedSynergyRefs.length > 0 ||
+      boot.value.droppedUnknownFields.length > 0 ||
+      (bootRestore?.ratifiedMagnitudeNormalized ?? false));
+  /**
+   * F2.3 A2 — PRESERVE the original bytes of a lossily-read autosave, during
+   * the boot render, before any effect can write the poorer derivative back.
+   *
+   * Suppressing the write alone (`persistableRef` below) only DELAYS the loss:
+   * the user's first edit is the acceptance, and that edit writes the stripped
+   * state over the one remaining copy of the dropped rows. This is what makes
+   * the row recoverable afterwards — through the recovery screen's raw export,
+   * which ships the preserved key.
+   *
+   * A separate key from the quarantine, for the reasons spelled out at
+   * `AUTOSAVE_PRESERVED_KEY`. Same state-initializer idiom and same
+   * justification as `quarantineWrite`: it never overwrites, so a StrictMode
+   * double render is a no-op the second time.
+   */
+  const [preserveWrite] = useState<PersistResult | null>(() =>
+    boot.kind === "ok" && bootWasLossy ? preserveAutosaveOriginal(boot.raw) : null,
+  );
   const [working, setWorkingState] = useState<WorkingState>(
     () => bootRestore?.working ?? freshWorkingState(),
   );
@@ -514,11 +564,23 @@ export default function App() {
   const dirtyRef = useRef(false);
   const [dirty, setDirty] = useState(false);
   /**
-   * F2.2 A3 — "the app holds a state worth persisting". FALSE in exactly one
-   * situation: boot found an autosave it could not read, so `working` is a
-   * synthetic freshWorkingState() standing in for data we have QUARANTINED
-   * but not lost. Writing in that state would overwrite the user's real
-   * build with an empty one (F-CORE).
+   * F2.2 A3 / F2.3 A3 — "the app holds a state worth persisting YET". FALSE in
+   * exactly two situations, and both are the same shape: `working` is a
+   * derivative of stored bytes rather than something the user has authored or
+   * accepted, so writing it would destroy the original.
+   *
+   *   (a) F2.2 — boot found an autosave it could not read, so `working` is a
+   *       synthetic freshWorkingState() standing in for data we have
+   *       QUARANTINED but not lost (F-CORE).
+   *   (b) F2.3 — boot READ the autosave but read it LOSSILY (`bootWasLossy`),
+   *       so `working` is a strictly poorer derivative of bytes still sitting
+   *       in the key. The DriftBanner is the disclosure; the user's first edit
+   *       is the acceptance; `preserveAutosaveOriginal` above is the safety
+   *       net for after that acceptance.
+   *
+   * Both are RELATIONAL questions about the boot read, which is the axis the
+   * predicate was missing: "is what I am about to write derived from the bytes
+   * currently in storage?" — never a local "do I hold something".
    *
    * Deliberately NOT `dirty`, which would be wrong in two independent ways:
    *   (1) `loadBuild` calls `markClean()`, so a freshly LOADED build is
@@ -531,21 +593,43 @@ export default function App() {
    * import commit, a successful named save, or an explicit Discard — and
    * never flips back. BOTH writers consult it.
    *
-   * On the HEALTHY path (boot read succeeded — every boot for every user who
-   * has ever used this app) it is `true` from the first render, so the mount
-   * write happens exactly as it did before this slice. The guard is a NO-OP
-   * except on the defect path.
+   * On the HEALTHY path (boot read succeeded and lost nothing — every boot for
+   * every user who has ever used this app) it is `true` from the first render,
+   * so the mount write happens exactly as it did before this slice. The guard
+   * is a NO-OP except on the defect paths.
    */
-  const persistableRef = useRef<boolean>(boot.kind !== "unreadable");
+  const persistableRef = useRef<boolean>(boot.kind !== "unreadable" && !bootWasLossy);
+  /**
+   * F2.3 A4 — the exact string this instance last OBSERVED in the autosave key
+   * or last WROTE to it. The guarded flush compares against this; a mismatch
+   * means a foreign writer (another tab) has moved the key.
+   *
+   * Seeded from the boot READ, not from the first write, so a tab that boots
+   * and never writes still holds an accurate reference.
+   */
+  const lastObservedAutosaveRef = useRef<string | null>(
+    boot.kind === "absent" ? null : boot.raw,
+  );
+  /**
+   * F2.3 R2 — did the last autosave write FAIL (quota, Safari private mode)?
+   *
+   * The flush has always doubled as the de facto retry for a failed write, and
+   * the layer-1 "did this flush have something to add" test would silently
+   * drop that retry. A pending failure IS something to add.
+   */
+  const lastWriteFailedRef = useRef(false);
   /** Bumped when the latch flips, so the autosave effect re-runs and writes
    * even when `working` itself did not change (the Discard case). */
   const [persistEpoch, setPersistEpoch] = useState(0);
   /** A FAILED quarantine write is strictly MORE reason to suppress autosave,
    * not less — and the failure surfaces on the existing role="alert" banner
    * rather than silently trading the user's data for a successful fresh
-   * write. */
+   * write. F2.3 holds a failed PRESERVE write to the identical rule: it is the
+   * same event (the original bytes are now unbacked) on the second key. */
   const [autosaveFailed, setAutosaveFailed] = useState(
-    () => quarantineWrite !== null && !quarantineWrite.ok,
+    () =>
+      (quarantineWrite !== null && !quarantineWrite.ok) ||
+      (preserveWrite !== null && !preserveWrite.ok),
   );
   const [autosaveDismissed, setAutosaveDismissed] = useState(false);
   const [managerOpen, setManagerOpen] = useState(false);
@@ -707,13 +791,26 @@ export default function App() {
   // write re-arms the dismissed banner: dismissal is per failure epoch,
   // never per session. ----
   useEffect(() => {
-    // F2.2 F-CORE, writer 1 of 2. See `persistableRef`: false ONLY when boot
-    // found an unreadable autosave, in which case `working` is a synthetic
-    // fresh state and writing it would destroy the quarantined original.
+    // F2.2 F-CORE / F2.3, writer 1 of 2. See `persistableRef`: false only when
+    // boot found an autosave it could not read, or read lossily — in both
+    // cases `working` is a derivative and writing it would destroy the
+    // original.
     if (!persistableRef.current) return;
-    const result = writeAutosave(toEnvelope(working));
-    setAutosaveFailed(!result.ok);
-    if (result.ok) setAutosaveDismissed(false);
+    // UNGUARDED, deliberately. This writer runs behind a change the user made
+    // in THIS tab, and last-write-wins on an intentional edit is the bargain
+    // tech-strategy.md §9 documents. Refusing it on a concurrency mismatch
+    // would silently stop autosaving for someone who is actively working —
+    // R5's failure run in reverse. The guarded form is the FLUSH's, below,
+    // where there is no intent at all.
+    const outcome = writeAutosaveTracked(toEnvelope(working));
+    const wrote = outcome.kind === "written";
+    // Keep the concurrency reference exact: the bytes that actually reached
+    // storage, never a re-derivation (a second toEnvelope has a fresh savedAt
+    // and would leave this permanently wrong).
+    if (outcome.kind === "written") lastObservedAutosaveRef.current = outcome.raw;
+    lastWriteFailedRef.current = !wrote;
+    setAutosaveFailed(!wrote);
+    if (wrote) setAutosaveDismissed(false);
   }, [working, persistEpoch]);
 
   // ---- tail-edit flush: committing happens on field blur, so a reload or
@@ -722,6 +819,31 @@ export default function App() {
   // write-through ref), then the autosave writes synchronously too. ----
   useEffect(() => {
     const flush = () => {
+      // F2.3 LAYER 1 — "did this flush have something to add?"
+      //
+      // The flush exists for exactly one thing: a field edit that has not
+      // committed yet because the field has not blurred. Capture the working
+      // state BEFORE the blur; if the blur produced no commit, this flush has
+      // nothing to contribute and must not write. Pre-fix it serialized a
+      // long-lived in-memory copy and setItem'd over the key unconditionally,
+      // so a tab opened an hour ago reverted a newer tab's work merely by
+      // being closed — no edit, no intent.
+      //
+      // THIS IS NOT A `dirty` FLAG, and the distinction is the whole reason
+      // F2.2's guard could not be reused here: `loadBuild` calls `markClean()`,
+      // so a dirty-keyed test is false for a freshly loaded build that very
+      // much needs writing. This asks only whether THIS FLUSH changed anything.
+      //
+      // ⚠ IT ASSUMES EVERY FIELD COMMITS SYNCHRONOUSLY INSIDE ITS BLUR
+      // HANDLER. True today of both commit-on-blur components (NumberField
+      // clamps and calls onCommit in onBlur; AttributeSlider's keyboard
+      // debounce is flushed synchronously by flushPending). A field that
+      // committed in a microtask would make this comparison a FALSE NEGATIVE
+      // and silently lose the tail edit — a brand-new instance of exactly the
+      // class this fixes. tests/ui/flush-blur-synchrony.test.tsx pins the
+      // property PER COMPONENT and freezes the census of which components
+      // have a commit-on-blur at all.
+      const before = workingRef.current;
       const active = document.activeElement;
       if (active instanceof HTMLElement && typeof active.blur === "function") {
         active.blur();
@@ -732,7 +854,32 @@ export default function App() {
       // was closed or backgrounded. The blur runs FIRST: committing a
       // pending field edit is itself an edit, and it arms the latch.
       if (!persistableRef.current) return;
-      writeAutosave(toEnvelope(workingRef.current));
+      const after = workingRef.current;
+      // Every commit path returns `prev` unchanged on a no-op, so reference
+      // identity IS "the blur committed nothing". R2: a pending write FAILURE
+      // is also something to add — the flush has always been the de facto
+      // retry for a throwing setItem, and dropping that would trade one data
+      // loss for another.
+      if (after === before && !lastWriteFailedRef.current) return;
+      // F2.3 LAYER 3 — optimistic concurrency, on this writer only. A stale
+      // tab CAN legitimately reach here holding a genuine mid-edit field; if
+      // storage has moved since this instance last saw it, a foreign writer
+      // owns those bytes. Preserve them by writing nothing. No adoption, no
+      // storage listener, no silent replacement of in-memory state (R5).
+      const outcome = writeAutosaveIfUnmoved(
+        toEnvelope(after),
+        lastObservedAutosaveRef.current,
+      );
+      if (outcome.kind === "written") {
+        lastObservedAutosaveRef.current = outcome.raw;
+        lastWriteFailedRef.current = false;
+      } else if (outcome.kind === "failed") {
+        lastWriteFailedRef.current = true;
+      }
+      // "refused" is neither success nor failure: nothing was written and
+      // nothing was lost that this tab did not already hold in memory. No
+      // setState here — the page may be unloading, and this writer has never
+      // rendered anything.
     };
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") flush();

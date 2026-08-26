@@ -143,7 +143,46 @@ export interface DeserializedSavedBuild {
   saved: SavedBuild;
   droppedEntries: LoadoutEntry[];
   clearedSynergyRefs: ClearedSynergyRef[];
+  /** [F2.3/R3] Top-level envelope fields this deserializer DROPPED, because
+   * `validateBody` reassembles its result from a fixed field list rather than
+   * a spread. Empty in every normal case — the app's own writer emits exactly
+   * `KNOWN_TOP_LEVEL_FIELDS` — so a non-empty list means the stored bytes
+   * carry something the in-memory build does NOT, and writing that build back
+   * over them would lose it.
+   *
+   * REPORTED, NOT PREVENTED. The fixed-list reassembly is deliberate (it is
+   * what makes an untyped body safe to cast through); this is only the seam
+   * that lets a caller SEE the loss it causes.
+   *
+   * Measured AFTER migrations, on purpose: a migration's output is a
+   * transformation the app INTENDS to persist, so a field some future
+   * migration retires is already gone from the envelope by the time this is
+   * computed and is correctly NOT reported. This reports LOSS, never mere
+   * difference. */
+  droppedUnknownFields: string[];
 }
+
+/**
+ * The exact top-level field set `validateBody` reassembles, and therefore the
+ * only fields that survive a deserialize.
+ *
+ * Kept BESIDE the reassembly literal and pinned against it by a test that
+ * compares this list to the keys of a real round trip — so a field added to
+ * the literal and forgotten here (or the reverse) fails loudly instead of
+ * silently reporting a live field as "dropped" forever.
+ */
+export const KNOWN_TOP_LEVEL_FIELDS: readonly string[] = [
+  "schemaVersion",
+  "dataVersion",
+  "savedAt",
+  "name",
+  "build",
+  "budgets",
+  "bonus",
+  "loadout",
+  "synergy",
+  "config",
+];
 
 function validateBuild(problems: string[], value: unknown): void {
   if (!isRecord(value)) {
@@ -551,7 +590,13 @@ function validateBody(
     synergy,
     config: envelope["config"] as unknown as AppConfig,
   };
-  return { saved, droppedEntries, clearedSynergyRefs };
+  // [F2.3/R3] The cost of the fixed-list reassembly directly above, MEASURED.
+  // `KNOWN_TOP_LEVEL_FIELDS` is the same list spelled once; a round-trip test
+  // pins the two together so this can never quietly report a live field.
+  const droppedUnknownFields = Object.keys(envelope).filter(
+    (field) => !KNOWN_TOP_LEVEL_FIELDS.includes(field),
+  );
+  return { saved, droppedEntries, clearedSynergyRefs, droppedUnknownFields };
 }
 
 /**
