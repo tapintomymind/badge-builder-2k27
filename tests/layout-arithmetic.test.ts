@@ -3493,6 +3493,196 @@ describe("F14 — the app shell, derived rather than pinned", () => {
   });
 });
 
+/* =============================================================== F15 — the
+ * header fits ONE ROW at 1280, and that is what the gate rests on
+ * (design-spec §3.2 · invariant I18) =========================================
+ *
+ * WHY THIS BLOCK EXISTS AT ALL. F14's gate is `ceil((HEADER_H + STRIP_H +
+ * PAGE_PAD_Y + STICKY_STACK_H) / 0.40)` and HEADER_H is the dominant term. But
+ * HEADER_H is a VERTICAL number produced by a HORIZONTAL fact: the header is a
+ * `flex-wrap: wrap` row, so its height is 62 when its children fit on one line
+ * and 102 when they do not. F14 measured 102 and derived 868 — correct, and a
+ * gate no ordinary laptop could reach, because a 1440x900 display leaves
+ * roughly 810 CSS px after browser chrome. The shell was dead code for its
+ * entire audience.
+ *
+ * Nothing in the suite could see that, because nothing in the suite knew WHY
+ * HEADER_H was 102. So the fix and its guard arrive together: the wrap is
+ * removed, and the horizontal budget that removed it is re-derived here. The
+ * next slice that lengthens a header label fails THIS assertion, loudly, at
+ * the line that explains itself — instead of silently re-wrapping the header
+ * and leaving a 768 gate reserving 40px it no longer has.
+ *
+ * EVERY WIDTH IS A getBoundingClientRect OFF THE SHIPPED TREE at 1280, zero
+ * state, headless Chrome 151.0.7922.174 over CDP against a production build
+ * (docs/proof/f15-verification.txt). None is a paper sum: the two action
+ * buttons' widths in particular are text metrics, and a text metric is exactly
+ * the kind of number that cannot be reasoned to. */
+
+/** The five `.app-header` children at 1280, in DOM order. `actions` is the
+ *  post-F15 pair; ACTIONS_W_SUFFIXED below is the same box before the labels
+ *  were restored, kept because it is the canary. */
+const HEADER_TITLE_W = 203.14;
+const HEADER_SWITCHER_W = 299.78;
+const HEADER_PROVENANCE_W = 160.3;
+const HEADER_OVERLAYS_W = 367.8;
+const HEADER_ACTIONS_W = 136.19;
+/** The same block carrying `Export JSON` / `Import JSON` — i.e. what shipped
+ *  through F14. The delta is the whole slice. */
+const HEADER_ACTIONS_W_SUFFIXED = 208.42;
+
+/** Row 1's own height, and the second row's full cost. Measured: the tallest
+ *  row-1 child is the BuildSwitcher's 37px select; the wrapped tree added a
+ *  --space-3 row gap plus the 28px actions block underneath it. */
+const HEADER_ROW1_H = 37;
+const HEADER_ACTIONS_H = 28;
+const HEADER_BORDER_B = 1;
+
+/** Parsed, never typed: if either token moves, the budget below moves with it
+ *  rather than certifying an arrangement the stylesheet no longer describes. */
+const HEADER_PAD_X = spaceToken(
+  (/\.app-header \{[^}]*padding:\s*var\(--[a-z0-9-]+\)\s+var\(--([a-z0-9-]+)\)/.exec(
+    stripComments(app),
+  ) as RegExpExecArray)[1] as string,
+);
+const HEADER_PAD_Y = spaceToken(
+  (/\.app-header \{[^}]*padding:\s*var\(--([a-z0-9-]+)\)/.exec(
+    stripComments(app),
+  ) as RegExpExecArray)[1] as string,
+);
+const HEADER_GAP = spaceToken(
+  (/\.app-header \{[^}]*gap:\s*var\(--([a-z0-9-]+)\)\s*;/.exec(
+    stripComments(app),
+  ) as RegExpExecArray)[1] as string,
+);
+
+const HEADER_CHILDREN = [
+  HEADER_TITLE_W,
+  HEADER_SWITCHER_W,
+  HEADER_PROVENANCE_W,
+  HEADER_OVERLAYS_W,
+  HEADER_ACTIONS_W,
+];
+
+/** What the header has to spend at a given viewport, content box. */
+const headerCapacity = (viewport: number): number => viewport - 2 * HEADER_PAD_X;
+/** What its children demand on ONE line: their widths plus the gaps between
+ *  them. Auto margins are excluded deliberately — `margin-right: auto` on the
+ *  title resolves AFTER line breaking and is treated as zero while the browser
+ *  decides where to break, so counting it here would forecast a wrap that
+ *  never happens. */
+const headerDemand = (widths: readonly number[]): number =>
+  widths.reduce((sum, w) => sum + w, 0) + HEADER_GAP * (widths.length - 1);
+
+const summaryPanelSrc = srcSources["/src/ui/summary/SummaryPanel.tsx"] as string;
+
+describe("F15 — the header is one row at 1280, and the gate rests on it", () => {
+  it("1 — the one-row fit is DERIVED, and the clearance is reported", () => {
+    // 1232.00 of box against 1215.20 of demand. Reported rather than merely
+    // passed: 16.80px is 1.4% of the box, which is a margin and not a comfort.
+    expect(headerCapacity(L_BREAKPOINT)).toBe(1232);
+    // 1215.21 summing the 2dp constants above; the browser, summing the
+    // unrounded rects, reports 1215.20. The 0.01px is rounding in THIS file,
+    // not disagreement with the tree — pinned at 1dp so it cannot be mistaken
+    // for a measurement that drifted.
+    expect(Number(headerDemand(HEADER_CHILDREN).toFixed(1))).toBe(1215.2);
+    expect(headerDemand(HEADER_CHILDREN)).toBeLessThan(headerCapacity(L_BREAKPOINT));
+    expect(headerCapacity(L_BREAKPOINT) - headerDemand(HEADER_CHILDREN)).toBeCloseTo(16.8, 1);
+    // …and at 1440, where F14 already measured one row, it is not close.
+    expect(headerCapacity(1440) - headerDemand(HEADER_CHILDREN)).toBeGreaterThan(160);
+  });
+
+  it("2 — CANARY: the shipped-through-F14 header genuinely did NOT fit", () => {
+    // The assertion that makes assertion 1 mean something. If this file cannot
+    // tell the wrapping arrangement from the fitting one, it certifies nothing.
+    const suffixed = [...HEADER_CHILDREN.slice(0, 4), HEADER_ACTIONS_W_SUFFIXED];
+    // The pre-F15 tree also had a --space-4 column gap, so the canary carries
+    // BOTH halves of what changed rather than only the labels.
+    const suffixedDemand = suffixed.reduce((s, w) => s + w, 0) + SPACE_4 * (suffixed.length - 1);
+    expect(Number(suffixedDemand.toFixed(2))).toBe(1303.44);
+    expect(suffixedDemand).toBeGreaterThan(headerCapacity(L_BREAKPOINT));
+    expect(Number((suffixedDemand - headerCapacity(L_BREAKPOINT)).toFixed(2))).toBe(71.44);
+  });
+
+  it("3 — the labels were the wrap, and the gap is only the margin", () => {
+    // WHAT ACTUALLY CAUSED IT. `Export JSON` / `Import JSON` cost 72.24px more
+    // than the names design-spec §3.2 item 5 gives those buttons — 101% of the
+    // 71.44px overflow, on their own. Every copy-free lever available (the
+    // column gap at 16, the header's 24px inline padding, and the switcher's
+    // 220px select cap at 180) sums to 72px and clears by 0.56px while
+    // truncating build names, so the suffix was not one option among several:
+    // it was the only 71px in the header that cost nothing to give up.
+    const suffixCost = HEADER_ACTIONS_W_SUFFIXED - HEADER_ACTIONS_W;
+    expect(Number(suffixCost.toFixed(2))).toBe(72.23);
+    expect(suffixCost).toBeGreaterThan(71.44);
+    // The gap change is the MARGIN, and it is worth exactly four gaps of 4px.
+    const gapSaving = (SPACE_4 - HEADER_GAP) * (HEADER_CHILDREN.length - 1);
+    expect(gapSaving).toBe(16);
+    expect(HEADER_GAP).toBe(SPACE_3);
+    // Labels alone would have cleared by 0.80px, which is not a clearance —
+    // pinned so nobody later "simplifies" the gap back and calls it equivalent.
+    expect(Number((72.23 - 71.44).toFixed(2))).toBe(0.79);
+  });
+
+  it("4 — HEADER_H is the one-row composition, and the wrapped one is +40", () => {
+    // 12 + 37 + 12 + 1. The border-bottom is IN, because the gate subtracts a
+    // border-box height from the viewport.
+    expect(2 * HEADER_PAD_Y + HEADER_ROW1_H + HEADER_BORDER_B).toBe(HEADER_H);
+    expect(HEADER_H).toBe(62);
+    expect(HEADER_H).toBe(Math.ceil(HEADER_H_MEASURED));
+    // The second row cost a --space-3 row gap plus the actions block, and that
+    // 40px is precisely the 100px the gate fell divided by 0.40.
+    expect(SPACE_3 + HEADER_ACTIONS_H).toBe(40);
+    expect(HEADER_H + SPACE_3 + HEADER_ACTIONS_H).toBe(HEADER_H_WRAPPED);
+    expect((HEADER_H_WRAPPED - HEADER_H) / (1 - CARDS_FLOOR_FRACTION)).toBe(100);
+  });
+
+  it("5 — the gate is what the formula says, and 810 now clears it", () => {
+    // Re-stated HERE, next to the horizontal fact it depends on, because the
+    // dependency is the thing a reader will otherwise miss.
+    expect(MIN_SHELL_H).toBe(Math.ceil(permanentBand() / (1 - CARDS_FLOOR_FRACTION)));
+    expect(MIN_SHELL_H).toBe(768);
+    expect(SHELL_HEADER.height).toBe(MIN_SHELL_H);
+    // The whole point of the slice, as one comparison: a 1440x900 laptop.
+    const LAPTOP_VIEWPORT_H = 810;
+    expect(LAPTOP_VIEWPORT_H).toBeGreaterThanOrEqual(MIN_SHELL_H);
+    expect(LAPTOP_VIEWPORT_H).toBeLessThan(868);
+  });
+
+  it("6 — the source carries the spec's labels, and no bare 44 came with it", () => {
+    // The copy, read back out of the component rather than trusted.
+    const plain = stripComments(summaryPanelSrc);
+    expect(plain).not.toContain("Export JSON");
+    expect(plain).not.toContain("Import JSON");
+    expect(plain).toMatch(/>\s*Export\s*</);
+    expect(plain).toMatch(/Import\s*\n\s*<\/label>/);
+    // F9's floor is untouched by this slice, and it must not be reintroduced as
+    // a literal — the one shape assertion 27's census is structurally blind to.
+    const headerBlock = cssBlock(app, ".app-header");
+    expect(headerBlock).not.toContain("44px");
+    expect(headerBlock).not.toContain("--tap-target");
+    expect(headerBlock).not.toContain("min-height");
+    // …and the header's own height is still content-driven, never declared.
+    expect(headerBlock).not.toMatch(/(?:^|;)\s*height:/);
+  });
+
+  it("7 — the row gap survived: S and M still wrap, and that is correct", () => {
+    // Only the COLUMN gap moved. Below 1280 there is no shell, the header is
+    // free to wrap, and it does — measured 102 at 768 and 276 at 390. A
+    // shorthand collapse to a single value would have taken the row gap too,
+    // which is invisible at L and reflows both narrow layouts.
+    const headerBlock = stripComments(cssBlock(app, ".app-header"));
+    expect(headerBlock).toContain("flex-wrap: wrap");
+    expect(headerBlock).toContain("gap: var(--space-3)");
+    // One `gap`, one value: row and column are the same token by intent.
+    expect(headerBlock.match(/gap:/g)).toHaveLength(1);
+    // The gate is a MIN-height, so the wrapped narrow headers can never reach
+    // the shell and their extra rows are scrolled past, exactly as before.
+    expect(768).toBeLessThan(L_BREAKPOINT);
+    expect(390).toBeLessThan(L_BREAKPOINT);
+  });
+});
+
 /* ============================================================== A5-U — the
  * bonus mode's dialog geometry, and the one string that must NOT have widened
  * (design-spec §17.4 · §17.13/⑧) ============================================
