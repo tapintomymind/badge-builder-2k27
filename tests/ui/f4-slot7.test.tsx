@@ -24,6 +24,7 @@ import {
 import { serializeSavedBuild } from "../../src/engine/serialization";
 import type { SavedBuild, SynergySlot } from "../../src/engine/types";
 import { newBuildId, saveNamedBuild, writeAutosave } from "../../src/persist/local-storage";
+import { importBuildFile } from "./import-route";
 import { makeRig } from "./m4-rig";
 import { installMemoryLocalStorage } from "./storage-stub";
 
@@ -188,16 +189,14 @@ describe("F4 7.4 [A2] — load normalization + the disclosure, at ALL THREE rout
     render(<App />);
     expect(screen.queryByText(DISCLOSURE)).toBeNull();
 
-    const text = serializeSavedBuild({ ...staleRig(), name: "imported stale" });
-    const file = new File([text], "build.json", { type: "application/json" });
-    // jsdom's File lacks .text() under this environment; supply it.
-    Object.defineProperty(file, "text", { value: () => Promise.resolve(text) });
-
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(input).not.toBeNull();
-    Object.defineProperty(input, "files", { value: [file], configurable: true });
-    fireEvent.change(input);
-    await screen.findByRole("button", { name: /replace|import/i });
+    // The file read is driven deterministically (tests/ui/import-route.ts):
+    // the change event and the mounted dialog are separated by a bounded
+    // microtask chain, not by a wall-clock findByRole poll that CPU
+    // contention can outlast.
+    await importBuildFile(
+      serializeSavedBuild({ ...staleRig(), name: "imported stale" }),
+      "build.json",
+    );
     fireEvent.click(screen.getByRole("button", { name: /^Import$|Replace/i }));
     expect(screen.getByText(DISCLOSURE)).toBeTruthy();
   });

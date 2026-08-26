@@ -11,11 +11,12 @@
  * drift copy inlined on mismatch, parse failure keeps the dialog open.
  */
 
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../src/App";
 import { serializeSavedBuild } from "../../src/engine/serialization";
 import { writeAutosave } from "../../src/persist/local-storage";
+import { importBuildFile } from "./import-route";
 import { makeRig } from "./m4-rig";
 import { installMemoryLocalStorage } from "./storage-stub";
 
@@ -144,12 +145,6 @@ describe("Export (file-based, no network)", () => {
 });
 
 describe("ImportDialog — confirm before replacing, honest about drift", () => {
-  function importFile(contents: string, name = "import.json") {
-    const input = screen.getAllByLabelText("Import")[0] as HTMLInputElement;
-    const file = new File([contents], name, { type: "application/json" });
-    fireEvent.change(input, { target: { files: [file] } });
-  }
-
   it("valid same-dataset file: shows name / savedAt / dataset, then replaces on confirm", async () => {
     render(<App />);
     const incoming = makeRig({
@@ -158,9 +153,8 @@ describe("ImportDialog — confirm before replacing, honest about drift", () => 
       budgets: { Finishing: { points: 16, equipSlots: 3 } },
       loadout: [{ badgeId: "float-game", purchasedLevel: "gold" }],
     });
-    importFile(serializeSavedBuild(incoming));
-
-    const dialog = await screen.findByRole("dialog", { name: "Import build" });
+    // Deterministic file read (tests/ui/import-route.ts) — no wall-clock poll.
+    const dialog = await importBuildFile(serializeSavedBuild(incoming));
     expect(within(dialog).getByText("Imported rig")).toBeTruthy();
     expect(within(dialog).getByText("2026-08-25T12:00:00.000Z")).toBeTruthy();
     expect(within(dialog).getByText(incoming.dataVersion)).toBeTruthy();
@@ -176,9 +170,7 @@ describe("ImportDialog — confirm before replacing, honest about drift", () => 
   it("dataVersion mismatch: the DriftBanner copy is inlined in the confirm", async () => {
     render(<App />);
     const incoming = makeRig({ name: "Old plan", dataVersion: "2020-01-01.1" });
-    importFile(serializeSavedBuild(incoming));
-
-    const dialog = await screen.findByRole("dialog", { name: "Import build" });
+    const dialog = await importBuildFile(serializeSavedBuild(incoming));
     expect(within(dialog).getByText(/Planned against dataset/).textContent).toContain(
       "2020-01-01.1",
     );
@@ -187,16 +179,14 @@ describe("ImportDialog — confirm before replacing, honest about drift", () => 
 
   it("parse failure: danger banner inside the dialog, dialog stays open", async () => {
     render(<App />);
-    importFile("this is not json");
-
-    const dialog = await screen.findByRole("dialog", { name: "Import build" });
+    const dialog = await importBuildFile("this is not json");
     expect(within(dialog).getByText(/Couldn't read that file/)).toBeTruthy();
     // No replace action on the error surface; the dialog stays open.
     expect(within(dialog).queryByRole("button", { name: "Replace working build" })).toBeNull();
     expect(screen.getByRole("dialog", { name: "Import build" })).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog", { name: "Import build" })).toBeNull();
-    });
+    // No wait: onCancel clears importState inside the click handler, which RTL
+    // flushes through act(), so the dialog is already unmounted.
+    expect(screen.queryByRole("dialog", { name: "Import build" })).toBeNull();
   });
 });

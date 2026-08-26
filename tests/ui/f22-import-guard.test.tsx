@@ -10,11 +10,12 @@
  * two divergent guards on one transition is how one of them rots.
  */
 
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../src/App";
 import { serializeSavedBuild } from "../../src/engine/serialization";
 import { writeAutosave } from "../../src/persist/local-storage";
+import { importBuildFile } from "./import-route";
 import { makeRig } from "./m4-rig";
 import { installMemoryLocalStorage } from "./storage-stub";
 import type { InstalledStorage } from "./storage-stub";
@@ -31,12 +32,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function importFile(contents: string) {
-  const input = screen.getAllByLabelText("Import")[0] as HTMLInputElement;
-  const file = new File([contents], "import.json", { type: "application/json" });
-  fireEvent.change(input, { target: { files: [file] } });
-}
-
 function commitNumber(input: Element, value: string) {
   fireEvent.change(input, { target: { value } });
   fireEvent.blur(input);
@@ -52,8 +47,7 @@ describe("7.1 — importing over a DIRTY working build prompts, and declining ch
     commitNumber(screen.getByLabelText("Close"), "90");
     const autosaveBefore = installed.store.get(AUTOSAVE_KEY) as string;
 
-    importFile(INCOMING);
-    const dialog = await screen.findByRole("dialog", { name: "Import build" });
+    const dialog = await importBuildFile(INCOMING);
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
     fireEvent.click(within(dialog).getByRole("button", { name: "Replace working build" }));
 
@@ -70,14 +64,13 @@ describe("7.1 — importing over a DIRTY working build prompts, and declining ch
     render(<App />);
     commitNumber(screen.getByLabelText("Close"), "90");
 
-    importFile(INCOMING);
-    const dialog = await screen.findByRole("dialog", { name: "Import build" });
+    const dialog = await importBuildFile(INCOMING);
     vi.spyOn(window, "confirm").mockReturnValue(true);
     fireEvent.click(within(dialog).getByRole("button", { name: "Replace working build" }));
 
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog", { name: "Import build" })).toBeNull();
-    });
+    // No wait: confirmImport clears importState inside the click handler, and
+    // RTL flushes fireEvent through act(), so the dialog is already unmounted.
+    expect(screen.queryByRole("dialog", { name: "Import build" })).toBeNull();
     expect((screen.getByLabelText("Close") as HTMLInputElement).value).toBe("55");
     expect(JSON.parse(installed.store.get(AUTOSAVE_KEY) as string).name).toBe("Imported rig");
   });
@@ -99,8 +92,7 @@ describe("7.2 — a boot-restored, sourceId-less build WITH CONTENT prompts too"
     ).toBe(true);
     render(<App />);
 
-    importFile(INCOMING);
-    const dialog = await screen.findByRole("dialog", { name: "Import build" });
+    const dialog = await importBuildFile(INCOMING);
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
     fireEvent.click(within(dialog).getByRole("button", { name: "Replace working build" }));
 
@@ -110,15 +102,14 @@ describe("7.2 — a boot-restored, sourceId-less build WITH CONTENT prompts too"
 
   it("an EMPTY working build is not guarded — there is nothing to lose", { timeout: 20000 }, async () => {
     render(<App />);
-    importFile(INCOMING);
-    const dialog = await screen.findByRole("dialog", { name: "Import build" });
+    const dialog = await importBuildFile(INCOMING);
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
     fireEvent.click(within(dialog).getByRole("button", { name: "Replace working build" }));
 
     expect(confirmSpy).not.toHaveBeenCalled();
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog", { name: "Import build" })).toBeNull();
-    });
+    // No wait: confirmImport clears importState inside the click handler, and
+    // RTL flushes fireEvent through act(), so the dialog is already unmounted.
+    expect(screen.queryByRole("dialog", { name: "Import build" })).toBeNull();
     expect((screen.getByLabelText("Close") as HTMLInputElement).value).toBe("55");
   });
 });

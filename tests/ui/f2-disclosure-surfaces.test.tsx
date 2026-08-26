@@ -27,6 +27,7 @@ import { serializeSavedBuild } from "../../src/engine/serialization";
 import type { LoadoutValidation } from "../../src/engine/validate-loadout";
 import { readUiSectionOpen, writeAutosave, writeUiSectionOpen } from "../../src/persist/local-storage";
 import { SummaryPanel } from "../../src/ui/summary/SummaryPanel";
+import { importBuildFile } from "./import-route";
 import { makeRig, budgetsWith } from "./m4-rig";
 import { installMemoryLocalStorage } from "./storage-stub";
 
@@ -143,12 +144,10 @@ describe("C — import route wires droppedEntries into the disclosure banner", (
       // SAME dataVersion — PRE-FIX the DriftBanner only fired on a
       // dataVersion mismatch, so this strip was fully silent.
     });
-    const input = screen.getAllByLabelText("Import")[0] as HTMLInputElement;
-    const file = new File([serializeSavedBuild(rig)], "import.json", {
-      type: "application/json",
-    });
-    fireEvent.change(input, { target: { files: [file] } });
-    const dialog = await screen.findByRole("dialog", { name: "Import build" });
+    // The read is driven deterministically (tests/ui/import-route.ts): no
+    // wall-clock findByRole poll stands between the change event and the
+    // dialog, so CPU contention cannot decide this test.
+    const dialog = await importBuildFile(serializeSavedBuild(rig));
     fireEvent.click(within(dialog).getByRole("button", { name: "Replace working build" }));
     expect(
       screen.getByText(
