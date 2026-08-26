@@ -27,6 +27,7 @@ import type { SavedBuild } from "../../src/engine/types";
 import { CATEGORIES, LEVELS, LEVEL_LABELS } from "../../src/engine/vocabulary";
 import { overByBadgePoints, overByBadgeSlots } from "../../src/ui/grid/CategoryLedger";
 import { rosterDigestParts } from "../../src/ui/summary/LoadoutRoster";
+import { SynergyDigest } from "../../src/ui/summary/SynergyDigest";
 import { writeAutosave } from "../../src/persist/local-storage";
 import { F8_BADGES, f8EmptyRig, f8LedgerState, f8Rig } from "./f8-fixture";
 import { installMemoryLocalStorage } from "./storage-stub";
@@ -183,8 +184,18 @@ describe("1 — the roster names every badge you own", () => {
   it("1.5 — an overspend is PER-METRIC, and the caption is never red (I10)", SLOW, () => {
     // Same fixture, one budget lowered: the overspend is the ENGINE's
     // conclusion about this state, not a second hand-built build.
+    //
+    // [F16.1] The pool moved 10 -> 6, and the reason is the defect this slice
+    // fixes rather than a tuning preference. The 10 was chosen against a rig
+    // pinned to `legendByAnyMeans`, where the fused Posterizer refunded
+    // NOTHING and 15 gross spend cleared the bar on its own. The App now runs
+    // the ratified `onFuse` — as it always should have — so the same fixture
+    // refunds Posterizer's 6 and 10 is comfortably UNDER. 6 is over by 3 after
+    // the refund, so the per-metric case this test exists for is real again.
+    // Nothing is transcribed: every expected string below still comes from the
+    // engine's own readout.
     const rig = f8Rig({
-      budgets: { Finishing: { points: 10, equipSlots: 2 }, Playmaking: { points: 8, equipSlots: 0 } },
+      budgets: { Finishing: { points: 6, equipSlots: 2 }, Playmaking: { points: 8, equipSlots: 0 } },
     });
     const summary = mount(rig);
     const budgets = f8LedgerState(rig).budgets;
@@ -356,30 +367,44 @@ describe("1.9 — the Synergy digest is read-only, complete and honest", () => {
   it("`— frees N pts to {Category}` fires under onFuse and not under legendByAnyMeans", SLOW, () => {
     // BOTH REFUND-TRIGGER ARMS, so the copy is proven to need no change when
     // the default flips — which is §14.4's own stated test of the design.
-    for (const trigger of ["legendByAnyMeans", "onFuse"] as const) {
-      installMemoryLocalStorage();
-      document.body.innerHTML = "";
-      const rig = f8Rig({ refundTrigger: trigger });
-      mount(rig);
-      const rows = synergyProjections(f8LedgerState(rig), shippedDataset);
-      const digest = document.querySelector(".synergy-digest") as HTMLElement;
-      const fused = rows.find((row) => row.fuse !== null);
-      expect(fused).toBeDefined();
-      const category = badgeById(shippedDataset, fused!.fuse!.badgeId)!.category;
-      if (fused!.freesPointsToCategory > 0) {
-        expect(digest.textContent, trigger).toContain(
-          `— frees ${fused!.freesPointsToCategory} pts to ${category}`,
-        );
-      } else {
-        expect(digest.textContent, trigger).not.toContain("frees");
-      }
-    }
-    // The two arms genuinely differ on this fixture — otherwise the loop
-    // above asserts one thing twice.
-    const onFuse = synergyProjections(f8LedgerState(f8Rig({ refundTrigger: "onFuse" })));
+    //
+    // [F16.1] EACH ARM IS NOW ASSERTED AT THE LAYER WHERE IT IS REACHABLE, and
+    // that split IS the fix this slice landed. `App` re-derives the ratified
+    // `onFuse` from every saved file at load (`applyRatifiedRefundTrigger`), so
+    // mounting `App` on a `legendByAnyMeans` rig no longer produces a
+    // `legendByAnyMeans` render — it produces an `onFuse` one, and the old
+    // loop would have been asserting the same arm twice while claiming to
+    // assert two. The alternates are engine configuration with no route into
+    // the UI, so the alternate arm is driven through the component directly.
+    // The SUBJECT is unchanged: SynergyDigest's copy, over synergyProjections'
+    // output, under both triggers.
+
+    // ARM 1 — the ratified trigger, through the WHOLE app exactly as before.
+    const onFuseRig = f8Rig({ refundTrigger: "onFuse" });
+    mount(onFuseRig);
+    const onFuse = synergyProjections(f8LedgerState(onFuseRig), shippedDataset);
+    const onFuseFused = onFuse.find((row) => row.fuse !== null);
+    expect(onFuseFused).toBeDefined();
+    const category = badgeById(shippedDataset, onFuseFused!.fuse!.badgeId)!.category;
+    expect(onFuseFused!.freesPointsToCategory).toBeGreaterThan(0);
+    expect((document.querySelector(".synergy-digest") as HTMLElement).textContent).toContain(
+      `— frees ${onFuseFused!.freesPointsToCategory} pts to ${category}`,
+    );
+
+    // ARM 2 — the alternate trigger, through the component that owns the copy.
+    document.body.innerHTML = "";
     const legend = synergyProjections(
       f8LedgerState(f8Rig({ refundTrigger: "legendByAnyMeans" })),
+      shippedDataset,
     );
+    render(<SynergyDigest rows={legend} dataset={shippedDataset} />);
+    expect(legend.find((row) => row.fuse !== null)!.freesPointsToCategory).toBe(0);
+    expect((document.querySelector(".synergy-digest") as HTMLElement).textContent).not.toContain(
+      "frees",
+    );
+
+    // The two arms genuinely differ on this fixture — otherwise the two blocks
+    // above assert one thing twice.
     const freed = (rows: ReturnType<typeof synergyProjections>) =>
       rows.reduce((sum, row) => sum + row.freesPointsToCategory, 0);
     expect(freed(onFuse)).not.toBe(freed(legend));

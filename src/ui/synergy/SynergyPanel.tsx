@@ -360,6 +360,19 @@ export interface SynergyPanelProps {
    * and not decoration.
    */
   ratifiedMagnitudeNormalized?: boolean;
+  /**
+   * [F16.1] Did THIS load override a persisted `config.refundTrigger` with the
+   * ratified `onFuse`? Threaded from App.tsx's `fromSaved` at the same three
+   * reload routes as the flag above, and false in every other case — a build
+   * saved since 2026-08-26 already carries the ratified trigger.
+   *
+   * IT BELONGS ON THIS PANEL, not on a ledger surface, and the placement is a
+   * decision rather than a convenience. The correction is about what FUSING
+   * DOES; the ledger merely counts the consequence. A note attached to a
+   * category digest would have to explain the mechanic from scratch, six
+   * times, next to numbers it did not change on its own.
+   */
+  refundTriggerNormalized?: boolean;
   onSynergySlotsChange: (synergySlots: SynergySlot[]) => void;
 }
 
@@ -369,6 +382,7 @@ export function SynergyPanel({
   dataset,
   overlay,
   ratifiedMagnitudeNormalized = false,
+  refundTriggerNormalized = false,
   onSynergySlotsChange,
 }: SynergyPanelProps) {
   const [announcement, setAnnouncement] = useState("");
@@ -456,6 +470,18 @@ export function SynergyPanel({
         <p className="synergy-panel__ratified-note">
           {ratifiedPlusTwoSubject().phrase} {ratifiedPlusTwoSubject().verb} now +2 — 2K&apos;s
           ratified Badge Synergy rewards, confirmed 2026-08-26.
+        </p>
+      ) : null}
+      {/* [F16.1] The second ratified-data note, same element and same class as
+          the one above for the same reasons: visible persistent plain text,
+          no live region, no dismiss. It says what CHANGED, because the
+          numbers on every ledger surface moved when this build loaded and a
+          user who cannot see why has been handed a silent edit. */}
+      {refundTriggerNormalized ? (
+        <p className="synergy-panel__ratified-note synergy-panel__refund-note">
+          Fusing a badge now returns its Badge Tokens to that discipline — 2K&apos;s ratified
+          refund rule, confirmed 2026-08-26. This build was saved before that landed, so its
+          Badge Tokens ledger has been recalculated.
         </p>
       ) : null}
       <PlusTwoDesignator designatedCount={designatedCount} />

@@ -28,13 +28,91 @@ export class NotYetPublishedError extends Error {
  * Seed Open item #1 is RESOLVED (F4, 2026-08-26). The official 2K MyPlayer
  * Builder page states that placing a badge in a Fuse position "entirely frees
  * up the Badge Tokens" spent on it, and the user ratified it the same day —
- * so the trigger is the FUSE ROLE, not a level. The three Legend/HOF variants
- * remain fully selectable alternates; they are simply no longer the default.
+ * so the trigger is the FUSE ROLE, not a level.
+ *
+ * RATIFIED DATA, NOT A PREFERENCE — and the rename is the whole point of
+ * F16.1. While Open item #1 was unresolved the app DEFAULTED this to
+ * `legendByAnyMeans`; "default" was the honest word for a placeholder. It is
+ * no longer a placeholder, and nothing in the app can select anything else:
+ * there is no picker, no route and no gesture that writes `refundTrigger`
+ * (`rg refundTrigger src/` finds readers only). The three Legend/HOF variants
+ * remain PRE-WIRED IN THE ENGINE — `refundTriggered` is total over all four
+ * and the engine suites exercise all four — but they are not reachable from
+ * the UI, so no user choice of trigger exists to preserve.
  *
  * Refund AMOUNT and DESTINATION are unchanged: the badge's total-to-own cost
  * at its purchased level, back to that badge's own category pool.
  */
-export const DEFAULT_REFUND_TRIGGER: RefundTrigger = "onFuse";
+export const RATIFIED_REFUND_TRIGGER: RefundTrigger = "onFuse";
+
+/** The trigger a FRESH build starts at. Same value, different question — this
+ * one is "what does a new AppConfig carry", `RATIFIED_REFUND_TRIGGER` is "what
+ * is true of 2K27". They are one constant apart deliberately: the load-path
+ * normalizer below must read the FACT, never the new-build default, or a
+ * future divergence would silently re-point it. */
+export const DEFAULT_REFUND_TRIGGER: RefundTrigger = RATIFIED_REFUND_TRIGGER;
+
+/** The result of re-deriving the ratified refund trigger over a LOADED
+ * AppConfig. Shaped exactly like `RatifiedMagnitudeReport`
+ * (src/engine/synergy.ts), because it is the same class of correction. */
+export interface RatifiedRefundTriggerReport {
+  readonly config: AppConfig;
+  /** Did this load OVERRIDE a persisted trigger with the ratified one? False
+   * on a fresh build and on a file that already carried it, so the disclosure
+   * is a DISCLOSURE and not decoration. */
+  readonly refundTriggerNormalized: boolean;
+}
+
+/**
+ * [F16.1] The read-time projection for the refund trigger — the sibling
+ * `applyRatifiedMagnitudes` has had since F4, and the one F4 shipped without.
+ *
+ * WHAT WENT WRONG. F4 landed two ratified facts on 2026-08-26. Synergy Slot
+ * 7's +2 got `applyRatifiedMagnitudes` plus a disclosure at all three load
+ * routes; the `onFuse` trigger got the DEFAULT flipped and nothing else. A
+ * default only reaches a build that is CONSTRUCTED after the flip. Every build
+ * saved before it — which, on 2026-08-26, is every build in existence — kept
+ * the `legendByAnyMeans` placeholder in `config.refundTrigger`, and
+ * `fromSaved` restored it verbatim. Fusing a badge then freed nothing, on
+ * every ledger surface at once, with no error and entirely plausible numbers.
+ * F4's own reportback predicted the opposite ("the onFuse flip changes
+ * on-screen ledger numbers for any build with fused badges"); for existing
+ * builds it did not.
+ *
+ * WHY OVERRIDING THE FILE IS RIGHT HERE, AND IS NOT AN H8 AUTO-MIGRATION.
+ * `applyRatifiedMagnitudes` states the test: "the user never chose +1 for
+ * Synergy Slot 7 — the app defaulted it there while the data was unknown.
+ * Correcting it when the data lands is the same class as a threshold moving in
+ * badges.json, and H8's answer to that is DISCLOSE." Identical here, and one
+ * degree stronger: Synergy Slot magnitudes at least HAVE a control the user
+ * could have touched. `refundTrigger` has none. A persisted non-ratified value
+ * is therefore PROVABLY app-authored, never user-authored, so nothing of the
+ * user's is being overwritten. It is a DATA REFRESH, and it is disclosed.
+ *
+ * ⚠ THE ONE CONDITION THAT WOULD MAKE THIS WRONG. The day a trigger PICKER
+ * ships, a persisted value stops being provably app-authored and this
+ * function must stop being unconditional — it would need an explicit "the
+ * user chose this" channel to read, exactly as design-spec §17.9's `entered`
+ * channel is what Badge Slots capacity is waiting on. Until such a channel
+ * exists the two cases are indistinguishable, and the app must not pretend
+ * otherwise in EITHER direction. `tests/config.test.ts` pins the no-writer
+ * premise so this comment cannot quietly go stale.
+ *
+ * SERIALIZATION IS UNTOUCHED. `validateConfig` still accepts all four values
+ * and `toEnvelope` still writes whatever the working state holds — a shape
+ * validator that REFUSED a value the app itself once wrote would turn a
+ * disclosable state into an unloadable file, which is the exact mistake F4/A1
+ * records at the +2 cap. Shape validates; rules normalize.
+ */
+export function applyRatifiedRefundTrigger(config: AppConfig): RatifiedRefundTriggerReport {
+  if (config.refundTrigger === RATIFIED_REFUND_TRIGGER) {
+    return { config, refundTriggerNormalized: false };
+  }
+  return {
+    config: { ...config, refundTrigger: RATIFIED_REFUND_TRIGGER },
+    refundTriggerNormalized: true,
+  };
+}
 
 /**
  * Dead seam, retyped for shape only. Designates Synergy Slots the user picked

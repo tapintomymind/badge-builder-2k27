@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { defaultAppConfig, deriveBudget } from "./config";
+import { applyRatifiedRefundTrigger, defaultAppConfig, deriveBudget } from "./config";
 import { hasCapBreakers } from "./engine/attributes";
 import {
   bonusFieldsSet,
@@ -229,16 +229,27 @@ function freshWorkingState(): WorkingState {
  * silently DISCARDED at both, wiring the disclosure at boot only. The
  * destructure forces every call site to acknowledge it.
  *
+ * [F16.1] IT IS NOW A TRIPLE, for the second ratified value F4 landed and did
+ * NOT normalize. `applyRatifiedRefundTrigger` re-derives `config.refundTrigger`
+ * from the ratified fact the same way, at the same one point, disclosed
+ * through the same three routes. The whole defect was that these two facts
+ * shipped asymmetrically: one re-derived at load, one left to a DEFAULT that
+ * only a build constructed AFTER the flip could ever see.
+ *
  * THE ONE NORMALIZATION POINT for all three persisted-reload routes.
  */
 interface FromSavedResult {
   working: WorkingState;
   /** Did this load override a persisted magnitude with ratified data? */
   ratifiedMagnitudeNormalized: boolean;
+  /** [F16.1] Did this load override a persisted refund trigger with the
+   * ratified one? */
+  refundTriggerNormalized: boolean;
 }
 
 function fromSaved(saved: SavedBuild, sourceId: string | null): FromSavedResult {
   const ratified = applyRatifiedMagnitudes(saved.synergy);
+  const ratifiedTrigger = applyRatifiedRefundTrigger(saved.config);
   return {
     working: {
       name: saved.name,
@@ -254,9 +265,10 @@ function fromSaved(saved: SavedBuild, sourceId: string | null): FromSavedResult 
       bonus: saved.bonus,
       loadout: saved.loadout,
       synergy: ratified.synergySlots,
-      config: saved.config,
+      config: ratifiedTrigger.config,
     },
     ratifiedMagnitudeNormalized: ratified.normalizedSynergySlotIds.length > 0,
+    refundTriggerNormalized: ratifiedTrigger.refundTriggerNormalized,
   };
 }
 
@@ -561,6 +573,12 @@ export default function App() {
    * exactly as those two are. Drives the plain-text note in SynergyPanel. */
   const [ratifiedMagnitudeNormalized, setRatifiedMagnitudeNormalized] = useState(
     () => bootRestore?.ratifiedMagnitudeNormalized ?? false,
+  );
+  /** [F16.1] The refund-trigger sibling of the flag above, with the identical
+   * lifecycle: route-scoped, REPLACED never OR-ed, reset at all three reload
+   * routes. Drives the second plain-text note in SynergyPanel. */
+  const [refundTriggerNormalized, setRefundTriggerNormalized] = useState(
+    () => bootRestore?.refundTriggerNormalized ?? false,
   );
   /** Bumped on every disclosure ROUTE transition (load / import confirm) —
    * keys the DriftBanner so its internal re-check output can never linger
@@ -966,6 +984,7 @@ export default function App() {
       // the two reports above — a leftover flag must never describe a build
       // it does not belong to.
       setRatifiedMagnitudeNormalized(restored.ratifiedMagnitudeNormalized);
+      setRefundTriggerNormalized(restored.refundTriggerNormalized);
       setDisclosureEpoch((epoch) => epoch + 1);
       // The clamp notice belongs to an edit gesture, not to the new build.
       setClampNotice(null);
@@ -1223,6 +1242,7 @@ export default function App() {
       applyWorking(imported.working);
       // [F4/A2] Disclosure route 3 of 3.
       setRatifiedMagnitudeNormalized(imported.ratifiedMagnitudeNormalized);
+      setRefundTriggerNormalized(imported.refundTriggerNormalized);
       armPersistence();
       // An import is unsaved-as-named work: guard it like any other edit.
       dirtyRef.current = true;
@@ -1969,6 +1989,7 @@ export default function App() {
                 dataset={shippedDataset}
                 overlay={overlay}
                 ratifiedMagnitudeNormalized={ratifiedMagnitudeNormalized}
+                refundTriggerNormalized={refundTriggerNormalized}
                 onSynergySlotsChange={setSynergySlots}
               />
             </Section>

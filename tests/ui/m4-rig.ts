@@ -46,11 +46,24 @@ export function makeRig(options: RigOptions = {}): SavedBuild {
     bonus: zeroBonus(),
     loadout: options.loadout ?? [],
     synergy,
-    // [F4/A4] The trigger is passed EXPLICITLY, never inherited from
-    // DEFAULT_REFUND_TRIGGER. F4 flipped that default to "onFuse"; a
-    // behavioural fixture that rides the default silently re-bases its
-    // arithmetic on every future flip. tests/config.test.ts is the ONLY
-    // file permitted to assert the default.
-    config: { ...defaultAppConfig, refundTrigger: "legendByAnyMeans" as const },
+    // [F4/A4, revised F16.1] The trigger is passed EXPLICITLY and as a
+    // LITERAL, never inherited from DEFAULT_REFUND_TRIGGER: a behavioural
+    // fixture that rides the default silently re-bases its arithmetic on every
+    // future flip. That instinct stands. The VALUE it pinned does not.
+    //
+    // F4/A4 pinned "legendByAnyMeans" here, and that is why F16.1's defect was
+    // invisible for a day: every App-level fixture in the suite ran a trigger
+    // no user can reach, so the ratified `onFuse` was never once evaluated
+    // through the UI path — the engine was tested directly and the UI path was
+    // not. It is now moot as well as wrong: App.tsx's `fromSaved` re-derives
+    // the ratified trigger at load (`applyRatifiedRefundTrigger`), so any
+    // other value written here is overridden before a component renders.
+    //
+    // THE ALTERNATES LOSE NO COVERAGE — they are exercised where they are
+    // reachable, at the engine: tests/ledger.test.ts, tests/synergy-ledger.ts,
+    // tests/steps.test.ts and randomize's INV-11 all drive all four triggers
+    // directly. tests/config.test.ts is still the ONLY file permitted to
+    // assert the default.
+    config: { ...defaultAppConfig, refundTrigger: "onFuse" as const },
   };
 }
