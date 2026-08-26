@@ -388,6 +388,17 @@ describe("F16 5 — the tile: level, cost, role and staleness, each with two car
     const expected = costForLevel("A", "gold", shippedDataset);
     expect(tile.querySelector(".board-tile__cost")?.textContent).toBe(`${String(expected)} pts`);
     expect(tile.getAttribute("aria-label")).toContain(`${String(expected)} Badge Points`);
+    // THE SPOKEN STRING TAKES THE SINGULAR; the visible chip keeps the unit.
+    // "pts" is a unit abbreviation and does not inflect — the app's own
+    // feasibility line writes "N pts left" at every N — but the aria-label is
+    // read aloud, and "1 Badge Points" is a seam a screen-reader user notices
+    // immediately. The two channels are allowed to differ for that reason.
+    const onePoint = [...board().querySelectorAll("a.board-tile")].find(
+      (node) => node.querySelector(".board-tile__cost")?.textContent === "1 pts",
+    );
+    expect(onePoint, "no 1-point badge in the fixture to check").toBeTruthy();
+    expect(onePoint?.getAttribute("aria-label")).toContain(", 1 Badge Point ");
+    expect(onePoint?.getAttribute("aria-label")).not.toContain("1 Badge Points");
   });
 
   it("marks a synergy role with an edge SHAPE, a glyph and words — never hue alone", () => {
