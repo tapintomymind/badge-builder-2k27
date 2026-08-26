@@ -7979,3 +7979,121 @@ Two observations handed back to Tier 1, neither actioned here because both are o
   (b) No test asserts the absence of React key/console warnings anywhere in the suite, which is why
       a duplicate key across eight cells stayed invisible through the whole F11 slice.
 ─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · test-infra — suite-wide React console guard
+
+─────────────────────────────────────────────
+2026-08-26 — a `console.error`/`console.warn` during any test now fails that test
+Type: fyi
+Actor: Tier 2 (Claude Opus 5) — direct implementation against `dev`
+Slice: n/a — closes observation (b) handed back from the SynergyBoard duplicate-key fix (`e2a1fbb`)
+
+WHAT
+`tests/setup-console-guard.ts` (new) spies on `console.error` and `console.warn` in `beforeEach`,
+asserts the capture is empty in `afterEach`, and restores unconditionally. It is wired through
+`test.setupFiles` in `vite.config.ts` so it applies suite-wide rather than per-file:
+
+    setupFiles: ["tests/setup-console-guard.ts", "tests/setup-dom.ts"]
+
+WHY
+The prior entry closed with: "No test asserts the absence of React key/console warnings anywhere in
+the suite, which is why a duplicate key across eight cells stayed invisible through the whole F11
+slice." React reports render-integrity defects — duplicate/missing `key`s, invalid DOM nesting,
+`act()` violations, bad prop types — on the console and NOWHERE else. None of them throw, so a test
+that asserts on rendered output passes while React complains underneath. The console is an
+assertion surface; nothing was reading it.
+
+THREE DESIGN DECISIONS, EACH LOAD-BEARING
+
+1. ORDERING. The guard is listed FIRST in `setupFiles`. vitest's default `sequence.hooks: "stack"`
+   (confirmed at `@vitest/runner` → `resolved.sequence.hooks ??= "stack"`) runs `afterEach` in
+   REVERSE registration order. Listing the guard first therefore makes its `beforeEach` install
+   before any test-file hook AND its `afterEach` assert LAST — after `setup-dom.ts`'s RTL
+   `cleanup()`, which is precisely where unmount-time warnings are emitted. Listed second, every
+   unmount warning would be missed.
+
+2. COMPOSITION WITH LOCAL SPIES, NOT COMPETITION WITH THEM. `install()` captures whatever
+   `console.error` is CURRENTLY bound and forwards to it; `uninstall()` puts that same function
+   back, unconditionally. Two files already mock the console on purpose —
+   `tests/ui/recovery-boundary.test.tsx` (silences the boundary's own logging) and
+   `tests/ui/f8-summary-text.test.tsx` (asserts locally that Copy neither warns nor errors). Both
+   sit ON TOP of the guard: their assertions keep working, the guard sees nothing, and no wrapper
+   stacks or leaks across tests. A local spy is a visible, reviewable opt-out; a blanket
+   suppression inside the guard would not be.
+
+3. THE ALLOWLIST IS EMPTY. The `TOLERATED` mechanism (pinned RegExp + a mandatory named `why`)
+   exists so a future genuine exception has a narrow, reasoned shape. It has ZERO entries, because
+   the full suite is green without any. A navigation tolerance was drafted and then DELETED once
+   measurement showed it was unnecessary — see the blind-spot note below.
+
+EVIDENCE
+Branch `dev`. Commit `2ec043e`. Two files: `tests/setup-console-guard.ts` (new),
+`vite.config.ts` (setupFiles + comment).
+
+1. GUARD-CATCHES-THE-ORIGINAL-DEFECT PROOF — the load-bearing one. Reverting exactly the two lines
+   of `e2a1fbb` (`key={synergySlot.id}` → `key={roleKind}` at the two `<td>` return sites) and
+   running `npx vitest run tests/ui/f11-synergy-board.test.tsx`:
+
+       Test Files  1 failed (1)
+            Tests  23 failed (23)
+
+   Every failure carries the formatted warning, e.g.
+       1. (x8) error: Encountered two children with the same key, `fuse`. Keys should be unique...
+
+   The fix was then restored (`git checkout --`) and f11 is 23/23 again. This is the defect that
+   previously required a cold Vite cache PLUS 32 CPU spinners to reproduce; the guard now catches
+   it on an ordinary single-file run.
+
+2. `npx vitest run` — full suite WITH the guard active:
+       Test Files  72 passed (72)
+            Tests  1496 passed (1496)
+
+   ZERO tests needed fixing and ZERO needed tolerating. Note the counts: the brief cited a 69/1433
+   baseline, but `88e8b84` (F8-R2 roll UI) landed on `dev` mid-session and added three test files
+   (`f8-pin-exclude`, `f8-reroll-dialog`, `f8-roll-panel`) / 63 tests. 72/1496 is the current
+   baseline and the guarded run matches it exactly — no new failures, none fixed.
+
+3. `npx tsc --noEmit` → exit 0, clean. No `lint` script exists in this project, so lint is N/A.
+
+4. BEHAVIOUR PROBE, run through an isolated scratchpad vitest config so the shared working tree was
+   never perturbed (another session held uncommitted edits in `tests/ui/` at the time):
+       console.error("...same key, `%s`...", "fuse")  → FAILS, renders "...same key, `fuse`..."
+       console.warn("plain warning", { a: 1 })        → FAILS, renders 'plain warning {"a":1}'
+       console.log("diagnostics are untouched")       → PASSES
+   The printf substitution matters because React warns via format strings; without it the message
+   reads `%s` with the key dangling at the end. `console.log`/`.info`/`.debug` are deliberately
+   unguarded — `tests/randomize.test.ts` prints INV-14/INV-23 invariant tables on purpose.
+
+KNOWN BLIND SPOT, MEASURED RATHER THAN ASSUMED
+`Not implemented: navigation to another Document` still prints twice in a full run. It comes from
+`tests/ui/recovery-boundary.test.tsx` (2 in isolation; 0 from every other file probed), whose
+recovery screen clicks a Blob anchor jsdom cannot follow. It is seen by NEITHER this guard NOR that
+file's own `console.error` mock: jsdom's `VirtualConsole.forwardTo` was handed the console binding
+captured when vitest built the environment, not the `console.error` visible from test code. A
+TOLERATED entry was written for it, then removed after emptying the allowlist and re-running
+`npx vitest run tests/ui` came back 42 files / 445 tests green — the message never reaches the
+guard, so tolerating it would have been a hole bought for nothing. Documented in the file header.
+The other blind spot is anything logged at module-import time or from `beforeAll`, which is outside
+the `beforeEach`/`afterEach` window. React's render warnings are not in that class — they fire
+during render/commit inside a test body — so the guarantee that matters is intact.
+
+SCOPE / PLAN IMPACT
+None. No scope.md, tech-strategy.md, design-spec.md or H-ruling is touched. No src/ file changed;
+`src/ui/synergy/SynergyBoard.tsx` was perturbed only for proof 1 and restored.
+
+NEXT
+Nothing blocking. Committed to `dev`, deliberately NOT pushed, NOT merged, no branch created.
+Two things handed back to Tier 1:
+  (a) CONCURRENT SESSION. Another session was working this same tree during this slice: commits
+      `88e8b84` + `d0a9c5b` landed on `dev` mid-run, and uncommitted edits to
+      `tests/ui/f2-disclosure-surfaces.test.tsx`, `tests/ui/f22-import-guard.test.tsx`,
+      `tests/ui/f4-slot7.test.tsx` plus a new untracked `tests/ui/import-route.ts` were present at
+      commit time — apparently de-fragilising the three 1000ms-`findByRole` import-route tests
+      flagged as observation (a) previously. Those files were left ALONE; `2ec043e` stages only
+      `tests/setup-console-guard.ts` and `vite.config.ts`. The full-suite green above was measured
+      with those uncommitted edits in the tree, since that is the only tree that existed.
+  (b) The guard is a floor, not a ceiling. It cannot see warnings emitted outside a test body or
+      routed through jsdom's VirtualConsole. If Tier 1 wants those covered too, the shape would be
+      a `beforeAll`-scoped installation plus a vitest environment override — both larger than this
+      slice and neither needed to close the defect class that motivated it.
+─────────────────────────────────────────────
