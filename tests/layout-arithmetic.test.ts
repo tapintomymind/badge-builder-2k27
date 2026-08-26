@@ -3012,17 +3012,20 @@ function shellRule(selector: string): string {
  *  them a permanent subtraction from the card region rather than something the
  *  user can scroll past.
  *
- *  HEADER_H IS THE BIG ONE and it is measured AT 1280 on purpose: the header
- *  flex-wraps to two rows there (102) and is one row at 1440 (62). The gate is a
- *  single literal that must hold at the NARROWEST shelled viewport, so 102 is the
- *  binding case. The design document carried "~70" from §16.4 and was 32px light.
+ *  HEADER_H IS THE BIG ONE and it is measured AT 1280 on purpose, because the
+ *  gate is a single literal that must hold at the NARROWEST shelled viewport.
+ *  F14 measured 102 there and was right to: the header FLEX-WRAPPED to two rows
+ *  at 1280 and was one row only at 1440. F15 removed the wrap rather than paying
+ *  for it (see the F15 block below for the horizontal derivation), so 1280 and
+ *  1440 now agree at 62 and the binding case costs 40px less.
  *
  *  STRIP_H is F13's full-bleed Physique strip at 92.19, pinned at its CEILING per
  *  §13.0.1's take-the-larger rule — a low chrome figure yields an optimistic gate,
  *  and an optimistic gate is not a gate. */
-const HEADER_H = 102;
+const HEADER_H = 62;
 const STRIP_H = 93;
-const HEADER_H_MEASURED = 102;
+const HEADER_H_MEASURED = 62;
+const HEADER_H_WRAPPED = 102;
 const STRIP_H_MEASURED = 92.19;
 /** `.layout { padding-block: var(--space-4) }`, both edges. The shell overrides
  *  padding-INLINE only, so this term is parsed rather than measured. */
@@ -3105,7 +3108,7 @@ describe("F14 — the app shell, derived rather than pinned", () => {
 
   it("3 — THE GATE IS DERIVED, and the CSS literal is >= the derivation", () => {
     expect(SHELL_HEADER.width).toBe(L_BREAKPOINT);
-    expect(MIN_SHELL_H).toBe(868);
+    expect(MIN_SHELL_H).toBe(768);
     expect(SHELL_HEADER.height).toBeGreaterThanOrEqual(MIN_SHELL_H);
 
     // WHAT MOVED, and why this assertion is the one that matters. The design
@@ -3115,7 +3118,23 @@ describe("F14 — the app shell, derived rather than pinned", () => {
     // so a re-measure can disagree with a number rather than with a memory.
     const asDesigned = Math.ceil((70 + 92 + PAGE_PAD_Y + 107) / (1 - CARDS_FLOOR_FRACTION));
     expect(asDesigned).toBe(753);
-    expect(MIN_SHELL_H - asDesigned).toBe(115);
+    expect(MIN_SHELL_H - asDesigned).toBe(15);
+
+    // …AND WHY THE GATE THEN FELL 100px. F14's 868 was honest arithmetic over a
+    // header that wrapped; it was also a gate no ordinary laptop could reach —
+    // a 1440x900 display leaves roughly 810 CSS px after browser chrome, so the
+    // shell was dead code for its whole audience. F15 unwrapped the header
+    // instead of accepting the 40px, and ONLY HEADER_H moved. Both figures are
+    // kept so the fall is auditable rather than remembered.
+    const wrapped = Math.ceil(
+      (HEADER_H_WRAPPED + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H) / (1 - CARDS_FLOOR_FRACTION),
+    );
+    expect(wrapped).toBe(868);
+    expect(wrapped - MIN_SHELL_H).toBe(100);
+    expect(HEADER_H_WRAPPED - HEADER_H).toBe(40);
+    // 810 is the laptop the slice exists for: excluded at 868, shelled at 768.
+    expect(810).toBeLessThan(wrapped);
+    expect(810).toBeGreaterThanOrEqual(MIN_SHELL_H);
 
     // CANARY, and it is the whole point of the formula being in the suite: a
     // future slice that adds 40px of always-visible chrome and leaves the
@@ -3123,24 +3142,31 @@ describe("F14 — the app shell, derived rather than pinned", () => {
     const withMoreChrome = Math.ceil(
       (HEADER_H + STRIP_H + 40 + PAGE_PAD_Y + STICKY_STACK_H) / (1 - CARDS_FLOOR_FRACTION),
     );
-    expect(withMoreChrome).toBe(968);
+    expect(withMoreChrome).toBe(868);
     expect(SHELL_HEADER.height).toBeLessThan(withMoreChrome);
   });
 
   it("4 — the >= 60% outcome rule holds AT the gate, and the margin is reported", () => {
     const atGate = cardsBand(SHELL_HEADER.height) / SHELL_HEADER.height;
     expect(atGate).toBeGreaterThanOrEqual(CARDS_FLOOR_FRACTION);
-    // 60.02% — the gate is AT THE LIMIT by construction, which is the honest
+    // 60.03% — the gate is AT THE LIMIT by construction, which is the honest
     // place for it. Reported rather than merely passed so the next reader sees
-    // that there is 0.02pp of room, not "plenty".
-    expect(Number((atGate * 100).toFixed(2))).toBe(60.02);
-    expect(Number(((cardsBand(900) / 900) * 100).toFixed(1))).toBe(61.4);
+    // that there is 0.03pp of room, not "plenty". F15 bought the cards 100px of
+    // GATE, not of margin: the ratio at the gate is the same knife-edge it was
+    // at 868, because the formula is what sets it.
+    expect(Number((atGate * 100).toFixed(2))).toBe(60.03);
+    expect(Number(((cardsBand(900) / 900) * 100).toFixed(1))).toBe(65.9);
+    // …and the laptop the slice exists for, which 868 excluded outright.
+    expect(Number(((cardsBand(810) / 810) * 100).toFixed(1))).toBe(62.1);
 
     // …and one pixel below the gate the rule FAILS, which is why the gate is a
     // media condition instead of a hope.
-    expect(cardsBand(867) / 867).toBeLessThan(CARDS_FLOOR_FRACTION);
+    expect(cardsBand(SHELL_HEADER.height - 1) / (SHELL_HEADER.height - 1)).toBeLessThan(
+      CARDS_FLOOR_FRACTION,
+    );
+    expect(cardsBand(767) / 767).toBeLessThan(CARDS_FLOOR_FRACTION);
     // The shape the gate exists for: a 1366x768 laptop is ~648 CSS px tall.
-    expect(Number(((cardsBand(648) / 648) * 100).toFixed(1))).toBe(46.5);
+    expect(Number(((cardsBand(648) / 648) * 100).toFixed(1))).toBe(52.6);
   });
 
   it("5 — I15 under the shell: the floor moved, and the OLD floor now fails", () => {
@@ -3160,8 +3186,13 @@ describe("F14 — the app shell, derived rather than pinned", () => {
     expect(shellSlidersVisible(900) >= 8).toBe(false);
 
     // …and below the gate there IS no shell, so the sticky counts stand.
-    expect(800).toBeLessThan(SHELL_HEADER.height);
-    expect(slidersVisible(800, SECTION_LEAD_Y)).toBe(7);
+    // 700, NOT 800: F15 dropped the gate to 768, so 800 is now SHELLED and the
+    // sticky count there is no longer the behaviour. That flip is the slice in
+    // one line, so it is asserted rather than quietly re-based.
+    expect(700).toBeLessThan(SHELL_HEADER.height);
+    expect(slidersVisible(700, SECTION_LEAD_Y)).toBe(6);
+    expect(800).toBeGreaterThanOrEqual(SHELL_HEADER.height);
+    expect(shellSlidersVisible(800)).toBe(5);
   });
 
   it("6 — the scrollbar compensation is a PAIR, and neither half stands alone", () => {
@@ -3434,7 +3465,7 @@ describe("F14 — the app shell, derived rather than pinned", () => {
     // The permanent band is exactly four terms. If a fifth ever arrives it has
     // to move MIN_SHELL_H, and assertion 3's canary is what makes it.
     expect(permanentBand()).toBe(HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H);
-    expect(permanentBand()).toBe(347);
+    expect(permanentBand()).toBe(307);
     // The measured values the two pins are ceilings of, kept so a re-measure
     // has something to disagree WITH.
     expect(HEADER_H).toBe(Math.ceil(HEADER_H_MEASURED));
@@ -3451,9 +3482,11 @@ describe("F14 — the app shell, derived rather than pinned", () => {
     const BANNER_H = 51;
     const withChrome = (viewport: number, extra: number): number =>
       (cardsBand(viewport) - extra) / viewport;
-    expect(Number((withChrome(900, PREVIEW_STRIP_H) * 100).toFixed(1))).toBe(56.2);
-    expect(Number((withChrome(900, PREVIEW_STRIP_H + BANNER_H) * 100).toFixed(1))).toBe(50.6);
-    expect(Number((withChrome(900, PREVIEW_STRIP_H + 3 * BANNER_H) * 100).toFixed(1))).toBe(39.2);
+    expect(Number((withChrome(900, PREVIEW_STRIP_H) * 100).toFixed(1))).toBe(60.7);
+    expect(Number((withChrome(900, PREVIEW_STRIP_H + BANNER_H) * 100).toFixed(1))).toBe(55);
+    expect(Number((withChrome(900, PREVIEW_STRIP_H + 3 * BANNER_H) * 100).toFixed(1))).toBe(43.7);
+    // The worst frame at the GATE itself, which is the one a laptop meets.
+    expect(Number((withChrome(768, PREVIEW_STRIP_H + 3 * BANNER_H) * 100).toFixed(1))).toBe(34);
     // Banners STAY in the chrome. They are role="alert"-class disclosures whose
     // whole value is that they cannot be scrolled past.
     expect(appTsxF14).toContain('<div className="app-banners">');

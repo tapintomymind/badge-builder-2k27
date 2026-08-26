@@ -130,7 +130,7 @@ describe("Export (file-based, no network)", () => {
         .spyOn(HTMLAnchorElement.prototype, "click")
         .mockImplementation(function noop() {});
       render(<App />);
-      fireEvent.click(screen.getAllByRole("button", { name: "Export JSON" })[0] as HTMLElement);
+      fireEvent.click(screen.getAllByRole("button", { name: "Export" })[0] as HTMLElement);
       expect(createObjectURL).toHaveBeenCalledTimes(1);
       expect(click).toHaveBeenCalledTimes(1);
       // The load-bearing assertion: still live immediately after the click.
@@ -145,7 +145,7 @@ describe("Export (file-based, no network)", () => {
 
 describe("ImportDialog — confirm before replacing, honest about drift", () => {
   function importFile(contents: string, name = "import.json") {
-    const input = screen.getAllByLabelText("Import JSON")[0] as HTMLInputElement;
+    const input = screen.getAllByLabelText("Import")[0] as HTMLInputElement;
     const file = new File([contents], name, { type: "application/json" });
     fireEvent.change(input, { target: { files: [file] } });
   }

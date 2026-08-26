@@ -253,7 +253,7 @@ describe("1 — the roster names every badge you own", () => {
     expect(within(summaryEl).getByRole("table", { name: "Badges by level" })).toBeTruthy();
     expect(within(summaryEl).getByRole("table", { name: "Spend by category" })).toBeTruthy();
     expect(within(summaryEl).getByRole("textbox", { name: /plain text/i })).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Export JSON" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Export" })).toHaveLength(1);
   });
 
   it("1.8 — empty categories are omitted and NAMED, with correct grammar", SLOW, () => {
@@ -390,7 +390,7 @@ describe("1.10–1.13 — nothing shipped was removed, and nothing banned was ad
     expect(within(summaryEl).getByRole("table", { name: "Spend by category" })).toBeTruthy();
     // ExportImportControls renders EXACTLY ONCE in the document (F5.2's
     // inventory pinned the count at 1).
-    expect(screen.getAllByRole("button", { name: "Export JSON" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Export" })).toHaveLength(1);
     // F4's [N6] lead-in removal survives — the sentence must stay ABSENT.
     expect(document.body.textContent).not.toContain(
       "can only come from an externally edited or imported build",

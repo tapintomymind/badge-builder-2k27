@@ -262,7 +262,7 @@ describe("F5.3/B — a collapsed category is hidden, never subtracted", () => {
       });
       Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
       vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function noop() {});
-      fireEvent.click(screen.getAllByRole("button", { name: "Export JSON" })[0] as HTMLElement);
+      fireEvent.click(screen.getAllByRole("button", { name: "Export" })[0] as HTMLElement);
       if (captured === null) throw new Error("no export blob");
       return (captured as Blob).text();
     }

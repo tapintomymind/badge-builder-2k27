@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 function importFile(contents: string) {
-  const input = screen.getAllByLabelText("Import JSON")[0] as HTMLInputElement;
+  const input = screen.getAllByLabelText("Import")[0] as HTMLInputElement;
   const file = new File([contents], "import.json", { type: "application/json" });
   fireEvent.change(input, { target: { files: [file] } });
 }

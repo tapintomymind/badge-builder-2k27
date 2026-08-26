@@ -140,7 +140,7 @@ describe("C — import route wires droppedEntries into the disclosure banner", (
       // SAME dataVersion — PRE-FIX the DriftBanner only fired on a
       // dataVersion mismatch, so this strip was fully silent.
     });
-    const input = screen.getAllByLabelText("Import JSON")[0] as HTMLInputElement;
+    const input = screen.getAllByLabelText("Import")[0] as HTMLInputElement;
     const file = new File([serializeSavedBuild(rig)], "import.json", {
       type: "application/json",
     });

@@ -118,7 +118,7 @@ async function exportEnvelope(): Promise<Record<string, unknown>> {
   });
   Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
   vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function noop() {});
-  fireEvent.click(screen.getAllByRole("button", { name: "Export JSON" })[0] as HTMLElement);
+  fireEvent.click(screen.getAllByRole("button", { name: "Export" })[0] as HTMLElement);
   if (captured === null) throw new Error("no export blob");
   const envelope = JSON.parse(await (captured as Blob).text()) as Record<string, unknown>;
   // `savedAt` is stamped at export time, not plan state. Two envelopes taken
