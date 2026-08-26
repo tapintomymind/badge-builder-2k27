@@ -102,7 +102,7 @@ export function declineText(decline: RollDecline, heightText: string): string {
     case "pinnedOverPoints":
       return (
         `nothing rolled — pinned badges cost ${decline.pinnedNetCost} ` +
-        `against a ${decline.pool}-point pool`
+        `against a ${decline.pool}-token pool`
       );
     case "pinnedOverBadgeSlots":
       return (
@@ -345,7 +345,7 @@ export function RerollConfirmDialog({
         <p>
           Clears {unpinnedCount} unpinned{" "}
           {unpinnedCount === 1 ? "purchase" : "purchases"} in {scopeName} (
-          {unpinnedPoints} {unpinnedPoints === 1 ? "point" : "points"}) and fills the pool
+          {unpinnedPoints} {unpinnedPoints === 1 ? "token" : "tokens"}) and fills the pool
           again. {pinnedCount} pinned {pinnedCount === 1 ? "purchase is" : "purchases are"}{" "}
           kept.
         </p>
@@ -417,7 +417,7 @@ export function RollPanel({
           roll does, what it will not touch, and — plainly, once — that there
           is no opinion in it. */}
       <p className="roll-panel__lede">
-        Fills unspent Badge Points with badges drawn at random from the ones your build
+        Fills unspent Badge Tokens with badges drawn at random from the ones your build
         can actually equip. Everything you pinned stays exactly as you set it, and
         nothing you already bought is cleared unless you re-roll.
       </p>

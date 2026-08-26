@@ -547,7 +547,7 @@ export function BuildPanel(props: BuildPanelProps) {
           canReset={canReset}
         />
       ) : null}
-      <Section title="Badge Points & Badge Slots" storageKey="section-budget">
+      <Section title="Badge Tokens & Badge Slots" storageKey="section-budget">
         <BudgetGrid
           budgets={budgets}
           onCommit={onBudgetCommit}

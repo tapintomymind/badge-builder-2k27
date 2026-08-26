@@ -1002,7 +1002,7 @@ export default function App() {
    * WHAT IS CLEARED — the PLAYER: the 20 attributes, height, position, the
    * loadout, and the Synergy Slot ASSIGNMENTS.
    *
-   * WHAT SURVIVES — the PLAN CONTAINER: Badge Points, Badge Slots, Synergy
+   * WHAT SURVIVES — the PLAN CONTAINER: Badge Tokens, Badge Slots, Synergy
    * Slot `unlocked` flags, the +2 designation, the build name, `sourceId`,
    * `dataVersion` and `config`. The unlocks and the +2 designation are
    * account-progression facts, not properties of an attribute spread — eight
@@ -1060,7 +1060,7 @@ export default function App() {
           `${before.synergyAssigned} Synergy Slot ` +
           `${before.synergyAssigned === 1 ? "assignment" : "assignments"} cleared. ` +
           `Height ${formatHeightInches(DEFAULT_HEIGHT_INCHES)}, Position Any.` +
-          (alsoBudgets ? " Badge Points and Badge Slots cleared." : ""),
+          (alsoBudgets ? " Badge Tokens and Badge Slots cleared." : ""),
       );
       setResetOpen(false);
     },
@@ -1771,7 +1771,7 @@ export default function App() {
             </Section>
           </aside>
 
-          {/* Badge Points/Slots are SET-UP surfaces, not loop surfaces: the
+          {/* Badge Tokens/Slots are SET-UP surfaces, not loop surfaces: the
               twelve budget fields are filled by hand from the MyPlayer
               builder and then not touched again. Above the FilterBar on
               §13.5's causality argument run in reverse — you set the pools

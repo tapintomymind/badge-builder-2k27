@@ -1,5 +1,5 @@
 /**
- * BonusDialog (design-spec §17) — the bonus Badge Points / Badge Slots
+ * BonusDialog (design-spec §17) — the bonus Badge Tokens / Badge Slots
  * allocation surface. Component #37, and the SIXTH `<dialog>` in this app.
  *
  * WHY A DIALOG AND NOT A THIRD "MODE". In this app "mode" already means
@@ -35,11 +35,15 @@
  * itself, not readouts over the plan. Named here because the next reader will
  * reach for the third column; §17.3 prices it as the user's call.
  *
- * VOCABULARY. §17 is authored in "Badge Tokens" and the user has approved that
- * rename app-wide, but the sweep has NOT run — so every string here ships in
- * the CURRENT vocabulary ("Badge Points"), per §17.0's hard sequencing gate:
- * F9's strings may never be the only ones speaking the new word. The sweep
- * picks these up with everything else.
+ * VOCABULARY. §17 is authored in "Badge Tokens", the user approved that rename
+ * app-wide, and THE SWEEP HAS NOW RUN (2026-08-26) — every string here ships
+ * in "Badge Tokens" alongside the rest of the app. §17.0's hard sequencing
+ * gate — "F9's strings may never be the only ones speaking the new word" — is
+ * SATISFIED rather than pending: the whole app moved in one change.
+ *
+ * Identifiers and serialized field names still say `points` ON PURPOSE. See
+ * the storage note on `BonusBudget` in src/engine/types.ts before renaming
+ * anything here that is not a user-visible string.
  */
 
 import { useEffect, useRef } from "react";
@@ -68,7 +72,7 @@ import { BUDGET_EQUIP_SLOTS_MAX, BUDGET_POINTS_MAX } from "./BudgetGrid";
  * six cells can hold" — so the placed/earned checksum can never be
  * un-satisfiable by construction.
  *
- * The user's observed "3 extra Badge Slots and 12 Badge Points" appears
+ * The user's observed "3 extra Badge Slots and 12 Badge Tokens" appears
  * NOWHERE in this file: not as a default, not as a max, not in copy. Their own
  * words make it an observation ("you can earn more … so this will be
  * dynamic"), and canary 6 asserts it.
@@ -199,7 +203,7 @@ export function BonusDialog({
       }}
     >
       <div className="bonus-dialog__body">
-        <h2 id="dialog-bonus-title">Bonus Badge Points &amp; Badge Slots</h2>
+        <h2 id="dialog-bonus-title">Bonus Badge Tokens &amp; Badge Slots</h2>
         <p className="hint">
           Earned in-game — Build Specialization, Seasons, Crew. Bonus can go in any discipline
           and can be moved at any time.
@@ -218,7 +222,7 @@ export function BonusDialog({
         <div className="bonus-dialog__earned">
           <span className="bonus-dialog__earned-label">Earned in total</span>
           <NumberField
-            label="Bonus Badge Points earned in total"
+            label="Bonus Badge Tokens earned in total"
             value={bonus.earnedPoints}
             min={0}
             max={EARNED_POINTS_MAX}
@@ -244,8 +248,8 @@ export function BonusDialog({
             placed={placedPoints}
             earned={bonus.earnedPoints}
             unapplied={unappliedPoints(bonus)}
-            noun="Badge Point"
-            nounPlural="Badge Points"
+            noun="Badge Token"
+            nounPlural="Badge Tokens"
           />
           <PlacedCell
             placed={placedEquipSlots}
@@ -264,7 +268,7 @@ export function BonusDialog({
             <tr>
               <td />
               <th scope="col" colSpan={2}>
-                Badge Points
+                Badge Tokens
               </th>
               <th scope="col" colSpan={2}>
                 Badge Slots
@@ -288,9 +292,9 @@ export function BonusDialog({
                     carries its own sr-only label naming both the category and
                     the pool, so the accessible name does not depend on a
                     stylesheet. */}
-                <td data-pool="Badge Points">
+                <td data-pool="Badge Tokens">
                   <NumberField
-                    label={`${category} bonus Badge Points`}
+                    label={`${category} bonus Badge Tokens`}
                     value={bonus.appliedPoints[category]}
                     min={0}
                     max={CATEGORY_POINTS_MAX}
@@ -330,7 +334,7 @@ export function BonusDialog({
           <tfoot>
             <tr>
               <th scope="row">Total</th>
-              <td className="num" data-pool="Badge Points">
+              <td className="num" data-pool="Badge Tokens">
                 {placedPoints}
               </td>
               <EffectiveCell base={baseTotalPoints} applied={placedPoints} />

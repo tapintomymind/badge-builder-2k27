@@ -22,12 +22,12 @@ export function PreviewModeStrip({
   const sentences: string[] = [];
   if (overlay.reactionsActive) {
     sentences.push(
-      "Preview: reactions activated. Card levels show in-game ceilings. Points are unchanged.",
+      "Preview: reactions activated. Card levels show in-game ceilings. Tokens are unchanged.",
     );
   }
   if (overlay.seasonReset) {
     sentences.push(
-      `Preview: season reset. Synergy Slots 1–4 disabled. Primary points are unchanged; ${projectedCategoryCount} of ${categoryCount} categories show a projection.`,
+      `Preview: season reset. Synergy Slots 1–4 disabled. Primary tokens are unchanged; ${projectedCategoryCount} of ${categoryCount} categories show a projection.`,
     );
   }
   if (sentences.length === 0) return null;

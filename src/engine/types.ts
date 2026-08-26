@@ -182,7 +182,7 @@ export interface Budget {
 }
 
 /**
- * Build-level bonus Badge Slots and Badge Points earned BEYOND the 20-Badge-Slot
+ * Build-level bonus Badge Slots and Badge Tokens earned BEYOND the 20-Badge-Slot
  * baseline, plus how the user has currently applied them across the six
  * categories.
  *
@@ -201,11 +201,31 @@ export interface Budget {
  * capacity/pool is composed in exactly one place — `effectiveBudgets` in
  * src/engine/budget.ts (scope.md §0.1 A5-R1, A5-R4).
  */
+/**
+ * DISPLAY VOCABULARY vs STORAGE VOCABULARY — THE DIVERGENCE IS DELIBERATE.
+ *
+ * Every field below is named `...Points`; every string the user reads says
+ * "Badge Tokens". That mismatch is CORRECT and must not be "tidied".
+ *
+ * `serializeSavedBuild` is a bare `JSON.stringify` with NO translation
+ * boundary (src/engine/serialization.ts), so these property names ARE the
+ * on-disk format. Renaming one renames the key inside every build a user has
+ * already saved, and there is nowhere to migrate them from — the read finds
+ * `undefined` and the saved work is silently lost. This project has already
+ * shipped four data-destruction defects, two of them introduced by the fix for
+ * the first; this is that exact shape.
+ *
+ * The 2026-08-26 "Badge Points" -> "Badge Tokens" sweep therefore moved
+ * DISPLAY COPY ONLY, and deliberately left every identifier, every persisted
+ * key and every serialized field name exactly as it was.
+ */
 export interface BonusBudget {
   /** TOTAL bonus Badge Slots earned. User-entered, growable. Default 0. */
   earnedEquipSlots: number;
-  /** TOTAL bonus Badge Points earned. 2K's page calls these "Badge Tokens";
-   *  this app has said "Badge Points" since M1 and keeps doing so (H1).
+  /** TOTAL bonus Badge Tokens earned. "Badge Tokens" is 2K's own term for this
+   *  currency, printed on the official 2K MyPlayer Builder page; the app
+   *  adopted it app-wide in the 2026-08-26 vocabulary sweep (H1). The FIELD
+   *  stays `earnedPoints` — see the storage note above.
    *  User-entered, growable. Default 0. */
   earnedPoints: number;
   /** How many of `earnedEquipSlots` are applied to each category right now.

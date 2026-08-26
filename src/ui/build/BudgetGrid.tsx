@@ -1,5 +1,5 @@
 /**
- * BudgetGrid (design-spec §3.3) — six Category rows of manual Badge Points +
+ * BudgetGrid (design-spec §3.3) — six Category rows of manual Badge Tokens +
  * Badge Slots inputs, behind the deriveBudget seam, with an auto-summed
  * read-only total footer (BudgetTotalRow). The whole section carries ONE
  * unverified banner — the derivation is unpublished 2K27 data (Open item #3)
@@ -82,7 +82,7 @@ export interface BudgetGridProps {
  * 2K).
  *
  * Exported rather than duplicated for one specific reason: `12` is also HALF
- * OF THE USER'S OBSERVATION ("3 extra Badge Slots and 12 Badge Points"), which
+ * OF THE USER'S OBSERVATION ("3 extra Badge Slots and 12 Badge Tokens"), which
  * canary 6 forbids appearing anywhere in the A5-U slice as a default, a max or
  * a copy literal. Sharing the constant means the bonus fields inherit an
  * app convention that predates the observation instead of accidentally
@@ -142,7 +142,7 @@ interface BonusPoolFacts {
 
 /** The entry-point readout's parts (design-spec §17.5). Split into a neutral
  * clause and PER-METRIC danger clauses because P0-1 is exactly this: only the
- * pool that is over reddens, and Badge Points and Badge Slots are separate
+ * pool that is over reddens, and Badge Tokens and Badge Slots are separate
  * facts about separate numbers. */
 export interface BonusEntryReadout {
   /** Placed / earned / not-yet-placed, for every pool that is NOT over.
@@ -166,14 +166,14 @@ export interface BonusEntryReadout {
  *
  * A pool with nothing earned and nothing placed is omitted entirely (§3.4's
  * zero-valued-advisory rule), so a slots-only user is never told about zero
- * Badge Points.
+ * Badge Tokens.
  */
 export function bonusEntryReadout(bonus: BonusBudget): BonusEntryReadout | null {
   if (!bonusHasContent(bonus)) return null;
   const pools: BonusPoolFacts[] = [
     {
-      singular: "Badge Point",
-      plural: "Badge Points",
+      singular: "Badge Token",
+      plural: "Badge Tokens",
       earned: bonus.earnedPoints,
       placed: appliedPointsTotal(bonus),
     },
@@ -224,7 +224,7 @@ export function BudgetGrid({ budgets, onCommit, bonus, onOpenBonus }: BudgetGrid
         <thead>
           <tr>
             <th scope="col">Category</th>
-            <th scope="col">Badge Points</th>
+            <th scope="col">Badge Tokens</th>
             <th scope="col">Badge Slots</th>
           </tr>
         </thead>
@@ -234,7 +234,7 @@ export function BudgetGrid({ budgets, onCommit, bonus, onOpenBonus }: BudgetGrid
               <td>{category}</td>
               <td>
                 <NumberField
-                  label={`${category} Badge Points`}
+                  label={`${category} Badge Tokens`}
                   value={budgets[category].points}
                   min={0}
                   max={BUDGET_POINTS_MAX}
@@ -277,7 +277,7 @@ export function BudgetGrid({ budgets, onCommit, bonus, onOpenBonus }: BudgetGrid
           `.btn`, which is already in the census. */}
       <div className="budget-grid__actions">
         <Button variant="secondary" size="sm" onClick={onOpenBonus}>
-          Bonus Badge Points &amp; Badge Slots…
+          Bonus Badge Tokens &amp; Badge Slots…
         </Button>
       </div>
       {readout === null ? null : (

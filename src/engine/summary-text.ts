@@ -143,7 +143,7 @@ export function formatSummaryText(
       `${position} · dataset ${summary.dataVersion}`,
   );
   lines.push(
-    "Badge Points and Badge Slots are unverified — 2K has not published the derivation.",
+    "Badge Tokens and Badge Slots are unverified — 2K has not published the derivation.",
   );
 
   // ---- one block per category with a purchase -----------------------------

@@ -4750,7 +4750,7 @@ main#badge-grid {
  * a line. Same fact, read without arithmetic.
  *
  * IT CHANGES NO BEHAVIOUR. Nothing below it is disabled, blocked or dimmed:
- * the badges still spend Badge Points, still hold synergy roles and still
+ * the badges still spend Badge Tokens, still hold synergy roles and still
  * refund. Overspend is allowed and disclosed, never prevented. */
 .board-panel__fence {
   grid-column: 1 / -1;

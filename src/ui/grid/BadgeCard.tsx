@@ -157,7 +157,7 @@ function pipModel(
       // narrowest box in the app. The stale case above is a BARE glyph and is
       // not touched.
       costText: `${deltaText}⚠`,
-      ariaLabel: `${label}, ${totalCost ?? 0} points total, ${deltaText} points — exceeds remaining points`,
+      ariaLabel: `${label}, ${totalCost ?? 0} tokens total, ${deltaText} tokens — exceeds remaining tokens`,
     };
   }
   return {
@@ -165,7 +165,7 @@ function pipModel(
     state: "upgrade",
     costText: deltaText,
     ariaLabel:
-      `${label}, ${totalCost ?? 0} points total, ${deltaText} points` +
+      `${label}, ${totalCost ?? 0} tokens total, ${deltaText} tokens` +
       (remainingPoints === undefined ? "" : " — affordable"),
   };
 }

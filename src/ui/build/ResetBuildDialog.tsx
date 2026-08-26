@@ -35,7 +35,7 @@ export interface ResetBlastRadius {
   attributesSet: number;
   purchased: number;
   synergyAssigned: number;
-  /** Badge Points / Badge Slots fields currently non-zero, across the six
+  /** Badge Tokens / Badge Slots fields currently non-zero, across the six
    * categories. Drives the CHECKBOX LABEL only — the default reset keeps
    * every one of them. */
   budgetFieldsSet: number;
@@ -124,7 +124,7 @@ export function ResetBuildDialog({
         </div>
 
         <p className="reset-dialog__kept">
-          <strong>Will be kept</strong> — Badge Points and Badge Slots for all six categories,
+          <strong>Will be kept</strong> — Badge Tokens and Badge Slots for all six categories,
           Synergy Slot unlocks, and the build name.
         </p>
 
@@ -137,7 +137,7 @@ export function ResetBuildDialog({
             }}
           />
           <span>
-            <strong>Also clear Badge Points and Badge Slots</strong>{" "}
+            <strong>Also clear Badge Tokens and Badge Slots</strong>{" "}
             <span className="hint">({counts.budgetFieldsSet} fields set)</span>
           </span>
         </label>

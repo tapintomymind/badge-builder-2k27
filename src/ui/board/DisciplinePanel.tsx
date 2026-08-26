@@ -118,7 +118,7 @@ export function DisciplinePanel({
               : "board-panel__metric board-panel__metric--over"
           }
         >
-          Badge Points{" "}
+          Badge Tokens{" "}
           <span className="num">
             {readout.spent}/{budget.points}
           </span>

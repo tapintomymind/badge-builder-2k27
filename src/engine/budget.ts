@@ -97,7 +97,7 @@ export function appliedEquipSlotsTotal(bonus: BonusBudget): number {
   return CATEGORIES.reduce((sum, category) => sum + bonus.appliedEquipSlots[category], 0);
 }
 
-/** Σ of the six applied bonus Badge Points. */
+/** Σ of the six applied bonus Badge Tokens. */
 export function appliedPointsTotal(bonus: BonusBudget): number {
   return CATEGORIES.reduce((sum, category) => sum + bonus.appliedPoints[category], 0);
 }
@@ -143,7 +143,7 @@ export function bonusHasContent(bonus: BonusBudget): boolean {
 
 /**
  * HOW MANY bonus fields currently hold a value — the blast-radius count for
- * the `Reset build` confirm's "Also clear Badge Points and Badge Slots"
+ * the `Reset build` confirm's "Also clear Badge Tokens and Badge Slots"
  * checkbox (design-spec §17.11's F5.3 amendment: the count is DERIVED over
  * the set of fields the checkbox actually clears, never pinned and never
  * hand-counted).

@@ -2,7 +2,7 @@
  * CategoryLedger (design-spec §3.4, §5.3 rev 2) — the per-category status
  * surface. TWO pieces now, per the rev-2 sticky budget:
  *
- *  - `.category-ledger` (the DIGEST): title + one compact row — Badge Points
+ *  - `.category-ledger` (the DIGEST): title + one compact row — Badge Tokens
  *    spent/pool with left/over-by, Badge Slots used/capacity with over-by.
  *    THIS is the sticky layer (layer 2 of the global two-layer cap).
  *    F5.3/B: it is also the collapse control — it renders AS the `<summary>`
@@ -75,7 +75,7 @@ export function overByText(overBy: number): string | null {
   return overBy > 0 ? `over by ${overBy} ⚠` : null;
 }
 
-/** The canonical Badge Points over-by string, or null when within budget.
+/** The canonical Badge Tokens over-by string, or null when within budget.
  * SHARED by the in-grid digest and the rail Ledger overview (P0-1: one
  * builder, two surfaces, zero drift). */
 export function overByBadgePoints(readout: CategoryLedgerReadout): string | null {
@@ -185,7 +185,7 @@ export function CategoryLedgerDigest({
       <h2 id={headingId}>{category}</h2>
       <span className="category-ledger__row">
         <span>
-          Badge Points{" "}
+          Badge Tokens{" "}
           <span className="num">
             {readout.spent} / {budget.points}
           </span>
@@ -253,7 +253,7 @@ export function CategoryLedgerLede({
    * until the `entered` channel can tell the two apart (canary 4c). */
   const slotsAllBonus = baseSlots === 0 && bonusSlots > 0;
   const compositionClauses = [
-    ...(bonusPoints > 0 ? [`Badge Points ${basePoints} base + ${bonusPoints} bonus`] : []),
+    ...(bonusPoints > 0 ? [`Badge Tokens ${basePoints} base + ${bonusPoints} bonus`] : []),
     ...(bonusSlots > 0 && !slotsAllBonus
       ? [`Badge Slots ${baseSlots} base + ${bonusSlots} bonus`]
       : []),
@@ -261,7 +261,7 @@ export function CategoryLedgerLede({
 
   return (
     <div className="category-ledger__lede">
-      <Meter label={`${category} Badge Points`} value={readout.spent} max={budget.points} />
+      <Meter label={`${category} Badge Tokens`} value={readout.spent} max={budget.points} />
       {readout.refunded > 0 ? (
         <div className="category-ledger__row">
           <span>
@@ -294,7 +294,7 @@ export function CategoryLedgerLede({
         ) : null}
         {showProjection ? (
           <p className="category-ledger__projection num">
-            ⟳ After season reset · Badge Points {projection.spent} / {budget.points} ·{" "}
+            ⟳ After season reset · Badge Tokens {projection.spent} / {budget.points} ·{" "}
             {projectionOver
               ? `over by ${-projection.remainingPoints} ⚠`
               : `left ${projection.remainingPoints}`}{" "}

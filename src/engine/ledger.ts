@@ -124,7 +124,7 @@ export function refunded(
  * May go negative — overspend is a SOFT violation (H4), warned, never blocked.
  *
  * [A5] `state.budgets[category].points` is the EFFECTIVE pool — base plus any
- * applied bonus Badge Points, already composed by `effectiveBudgets` at the
+ * applied bonus Badge Tokens, already composed by `effectiveBudgets` at the
  * App seam. This function is CORRECT UNCHANGED and needs no bonus awareness:
  * composing ONCE, upstream, is exactly what makes every reader in this file
  * right with no edit and no possibility of a missed one. Do not reach for the

@@ -17,7 +17,7 @@
  * <details> therefore carries no id of its own (assertion 11).
  *
  * COLLAPSE IS DISPLAY-ONLY. This component imports NOTHING from src/engine/
- * (assertion 14): a collapsed category still spends Badge Points, still
+ * (assertion 14): a collapsed category still spends Badge Tokens, still
  * counts Badge Slots, still appears in the rail ledger and the Summary, and
  * still exports. Hiding cards is a view state, never a plan state.
  */

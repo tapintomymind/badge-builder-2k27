@@ -120,7 +120,7 @@ export type SoftViolation =
    * compensate (H8: disclose, never repair).
    */
   | { kind: "bonusEquipSlotsOverApplied"; applied: number; earned: number; overBy: number }
-  /** [A5] The Badge Points twin of `bonusEquipSlotsOverApplied` — same sole
+  /** [A5] The Badge Tokens twin of `bonusEquipSlotsOverApplied` — same sole
    *  ownership, same reachability, same SOFT class. */
   | { kind: "bonusPointsOverApplied"; applied: number; earned: number; overBy: number };
 
