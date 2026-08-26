@@ -27,7 +27,11 @@ export default defineConfig({
     // app's own stylesheets flow through Vite's pipeline. No runtime surface.
     css: { include: [/\/src\/styles\//] },
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx", "src/**/*.test.ts", "src/**/*.test.tsx"],
-    // Guarded DOM setup — inert under the node environment (see tests/setup-dom.ts).
-    setupFiles: ["tests/setup-dom.ts"],
+    // Order matters. vitest's default `sequence.hooks: "stack"` runs afterEach
+    // in reverse registration order, so listing the console guard FIRST makes
+    // its beforeEach install before any test-file hook and its afterEach assert
+    // LAST — after setup-dom's RTL cleanup(), which is where unmount-time React
+    // warnings surface. See tests/setup-console-guard.ts.
+    setupFiles: ["tests/setup-console-guard.ts", "tests/setup-dom.ts"],
   },
 });
