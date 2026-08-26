@@ -6085,3 +6085,139 @@ NEXT
 Branch `f11-synergy-board` pushed. `dev` untouched at `a5fe8e1`; `main`
 untouched. Not merged.
 ─────────────────────────────────────────────
+
+FOLLOW-UP — F11 NAME_MIN_CONTENT re-pin, ratified, 2026-08-25
+─────────────────────────────────────────────
+
+WHAT CHANGED
+The one item the slice-complete entry above carried forward is now applied.
+`NAME_MIN_CONTENT` re-pinned **68 → 71** (the ceiling of the measurement), and
+everything downstream of it moved with it because it is all derived:
+
+    NAME_MIN_CONTENT   68  ->  71     ceil(70.156), take-the-larger
+    CELL_FLOOR         86  ->  89     71 + 2 × --space-2 + 2 × 1px border
+    8-wide floor      829  -> 853     8 × 89 + 72 + 7 × 8 + 13
+    4-wide floor      440  -> 452     4 × 89 + 72 + 3 × 8
+    binding margin @1280/s=17
+                     +7.00 -> +4.00   cellW 93.00 against CELL_FLOOR 89
+
+The 4-wide floor moved WITHOUT being touched — it is the same rule one step
+down, so re-pinning the constant re-derived it. That is the property worth
+protecting and it survived.
+
+WHY IT IS A FIX AND NOT BOOKKEEPING
+At the old floor the board went eight-wide from board box 829, where a cell
+offers 68.00px of content against the 70.156 the longest badge name wants. The
+board entered a ~24px band in which its own longest name did not fit. At 853
+the cell offers exactly 71.00 and the word fits AT the floor by construction —
+now asserted directly as `contentAtFloor(SPLIT_THRESHOLD) === NAME_MIN_CONTENT`,
+with the old 829 kept as the canary that fails that property.
+
+THE STYLESHEET'S NUMBER IS STILL THE DERIVED DEMAND
+Both `@container` thresholds stay in RANGE syntax — `(width < 853px)` and
+`(width < 452px)` — so the CSS figure is the derivation's own output with no
+`max-width` off-by-one in between, and `tests/layout-arithmetic.test.ts`
+re-derives both from PARSED values (`ROW_LABEL_W` off the track list,
+`CELL_GAP` off `column-gap`, `BAND_DIVIDER` off the seam track plus one gutter,
+`CELL_PAD`/`CELL_BORDER` off the button). Nothing in the block is a pasted
+threshold. The derivation comment was updated in place, including a paragraph
+naming the re-pin and what it bought.
+
+ASSERTION "1b" FLIPPED
+From *recording a divergence* to *pinning the ratified value*: it now asserts
+`NAME_MIN_CONTENT === Math.ceil(NAME_MIN_MEASURED)`, so a future re-measure
+that disagrees **reds rather than annotates**. `NAME_MIN_MEASURED = 70.156` is
+kept as its own constant precisely so there is something to disagree with.
+
+THE SEAM, RE-SHOT — IT MOVED, SO THE OLD PAIR WAS DELETED
+`f11-seam-828.png` / `f11-seam-830.png` and the `f11-seam-viewport-828/830`
+pair are **removed**: they documented a threshold that no longer exists, and a
+stale proof is worse than none. Replaced by a pair straddling the flip point
+itself:
+    f11-seam-852.png   board box 852  ->  4 + 4 on the temporary/permanent seam
+    f11-seam-853.png   board box 853  ->  8 across, cellW exactly 89.00
+Swept and confirmed exact: box 849/850/851/852 → 4 columns, box 853/854/855/856
+→ 8 columns. At the flip the cell's content box is 71.00 against the 70.156 the
+longest name wants — visible in the shot, "Unpluckable" on one line.
+No separate viewport pair this time: below 1280 the box is `viewport − 66` at
+s=0, so the seam viewports (918/919) ARE the ones producing boxes 852/853 and a
+second pair would have been byte-identical.
+
+THE BINDING MARGIN HAS BEEN QUOTED WRONG TWICE, BOTH OPTIMISTIC
+Worth recording because the margin is what the NEXT addition to a Synergy Slot
+column gets checked against:
+    design.md §4.6      +13.3   (cell arithmetic 6.25px generous)
+    F11 cut 1           +7.00   (CELL_FLOOR built on a 3px-light pin)
+    RATIFIED            +4.00
+For scale, F5.4 flagged +10.5px as binding on the adjacent synergy-row
+question. The board's column now has less than half of that. Both prior
+figures erred the same direction, which is how a margin gets handed on as
+roomier than it is.
+
+GATES — ALL RE-RUN AFTER THE RE-PIN
+  npm run test        63 files / 1247 tests PASS. No skips, no .only.
+  npm run typecheck   PASS
+  npm run build       PASS (the only gate that parses the appended CSS block)
+  RUN-never-edit, by name, GREEN AND UNEDITED:
+      tests/ui/overlays.test.tsx · tests/category-colors.test.ts ·
+      tests/feasibility-golden.test.ts   (3 files / 23 tests)
+    `git diff origin/dev` touches none of the three. None of them reads the
+    board's geometry, so the threshold move could not reach them — re-run by
+    name regardless.
+  dependencies        react,react-dom
+  Coverage widths UNCHANGED by the re-pin: 1440 box 1062 8-wide, 1280 box 902
+  8-wide, 768 box 702 four-wide, 390 box 332 two-wide. The behaviour delta is
+  confined to board box 829..852, which no coverage width occupies.
+
+TWO MERGE NOTES FOR WHOEVER INTEGRATES — from sibling slices that sealed
+while this one was finishing. NOT reconciled from this branch, deliberately.
+
+  1. f9-touch-floors (c57c350) — THE FOLD-IN THIS SLICE PREDICTED, CONFIRMED.
+     F9 landed an app-wide S touch-floor mechanism on a new `--tap-target: 44px`
+     token, and censuses every interactive class with a SET-EQUALITY assertion
+     in BOTH directions. This slice ships
+     `@media (max-width: 767px) { .synergy-board__button { min-height: 44px } }`
+     — a literal 44px on a class F9's census has never seen. Expect F9's census
+     to red on the merge in the "extra class" direction. THE RESOLUTION IS THE
+     FOLD-IN, not an exception: add `.synergy-board__button` to F9's census and
+     re-point it at `--tap-target`, then DELETE this slice's rule rather than
+     keeping both. One button class covers every interactive element on the
+     board — cells and column headers alike — and
+     `tests/layout-arithmetic.test.ts` case 12 asserts that totality, so the
+     census gets complete coverage from a single entry. Do not attempt this
+     blind from this branch: F9's token and census shape are not visible here.
+
+  2. f8-s2-summary (ca3792a) — APPEND-POINT COLLISION IN
+     tests/layout-arithmetic.test.ts, AND THE TWO SLICES CHOSE DIFFERENTLY.
+     F8-S2 deliberately nested its additions INSIDE the existing §16.7
+     describe, specifically to dodge F9's appended block. **This slice appends
+     at EOF** — one new top-level `describe("F11 — the Synergy board's
+     geometry, re-derived")` plus its parsed constants immediately above it.
+     Stated plainly so the merge takes BOTH: the two edits are in different
+     regions of the same file and should not conflict, but a resolver seeing
+     two additions may collapse one. F11's block must remain a top-level
+     describe at EOF — its constants (`boardCssRaw`, `CELL_FLOOR`,
+     `SPLIT_THRESHOLD`, …) are module-scope and are read only by its own
+     cases.
+
+REST OF THE FORECAST UNCHANGED
+`a6-e-cap-breakers`, `f13-physique-strip`, `a5-u-bonus-mode`, `f8-r2-roll-ui`:
+`app.css` append-order only (this slice's CSS is one delimited block at EOF).
+`f10-feedback-loop`: if it adds a live region inside `.synergy-panel`, note
+that `tests/ui/f11-synergy-board.test.tsx` pins that panel's count at exactly
+2. `f12-reset-placement` remains THE one real overlap — the board is a second
+consumer of the season-reset overlay and its band string must stay DISTINCT
+from the row string or `overlays.test.tsx` reds; read brief §6.3 before
+re-wording either.
+
+CARRIED FORWARD
+The NAME_MIN_CONTENT item is CLOSED. Cut 2 remains specced and unbuilt in full
+(`LoadoutBoard`, `DisciplinePanel`, `BadgeTile`, `BoardDetail`, a second
+`<Section>`, a `JumpNav` chip, the selection tagged union, assign/clear from
+the board, the over-capacity fence, the 864px side-by-side threshold);
+`src/ui/board/**` does not exist.
+
+NEXT
+Branch `f11-synergy-board` pushed. `dev` untouched at `a5fe8e1`; `main`
+untouched. Not merged.
+─────────────────────────────────────────────
