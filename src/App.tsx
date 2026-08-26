@@ -32,6 +32,7 @@ import {
   serializeSavedBuild,
 } from "./engine/serialization";
 import type { ClearedSynergyRef } from "./engine/serialization";
+import { buildSummary, synergyProjections } from "./engine/summary";
 import { applyRatifiedMagnitudes, createDefaultSynergySlots, defaultOverlay } from "./engine/synergy";
 import type { SynergyState } from "./engine/synergy";
 import { categoryLedgerAt } from "./engine/synergy-ledger";
@@ -1147,6 +1148,14 @@ export default function App() {
   const badgeVisible = (badge: Badge): boolean => {
     if (filters.tiers.length > 0 && !filters.tiers.includes(badge.tier)) return false;
     if (!filters.categories.includes(badge.category)) return false;
+    // F8-S2: the roster's companion facet. The bar holds zero arithmetic;
+    // the predicate is the loadout membership test, here.
+    if (
+      filters.purchasedOnly &&
+      !working.loadout.some((entry) => entry.badgeId === badge.id)
+    ) {
+      return false;
+    }
     const eligibility = eligibilityById.get(badge.id);
     if (eligibility === undefined) return false;
     if (filters.legalOnly && (!eligibility.allowed || eligibility.maxPurchasableLevel === null)) {
@@ -1196,6 +1205,15 @@ export default function App() {
   ) as Record<Category, CategoryFeasibility>;
 
   const validation = validateLoadout(ledgerState);
+
+  // F8-S2 (§14.4/§14.6). Computed HERE alongside readouts / validation /
+  // feasibility, and the OUTPUT is what crosses into SummaryPanel — a
+  // `BuildSummary` is a value, so there is no channel through which a future
+  // prop edit could route an OverlayState into the summary by accident.
+  // `buildSummary`'s signature already refuses one; this keeps the seam that
+  // narrow at the call site too.
+  const loadoutSummary = buildSummary(ledgerState, working.build, shippedDataset);
+  const synergyRows = synergyProjections(ledgerState, shippedDataset);
 
   // F3: the position-derived height range (engine accessor — the only route
   // to the table) and the HARD-DISCLOSED build validation. Position unset ⇒
@@ -1525,6 +1543,14 @@ export default function App() {
                 readouts={readouts}
                 validation={validation}
                 dataset={shippedDataset}
+                // F8-S2 wiring, and it is why App.tsx is in this slice's
+                // allowlist: `buildSummary(ledgerState, build, dataset)`
+                // needs the committed ledger state and the build, and M4
+                // omitted exactly this class of wiring and had to be
+                // ratified post-hoc [state.json 2026-08-26].
+                summary={loadoutSummary}
+                synergy={synergyRows}
+                buildName={working.name}
               />
               {/* §11.5 ⑤ (rev 5): the right-rail Export/Import pair is GONE —
                   a ratified rev-2 §3.6 clause that never shipped (~198px of

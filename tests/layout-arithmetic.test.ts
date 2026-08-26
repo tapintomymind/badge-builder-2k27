@@ -46,6 +46,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { shippedDataset } from "../src/engine/dataset";
 import { ATTRS, ATTR_GROUPS, ATTR_GROUP_OF } from "../src/engine/vocabulary";
 import { cssBlock, srcSources, stripComments } from "./helpers/test-utils";
 
@@ -660,7 +661,20 @@ describe("§16.7 — Synergy and Summary live in the RIGHT COLUMN, beside the pa
     // at 1280/s=17, not 1231 below the grid), so its column count resolves to
     // 2 rather than 3 — the relay to F8-S2, which must re-derive §14.2's five
     // constants and the 1428/1429 seam against the new box before it lands.
-    expect(cssBlock(app, ".summary")).toMatch(/repeat\(auto-fit, minmax\(\d+px, \d+px\)\)/);
+    //
+    // F8-S2 ANSWERED THE RELAY, and the answer moved this SELECTOR without
+    // moving one character of the DECLARATION. §14.2 splits .summary into two
+    // regions because §13.5's cap was measured against these tables' 196px
+    // max-content and a roster row is 412: the cap was not widened, it was
+    // re-homed onto the region it was measured for. So the assertion below is
+    // the same assertion, re-pointed — and .summary itself must now carry NO
+    // cap of its own, which is the other half of the split.
+    expect(cssBlock(app, ".summary__tables")).toMatch(
+      /repeat\(auto-fit, minmax\(\d+px, \d+px\)\)/,
+    );
+    expect(cssBlock(app, ".summary__tables")).toContain("justify-content: start");
+    expect(cssBlock(app, ".summary")).not.toContain("auto-fit");
+    expect(cssBlock(app, ".summary")).toContain("grid-template-columns: minmax(0, 1fr)");
   });
 
   it("the jump-nav panel chips are no longer hidden at L", () => {
@@ -720,6 +734,357 @@ describe("§16.7 — Synergy and Summary live in the RIGHT COLUMN, beside the pa
     expect(buildPanel).toContain('storageKey="section-attributes"');
     expect(buildPanel).toContain('storageKey="section-budget"');
     expect(buildPanel).toContain('"section-build-panel"');
+  });
+
+  /* NESTED HERE RATHER THAN APPENDED AT THE FOOT OF THE FILE, deliberately.
+   * §16.7 is the describe that MADE the summary's box 885 and left the relay
+   * to F8-S2 in the assertion above, so this is where the answer belongs —
+   * and the foot of this file is where every slice appends, which makes it
+   * the one place two in-flight branches are guaranteed to collide. */
+
+  /* ======================================================================== *
+   * F8-S2 — §14.2's two-region summary, RE-DERIVED against the post-F5.4 box  *
+   * ======================================================================== */
+
+  /**
+   * WHY THIS SECTION EXISTS AT ALL. §14.2 derived every one of its five
+   * constants, its track table and its "2-up at 1428, 3-up at 1429" seam
+   * against a below-grid box of `v − 17 − 32` — the FULL-PAGE box the summary
+   * had before F5.4. F5.4 nested `#panel-summary` inside `.col-right`, so the
+   * panel now pays for the 300px attributes pane, the `.layout` column gap AND
+   * the `<Section>` chrome that §13.0.1 had already been caught omitting once
+   * (T16). Every number downstream of the box moves. The CONSTANTS do not —
+   * they are properties of a roster row, not of a viewport — so this section
+   * keeps §14.2's five, re-derives the geometry they feed, and states the
+   * seams that actually result.
+   *
+   * Per §11.7: parse and re-derive. Nothing below is a pinned literal that a
+   * token edit could invalidate silently.
+   */
+
+  /* -------- the five §14.2 constants, with their derivations in place ------ */
+
+  /** `--font-ui` at `--text-sm`, mixed-case: §14.2's paper convention,
+   *  calibrated against §11's "Playmaking" (79px / 10ch = 7.9) and §13.1's
+   *  "Legend (boost)" (96px / 14ch = 6.9). */
+  const UI_SM_ADVANCE = 7.6;
+  /** `--text-xs`, same convention. */
+  const UI_XS_ADVANCE = 6.5;
+
+  /** The longest badge NAME in the shipped dataset, read from the dataset
+   *  rather than transcribed — "Versatile Visionary" today, 19 characters.
+   *  A longer name arriving in a future dataset raises the floor here and the
+   *  seams below move with it, which is the entire point of deriving it. */
+  const LONGEST_BADGE_NAME = [...shippedDataset.badges].map((badge) => badge.name).reduce(
+    (longest, name) => (name.length > longest.length ? name : longest),
+    "",
+  );
+
+  /** F8-R2's Pin chip: "Pinned" 6ch at --text-xs + --space-1/--space-2 padding
+   *  + a 2px rim = 57, rounded to 60.
+   *
+   *  IT IS IN THE FLOOR AND NOT IN THE DOM, deliberately. F8-S2 renders no pin
+   *  column at all (no stub, no reserved <td>, no disabled chip), so the
+   *  shipped floor is CONSERVATIVE by exactly this much — which is what lets
+   *  R2 add the column without moving a constant or re-deriving a seam. */
+  const PIN_CHIP_RAW = Math.round("Pinned".length * UI_XS_ADVANCE) + SPACE_1 + SPACE_2 + SPACE_1 + 2;
+  const PIN_CHIP_MAX = 60;
+
+  const ROSTER_NAME_MAX = Math.floor(LONGEST_BADGE_NAME.length * UI_SM_ADVANCE); // 144
+  /** §10.2's largest medallion (tier A) is ALREADY parsed off the stylesheet
+   *  above as TIER_MEDALLION_MAX = 24, and this section reuses that parse
+   *  rather than restating the number — §14.2's third constant is the same
+   *  24px F5 pinned, not a second measurement of it. */
+  /** Purchased word "Silver" 6ch → 48, + --space-2, + "→ Legend" 8ch → 64. */
+  const ROSTER_LEVEL_MAX = 48 + SPACE_2 + 64; // 120
+  /** HEADER-bound, not value-bound: "cost" 4ch × 7.6 = 30 → 32. The value is
+   *  one digit — total-to-own costs are 1–7 [seed: Tiers, levels, and costs]. */
+  const ROSTER_COST_MAX = 32;
+
+  /** Four --space-2 gutters between the five columns. */
+  const ROSTER_ROW_MAX =
+    PIN_CHIP_MAX +
+    SPACE_2 +
+    ROSTER_NAME_MAX +
+    SPACE_2 +
+    TIER_MEDALLION_MAX +
+    SPACE_2 +
+    ROSTER_LEVEL_MAX +
+    SPACE_2 +
+    ROSTER_COST_MAX;
+  /** + the group's own --space-4 sides (§2.3's list-row horizontal padding). */
+  const ROSTER_GROUP_FLOOR = ROSTER_ROW_MAX + 2 * SPACE_4;
+  /** The 76px of slack is a BOUND, not a leftover: it caps eye travel between
+   *  the name and its level cell. Uncapped, §14.2's own 603px track puts them
+   *  191px apart — §13.5's far-left/far-right defect through a wider door. */
+  const ROSTER_TABLE_MAX = ROSTER_GROUP_FLOOR + 76;
+
+  /* ---------------- parsed back off the shipped stylesheet ---------------- */
+
+  /** SCOPED TO THE BLOCK, not grepped off the file: §15's synergy grid uses
+   *  the very same `minmax(min(Npx, 100%), 1fr)` idiom with a 426px floor and
+   *  sits earlier in the stylesheet, so an unscoped match reads ITS number and
+   *  passes while asserting nothing about the roster. */
+  const ROSTER_FLOOR_CSS = px(
+    cssBlock(app, ".summary-roster"),
+    /minmax\(min\((\d+)px, 100%\), 1fr\)/,
+  );
+  const ROSTER_TABLE_MAX_CSS = px(
+    app,
+    /\.summary-roster__table \{[^}]*max-width:\s*(\d+)px/,
+  );
+  /** Region B's floor and cap, unchanged from §13.5 and re-parsed to prove it. */
+  const TABLES_FLOOR_CSS = px(
+    app,
+    /\.summary__tables \{[^}]*minmax\((\d+)px,\s*\d+px\)/,
+  );
+  const TABLES_CAP_CSS = px(
+    app,
+    /\.summary__tables \{[^}]*minmax\(\d+px,\s*(\d+)px\)/,
+  );
+  /** Both regions use `gap: var(--space-4) var(--space-6)` — the COLUMN gap is
+   *  the second value. */
+  const ROSTER_COL_GAP = spaceIn(app, ".summary-roster", "gap", 1);
+  const TABLES_COL_GAP = spaceIn(app, ".summary__tables", "gap", 1);
+
+  /* -------------------------------- the box ------------------------------- */
+
+  /**
+   * `.summary`'s own content box at L (≥1280), where the attributes pane
+   * exists. `centreColumn` is `.col-right`'s track; `SECTION_CHROME` is the
+   * 1px border + --space-4 padding of the <Section> the panel sits inside,
+   * both sides — the omission T16 was caused by, applied here on purpose.
+   *
+   *   1280 − 17 = 1263 ICB
+   *        − 32  (.layout padding)          = 1231   ← the PRE-F5.4 box
+   *        − 300 (attributes pane) − 12 gap =  919   ← .col-right
+   *        − 34  (<Section> chrome)         =  885   ← .summary
+   */
+  function summaryBoxAtL(viewport: number, scrollbar: number): number {
+    return centreColumn(viewport, scrollbar) - SECTION_CHROME;
+  }
+  /** Below 1280 there is no pane and no column gap; `.layout` padding is
+   *  --space-4 at ≥768 and --space-3 below it. */
+  function summaryBoxBelowL(viewport: number, scrollbar: number): number {
+    const padding = viewport >= 768 ? SPACE_4 : SPACE_3;
+    return viewport - scrollbar - 2 * padding - SECTION_CHROME;
+  }
+  /** `repeat(auto-fill|auto-fit, minmax(FLOOR, …))` resolves to the largest N
+   *  with `N × floor + (N − 1) × gap ≤ box`, and never fewer than one. */
+  function tracks(box: number, floor: number, gap: number): number {
+    return Math.max(1, Math.floor((box + gap) / (floor + gap)));
+  }
+  /** The viewport at which N tracks first fit, at L. */
+  function seamForTracks(n: number, floor: number, gap: number, scrollbar: number): number {
+    // Everything the viewport pays before `.summary` sees a pixel: the
+    // scrollbar, `.layout`'s padding, the pane, the column gap and the
+    // <Section> chrome. Measured off the box function rather than restated,
+    // so the two can never disagree.
+    const overhead = 1280 - summaryBoxAtL(1280, scrollbar);
+    return n * floor + (n - 1) * gap + overhead;
+  }
+
+  /** The BALANCED body of an at-rule, brace-counted rather than sliced to
+   *  end-of-file. `cssBlock` cannot see into a media query at all, and a
+   *  slice-to-EOF silently absorbs every rule a later slice appends — which
+   *  would turn "the print block declares no grid-template-columns" into
+   *  "no rule after it does either", an assertion that reddens on somebody
+   *  else's unrelated commit. */
+  function atRuleBody(source: string, header: string): string {
+    const start = source.indexOf(header);
+    if (start === -1) throw new Error(`layout arithmetic: at-rule not found — ${header}`);
+    let depth = 0;
+    for (let at = start; at < source.length; at += 1) {
+      const char = source[at];
+      if (char === "{") depth += 1;
+      else if (char === "}") {
+        depth -= 1;
+        if (depth === 0) return source.slice(start, at + 1);
+      }
+    }
+    throw new Error(`layout arithmetic: unbalanced at-rule — ${header}`);
+  }
+
+  describe("§14.2 — the roster's five constants, and the row they build", () => {
+    it("the name floor is measured off the DATASET's longest name, not typed", () => {
+      expect(LONGEST_BADGE_NAME).toBe("Versatile Visionary");
+      expect(LONGEST_BADGE_NAME.length).toBe(19);
+      expect(ROSTER_NAME_MAX).toBe(144);
+      // The runners-up are 18ch, so the floor has ~8px of headroom against the
+      // next-longest name rather than against nothing.
+      const runnerUp = [...shippedDataset.badges]
+        .map((badge) => badge.name.length)
+        .filter((length) => length < LONGEST_BADGE_NAME.length)
+        .reduce((max, length) => Math.max(max, length), 0);
+      expect(runnerUp).toBe(18);
+    });
+
+    it("the row, the group floor and the table cap are DERIVED from the five", () => {
+      expect(PIN_CHIP_RAW).toBeLessThanOrEqual(PIN_CHIP_MAX);
+      expect(ROSTER_ROW_MAX).toBe(412);
+      expect(ROSTER_GROUP_FLOOR).toBe(444);
+      expect(ROSTER_TABLE_MAX).toBe(520);
+      // …and the stylesheet carries exactly what the derivation produced.
+      expect(ROSTER_FLOOR_CSS).toBe(ROSTER_GROUP_FLOOR);
+      expect(ROSTER_TABLE_MAX_CSS).toBe(ROSTER_TABLE_MAX);
+    });
+
+    it("region B's derivation is UNTOUCHED — that is the point of the split", () => {
+      // §13.5 measured 280/380 against the two legacy tables' ~196px
+      // max-content and was CORRECT for them. The two-region cut exists so
+      // that stays true while the roster gets its own, larger floor.
+      expect(TABLES_FLOOR_CSS).toBe(280);
+      expect(TABLES_CAP_CSS).toBe(380);
+      expect(TABLES_COL_GAP).toBe(SPACE_6);
+      expect(ROSTER_COL_GAP).toBe(SPACE_6);
+    });
+  });
+
+  describe("§14.2 — the box moved, so the seams moved. Re-derived, not pinned.", () => {
+    it("`.summary` is 885 at 1280/s=17 — 1231 was the PRE-F5.4 box", () => {
+      expect(centreColumn(1280, 17)).toBe(919);
+      expect(summaryBoxAtL(1280, 17)).toBe(885);
+      // The figure §14.2's whole table was built on, and what it omits: the
+      // pane + its gap (312) and the <Section> chrome (34) = 346px of box the
+      // spec's arithmetic still assumes the roster has.
+      const preF54 = 1280 - 17 - 2 * SPACE_4;
+      expect(preF54).toBe(1231);
+      expect(preF54 - summaryBoxAtL(1280, 17)).toBe(RAIL + SPACE_3 + SECTION_CHROME);
+    });
+
+    it("REGION B RESOLVES TO 2 TRACKS AT 1280/s=17, AND IT IS 3px FROM 3", () => {
+      // THE KNIFE EDGE, pinned because nothing pinned it before: the shipped
+      // test asserted only the minmax() SHAPE, never the resolved count. Three
+      // tracks need 3 × 280 + 2 × 24 = 888 and the box is 885.
+      //
+      // Four slices are in flight that can each move a term of that box — the
+      // rail width, `.layout` padding, the column gap, the <Section> chrome. A
+      // 3px gain anywhere reflows the summary from two columns to three, and
+      // before this assertion existed it would have done so silently.
+      expect(tracks(summaryBoxAtL(1280, 17), TABLES_FLOOR_CSS, TABLES_COL_GAP)).toBe(2);
+      const threeUpNeeds = 3 * TABLES_FLOOR_CSS + 2 * TABLES_COL_GAP;
+      expect(threeUpNeeds).toBe(888);
+      expect(threeUpNeeds - summaryBoxAtL(1280, 17)).toBe(3);
+      // Two tracks are capped at 380 each, so 101px trails as free space under
+      // `justify-content: start` — left-aligned, which is the shipped intent.
+      expect(summaryBoxAtL(1280, 17) - (2 * TABLES_CAP_CSS + TABLES_COL_GAP)).toBe(101);
+      // AND THE EDGE IS ALREADY BEING CROSSED IN THE FIELD. With macOS overlay
+      // scrollbars the box is 902 — 14px past the 888 threshold — so the SAME
+      // build renders region B 3-up on macOS and 2-up wherever a classic
+      // scrollbar takes 15 or 17px. That is not introduced here and it is not
+      // a defect (the tables are capped at 380 either way, and the third track
+      // simply stops the 101px of trailing free space existing); it is pinned
+      // because it was previously unobserved, and because it means anyone
+      // moving one of the box's terms by ±3px flips the LAYOUT ON EVERY
+      // PLATFORM rather than on one.
+      expect(tracks(summaryBoxAtL(1280, 15), TABLES_FLOOR_CSS, TABLES_COL_GAP)).toBe(2);
+      expect(summaryBoxAtL(1280, 0)).toBe(902);
+      expect(tracks(summaryBoxAtL(1280, 0), TABLES_FLOOR_CSS, TABLES_COL_GAP)).toBe(3);
+      // The boundary, derived: a scrollbar of 14px or less buys the third
+      // track. 15 and 17 are the two classic widths this repo derives against.
+      const widestScrollbarThatFitsThree = 1280 - (1280 - summaryBoxAtL(1280, 0)) - threeUpNeeds;
+      expect(widestScrollbarThatFitsThree).toBe(14);
+    });
+
+    it("THE ROSTER IS 1-UP AT 1280 AND 2-UP AT 1440 — §14.2's 1428/1429 seam is void", () => {
+      // §14.2 read "2-up at 1428, 3-up at 1429" off `v − 17 − 32`. Against the
+      // real box those seams are 346px too generous. Re-derived here from the
+      // SAME constants, per §11.7 — and if the measured advance of
+      // "Versatile Visionary" ever comes in above 144, ROSTER_GROUP_FLOOR
+      // rises, every seam below moves right, and the wider viewports fall back
+      // a column. THAT IS THE DESIGN'S BASELINE AND NOT A DEFECT: a group is
+      // capped at 520px regardless, so a 1-up roster is a 520px table in an
+      // 885px box, not a stretched one.
+      expect(tracks(summaryBoxAtL(1280, 17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(1);
+      expect(tracks(summaryBoxAtL(1440, 17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(2);
+      expect(summaryBoxAtL(1440, 17)).toBe(1045);
+
+      // The seams themselves, derived rather than chosen.
+      const twoUp = seamForTracks(2, ROSTER_GROUP_FLOOR, ROSTER_COL_GAP, 17);
+      const threeUp = seamForTracks(3, ROSTER_GROUP_FLOOR, ROSTER_COL_GAP, 17);
+      expect(twoUp).toBe(1307);
+      expect(threeUp).toBe(1775);
+      expect(tracks(summaryBoxAtL(twoUp - 1, 17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(1);
+      expect(tracks(summaryBoxAtL(twoUp, 17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(2);
+      // 3-up is unreachable on any target width in §5.2's tier list.
+      expect(threeUp).toBeGreaterThan(1600);
+    });
+
+    it("the pane makes 1279 WIDER than 1280 for this panel, and that is disclosed", () => {
+      // The attributes pane arrives at exactly 1280 and takes 312px with it,
+      // so the roster genuinely goes 2-up → 1-up as the viewport GROWS by one
+      // pixel. It is a consequence of §16's own ratified arithmetic, not a bug
+      // in this slice, and it is stated here so the next reader does not
+      // rediscover it as one.
+      expect(summaryBoxBelowL(1279, 17)).toBe(1196);
+      expect(tracks(summaryBoxBelowL(1279, 17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(2);
+      expect(tracks(summaryBoxAtL(1280, 17), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(1);
+      expect(summaryBoxBelowL(1279, 17)).toBeGreaterThan(summaryBoxAtL(1280, 17));
+    });
+
+    it("I11 — at 768 and 390 the row wraps INSIDE its columns, and nothing scrolls", () => {
+      // One track at both, and the min() idiom is what stops a 444px floor
+      // overflowing a 332px container.
+      expect(app).toContain("minmax(min(444px, 100%), 1fr)");
+      expect(tracks(summaryBoxBelowL(768, 15), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(1);
+      expect(tracks(summaryBoxBelowL(390, 0), ROSTER_GROUP_FLOOR, ROSTER_COL_GAP)).toBe(1);
+
+      // §14.2's min-content row: PIN 60 + "Visionary" 68 + TIER 24 + "Gold" 30
+      // + cost 32, four gutters. WITHOUT the pin column — which this slice does
+      // not render — it is 60 + 8 smaller again.
+      const rowMinWithPin = PIN_CHIP_MAX + SPACE_2 + 68 + SPACE_2 + TIER_MEDALLION_MAX + SPACE_2 + 30 + SPACE_2 + ROSTER_COST_MAX;
+      expect(rowMinWithPin).toBe(246);
+      const rowMinShipped = rowMinWithPin - PIN_CHIP_MAX - SPACE_2;
+      expect(rowMinShipped).toBe(178);
+
+      // The S content box, re-derived. §14.2 reads 334/366 because it omits the
+      // <Section> chrome; the corrected figure is 332 — and the headroom is
+      // +86 with R2's pin column and +154 without it, so nothing overflows in
+      // either world.
+      const sBox = summaryBoxBelowL(390, 0) - 2 * SPACE_4; // the group's own padding
+      expect(summaryBoxBelowL(390, 0)).toBe(332);
+      expect(sBox).toBe(300);
+      expect(sBox - rowMinShipped).toBe(122);
+      expect(summaryBoxBelowL(390, 0) - rowMinWithPin).toBe(86);
+    });
+  });
+
+  describe("§14.2 — the two BANS, asserted by absence", () => {
+    it("no @container rule and no display:block on any roster <tr>/<td>", () => {
+      // THE A11Y-TREE BAN, and it is silent when violated: flipping table rows
+      // to blocks strips the table role in every target engine, and
+      // <caption> + <th scope> + row/column association is the roster's whole
+      // screen-reader value. A table wraps its cells natively.
+      const css = stripComments(app);
+      expect(css).not.toMatch(/@container[^{]*\{[^{}]*\.summary-roster/s);
+      for (const block of blocksFor(app, ".summary-roster")) {
+        expect(block).not.toContain("display: block");
+      }
+      expect(css).not.toMatch(/\.summary-roster[^{]*(tr|td)[^{]*\{[^}]*display:\s*block/);
+    });
+
+    it("the roster adds NO media query — auto-fill is continuous in the viewport", () => {
+      // §13.3's rule, reused: a seam produced by auto-fill arithmetic needs no
+      // breakpoint, and a fourth breakpoint is a stop-and-report.
+      const queries = [...stripComments(app).matchAll(/@media \(min-width:\s*(\d+)px\)/g)].map(
+        (match) => Number.parseInt(match[1] as string, 10),
+      );
+      expect([...new Set(queries)].sort((a, b) => a - b)).toEqual([768, 1280]);
+    });
+
+    it("the print block is LEGIBILITY, not a fourth layout", () => {
+      const print = atRuleBody(app, "@media print {");
+      // A dark theme on white paper is invisible text — that is the defect.
+      expect(print).toContain("color: #000 !important;");
+      expect(print).toContain("background: #fff !important;");
+      // Nothing collapsed: a printed page cannot be expanded.
+      expect(print).toContain("details:not([open]) > *:not(summary)");
+      // …and NONE of the things that would make it a layout.
+      expect(print).not.toContain("@page");
+      expect(print).not.toContain("grid-template-columns");
+      expect(print).not.toContain("font-family");
+      expect(print).not.toContain("font-size");
+    });
   });
 });
 

@@ -25,19 +25,36 @@ export interface FilterState {
   categories: Category[];
   legalOnly: boolean;
   affordableAtLeast: PurchasableLevel | null;
+  /**
+   * F8-S2 (§14.9 item 3) — "show me just my loadout, as cards". The shipped
+   * four facets cannot express it, so the only purchased-only view in the app
+   * was scrolling 53 cards looking for ~11.
+   *
+   * THE ROSTER'S COMPANION, NOT ITS SUBSTITUTE: a card is ~298px wide and a
+   * roster row is one line. The roster is what you read beside a console;
+   * this is what you click when you want to CHANGE something.
+   */
+  purchasedOnly: boolean;
 }
 
 export function defaultFilterState(): FilterState {
-  return { tiers: [], categories: [...CATEGORIES], legalOnly: false, affordableAtLeast: null };
+  return {
+    tiers: [],
+    categories: [...CATEGORIES],
+    legalOnly: false,
+    affordableAtLeast: null,
+    purchasedOnly: false,
+  };
 }
 
-/** Active FACETS (tier / affordable / category / legal), 0–4. */
+/** Active FACETS (tier / affordable / category / legal / purchased), 0–5. */
 export function activeFilterCount(filters: FilterState): number {
   return (
     (filters.tiers.length > 0 ? 1 : 0) +
     (filters.affordableAtLeast !== null ? 1 : 0) +
     (filters.categories.length < CATEGORIES.length ? 1 : 0) +
-    (filters.legalOnly ? 1 : 0)
+    (filters.legalOnly ? 1 : 0) +
+    (filters.purchasedOnly ? 1 : 0)
   );
 }
 
@@ -137,6 +154,17 @@ export function FilterBar({ filters, onChange, shownCount, totalCount }: FilterB
           checked={filters.legalOnly}
           onChange={(legalOnly) => {
             onChange({ ...filters, legalOnly });
+          }}
+        />
+
+        {/* 5 — F8-S2: purchased only. STILL ZERO FILTER ARITHMETIC HERE —
+            the predicate lives in App.tsx's badgeVisible, against the
+            loadout the engine holds. */}
+        <Toggle
+          label="Purchased"
+          checked={filters.purchasedOnly}
+          onChange={(purchasedOnly) => {
+            onChange({ ...filters, purchasedOnly });
           }}
         />
 

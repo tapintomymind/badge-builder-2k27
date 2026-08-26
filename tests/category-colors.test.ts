@@ -268,3 +268,156 @@ describe("§12.12.4 — mutual separation, measured as ΔE", () => {
     expect([worst.a, worst.b].sort()).toEqual(["defense", "playmaking"]);
   });
 });
+
+/* ---------------------------------------------------------------- §14.3 -- */
+
+/**
+ * F8-S2 — the ONE new `--cat-*` surface, and the four conditions on it.
+ *
+ * §12.10's forbidden-selector rule gains EXACTLY ONE permitted selector:
+ * `.summary-roster__caption`. Granted on §12.12.6's own evidence — the
+ * category digest title already carries hue on type beside a `--rule-gold`
+ * hairline, gold pips and a `--danger` left border, and the roster caption is
+ * a strictly WEAKER adjacency: no hairline, no pips, and `--danger` a full
+ * table away in the `<tfoot>`. Adding a SECOND is a stop-and-report, not an
+ * implementation choice, which is why (b) below enumerates the ban rather
+ * than spot-checking it.
+ *
+ * NOTE THE SHAPE OF THE WIRING, because it is load-bearing for the §2.8.1
+ * channel lint above: the caption reads `var(--cat-{key})` through six
+ * explicit rules rather than inheriting `var(--cat)`. The inherited custom
+ * property therefore never enters `.summary` at all, and the "four identity
+ * surfaces" assertion stays exactly as true as it was before this slice.
+ */
+describe("§14.3 — category hue on the roster caption, and NOWHERE else in the summary", () => {
+  const CAPTION = ".summary-roster__caption";
+  const BG_SURFACE = "#161b22";
+
+  /** The six caption rules, parsed off the shipped stylesheet. */
+  function captionRules(): { key: string; token: string }[] {
+    return [
+      ...app.matchAll(
+        /\.summary-roster__group\[data-category="([a-z]+)"\] \.summary-roster__caption \{\s*color:\s*var\(--cat-([a-z]+)\);/g,
+      ),
+    ].map((match) => ({ key: match[1] as string, token: match[2] as string }));
+  }
+
+  it("(a) all six captions resolve to the six --cat-* hexes, and only those", () => {
+    const rules = captionRules();
+    expect(rules.map((rule) => rule.key).sort()).toEqual([...CATEGORY_KEYS].sort());
+    for (const rule of rules) {
+      // The data hook and the token must name the SAME category — a
+      // copy-paste that pairs `defense` with `--cat-rebounding` is invisible
+      // on screen unless you know the palette by heart.
+      expect(rule.token, `data-category="${rule.key}"`).toBe(rule.key);
+      expect(tokenValue(`cat-${rule.token}`)).toMatch(/^#[0-9a-f]{6}$/);
+    }
+    expect(rules).toHaveLength(6);
+  });
+
+  it("(b) NO other .summary* selector references a --cat-* token", () => {
+    // §14.3 names the forbidden set explicitly; this asserts the whole class
+    // rather than the list, so a selector invented later is caught too.
+    const blocks = [...app.matchAll(/([^{}]*\.summary[^{}]*)\{([^{}]*)\}/g)];
+    expect(blocks.length).toBeGreaterThan(10);
+    for (const block of blocks) {
+      const selector = (block[1] as string).trim();
+      const body = block[2] as string;
+      if (!/var\(--cat/.test(body)) continue;
+      expect(selector.endsWith(CAPTION), `unexpected --cat consumer: ${selector}`).toBe(true);
+    }
+    // …and the named list from §14.3, spelled out because these are the six
+    // a future slice is most likely to reach for.
+    for (const forbidden of [
+      ".summary__table",
+      ".summary-roster__table",
+      ".summary-roster__foot",
+      ".summary__total",
+      ".summary__warning",
+      ".summary__errors",
+      ".summary__copy-text",
+    ]) {
+      for (const block of app.matchAll(new RegExp(`\\${forbidden}[^{}]*\\{([^{}]*)\\}`, "g"))) {
+        expect((block[1] as string).includes("var(--cat"), `${forbidden} took --cat`).toBe(false);
+      }
+    }
+  });
+
+  it("(c) --danger never overrides --cat-* on the caption (I10)", () => {
+    // THE ONE THING THAT WOULD FORCE DROPPING THIS SURFACE. Identity and
+    // state on one node makes a red Defense caption indistinguishable from
+    // "you are over budget". State lives in the <tfoot>, per-metric.
+    for (const block of app.matchAll(
+      new RegExp(`\\${CAPTION}[^{}]*\\{([^{}]*)\\}`, "g"),
+    )) {
+      const body = block[1] as string;
+      expect(body).not.toContain("var(--danger");
+      expect(body).not.toContain("var(--warning");
+    }
+    // No over-state variant of the caption exists at all.
+    expect(app).not.toMatch(/\.summary-roster__caption[^{]*(--over|ledger-over)/);
+    expect(app).not.toMatch(/ledger-over[^{]*\.summary-roster__caption/);
+    // Geometry: flat hue on TYPE. No bar, no ::before, no border, no fill.
+    expect(app).not.toContain(".summary-roster__caption::before");
+    for (const block of app.matchAll(
+      new RegExp(`\\${CAPTION}[^{}]*\\{([^{}]*)\\}`, "g"),
+    )) {
+      const body = block[1] as string;
+      expect(body).not.toContain("background");
+      expect(body).not.toContain("border");
+    }
+  });
+
+  it("(d) the worst caption pairing on --bg-surface is 5.20:1, above the AA bar", () => {
+    // Recomputed from the shipped hex — never copied from the proof file, so
+    // the two cannot drift (this file's own rule 3).
+    const ratios = CATEGORY_KEYS.map((key) => ({
+      key,
+      ratio: Number(contrast(tokenValue(`cat-${key}`), BG_SURFACE).toFixed(2)),
+    }));
+    const worst = ratios.reduce((low, next) => (next.ratio < low.ratio ? next : low));
+    expect(worst.key).toBe("defense");
+    expect(worst.ratio).toBe(5.2);
+    for (const { key, ratio } of ratios) {
+      expect(ratio, `--cat-${key} on --bg-surface is ${ratio}:1`).toBeGreaterThanOrEqual(AA);
+    }
+    // The caption sits on the roster GROUP, which is --bg-surface — not on
+    // --bg-canvas. Asserting the wrong background is how a 4.6:1 pairing
+    // ships as a 5.2:1 one.
+    expect(app).toMatch(/\.summary-roster__group \{[^}]*background:\s*var\(--bg-surface\)/);
+  });
+
+  it("(e) the forced-colors companion covers the caption too", () => {
+    // The identity layer is decorative by construction, so it discards
+    // cleanly — but say so, rather than leaving a system colour fighting a
+    // custom property.
+    const start = app.indexOf("@media (forced-colors: active)");
+    expect(start).toBeGreaterThan(-1);
+    expect(app.slice(start)).toContain(".summary-roster__caption");
+  });
+
+  it("(f) print drops the hue for legibility, and says why in one place", () => {
+    // 5.20:1 is measured on --bg-surface and is UNMEASURED on paper, so
+    // identity yields to legibility and weight carries what hue carried.
+    // Brace-counted, not sliced to EOF: a slice would absorb whatever the
+    // next slice appends to the stylesheet and quietly stop asserting.
+    const printStart = app.indexOf("@media print {");
+    expect(printStart).toBeGreaterThan(-1);
+    let depth = 0;
+    let printEnd = printStart;
+    for (let at = printStart; at < app.length; at += 1) {
+      if (app[at] === "{") depth += 1;
+      else if (app[at] === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          printEnd = at + 1;
+          break;
+        }
+      }
+    }
+    const print = app.slice(printStart, printEnd);
+    expect(print).toContain(".summary-roster__caption");
+    expect(print).toContain("font-weight: 700");
+    expect(print).not.toContain("var(--cat");
+  });
+});

@@ -18,18 +18,47 @@
  * Export/import is FILE-based only (Blob download + <input type="file">, no
  * network, no storage) — the localStorage adapter is M3's src/persist/ and
  * is not touched here.
+ *
+ * ---------------------------------------------------------------------------
+ * F8-S2 — EXTENDED, NEVER REWRITTEN. A rewrite is how the H2 ship-gate
+ * regressions go red on a pass that changed no logic, and how
+ * `hardViolationText`'s exhaustive-`kind` pinning quietly stops being
+ * exhaustive. Everything M4 and F4 shipped is still here: the errors Banner
+ * with F4's [N6] re-cut lead-in, the H4/NB-3 chip with its unset-capacity
+ * suppression, both legacy tables, and the ExportImportControls/ImportDialog
+ * pair.
+ *
+ * THE COLUMN CONTRACT (§14.6), stated once for everything below. This panel
+ * still reads COMMITTED state only, and the new surfaces are built on
+ * `buildSummary` — a selector whose SIGNATURE takes no `OverlayState` and
+ * never will. Purchased level, effective level (neutral overlay), cost, every
+ * <tfoot>, both legacy tables and the text block are therefore byte-identical
+ * across all four overlay combinations. `synergyProjections` — the selector
+ * carrying the overlay-DEPENDENT `activatesTo` — reaches only `SynergyDigest`,
+ * where a fixed overlay makes it a labelled conditional rather than a
+ * preview. `tests/ui/overlays.test.tsx` compares this whole subtree's
+ * textContent, so ONE overlay-dependent node anywhere inside `.summary`
+ * reddens the gate.
+ *
+ * Region order (§14.4): errors · over-capacity chips · [RollPanel — F8-R2's,
+ * absent and NOT reserved] · LoadoutRoster · SynergyDigest · [no Σ-vs-20 row —
+ * AJ-5 / F4 R17 rule ONE home, `BudgetTotalRow`; the Σ line lives in the text
+ * block only, because the text leaves the app and BudgetTotalRow cannot
+ * travel with it] · the two legacy tables in region B · SummaryTextBlock.
+ *
+ * `countsByLevel` is now the ENGINE's (`BuildSummary.countsByLevel`); F8-E1
+ * pinned old ≡ new before deleting the inline computation, and the rendered
+ * table does not move by one character.
+ * ---------------------------------------------------------------------------
  */
 
 import { useEffect, useRef } from "react";
 import { badgeById } from "../../engine/dataset";
 import { badgeSlotsCapacityUnset } from "../../engine/ledger";
 import type { ClearedSynergyRef } from "../../engine/serialization";
-import {
-  RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS,
-  defaultOverlay,
-  effectiveLevel,
-  synergyRoleFor,
-} from "../../engine/synergy";
+import type { BuildSummary, SynergySummaryRow } from "../../engine/summary";
+import { formatSummaryText } from "../../engine/summary-text";
+import { RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS, synergyRoleFor } from "../../engine/synergy";
 import type { CategoryLedgerReadout } from "../../engine/synergy-ledger";
 import type { HardViolation, LoadoutValidation } from "../../engine/validate-loadout";
 import type {
@@ -44,6 +73,9 @@ import { CATEGORIES, LEVELS, LEVEL_LABELS } from "../../engine/vocabulary";
 import { Banner } from "../primitives/Banner";
 import { Button } from "../primitives/Button";
 import { Chip } from "../primitives/Chip";
+import { LoadoutRoster } from "./LoadoutRoster";
+import { SummaryTextBlock } from "./SummaryTextBlock";
+import { SynergyDigest } from "./SynergyDigest";
 
 /** Human-readable rendering of one engine HardViolation (H4 invariant
  * class). Copy only — the classification is entirely the engine's. Exported
@@ -85,6 +117,30 @@ export function hardViolationText(error: HardViolation, dataset: BadgeDataset): 
   }
 }
 
+/**
+ * §3.6's `capacity not set (N of 6 categories)` footnote — RATIFIED IN REV 2
+ * AND NEVER SHIPPED (design-spec §14.5.2 ⑤). Its absence is why the pasted
+ * text block and the panel could not be asserted equal, which is the one
+ * property §14.5 exists to deliver. Exported so the text↔panel test can pin
+ * it against `formatSummaryText`'s own output rather than a transcription.
+ *
+ * Empty when every capacity is entered — an unset capacity is MISSING
+ * INFORMATION, never an overspend, so this is advisory weight and never
+ * `--danger` (§4.7).
+ */
+export function capacityFootnote(summary: BuildSummary): string {
+  const missing = summary.categoriesWithoutCapacity;
+  if (missing === 0) return "";
+  return ` (${missing} of ${summary.categories.length} categories ${missing === 1 ? "has" : "have"} no capacity set)`;
+}
+
+/** The zero element of the counts record — NOT a re-implementation of the
+ *  rule, which is `BuildSummary.countsByLevel`'s alone. Reached only when the
+ *  panel is mounted without a summary (see `SummaryPanelProps.summary`). */
+function noCounts(): Record<Level, number> {
+  return Object.fromEntries(LEVELS.map((level) => [level, 0])) as Record<Level, number>;
+}
+
 export interface SummaryPanelProps {
   loadout: readonly LoadoutEntry[];
   synergySlots: readonly SynergySlot[];
@@ -92,6 +148,30 @@ export interface SummaryPanelProps {
   readouts: Readonly<Record<Category, CategoryLedgerReadout>>;
   validation: LoadoutValidation;
   dataset: BadgeDataset;
+  /**
+   * F8-S2 — `buildSummary(ledgerState, build, dataset)`, computed by the App
+   * exactly as `readouts`, `validation` and the feasibility counts already
+   * are. Passing the OUTPUT rather than the inputs keeps the H2 seam narrow:
+   * `BuildSummary` is a value with no channel an `OverlayState` could arrive
+   * through, so no future prop edit can make this panel overlay-dependent by
+   * accident.
+   *
+   * OPTIONAL, and the reason is worth stating rather than inferring:
+   * `tests/ui/f2-disclosure-surfaces.test.tsx` mounts this component directly
+   * to pin `hardViolationText`'s exhaustiveness, and that file is a
+   * RUN-never-edit path for this slice. A required prop would have forced an
+   * edit to it. Absent ⇒ the roster, the Synergy digest and the text block do
+   * not render and the counts read zero; the App ALWAYS supplies it, and
+   * tests/ui/f8-roster.test.tsx pins that it does.
+   */
+  summary?: BuildSummary;
+  /** `synergyProjections(ledgerState, dataset)`. Same optionality, same
+   *  reason. Its overlay-dependent `activatesTo` field is computed by the
+   *  selector under a FIXED overlay, so it is a constant of the render. */
+  synergy?: readonly SynergySummaryRow[];
+  /** The saved build's name. A persistence concern the App holds; the text
+   *  block's header suffix is absent without it. */
+  buildName?: string;
 }
 
 export function SummaryPanel({
@@ -101,17 +181,19 @@ export function SummaryPanel({
   readouts,
   validation,
   dataset,
+  summary,
+  synergy,
+  buildName,
 }: SummaryPanelProps) {
+  // ONE engine value feeds the roster, the counts table, the footnote and the
+  // text block, so none of the four can disagree with the others.
+  const summaryText =
+    summary === undefined ? null : formatSummaryText(summary, { buildName }, synergy ?? []);
+
   // Committed effective levels (neutral overlay) — Legend is reachable only
-  // via boost, so its row is labelled as such.
-  const countsByLevel = Object.fromEntries(LEVELS.map((level) => [level, 0])) as Record<
-    Level,
-    number
-  >;
-  for (const entry of loadout) {
-    const effective = effectiveLevel({ loadout, synergySlots }, entry.badgeId, defaultOverlay);
-    if (effective !== null) countsByLevel[effective] += 1;
-  }
+  // via boost, so its row is labelled as such. Hoisted to the engine in
+  // F8-E1, which pinned old ≡ new before this inline loop was deleted.
+  const countsByLevel = summary?.countsByLevel ?? noCounts();
 
   const totalSpent = CATEGORIES.reduce((sum, category) => sum + readouts[category].spent, 0);
   const totalPool = CATEGORIES.reduce((sum, category) => sum + budgets[category].points, 0);
@@ -164,6 +246,17 @@ export function SummaryPanel({
         </p>
       ))}
 
+      {/* Region 4 (§14.4) — every badge you own, BY NAME. */}
+      {summary !== undefined ? <LoadoutRoster summary={summary} budgets={budgets} /> : null}
+
+      {/* Region 5 — read-only; §3.5's panel owns Synergy Slot ACTIONS. */}
+      {synergy !== undefined ? <SynergyDigest rows={synergy} dataset={dataset} /> : null}
+
+      {/* Region 7 — REGION B. §13.5's cap was derived against these two
+          tables' 196px max-content and is preserved verbatim on the wrapper;
+          the roster's 412px row needed its own region rather than a wider
+          cap (§14.2). */}
+      <div className="summary__tables">
       <table className="summary__table">
         <caption>Badges by level</caption>
         <tbody>
@@ -207,10 +300,23 @@ export function SummaryPanel({
             <th scope="row">Total</th>
             <td className="num summary__total">
               {totalSpent} / {totalPool}
+              {/* §14.5.2 ⑤ — the ratified-and-never-shipped honesty marker.
+                  Without it the panel silently reads a whole-build total off
+                  a partial spread, and the panel↔text equality §14.5 exists
+                  for cannot hold. */}
+              {summary === undefined || capacityFootnote(summary) === "" ? null : (
+                <span className="summary__footnote">{capacityFootnote(summary)}</span>
+              )}
             </td>
           </tr>
         </tfoot>
       </table>
+      </div>
+
+      {/* Region 8 — the whole thing as plain text. The <textarea> is the
+          PRIMARY path, not a fallback: on the LAN origin this feature exists
+          to serve, `navigator.clipboard` is undefined (§14.5). */}
+      {summaryText !== null ? <SummaryTextBlock text={summaryText} /> : null}
     </div>
   );
 }
