@@ -997,37 +997,34 @@ main#badge-grid {
  *     1 x 2px  gap before the Legend mark  2
  *     1 x 16px Legend mark                16   role="img", NOT a target
  *     1 x 4px  cost gutter (--space-1)     4
- *     COST_MAX `from 3`                   37   measured 38.08, take-the-larger
+ *     COST_MAX `3+`                       25   measured 24.09, take-the-larger
  *                                        ---
- *     ROW2_MIN                            161
+ *     ROW2_MIN                            147
  *   CHROME
  *     3px synergy/left edge + 1px right border      4
  *     2 x --space-2 inline padding                 16
  *                                                 ---
- *     FLOOR = 161 + 20 =                          181
+ *     CONTENT MINIMUM = 147 + 20 =                 167
  *
- * 180 -> 181 BY THE COST READOUT (user ask, 2026-08-26: make the cost more
- * apparent). The number went --text-xs -> --text-sm/700, which moved the
- * widest arm `from 3` from 36.88 to 38.08.
+ * THE FLOOR IS 180, WHICH IS 13px ABOVE THAT MINIMUM, AND THE GAP IS THE
+ * POINT. Below 179 the catalog goes 4-UP at 1440 (4-up needs a floor <= 178),
+ * which is not the density the mockup ratified. So the floor is CHOSEN for
+ * density and merely BOUNDED by content — the two numbers are allowed to
+ * differ, and tests/layout-arithmetic.test.ts asserts the relationship
+ * (floor >= content minimum, floor > the 4-up ceiling) rather than equality.
  *
- * 181 IS THE CEILING, MEASURED, NOT ESTIMATED. The catalog's grid box at
- * 1280 is 576, so with a 17px scrollbar it is 559: three 181px tracks plus
- * two 8px gaps is 559 EXACTLY, and 182 drops to 2-up on every classic
- * scrollbar. There is no slack left in this floor — which is safe only
- * because tests/layout-arithmetic.test.ts DERIVES it from these terms and
- * asserts the resolved track count at 0/15/17px scrollbars, so the next
- * pixel added to row 2 reddens the suite instead of silently costing the
- * catalog its third column. 3-up at 1440 is unaffected (4-up would need a
- * floor <= 178). Do not add to row 2 without re-running that derivation.
- *
- * FAILURE MODE, NAMED: `from` is the one term in --font-ui rather than
- * --font-num, so its advance varies with the platform's UI face. Where it
- * renders wider than measured here the row WRAPS (the wrap grant is
- * declared, not incidental) and that card gets taller — the 3-up layout
- * itself cannot break, because the floor is a fixed CSS number. */
+ * HOW THE HEADROOM CAME BACK. The cost-emphasis pass (user ask 2026-08-26)
+ * first spent it: `from 3` at --text-sm measured 38.08 and forced a 181
+ * floor, leaving 3-up at 1280/s=17 with ZERO slack. Rendering the same fact
+ * as `3+` — two MONOSPACE glyphs instead of a proportional word plus a
+ * digit — costs 24.09 even at --text-lg, so the numeral got bigger AND the
+ * floor came back to 180 with its 3px of 3-up margin intact. The proportional
+ * `from` was the whole problem: it was the only term here in --font-ui, so it
+ * was also the only one whose width varied with the platform's UI face. Row 2
+ * is now entirely monospace and its measurement is stable everywhere. */
 @media (min-width: 768px) {
   .grid-section__cards {
-    grid-template-columns: repeat(auto-fill, minmax(181px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
 }
 
@@ -3573,7 +3570,12 @@ main#badge-grid {
 }
 
 .badge-card__cost .num {
-  font-size: var(--text-sm);
+  /* --text-lg, and the width is what allows it: dropping the proportional
+   * `from ` for a monospace `+` took the widest arm from 38.08 to ~24, so a
+   * 20px numeral fits the same budget the 14px one was straining. It is now
+   * the largest thing on the tile, which is the point — this is the number
+   * the whole app is about spending. */
+  font-size: var(--text-lg);
   font-weight: 700;
   color: var(--fg-primary);
   /* Keeps the taller glyph from setting a line box the 24px pip row does not

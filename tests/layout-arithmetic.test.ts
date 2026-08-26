@@ -435,27 +435,29 @@ describe("I3 — three columns, and the card count that follows (R12)", () => {
     // the 3-up requirement had been priced against the COMFORTABLE 240px
     // card. R12 slice 2 (user ruling 2026-08-26, mockup-approved) re-derives
     // the floor from the compact tile's own min-content — see I12+I13
-    // assertion 1, which builds 181 out of the widest row plus the chrome —
+    // assertion 1, which builds it from the widest row plus the chrome —
     // and the requirement holds again at every plausible scrollbar.
-    expect(CARD_FLOOR).toBe(181);
+    expect(CARD_FLOOR).toBe(180);
     for (const scrollbar of SCROLLBARS) {
       expect(cardsPerRow(catalogBox(1280, scrollbar)), `scrollbar ${scrollbar}px`).toBe(3);
     }
     // THE BINDING CASE, spelled out: 3 x 181 + 2 x 8 = 559 against the 559px
     // the catalog column offers at 1280 with a 17px classic scrollbar.
     //
-    // ZERO SLACK, AND IT IS NAMED RATHER THAN DISCOVERED. The cost readout's
-    // emphasis pass (user ask 2026-08-26) moved the floor 180 -> 181 and spent
-    // the 3px this line used to report. 181 is therefore the CEILING: 182
-    // drops the catalog to 2-up on every classic scrollbar, which is the
-    // regression slice 2 existed to undo. The next pixel added to row 2 must
-    // come with a re-derivation, and this assertion is what forces it.
+    // THE MARGIN, AND IT WAS SPENT AND RECOVERED WITHIN ONE DAY — worth
+    // recording, because the recovery is the reusable lesson. The cost
+    // emphasis pass took the floor to 181 and this margin to ZERO; rendering
+    // the price as `3+` instead of `from 3` gave back 14px of row 2 and the
+    // floor returned to 180. 3 x 180 + 2 x 8 = 556 against the 559 the
+    // catalog offers at 1280 with a 17px classic scrollbar.
     expect(3 * CARD_FLOOR + 2 * CARD_GAP_X).toBeLessThanOrEqual(catalogBox(1280, 17));
-    expect(catalogBox(1280, 17) - (3 * CARD_FLOOR + 2 * CARD_GAP_X)).toBe(0);
-    // CANARY: one more pixel of floor and the requirement fails outright.
-    const atFloorPlusOne = (track: number) =>
-      Math.max(1, Math.floor((track + CARD_GAP_X) / (CARD_FLOOR + 1 + CARD_GAP_X)));
-    expect(atFloorPlusOne(catalogBox(1280, 17))).toBe(2);
+    expect(catalogBox(1280, 17) - (3 * CARD_FLOOR + 2 * CARD_GAP_X)).toBe(3);
+    // CANARY: the requirement really is knife-edge-adjacent — two more pixels
+    // of floor and the catalog falls to 2-up on every classic scrollbar.
+    const atFloorPlus = (extra: number, track: number) =>
+      Math.max(1, Math.floor((track + CARD_GAP_X) / (CARD_FLOOR + extra + CARD_GAP_X)));
+    expect(atFloorPlus(1, catalogBox(1280, 17))).toBe(3);
+    expect(atFloorPlus(2, catalogBox(1280, 17))).toBe(2);
   });
 
   it("THE GAP IS LOAD-BEARING: at --space-3 the same floor falls back to 2-up", () => {
@@ -498,8 +500,8 @@ describe("I3 — three columns, and the card count that follows (R12)", () => {
     // satisfies that and landing one pixel above it would not.
     const v3 =
       3 * CARD_FLOOR + 2 * CARD_GAP_X + 2 * COL_PAD_X + 17 + RAIL + BUILD_RAIL + 4 * SPACE_3;
-    expect(v3).toBe(1280);
-    expect(v3).toBeLessThanOrEqual(L_BREAKPOINT);
+    expect(v3).toBe(1277);
+    expect(v3).toBeLessThan(L_BREAKPOINT);
     expect(cardsPerRow(catalogBox(v3, 17))).toBe(3);
     expect(cardsPerRow(catalogBox(v3 - 1, 17))).toBe(2);
   });
@@ -1283,23 +1285,24 @@ const NEW_CHIP_MAX = 39;
  *  the row and it is why the row's wrap grant is declared rather than
  *  assumed. */
 const OVER_SLOTS_CHIP_MAX = 123;
-/** The cost readout, `from 3` — the widest of the two arms; the `from` arm
- *  reads the CHEAPEST reachable level, which tops out at 3, and the purchased
- *  arm is a single digit. The word is in --font-ui and the number in
- *  --font-num (the app's own `.num`); with the whole string in --font-num it
- *  was 43.35, which is 9px of the row — the split is a floor term, not
- *  typography.
+/** The cost readout. `3+` is the widest arm — the unpurchased one, whose
+ *  number is the CHEAPEST reachable level (tops out at 3) plus a `+` suffix;
+ *  the purchased arm is a bare single digit, because total-to-own costs are
+ *  1-7. Measured 24.09 at --text-lg/700, pinned at 25 (§13.0.1's
+ *  take-the-larger rule).
  *
- *  RE-MEASURED 36.88 -> 38.08 AND RE-PINNED 38 -> 39 (user ask 2026-08-26:
- *  "make the badge cost more apparent within each card"). The number went
- *  --text-xs -> --text-sm at weight 700 in --fg-primary while the word
- *  receded to --fg-muted, so the emphasis is carried by hierarchy. Weight
- *  alone was free — --font-num is monospace, so a bold digit has the same
- *  advance — and the 2px of size is the entire cost of the change.
+ *  THE HISTORY IS THE LESSON, so it is kept. This term was 38 when the
+ *  readout was `from 3` with the number at --text-xs, and 39 when the user
+ *  asked for the cost to be more apparent and the number went to --text-sm.
+ *  At 39 the card floor hit 181 — its measured ceiling, with ZERO 3-up slack
+ *  at 1280/s=17. Re-rendering the same fact as a `+` SUFFIX removed the only
+ *  --font-ui term from row 2: two monospace glyphs cost 24 even at
+ *  --text-lg, so the numeral doubled in size AND the floor came back to 180.
  *
- *  §13.0.1's take-the-larger rule, applied: pinned at the CEILING of the new
- *  measurement, not at it. */
-const COST_MAX = 39;
+ *  Row 2 is now entirely --font-num, which is why this measurement is stable
+ *  across platforms — `from` was proportional, so its advance moved with the
+ *  system UI face and was the one term that could not be trusted off-box. */
+const COST_MAX = 25;
 
 /**
  * I12 — the binding content box. The FLOOR minus a 1px right border, the 3px
@@ -1315,7 +1318,11 @@ const CARD_CONTENT_MIN = CARD_FLOOR - (1 + SYNERGY_BORDER) - 2 * CARD_PAD;
  *  so row 1 can set no floor at all. */
 const ROW2_MIN =
   4 * PIP_W + 3 * PIP_GAP + PIP_GAP + LEGEND_MARK_W + LINE_GAP + COST_MAX;
-const DERIVED_FLOOR = ROW2_MIN + (1 + SYNERGY_BORDER) + 2 * CARD_PAD;
+/** What the CONTENT needs. The shipped floor is chosen ABOVE this for
+ *  density (see the assertions): equality held only while the cost readout
+ *  was wide enough to bind, and pinning equality again would silently make
+ *  the catalog's density a hostage of the price label's typography. */
+const CONTENT_FLOOR = ROW2_MIN + (1 + SYNERGY_BORDER) + 2 * CARD_PAD;
 
 describe("I12 + I13 — the badge card's own geometry (R12 slice 2, the compact tile)", () => {
   it("1 — THE FLOOR IS DERIVED: the widest row's min-content plus the chrome", () => {
@@ -1325,26 +1332,31 @@ describe("I12 + I13 — the badge card's own geometry (R12 slice 2, the compact 
     //   1 x 2  gap before the Legend mark    2
     //          the Legend mark              14   role="img", not a target
     //          the row gutter (--space-1)    4
-    //          `from 3`                     39   measured 38.08, ceiling
+    //          `3+`                         25   measured 24.09, ceiling
     //                                      ---
-    //                                      161
+    //                                      147
     // plus the chrome: a 3px left edge, a 1px right border, 2 x --space-2.
-    expect(ROW2_MIN).toBe(161);
-    expect(DERIVED_FLOOR).toBe(181);
-    // …and the stylesheet carries exactly what the derivation says it must.
-    // This is the assertion that makes every pin above load-bearing: move any
-    // term and the shipped floor stops agreeing with its own arithmetic.
-    expect(CARD_FLOOR).toBe(DERIVED_FLOOR);
-    expect(CARD_CONTENT_MIN).toBe(ROW2_MIN);
-    expect(CARD_CONTENT_MIN).toBe(161);
+    expect(ROW2_MIN).toBe(147);
+    expect(CONTENT_FLOOR).toBe(167);
+    // THE SHIPPED FLOOR IS CHOSEN, AND BOUNDED AT BOTH ENDS — it is no longer
+    // equal to the content minimum, and pinning equality again would make the
+    // catalog's density a hostage of the price label's typography.
+    //   lower bound: it must fit the widest row (or the row wraps);
+    //   upper bound: it must stay above the 4-up ceiling at 1440 (178), or
+    //                the ratified 3-up density silently becomes 4-up.
+    expect(CARD_FLOOR).toBeGreaterThanOrEqual(CONTENT_FLOOR);
+    expect(CARD_FLOOR).toBe(180);
+    expect(CARD_FLOOR - CONTENT_FLOOR).toBe(13);
+    expect(CARD_CONTENT_MIN).toBeGreaterThanOrEqual(ROW2_MIN);
+    expect(CARD_CONTENT_MIN).toBe(160);
     // THE CANARY: computing the box with 1px borders on both sides — the
-    // natural mistake, and the one §15 shipped — gives 163 and quietly
+    // natural mistake, and the one §15 shipped — gives 162 and quietly
     // certifies a 2px overdraft. R12 slice 2 gives EVERY card the 3px edge, so
     // the error is now uniform rather than falling on role-carrying cards
     // alone, which is why the edge is parsed from the rule that owns it.
     expect(SYNERGY_BORDER).toBe(3);
     const naive = CARD_FLOOR - 2 - 2 * CARD_PAD;
-    expect(naive).toBe(163);
+    expect(naive).toBe(162);
     expect(CARD_CONTENT_MIN).toBeLessThan(naive);
   });
 
@@ -1358,7 +1370,7 @@ describe("I12 + I13 — the badge card's own geometry (R12 slice 2, the compact 
     const fixed = TIER_MEDALLION_MAX + NEW_CHIP_MAX + MORE_W + 3 * TITLE_GAP;
     expect(fixed).toBe(99);
     const nameAtFloor = CARD_CONTENT_MIN - fixed;
-    expect(nameAtFloor).toBe(62);
+    expect(nameAtFloor).toBe(61);
     // 61px is seven characters of --text-sm — a stub, and deliberately so:
     // this is the WORST case (a NEW badge at the 180px floor). It is below
     // BADGE_NAME_MIN, which is the honest reading: the tile truncates long
@@ -1413,9 +1425,13 @@ describe("I12 + I13 — the badge card's own geometry (R12 slice 2, the compact 
     const marks = 4 * PIP_W + 3 * PIP_GAP + PIP_GAP + LEGEND_MARK_W;
     expect(marks).toBe(118);
     expect(marks + LINE_GAP + COST_MAX).toBeLessThanOrEqual(CARD_CONTENT_MIN);
-    // …and it is EXACT at the floor by construction, which is what makes the
-    // floor a floor rather than a guess.
-    expect(marks + LINE_GAP + COST_MAX).toBe(CARD_CONTENT_MIN);
+    // IT IS NO LONGER EXACT, AND THAT IS THE `3+` READOUT'S DOING. While the
+    // price was `from 3` this row filled the tile to the pixel and the floor
+    // was pinned to it; the monospace suffix costs 14px less, so the row now
+    // clears its own box by 13 and the floor is held up by DENSITY instead
+    // (see assertion 1's bounds). The inequality above is the rule; equality
+    // was only ever a symptom of the cost label being the binding term.
+    expect(CARD_CONTENT_MIN - (marks + LINE_GAP + COST_MAX)).toBe(13);
     // The canary: at the pip's PRE-SLICE 36px width the same row is 166 + the
     // cost against 160 and the tile cannot exist at 3-up — which is the whole
     // reason the pip was re-cut rather than the column widened.
@@ -1424,13 +1440,13 @@ describe("I12 + I13 — the badge card's own geometry (R12 slice 2, the compact 
   });
 
   it("3b — the row's chips WRAP by design, and the wrap is declared", () => {
-    // A role-carrying card is 118 + 4 + 58 + 4 + 38 = 222 against the 160 the
+    // A role-carrying card is 118 + 4 + 58 + 4 + 25 = 209 against the 160 the
     // tile offers at the 1280 gate and the 214 it offers at 1440: it takes a
     // second line at BOTH, and the mockup's own arithmetic does the same (its
     // sketch fits only because its marks are 15px, which SC 2.5.8 forbids).
     // Declared by intent, never exempted by omission.
     const withRole = 118 + LINE_GAP + SYNERGY_CHIP_MAX + LINE_GAP + COST_MAX;
-    expect(withRole).toBe(223);
+    expect(withRole).toBe(209);
     expect(withRole).toBeGreaterThan(CARD_CONTENT_MIN);
     // The widest possible row — a NEW, Legend-effective, over-slots card that
     // also holds a synergy role — is wider still, and wraps everywhere. The
@@ -1452,7 +1468,7 @@ describe("I12 + I13 — the badge card's own geometry (R12 slice 2, the compact 
     // out to `.badge-card__line`, at the seam between the ladder and its
     // chips, so a narrow card can never split the ladder.
     expect(4 * PIP_W + 3 * PIP_GAP).toBeLessThanOrEqual(CARD_CONTENT_MIN);
-    expect(CARD_CONTENT_MIN - (4 * PIP_W + 3 * PIP_GAP)).toBe(59);
+    expect(CARD_CONTENT_MIN - (4 * PIP_W + 3 * PIP_GAP)).toBe(58);
     expect(4 * PIP_W + 3 * PIP_GAP).toBe(102);
     const row = blocksFor(app, ".pip-row").find((block) => block.includes("flex-wrap")) as string;
     expect(row).toContain("flex-wrap: nowrap");
