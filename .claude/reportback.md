@@ -9845,3 +9845,178 @@ temporary fixture-emitting test was written under `tests/`, run once, and **dele
 staging** — `git status` was re-checked immediately after and showed only the pre-existing
 untracked `.claude/worktrees/`. No `npm install` was run.
 ─────────────────────────────────────────────
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · integration — F2.3 autosave concurrency + the lossy boot read, onto `dev`
+
+**Event:** `integration-complete`
+**Landed:** `persist-concurrency` (3 commits off `44de81f`, worktree `/private/tmp/bb-persist`).
+Checked out as a throwaway `land-persist`, REBASED onto `dev`, then FAST-FORWARD.
+**`dev`:** `a24705f` → **`64864ca`** by the fast-forward, then one commit further for this entry.
+**Merge commits 2 before, 2 after** — `git rev-list --merges --count dev`, never
+`git log --merges | wc -l`, which counts LINES. `main` was never checked out; it is left with its
+pre-existing local/origin divergence (`444d034` vs `e6b3ae4`) untouched and unreconciled.
+`persist-concurrency` itself was never moved and `/private/tmp/bb-persist` is untouched.
+
+### The rebase — one conflict, and it was not in the code
+
+`git fetch --all --prune` first. `git merge-base dev persist-concurrency` = **`44de81f`**, four
+commits behind `dev`'s `a24705f`, so the rebase through the F16.1 fuse-refund landing was real
+and was performed.
+
+| commit | outcome |
+|---|---|
+| `fix(persist): a stale tab's flush and a lossy boot read…` | applied clean |
+| `test(persist): the four missing pins…` | applied clean |
+| `chore(reportback): …slice-complete entry` | **CONFLICT** in `.claude/reportback.md` |
+
+**`src/App.tsx` did not conflict, and that was verified rather than trusted.** A clean 3-way
+merge is not evidence that both sides survived, so the composition was checked in BOTH
+directions by comparing the two deltas line-for-line:
+
+- `git diff 44de81f 42d2c4c -- src` (what the branch originally changed) against
+  `git diff dev land-persist -- src` (what the rebase actually added on top of `dev`) —
+  **611 lines each, identical.**
+- `git diff 44de81f dev -- src` (F16.1's own change) against
+  `git diff 42d2c4c land-persist -- src` (what the rebase added on top of the branch tip) —
+  **240 lines each, identical.**
+
+Both sides are therefore present in full at every contact point; the two changes are genuinely
+orthogonal within `src/App.tsx` and neither was dropped to make the file parse. Spot-checked by
+symbol count as well: `applyRatifiedRefundTrigger` 3, `refundTriggerNormalized` 7,
+`ratifiedTrigger` 3, `setRefundTriggerNormalized` 3 — identical to `dev`; and `workingRef` 18,
+`persistableRef` 9, `bootWasLossy` 4, `lastObservedAutosaveRef` 4, `writeAutosaveIfUnmoved` 3,
+`flushSettledWorkingRef` 5, `RawReadOutcome` 2 — identical to the branch tip. The `tests/` delta
+is byte-identical to the branch's own, so no test was weakened by a resolution.
+
+### The reportback conflict — reconstructed from blobs, and SPLICED
+
+Never hand-edited. All five segments were taken from source blobs and the result `cmp`-verified
+segment by segment:
+
+| segment | source blob | lines | position | `cmp` |
+|---|---|---|---|---|
+| base | `44de81f:.claude/reportback.md` | 9,222 | 1–9,222 | byte-identical |
+| F16.1 slice-complete | `2aa11bc:` | 247 | 9,223–9,469 | byte-identical |
+| **F2.3 slice-complete** | `42d2c4c:` | 194 | **9,470–9,663** | byte-identical |
+| F16.1 integration | `a24705f:` | 184 | 9,664–9,847 | byte-identical |
+
+9,222 + 247 + 194 + 184 = **9,847**, and `wc -l` reads 9,847. Byte totals agree too:
+598,158 + 13,751 + 14,954 + 11,627 = **638,490**. Zero conflict markers remain. Each of the four
+source blobs was first confirmed to be a strict APPEND onto the base by `cmp` of its first 9,222
+lines, so treating them as separable segments was checked, not assumed.
+
+**This entry required a SPLICE, and the last one did not.** Authored timestamps decide position,
+not landing order:
+
+| entry | authored | |
+|---|---|---|
+| F16.1 slice-complete `2aa11bc` | 12:06:39 -0400 | |
+| **F2.3 slice-complete `42d2c4c`** | **12:15:56 -0400** | **← between the two** |
+| F16.1 integration `a24705f` | 12:20:42 -0400 | |
+
+So the F2.3 banner belongs BEFORE the F16.1 integration entry that landed first, and it was
+inserted there rather than appended at EOF. The naive append — which is what `git rebase` left in
+the conflict — would have put a 12:15 entry after a 12:20 one. A one-line cosmetic artifact is
+left standing as a consequence: `2aa11bc`'s block ends with a `─────` separator and `42d2c4c`'s
+block opens with one, so two adjacent separators now sit at line 9,469/9,470. That is preserved
+DELIBERATELY — the mandate is byte-identical segments, and deleting a line to tidy the seam would
+have meant hand-editing conflicted text.
+
+`rollpanel-overflow`'s banner (`bd038bc`, authored 12:16:23) will need the same treatment: it
+belongs after this entry's block and still BEFORE F16.1's integration entry.
+
+### Counts — computed from source before measuring, and the forecast was base-relative
+
+The hand-off forecast of **1690 / 77** is the branch's own number and is correct only on the
+branch's own base. `persist-concurrency` was cut from `44de81f`, which is **1653 / 74**; `dev` has
+since taken F16.1's **+16 / +1**. The branch's delta is what transfers:
+
+| | tests | files |
+|---|---|---|
+| `dev` `a24705f` | 1669 | 75 |
+| predicted delta | **+37** | **+3** |
+| **predicted** | **1706** | **78** |
+| **measured** | **1706** | **78** |
+
+Derived per file by RUNNING each, not by grepping `it(` — a loop can expand one line into several
+cases, which is how the previous integrator's first derivation went wrong:
+
+- `tests/ui/flush-blur-synchrony.test.tsx` — new, **7** → +7, +1 file
+- `tests/ui/two-tab-autosave.test.tsx` — new, **11** → +11, +1 file
+- `tests/ui/boot-lossy-preservation.test.tsx` — new, **17** → +17, +1 file
+- `tests/ui/recovery-boundary.test.tsx` — **8 → 10** (measured at `a24705f` in a scratch worktree
+  before the landing, and again after) → +2, no new file
+
+7 + 11 + 17 + 2 = **37**; 1669 + 37 = **1706**; 75 + 3 = **78**. Both match the run exactly. The
+whole chain reconciles: 1653 + 16 (F16.1) + 37 (F2.3) = 1706, and 74 + 1 + 3 = 78.
+
+### The four required properties, verified on the MERGED tree
+
+**1 — no persisted key and no serialized field was renamed.** The four localStorage keys are
+character-for-character what `dev` carries — `badge-builder-2k27:autosave:v1`,
+`:autosave-quarantine:v1`, `:named-builds:v1`, `:ui-state:v1` — and the sessionStorage key
+`bb2k27.ui.scrollTop.colRight` is untouched, its whole file (`src/ui/shell/scroll-memory.ts`)
+byte-identical at `d6e14d1e…`. The ONLY storage addition is the new
+`badge-builder-2k27:autosave-preserved:v1`, which no existing reader looks for. The
+`src/engine/serialization.ts` change is additive in the same way: one new report field
+(`droppedUnknownFields`) and one new exported constant (`KNOWN_TOP_LEVEL_FIELDS`, whose ten names
+are the existing envelope's, unchanged). There is no translation boundary in the save path, so a
+rename would have stranded every existing save — none happened.
+
+**2 — `RawReadOutcome` fails open on BOTH `failed` and `absent`.** The guard reads, in full:
+
+```
+const current = rawGetItem(AUTOSAVE_KEY);
+if (current.kind === "present" && current.raw !== expected) {
+  return { kind: "refused", foreign: current.raw };
+}
+return writeAutosaveTracked(saved);
+```
+
+Refusal is conjunctive on `present` AND a byte mismatch. `failed` (a read that THREW) and
+`absent` both fall through to the write. This is the property that keeps a transient storage
+hiccup from becoming total autosave loss, and no resolution inverted it.
+
+**3 — no cross-tab auto-adoption channel exists.** `BroadcastChannel` in `src/`: **0**.
+`addEventListener("storage"` in `src/`: **0**; `StorageEvent` / `onstorage` / the bare `"storage"`
+event name in `src/`: **0**. Zero across `tests/` as well. The slice refuses and PRESERVES foreign
+bytes; it never reads them into memory, which is what would destroy the other tab's work.
+
+**4 — the blur-synchrony pins survive, canary and census both.** The method canary
+(`MicrotaskCommitField`, a deliberately microtask-deferred field) still asserts **0** synchronous
+commits and then 1 after a tick — so "the spy was called" cannot pass for "called in the blur".
+The frozen `BLUR_CENSUS` still names exactly three `src` files and the run confirms the
+stylesheet-style equality assertion is neither short nor long: `NumberField.tsx`,
+`AttributeSlider.tsx`, and `BuildPanel.tsx` (named and excused as a UI-preference latch). F16.1
+added no fourth `onBlur`, which is why the frozen list still balances.
+
+**And the three new files still PROVE something.** The branch's own pinning proof was reproduced
+against the merged tree's pre-fix source — a scratch worktree at `a24705f`, the three files copied
+in, nothing else changed: **18 failed / 17 passed**, the exact split the branch recorded. A merge
+resolution that had quietly satisfied them would have shown up here as a lower failure count.
+
+### Gates
+
+- `npm test` — **1706 passed / 78 files**, 0 failed. Single run, no flakes, no re-runs. No
+  `{ timeout: 20000 }` was lowered or tightened anywhere.
+- `npm run typecheck` clean · `npm run build` clean (87 modules) →
+  `index-DnSoEaw_.js` 341.38 kB / `index-CijHueLd.css` 62.54 kB (CSS byte-identical to `dev` —
+  this slice moves no CSS).
+- **RUN-never-edit gates, byte-unchanged by blob hash and not merely green:**
+  `tests/ui/overlays.test.tsx` `30a7131b22a9344025c91ff32b60e052335ff07e` ·
+  `tests/category-colors.test.ts` `f1539c1dda0dbeb625f3891cb31d31646e1151a3` ·
+  `tests/feasibility-golden.test.ts` `cef359dc01c40ddda1ef5a629c4f81ec060288d7`. All three match
+  the baseline exactly. Run explicitly: **29 passed**. No golden cell moved.
+- F9 touch-floor census, **both axes**: height assertions 24 + 27 and width assertions 30 + 31 all
+  green, plus assertion 33 (the bonus mode adds no new floor control). Whole
+  `tests/layout-arithmetic.test.ts` green.
+- Vocabulary lint — all classes green, class 1 (bare slot-word) through class 4 ("Badge Tokens",
+  never "Badge Points"), including every POSITIVE CANARY.
+
+### Housekeeping
+
+`git add` was given explicit paths only; `git add -A` was never used. `git status` shows only the
+pre-existing untracked `.claude/worktrees/`. No `npm install` was run. One scratch worktree
+(`/private/tmp/bb-verify`, detached at `a24705f`, `node_modules` symlinked) was used for the
+before-counts and the pinning proof; it is left for the dispatcher to reap and holds no commits.
