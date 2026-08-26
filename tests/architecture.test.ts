@@ -219,3 +219,177 @@ describe("architecture: engine purity (f) — no clock, no DOM, no ambient rando
     expect(FORBIDDEN.test("const rows = summary.categories;")).toBe(false);
   });
 });
+
+/* ------------------------------------------- A6: Cap Breakers containment (g) -- */
+
+/**
+ * A6-R2's containment ruling, mechanised — and the reason it is not style.
+ *
+ * `BuildPanel` passes `build.attributes` down to `AttributeGrid`, whose
+ * slider renders a value and, on commit, calls back with the value it is
+ * showing. So if an EFFECTIVE value ever reaches that component, the next
+ * nudge of any touched slider writes the cap-broken number over the user's
+ * entered one: they typed 60, see 83, nudge, and 60 is gone — no error, no
+ * banner, no undo, green suite. That is the worst defect shape this project
+ * has (the four before it REFUSED data; this one REWRITES it), and these
+ * lints are one of its three independent binders
+ * [engine-data-design §3.4 · scope.md §0.1 A6-R6].
+ *
+ * BRIEF ↔ CODE DIVERGENCE, REPORTED RATHER THAN SILENTLY WEAKENED — the same
+ * disclosure the `MATH_RANDOM_ALLOWLIST` above makes about its own rule.
+ * A6-R9 test 2.1 asks for `capBrokenAttributes` in EXACTLY ONE `src/` file.
+ * It cannot be one, and the two extra sites are structural rather than
+ * sloppy: `types.ts` must DECLARE the field, and `serialization.ts` must name
+ * the wire KEY on an untyped JSON record before any `Build` exists to read it
+ * through. Neither is a second read path — the ruling that actually matters
+ * ("one composition point, and no component may reach it") is enforced whole
+ * by the allowlist below plus the `.tsx` ban. Expressed as an EXPLICIT
+ * ALLOWLIST with a why per entry, not as a blanket rule that cannot pass.
+ */
+const CAP_BROKEN_ALLOWLIST: Record<string, string> = {
+  "/src/engine/attributes.ts":
+    "THE one composition point — the only file that READS the field (A6-R2)",
+  "/src/engine/types.ts": "the field's DECLARATION; declaring is not reading",
+  "/src/engine/serialization.ts":
+    "the wire KEY on an untyped JSON record, at the boundary where no Build exists yet",
+};
+
+describe("architecture: Cap Breakers containment (g)", () => {
+  it("2.1 capBrokenAttributes appears ONLY in the explicit allowlist", () => {
+    const namers = srcFiles.filter((file) =>
+      stripComments(srcSources[file] as string).includes("capBrokenAttributes"),
+    );
+    expect(namers.sort()).toEqual(Object.keys(CAP_BROKEN_ALLOWLIST).sort());
+  });
+
+  it("2.1b every allowlist entry still exists and still names the field", () => {
+    // An allowlist that outlives its entries silently stops protecting
+    // anything — the drift guard the Math.random group learned to want.
+    for (const [file, why] of Object.entries(CAP_BROKEN_ALLOWLIST)) {
+      const source = srcSources[file];
+      expect(source, `${file} is on the A6 allowlist but does not exist`).toBeDefined();
+      expect(
+        stripComments(source as string).includes("capBrokenAttributes"),
+        `${file} no longer names capBrokenAttributes — drop it from the allowlist (${why})`,
+      ).toBe(true);
+    }
+  });
+
+  it("2.1c NO .tsx file references capBrokenAttributes or effectiveAttribute", () => {
+    // THE DATA-DESTRUCTION BINDER. A component may only ever hold the ENTERED
+    // record. A6-U relaxes this to the one control file, BY NAME — never by
+    // deleting the rule.
+    const componentFiles = srcFiles.filter((file) => file.endsWith(".tsx"));
+    expect(componentFiles.length).toBeGreaterThan(10);
+    for (const file of componentFiles) {
+      const code = stripComments(srcSources[file] as string);
+      for (const forbidden of ["capBrokenAttributes", "effectiveAttribute"]) {
+        expect(
+          code.includes(forbidden),
+          `${file} references ${forbidden} — a component must only ever hold the ` +
+            "ENTERED record, or the next slider commit overwrites the user's own number",
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("2.2 src/engine/eligibility.ts contains ZERO `.attributes[`", () => {
+    // The gate cannot read the entered value even by accident.
+    const code = stripComments(srcSources["/src/engine/eligibility.ts"] as string);
+    expect(code.includes(".attributes["), "the gate can still reach the entered value").toBe(
+      false,
+    );
+    expect(code.includes("effectiveAttribute("), "the gate does not use the composed value").toBe(
+      true,
+    );
+  });
+
+  it("2.3 POSITIVE CANARY: the pattern catches what it claims to", () => {
+    // A lint that cannot fail on its own canary is worse than no lint.
+    const GATE = ".attributes[";
+    expect("return build.attributes[line.attr] >= threshold;".includes(GATE)).toBe(true);
+    expect("return effectiveAttribute(build, line.attr) >= threshold;".includes(GATE)).toBe(
+      false,
+    );
+    // …and the .tsx ban really does fire on the hazard it exists to stop.
+    expect("<AttributeGrid attributes={effectiveAttributes} />".includes("effectiveAttribute")).toBe(
+      true,
+    );
+    expect("<AttributeGrid attributes={build.attributes} />".includes("effectiveAttribute")).toBe(
+      false,
+    );
+  });
+});
+
+/* -------------------------------- A6 SHIP GATE 1.6: never invent 2K27 data -- */
+
+/**
+ * The cap-breaker COUNT → per-attribute BOOST mapping is published NOWHERE.
+ * 5 cap breakers took the user's Three-Point 60 → 83: not +1 each, not evenly
+ * divided, and varying by attribute and by build. Computing it — a constant, a
+ * table, an interpolation, a per-attribute formula, at ANY level of
+ * indirection — is a direct violation of the seed's #1 non-negotiable, and
+ * would put a plausible-looking invented number on screen, which is this
+ * project's named cardinal failure shape. SHIP GATE [scope.md §0.1 A6-R9 1.6].
+ */
+const COUNT_TO_BOOST_VOCABULARY =
+  /per[_-]?breaker|breakers?[_-]?boost|boost[_-]?per|BOOST_PER|breakers?[_-]?to[_-]?(?:boost|value)|capBreakerCount|breakerCount/i;
+
+function stripStringLiterals(code: string): string {
+  return code
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+    .replace(/`(?:[^`\\]|\\.)*`/g, "``");
+}
+
+describe("architecture: A6 SHIP GATE 1.6 — no invented cap-breaker arithmetic", () => {
+  it("no file under src/ carries count → boost mapping vocabulary", () => {
+    for (const file of srcFiles) {
+      const code = stripComments(srcSources[file] as string);
+      const match = COUNT_TO_BOOST_VOCABULARY.exec(code);
+      expect(
+        match,
+        `"${match?.[0]}" found in ${file} — the cap-breaker → boost mapping is UNPUBLISHED ` +
+          "and may never be computed, derived, tabulated or interpolated",
+      ).toBeNull();
+    }
+  });
+
+  it("src/engine/attributes.ts performs NO arithmetic at all", () => {
+    // The composition point SELECTS a value (Math.max); it never computes
+    // one. No operator and no numeric literal but the `?? 0` floor can exist
+    // here, so there is nowhere for a boost figure to hide.
+    const code = stripStringLiterals(
+      stripComments(srcSources["/src/engine/attributes.ts"] as string),
+    );
+    for (const operator of ["+", "-", "*", "/", "%"]) {
+      expect(
+        code.includes(operator),
+        `"${operator}" found in attributes.ts — the composition point selects, never computes`,
+      ).toBe(false);
+    }
+    const literals = [...code.matchAll(/\b\d+(?:\.\d+)?\b/g)].map((match) => match[0]);
+    expect(
+      [...new Set(literals)].sort(),
+      "a numeric literal other than the `?? 0` floor appeared in the composition point",
+    ).toEqual(["0"]);
+  });
+
+  it("POSITIVE CANARY: the 1.6 pattern catches what it claims to", () => {
+    expect(COUNT_TO_BOOST_VOCABULARY.test("const BOOST_PER_BREAKER = 4.6;")).toBe(true);
+    expect(COUNT_TO_BOOST_VOCABULARY.test("const perBreakerBoost = delta / count;")).toBe(true);
+    expect(COUNT_TO_BOOST_VOCABULARY.test("function breakersToBoost(n: number) {}")).toBe(true);
+    expect(COUNT_TO_BOOST_VOCABULARY.test("const capBreakerCount = 5;")).toBe(true);
+    // …and does NOT fire on A6's own shipped, count-free vocabulary.
+    expect(COUNT_TO_BOOST_VOCABULARY.test("export type CapBreakerStrategy = 'manual';")).toBe(
+      false,
+    );
+    expect(
+      COUNT_TO_BOOST_VOCABULARY.test("const DEFAULT_CAP_BREAKER_STRATEGY = 'manual';"),
+    ).toBe(false);
+    expect(COUNT_TO_BOOST_VOCABULARY.test("build.capBrokenAttributes?.[attr]")).toBe(false);
+    expect(COUNT_TO_BOOST_VOCABULARY.test("export function deriveCapBrokenAttributes()")).toBe(
+      false,
+    );
+  });
+});

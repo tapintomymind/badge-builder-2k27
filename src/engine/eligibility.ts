@@ -15,6 +15,7 @@
  *  - Thresholds are >=, not >.
  */
 
+import { effectiveAttribute } from "./attributes";
 import { badgeById } from "./dataset";
 import type {
   Badge,
@@ -42,7 +43,12 @@ function linePassesAt(
 ): boolean {
   const threshold = line.perLevel[level];
   if (threshold === null) return false;
-  return build.attributes[line.attr] >= threshold; // >=, not >
+  // [A6] THE GATE, and the FIRST of exactly two lines in the whole codebase
+  // that switch to the effective value. Everything downstream — levelPasses,
+  // maxPurchasableLevel, validateBadge, entryIsStale, recheckEligibility,
+  // legalSteps, exchangeSteps, the roster, the roll, the pips — inherits with
+  // ZERO diff, because `Build` is passed WHOLE to every one of them.
+  return effectiveAttribute(build, line.attr) >= threshold; // >=, not >
 }
 
 /** Does the badge's attribute logic pass at one level — evaluated for this
@@ -90,7 +96,10 @@ export function reasonsForLevel(
       const threshold = line.perLevel[level];
       if (threshold === null) {
         reasons.push(`${levelLabel} is unreachable via ${ATTR_LABELS[line.attr]}`);
-      } else if (build.attributes[line.attr] < threshold) {
+      } else if (effectiveAttribute(build, line.attr) < threshold) {
+        // [A6] THE SECOND AND LAST GATE LINE. The `and` arm reports FAILING
+        // terms only — a line the build already meets contributes no reason,
+        // and "already meets" now means the EFFECTIVE value.
         reasons.push(`needs ${threshold} ${ATTR_LABELS[line.attr]} for ${levelLabel}`);
       }
     }

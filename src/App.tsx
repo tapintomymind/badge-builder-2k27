@@ -21,6 +21,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { defaultAppConfig, deriveBudget } from "./config";
+import { hasCapBreakers } from "./engine/attributes";
 import { bonusHasContent, effectiveBudgets, zeroBonus } from "./engine/budget";
 import { shippedDataset } from "./engine/dataset";
 import { levelPasses, validateBadge } from "./engine/eligibility";
@@ -279,6 +280,15 @@ function workingHasContent(working: WorkingState): boolean {
   return (
     working.loadout.length > 0 ||
     Object.values(working.build.attributes).some((value) => value > 0) ||
+    // [A6] A build carrying only cap breakers is content worth guarding: the
+    // user read those numbers off the game and typed them in, and a switcher
+    // replace that discards them silently is the F2.2 class. THE GUARD LANDS
+    // BEFORE THE WRITER — nothing in A6-E can produce a cap breaker, so this
+    // arm is inert TODAY and that is precisely the point: A6-U's control
+    // ships into a clobber-confirm that already sees what it writes. Derived
+    // through the engine, never enumerated here, so the containment lint
+    // holds and the predicate widens by itself.
+    hasCapBreakers(working.build) ||
     CATEGORIES.some(
       (category) =>
         working.budgets[category].points > 0 || working.budgets[category].equipSlots > 0,
@@ -319,6 +329,9 @@ function playerHasContent(working: WorkingState): boolean {
   return (
     working.loadout.length > 0 ||
     Object.values(working.build.attributes).some((value) => value > 0) ||
+    // [A6] Same widening, same before-the-writer reasoning: a build whose
+    // only content is cap breakers must still offer `Reset build`.
+    hasCapBreakers(working.build) ||
     working.build.heightInches !== DEFAULT_HEIGHT_INCHES ||
     working.build.position !== undefined ||
     working.synergy.some(

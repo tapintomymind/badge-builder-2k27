@@ -37,15 +37,30 @@ export function cssBlock(css: string, selector: string): string {
   return css.slice(start, end);
 }
 
-/** A Build with every attribute at `value` (override per-attribute as needed). */
+/**
+ * A Build with every attribute at `value` (override per-attribute as needed).
+ *
+ * [A6] `capBroken` is the ONE optional param cap breakers add. It is OMITTED
+ * from the returned object when not supplied — not set to `{}`, not set to
+ * `undefined` — so every pre-A6 call site keeps producing a byte-identical
+ * `Build` and the "absent key" shape (the normal state of every build with no
+ * cap breaker) is what the existing 1200-odd assertions keep exercising. That
+ * every one of those call sites still compiles untouched is the direct
+ * dividend of A6-R5's optionality ruling.
+ */
 export function makeBuild(
   heightInches: number,
   value: number,
   overrides: Partial<Record<Attr, number>> = {},
+  capBroken?: Partial<Record<Attr, number>>,
 ): Build {
   const attributes = Object.fromEntries(ATTRS.map((attr) => [attr, value])) as Record<
     Attr,
     number
   >;
-  return { heightInches, attributes: { ...attributes, ...overrides } };
+  return {
+    heightInches,
+    attributes: { ...attributes, ...overrides },
+    ...(capBroken === undefined ? {} : { capBrokenAttributes: capBroken }),
+  };
 }

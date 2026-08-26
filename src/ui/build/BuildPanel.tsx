@@ -38,6 +38,7 @@
  */
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { hasCapBreakers } from "../../engine/attributes";
 import type { Budget, Build } from "../../engine/types";
 import type { Attr, Category, Position } from "../../engine/vocabulary";
 import { CATEGORIES, POSITIONS, formatHeightInches } from "../../engine/vocabulary";
@@ -238,8 +239,17 @@ export function BuildPanel(props: BuildPanelProps) {
   // panel that does not contain the control the user is touching. M/S is
   // bit-identical — `withAttributes` is true there and the predicate is the
   // shipped one.
+  // [A6] The cap-breaker term rides INSIDE the `withAttributes` arm, not
+  // outside it. A6's contract widens "the :175 dirty check"; F5.4 then scoped
+  // that check to what the panel actually renders, and A6-U's control lands
+  // beside the sliders — so at L, where the sliders are in the pane, the cap
+  // breakers are in the pane too and must not collapse a panel that does not
+  // contain them. Inert until A6-U ships the writer; the widening lands
+  // BEFORE it so there is never a build state the latch cannot see.
   const hasValues = withAttributes
-    ? hasBudgetValues || Object.values(build.attributes).some((value) => value > 0)
+    ? hasBudgetValues ||
+      Object.values(build.attributes).some((value) => value > 0) ||
+      hasCapBreakers(build)
     : hasBudgetValues || build.position !== undefined;
 
   // F5.4: the `compact` term is GONE (§16.5). The panel is in flow above the

@@ -23,7 +23,8 @@ import type { Category } from "../src/engine/vocabulary";
 import { CATEGORIES } from "../src/engine/vocabulary";
 import { applyRatifiedMagnitudes, plusTwoSynergySlotIds } from "../src/engine/synergy";
 import { validateLoadout } from "../src/engine/validate-loadout";
-import { defaultAppConfig } from "../src/config";
+import { ATTRIBUTE_CEILING, defaultAppConfig } from "../src/config";
+import { effectiveAttribute } from "../src/engine/attributes";
 import { makeBuild } from "./helpers/test-utils";
 
 function makeBudgets(): Record<Category, Budget> {
@@ -883,5 +884,142 @@ describe("A5 group 3 — a pre-A5 SavedBuild still loads, and an over-applied on
     const saved = makeSaved();
     expect(saved.bonus).toEqual(zeroBonus());
     expect(deserializeSavedBuild(serializeSavedBuild(saved)).bonus).toEqual(zeroBonus());
+  });
+});
+
+/* ------------------------------------------------------------ A6: persistence -- */
+
+/**
+ * Re-parses the pre-A6 envelope with a `capBrokenAttributes` value spliced
+ * into `build`. The SAME fixture the A5 group uses — it predates both
+ * amendments, which is exactly what makes it the right superset probe.
+ */
+function withCapBroken(capBroken: unknown): string {
+  const parsed = JSON.parse(PRE_A5_SAVED_BUILD_JSON) as Record<string, unknown>;
+  const build = parsed["build"] as Record<string, unknown>;
+  build["capBrokenAttributes"] = capBroken;
+  parsed["bonus"] = zeroBonus();
+  return JSON.stringify(parsed);
+}
+
+describe("A6 group 5 — cap breakers persist as a STRICT SUPERSET", () => {
+  it("5.1 SHIP GATE — a pre-A6 envelope (field ABSENT) deserializes with ZERO problems and NO default", () => {
+    const { saved, droppedEntries, clearedSynergyRefs } =
+      deserializeSavedBuildWithReport(PRE_A5_SAVED_BUILD_JSON);
+    expect(droppedEntries).toEqual([]);
+    expect(clearedSynergyRefs).toEqual([]);
+    // ABSENT STAYS ABSENT. No normalizer ran, no `{}` was written, and the
+    // key is not even present — which is the whole reason the field is
+    // optional in TypeScript too (A6-R5). A default written here would be a
+    // silent shape change on every pre-A6 file in the user's storage.
+    expect(saved.build.capBrokenAttributes).toBeUndefined();
+    expect("capBrokenAttributes" in saved.build).toBe(false);
+  });
+
+  it("5.2 the wire acceptance table, exactly [A6-R5]", () => {
+    // ACCEPTED — every one of these is a shape the app itself can produce.
+    for (const accepted of [
+      undefined, // pre-A6 file
+      null, // legal wire "absent"
+      {}, // present but empty
+      { mid: 95 }, // the feature
+      { mid: 95, steal: 97 }, // several
+      { mid: 0 }, // inert, not an error
+      { mid: ATTRIBUTE_CEILING }, // the bound itself
+      { mid: 12 }, // v < entered (85): the app's OWN UI writes this
+      { mid: 95.5 }, // NO integer check — validateBudgets has none either
+      { notAnAttribute: 5 }, // unknown keys IGNORED, never a problem
+      { mid: 95, notAnAttribute: "junk" },
+    ]) {
+      expect(
+        () => deserializeSavedBuild(withCapBroken(accepted)),
+        JSON.stringify(accepted ?? null),
+      ).not.toThrow();
+    }
+
+    // REFUSED — genuinely untyped or out of the attribute domain.
+    for (const refused of [
+      { mid: ATTRIBUTE_CEILING + 1 },
+      { mid: -1 },
+      { mid: Number.NaN },
+      { mid: Number.POSITIVE_INFINITY },
+      { mid: "95" },
+      { mid: true },
+      { mid: null },
+      [],
+      7,
+      "nope",
+    ]) {
+      expect(
+        () => deserializeSavedBuild(withCapBroken(refused)),
+        JSON.stringify(refused),
+      ).toThrowError(MalformedSavedBuildError);
+    }
+  });
+
+  it("5.2b `declared < entered` is accepted SILENTLY and made inert by Math.max, never refused", () => {
+    // The app's own UI produces this: declare 95, then drag the slider to
+    // 85+. Refusing it would refuse a value the app itself wrote — the exact
+    // shape of all four of this project's data-destruction defects. The
+    // stored number is preserved verbatim (H8: disclose, never repair) and
+    // the ENGINE simply ignores it.
+    const saved = deserializeSavedBuild(withCapBroken({ mid: 12 }));
+    expect(saved.build.capBrokenAttributes?.mid).toBe(12);
+    expect(saved.build.attributes.mid).toBe(92);
+    expect(effectiveAttribute(saved.build, "mid")).toBe(92);
+  });
+
+  it("5.2c ATTRIBUTE_CEILING is the SAME bound the entered value has carried since M1", () => {
+    expect(ATTRIBUTE_CEILING).toBe(99);
+    const overEntered = JSON.parse(PRE_A5_SAVED_BUILD_JSON) as Record<string, unknown>;
+    (
+      (overEntered["build"] as Record<string, unknown>)["attributes"] as Record<string, unknown>
+    )["mid"] = ATTRIBUTE_CEILING + 1;
+    expect(() => deserializeSavedBuild(JSON.stringify(overEntered))).toThrowError(
+      MalformedSavedBuildError,
+    );
+  });
+
+  it("5.3 SHIP GATE — the version machinery did NOT move (test 8.5's claim, at the A6 boundary)", () => {
+    expect(SAVED_BUILD_SCHEMA_VERSION).toBe(1);
+    expect(Object.keys(MIGRATIONS)).toEqual([]);
+    const posted = JSON.parse(
+      serializeSavedBuild(deserializeSavedBuild(withCapBroken({ mid: 95 }))),
+    ) as Record<string, unknown>;
+    expect(posted["schemaVersion"]).toBe(1);
+  });
+
+  it("5.4 ROUND TRIP — serialize → deserialize → serialize preserves the field byte-for-byte", () => {
+    // THE LATENT-TRAP GUARD [engine-data-design §3.5]. `validateBody` passes
+    // `build` through BY REFERENCE (`envelope["build"] as unknown as Build`),
+    // which is the ONLY reason cap breakers round-trip with zero serializer
+    // work. The ADJACENT `SavedBuild` literal reassembles field by field. If
+    // any future slice "tidies" that cast into a field-by-field `Build`
+    // literal, `capBrokenAttributes` is silently dropped on every load→save
+    // — no error, no test failure anywhere else, and the user's declarations
+    // evaporate one reload at a time. THIS assertion is what makes that
+    // conversion fail RED instead of shipping green. Do not delete it, and do
+    // not "simplify" the cast it protects.
+    const capBroken = { mid: 95, steal: 97, close: 0 };
+    const once = deserializeSavedBuild(withCapBroken(capBroken));
+    expect(once.build.capBrokenAttributes).toEqual(capBroken);
+
+    const twice = deserializeSavedBuild(serializeSavedBuild(once));
+    expect(twice.build.capBrokenAttributes).toEqual(capBroken);
+
+    const thrice = deserializeSavedBuild(serializeSavedBuild(twice));
+    expect(thrice.build.capBrokenAttributes).toEqual(capBroken);
+    expect(serializeSavedBuild(thrice)).toBe(serializeSavedBuild(twice));
+
+    // And the WHOLE build survives, not just the new field — the pass-through
+    // is what protects every other `Build` field a literal would drop too.
+    expect(thrice.build).toEqual(once.build);
+  });
+
+  it("5.4b a pre-A6 file round-trips WITHOUT gaining the key", () => {
+    const once = deserializeSavedBuild(PRE_A5_SAVED_BUILD_JSON);
+    const text = serializeSavedBuild(once);
+    expect(text.includes("capBrokenAttributes")).toBe(false);
+    expect(deserializeSavedBuild(text).build.capBrokenAttributes).toBeUndefined();
   });
 });

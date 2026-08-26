@@ -14,7 +14,7 @@ import type {
   RefundTrigger,
   SynergySlotId,
 } from "../engine/types";
-import type { Category } from "../engine/vocabulary";
+import type { Attr, Category } from "../engine/vocabulary";
 
 /** Thrown by seams whose real 2K27 data has not been published yet. */
 export class NotYetPublishedError extends Error {
@@ -89,6 +89,62 @@ export function deriveBudget(
       void build;
       throw new NotYetPublishedError(
         "The attribute → (equipSlots, points) derivation",
+      );
+  }
+}
+
+/**
+ * [A6] The attribute domain's upper bound, NAMED so the cap-broken value is
+ * bounded by a constant rather than a fresh literal and can never drift from
+ * the bound the entered value has carried since M1 (the wire validator's
+ * `> 99`, the slider's own max). The A6 tests pin the two together.
+ *
+ * NOT A CLAIM ABOUT 2K27 [A6-R3 · OQ-A6-1]. The official page's "99 OVR" is
+ * an OVERALL rating, not a per-attribute ceiling, and whether a cap breaker
+ * can push an attribute past 99 is unpublished. This is THIS APP'S OWN 0–99
+ * domain — which predates cap breakers by four milestones — applied to a
+ * second value in the same domain. If the real bound ever lands, it is this
+ * one constant.
+ */
+export const ATTRIBUTE_CEILING = 99;
+
+/**
+ * [A6] The cap-breaker seam, shaped exactly like `deriveBudget` above.
+ *
+ * `manual` (active) IS the whole shipped feature: the user reads the boosted
+ * value off the 2K builder and types it in. `derived` is the stub the real
+ * formula would drop into IF 2K ever published the cap-breaker →
+ * per-attribute boost mapping — which it does not: the mapping exists only as
+ * an in-builder preview at 99 OVR. 5 breakers took the user's Three-Point
+ * 60 → 83, which is neither +1 each nor evenly divided, so there is nothing
+ * here to interpolate and nothing may ever be invented [seed: never invent
+ * 2K27 data · ship gate A6-R9 1.6].
+ *
+ * DELIBERATELY NOT ON `AppConfig` [A6-R2]. `deriveBudget`'s strategy lives on
+ * AppConfig because the M5 flip is a per-BUILD user choice; a published
+ * cap-breaker mapping would be a global app FACT. The concrete payoff is that
+ * `validateConfig` does not move and the persisted `config` shape is
+ * untouched by A6 — and `validateConfig` is exactly where F4/R3, this
+ * project's most recent boot-breaker, lived.
+ */
+export type CapBreakerStrategy = "manual" | "derived";
+
+export const DEFAULT_CAP_BREAKER_STRATEGY: CapBreakerStrategy = "manual";
+
+export function deriveCapBrokenAttributes(
+  build: Build,
+  manual: Partial<Record<Attr, number>>,
+  strategy: CapBreakerStrategy = DEFAULT_CAP_BREAKER_STRATEGY,
+): Partial<Record<Attr, number>> {
+  switch (strategy) {
+    case "manual":
+      return manual;
+    case "derived":
+      // `build` is the future input of the real formula; referenced so the
+      // seam's signature is honest about what it would consume.
+      void build;
+      throw new NotYetPublishedError(
+        "The cap-breaker count → per-attribute boost mapping",
       );
   }
 }

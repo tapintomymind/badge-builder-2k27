@@ -25,7 +25,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../src/App";
-import { deserializeSavedBuild } from "../../src/engine/serialization";
+import { deserializeSavedBuild, serializeSavedBuild } from "../../src/engine/serialization";
+import { makeRig } from "./m4-rig";
 import type { InstalledStorage } from "./storage-stub";
 import { installMemoryLocalStorage } from "./storage-stub";
 
@@ -260,4 +261,84 @@ describe("E — tail-edit flush on pagehide/visibilitychange", () => {
     if (text === undefined) throw new Error("no autosave written");
     expect(deserializeSavedBuild(text).build.attributes.layup).toBe(66);
   });
+});
+
+/* ------------------------------- A6 SHIP GATE 4.2: the data-destruction hazard -- */
+
+/**
+ * THE ONE CLOSED LOOP in the app where a DISPLAYED attribute becomes a
+ * WRITTEN one: `BuildPanel` passes `build.attributes` down, `AttributeGrid`'s
+ * slider renders what it is given, and on commit it calls back with the value
+ * it is showing — which `handleAttributeCommit` writes straight into
+ * `build.attributes[attr]`.
+ *
+ * So if an EFFECTIVE value ever reaches that component, the user's entered 60
+ * is silently overwritten by the cap-broken 95 on the next nudge of any
+ * touched slider. No error, no banner, no undo, and a green suite. The four
+ * data-destruction defects before it REFUSED data; this one REWRITES it.
+ *
+ * This is the third of §3.4's three independent binders (the other two are
+ * the engine/UI layering rule and the `.tsx` containment lint), and it is the
+ * only one that exercises the real loop end to end.
+ *
+ * [scope.md §0.1 A6-R9 test 4.2 · engine-data-design §3.4]
+ */
+describe("A6 4.2 SHIP GATE — the slider owns the ENTERED value, always", () => {
+  function seedCapBrokenAutosave() {
+    const rig = makeRig({ attributes: { close: 60, layup: 40 } });
+    const parsed = JSON.parse(serializeSavedBuild(rig)) as Record<string, unknown>;
+    (parsed["build"] as Record<string, unknown>)["capBrokenAttributes"] = {
+      close: 95,
+      layup: 88,
+    };
+    installed.store.set(AUTOSAVE_KEY, JSON.stringify(parsed));
+  }
+
+  function currentAutosave() {
+    const text = installed.store.get(AUTOSAVE_KEY);
+    if (text === undefined) throw new Error("no autosave written");
+    return deserializeSavedBuild(text);
+  }
+
+  it("renders the ENTERED value beside a live cap breaker, never the effective one", () => {
+    seedCapBrokenAutosave();
+    render(<App />);
+    // Hand-seeded, because nothing in A6-E can write a cap breaker yet — the
+    // guard lands before the writer, exactly as intended.
+    expect(currentAutosave().build.capBrokenAttributes).toEqual({ close: 95, layup: 88 });
+    expect((screen.getByLabelText("Close") as HTMLInputElement).value).toBe("60");
+    expect((screen.getByLabelText("Layup") as HTMLInputElement).value).toBe("40");
+  });
+
+  it(
+    "committing the slider stores the SLIDER's value — not the cap-broken one",
+    { timeout: 20000 },
+    () => {
+      seedCapBrokenAutosave();
+      render(<App />);
+      commitNumber(screen.getByLabelText("Close"), "70");
+
+      const saved = currentAutosave();
+      // PRE-FIX SHAPE THIS GUARDS: 95, silently, with the user's 60 gone.
+      expect(saved.build.attributes.close).toBe(70);
+      // …and the declaration itself is untouched by an attribute commit.
+      expect(saved.build.capBrokenAttributes?.close).toBe(95);
+      expect(saved.build.capBrokenAttributes?.layup).toBe(88);
+    },
+  );
+
+  it(
+    "committing an UNRELATED slider clobbers neither the entered nor the declared value",
+    { timeout: 20000 },
+    () => {
+      seedCapBrokenAutosave();
+      render(<App />);
+      commitNumber(screen.getByLabelText("Mid"), "55");
+
+      const saved = currentAutosave();
+      expect(saved.build.attributes.close).toBe(60);
+      expect(saved.build.attributes.mid).toBe(55);
+      expect(saved.build.capBrokenAttributes).toEqual({ close: 95, layup: 88 });
+    },
+  );
 });

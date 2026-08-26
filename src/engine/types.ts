@@ -20,8 +20,37 @@ export interface Build {
    * badge's eligibility consults position. Unset = "Any": the dataset's own
    * full height range applies. */
   position?: "PG" | "SG" | "SF" | "PF" | "C";
-  /** 0–99 per attribute. */
+  /** 0–99 per attribute. THE ENTERED VALUE — what the build has from the
+   * slider, BEFORE cap breakers. Written by the sliders; never derived. */
   attributes: Record<Attr, number>;
+  /**
+   * scope.md §0.1 A6 — CAP BREAKERS [official 2K page + user directive
+   * 2026-08-26].
+   *
+   * The ABSOLUTE cap-broken value of an attribute, as the user read it off
+   * the 2K builder. NOT a delta, NOT a count of cap breakers spent, NOT
+   * derived from anything. Absent key ⇒ that attribute has no cap breaker.
+   *
+   * The cap-breaker → boost mapping is UNPUBLISHED and is NEVER computed
+   * here: 5 breakers took the user's Three-Point 60 → 83, which is neither
+   * +1 each nor evenly divided. The user tracks it; the app honours it.
+   *
+   * OPTIONAL IN TYPESCRIPT TOO, DELIBERATELY, AND IT IS THE MOST LOAD-BEARING
+   * LINE IN THE A6 DIFF [A6-R5]. `SavedBuild.build` reaches the typed world
+   * through `envelope["build"] as unknown as Build` — a compiler BLIND SPOT
+   * on the persisted-read path. Required-in-TS would compile, every in-memory
+   * test would pass (they are compiler-forced to supply the field), and only
+   * a REAL reload of a pre-A6 autosave would throw. Optional makes that cast
+   * honest: absent IS a legal value of the type, so there is no normalizer to
+   * forget. There is deliberately NO `normalizeBuild()`.
+   *
+   * A wire `null` is legal and means absent, so this field can be `null` AT
+   * RUNTIME despite the type — read it through `?.`, never a truthiness test.
+   *
+   * READ IT ONLY THROUGH `effectiveAttribute` (src/engine/attributes.ts).
+   * Naming it anywhere else is a lint failure — architecture.test.ts (g).
+   */
+  capBrokenAttributes?: Partial<Record<Attr, number>>;
 }
 
 // ---------------------------------------------------------------------------

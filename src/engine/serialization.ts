@@ -31,6 +31,7 @@
  *    `clearedSynergyRefs` so the UI can disclose the heal.
  */
 
+import { ATTRIBUTE_CEILING } from "../config";
 import { normalizeBonus } from "./budget";
 import { badgeById, shippedDataset } from "./dataset";
 import { MalformedSavedBuildError, UnsupportedSchemaVersionError } from "./errors";
@@ -165,6 +166,56 @@ function validateBuild(problems: string[], value: unknown): void {
     const attrValue = attributes[attr];
     if (!isFiniteNumber(attrValue) || attrValue < 0 || attrValue > 99) {
       problems.push(`build.attributes.${attr} must be a number between 0 and 99`);
+    }
+  }
+  validateCapBrokenAttributes(problems, value["capBrokenAttributes"]);
+}
+
+/**
+ * [A6] CAP BREAKERS — a STRICT SUPERSET of what shipped [A6-R5's table]. No
+ * pre-A6 `SavedBuild` string gains a single problem: every shape that
+ * deserialized before still deserializes, and `schemaVersion` stays 1 with
+ * `MIGRATIONS` still empty.
+ *
+ * ABSENT is the normal state of every pre-A6 file and of every build with no
+ * cap breaker; `null` is treated as absent, because refusing it buys nothing
+ * and costs the user a build. NEITHER WRITES A DEFAULT:
+ * `Build.capBrokenAttributes` is optional in TypeScript too, so absent IS a
+ * legal value of the type and there is deliberately NO normalizer here
+ * [A6-R5] — the `build` payload reaches the typed world through a blind cast,
+ * so a normalizer would be a step a future slice could forget, and
+ * required-in-TS would boot-crash every pre-A6 autosave while every in-memory
+ * test stayed green.
+ *
+ * STRICTNESS MIRRORS THE SIBLING `attributes` ARM: finite, and within
+ * 0..ATTRIBUTE_CEILING. NO INTEGER CHECK — `validateBudgets` has none for
+ * `points`, and a strictness the shipped sibling lacks is the F4/R3 trap
+ * running the other way. EXTRA KEYS ARE IGNORED, never a problem (a future
+ * attribute, or a hand-edit typo, is not worth refusing a whole build over) —
+ * `validateBonus`'s extra-keys row, verbatim.
+ *
+ * AND THERE IS DELIBERATELY NO `declared < attributes[attr]` CHECK. The app's
+ * OWN UI produces that state in normal use: declare 83 against an entered 60,
+ * then drag the slider to 90. A validator that refused it would refuse a
+ * value the app itself wrote — the exact shape of all four of this project's
+ * data-destruction defects (F2.1, F2.2, F4/A1, F4/R3). It is accepted
+ * silently here, made INERT by `Math.max` in `effectiveAttribute`, and
+ * disclosed in the UI. Same reasoning as the `+2`-cap comment in
+ * `validateSynergyShape` below.
+ */
+function validateCapBrokenAttributes(problems: string[], capBroken: unknown): void {
+  if (capBroken === undefined || capBroken === null) return; // ⇒ no cap breakers
+  if (!isRecord(capBroken)) {
+    problems.push("build.capBrokenAttributes must be an object when present");
+    return;
+  }
+  for (const attr of ATTRS) {
+    const declared = capBroken[attr];
+    if (declared === undefined) continue; // ⇒ no cap breaker on this attribute
+    if (!isFiniteNumber(declared) || declared < 0 || declared > ATTRIBUTE_CEILING) {
+      problems.push(
+        `build.capBrokenAttributes.${attr} must be a number between 0 and ${ATTRIBUTE_CEILING}`,
+      );
     }
   }
 }
