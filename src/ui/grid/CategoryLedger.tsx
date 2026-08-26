@@ -61,11 +61,25 @@ export function projectionDiffers(
   );
 }
 
+/**
+ * THE ATOM. `over by N ⚠`, or null at or under the line.
+ *
+ * §3.4's "one string builder, N consumers" rule, applied a fourth time. The
+ * two ledger builders below and A5-U's bonus mode (design-spec §17.6) all
+ * render this, so the mode cannot author its own phrasing of the same fact and
+ * then drift from the ledger's — which is design-review P0-1 arriving by a new
+ * door. It takes the OVERAGE, not the two operands: every caller already knows
+ * which of its numbers is the capacity.
+ */
+export function overByText(overBy: number): string | null {
+  return overBy > 0 ? `over by ${overBy} ⚠` : null;
+}
+
 /** The canonical Badge Points over-by string, or null when within budget.
  * SHARED by the in-grid digest and the rail Ledger overview (P0-1: one
  * builder, two surfaces, zero drift). */
 export function overByBadgePoints(readout: CategoryLedgerReadout): string | null {
-  return readout.remainingPoints < 0 ? `over by ${-readout.remainingPoints} ⚠` : null;
+  return overByText(-readout.remainingPoints);
 }
 
 /** The canonical Badge Slots over-by string, or null when within capacity —
@@ -75,9 +89,7 @@ export function overByBadgeSlots(
   budget: Budget,
 ): string | null {
   if (badgeSlotsCapacityUnset(budget)) return null;
-  return readout.equipSlotsUsed > budget.equipSlots
-    ? `over by ${readout.equipSlotsUsed - budget.equipSlots} ⚠`
-    : null;
+  return overByText(readout.equipSlotsUsed - budget.equipSlots);
 }
 
 /** The §3.6 feasibility phrasing — upgrade COUNTS, never tier-cost
@@ -119,6 +131,19 @@ export interface CategoryLedgerProps {
   /** M4: the postSeasonReset readout — pass ONLY while the season-reset
    * preview is on. Renders the labelled projection row; never the primary. */
   projection?: CategoryLedgerReadout;
+  /** A5-U (design-spec §17.4) — this category's BASE budget and its APPLIED
+   * bonus, for the lede's one conditional composition line.
+   *
+   * BOTH RECORDS ARE PASSED, and that is why this component still "contains
+   * zero arithmetic beyond formatting": `budget` above is the EFFECTIVE
+   * record, and decomposing it here would mean re-deriving in a .tsx a split
+   * the engine already holds. App owns both and hands over both.
+   *
+   * Absent ⇒ no composition line at all, which is the zero state: at zero
+   * earned and zero placed the lede is byte-identical to pre-A5-U
+   * (design-spec §17.10, canary 1). */
+  baseBudget?: Budget;
+  appliedBonus?: Budget;
 }
 
 /**
@@ -197,10 +222,42 @@ export function CategoryLedgerLede({
   budget,
   feasibility,
   projection,
+  baseBudget,
+  appliedBonus,
 }: Omit<CategoryLedgerProps, "headingId">) {
   const capacityUnset = badgeSlotsCapacityUnset(budget);
   const showProjection = projection !== undefined && projectionDiffers(readout, projection);
   const projectionOver = projection !== undefined && projection.remainingPoints < 0;
+
+  /**
+   * A5-U (design-spec §17.4) — the composition lives HERE, in the lede, and
+   * NEVER in the digest. §3.4's own test: "would I need this while scrolled 40
+   * cards deep?" The numbers you reconcile against 2K's screen are yes; HOW
+   * they were assembled is context you read once on arrival. The digest string
+   * has 0.56px of margin (§16.11 C4) and stays effective-only.
+   *
+   * ONE LINE, THREE VARIANTS (§17.4): both pools, one pool (the other's clause
+   * omitted — §3.4's zero-valued-advisory rule), and §17.9's all-bonus case,
+   * which is its own sentence below and REPLACES the slots clause rather than
+   * sitting beside it.
+   */
+  const bonusSlots = appliedBonus?.equipSlots ?? 0;
+  const bonusPoints = appliedBonus?.points ?? 0;
+  const baseSlots = baseBudget?.equipSlots ?? 0;
+  const basePoints = baseBudget?.points ?? 0;
+  /** §17.9 Ruling ③, row `0 · M`. The base is zero and a bonus is placed, so
+   * the capacity here is real and entirely reassignable. "No base capacity is
+   * RECORDED" describes THE APP'S STATE, not the build's — true under both
+   * readings of a zero base, which is exactly the property the
+   * indistinguishable case needs. The app may not say "this build has no X"
+   * until the `entered` channel can tell the two apart (canary 4c). */
+  const slotsAllBonus = baseSlots === 0 && bonusSlots > 0;
+  const compositionClauses = [
+    ...(bonusPoints > 0 ? [`Badge Points ${basePoints} base + ${bonusPoints} bonus`] : []),
+    ...(bonusSlots > 0 && !slotsAllBonus
+      ? [`Badge Slots ${baseSlots} base + ${bonusSlots} bonus`]
+      : []),
+  ];
 
   return (
     <div className="category-ledger__lede">
@@ -214,6 +271,21 @@ export function CategoryLedgerLede({
         ) : null}
         {capacityUnset ? (
           <p className="category-ledger__hint">Badge Slots capacity not set</p>
+        ) : null}
+        {/* NEVER BOTH (§17.9 consequence 4), and it is structural rather than
+            a rule to remember: `slotsAllBonus` requires a placed bonus, which
+            composes to a non-zero effective capacity, which makes
+            `capacityUnset` false. */}
+        {slotsAllBonus ? (
+          <p className="bonus-lede category-ledger__hint">
+            Badge Slots capacity here is {bonusSlots} bonus. No base capacity is recorded for
+            this discipline.
+          </p>
+        ) : null}
+        {compositionClauses.length > 0 ? (
+          <p className="bonus-lede category-ledger__composition num">
+            {compositionClauses.join(" · ")}
+          </p>
         ) : null}
         {feasibility !== undefined ? (
           <p className="category-ledger__feasibility num">

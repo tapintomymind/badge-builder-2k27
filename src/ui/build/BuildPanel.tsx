@@ -51,7 +51,8 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { hasCapBreakers } from "../../engine/attributes";
-import type { Budget, Build } from "../../engine/types";
+import { bonusHasContent, effectiveBudgets } from "../../engine/budget";
+import type { BonusBudget, Budget, Build } from "../../engine/types";
 import type { Attr, Category, Position } from "../../engine/vocabulary";
 import { CATEGORIES, POSITIONS, formatHeightInches } from "../../engine/vocabulary";
 import { readUiSectionOpen, writeUiSectionOpen } from "../../persist/local-storage";
@@ -107,6 +108,11 @@ export interface BuildPanelProps {
   budgets: Record<Category, Budget>;
   onAttributeCommit: (attr: Attr, value: number) => void;
   onBudgetCommit: (category: Category, field: keyof Budget, value: number) => void;
+  /** A5-U — the bonus layer, threaded to `BudgetGrid` for its entry-point
+   * readout AND read by the latch below. See `hasBudgetValues`. */
+  bonus: BonusBudget;
+  /** A5-U — open the bonus mode (design-spec §17.5). App owns the state. */
+  onOpenBonus: () => void;
   /** F5.3/C — open the `Reset build` confirm. The button NEVER resets
    * directly; the dialog is mandatory (assertion 18). */
   onResetRequest: () => void;
@@ -294,10 +300,12 @@ export function BuildPanel(props: BuildPanelProps) {
   const {
     build,
     budgets,
+    bonus,
     withAttributes,
     physique,
     onAttributeCommit,
     onBudgetCommit,
+    onOpenBonus,
     onResetRequest,
     canReset,
   } = props;
@@ -307,9 +315,23 @@ export function BuildPanel(props: BuildPanelProps) {
   );
   const panelRef = useRef<HTMLDivElement | null>(null);
 
-  const totalPoints = CATEGORIES.reduce((sum, category) => sum + budgets[category].points, 0);
+  /** A5-U (design-spec §17.11's F5.4 ruling) — THE DIGEST READS EFFECTIVE, and
+   * discloses no composition. It is a digest: it says what the collapsed panel
+   * is hiding, and what it is hiding is the capacity the rest of the app is
+   * spending against. At zero bonus it is byte-identical to today.
+   *
+   * `budgets` is the BASE record and stays so — the grid below is the base
+   * EDITOR and rendering the composed number into it compounds on every blur
+   * (App's runaway-inflation note, test 6.6). The composition happens HERE,
+   * for display, through the engine's one composition seam rather than by
+   * adding the six numbers up a second way. */
+  const digestBudgets = effectiveBudgets(budgets, bonus);
+  const totalPoints = CATEGORIES.reduce(
+    (sum, category) => sum + digestBudgets[category].points,
+    0,
+  );
   const totalEquipSlots = CATEGORIES.reduce(
-    (sum, category) => sum + budgets[category].equipSlots,
+    (sum, category) => sum + digestBudgets[category].equipSlots,
     0,
   );
 
@@ -327,10 +349,27 @@ export function BuildPanel(props: BuildPanelProps) {
    *
    * Equivalent to the shipped `totalPoints > 0 || totalEquipSlots > 0`
    * because every budget field is clamped at min 0 (BudgetGrid), so a
-   * positive sum and a positive member are the same question. */
-  const hasBudgetValues = CATEGORIES.some((category) =>
-    Object.values(budgets[category]).some((value) => value > 0),
-  );
+   * positive sum and a positive member are the same question.
+   *
+   * A5-U CLOSES THE GAP THE COMMENT ABOVE FORECAST, and it needed a second
+   * term rather than none. The forecast assumed the fourteen bonus fields
+   * would arrive INSIDE the Budget record; they did not — bonus is a SEPARATE
+   * layer (`BonusBudget`) that is deliberately never merged into `budgets`, so
+   * deriving over the record cannot see them however carefully it is written.
+   * The concrete failure is exactly the one named: a user whose only budget
+   * input is bonus gets a setup panel that NEVER LATCHES CLOSED.
+   *
+   * F13 has since dropped `build.position` from the non-attribute arm, so
+   * `hasBudgetValues` is now the ENTIRE wide-viewport condition — the gap is
+   * total, not partial.
+   *
+   * `bonusHasContent` is the engine's own derivation over the whole bonus
+   * record (both earned totals, both applied allocations, the latter through
+   * the Σ helpers), so a seventh category widens it automatically and this
+   * file never enumerates a bonus field name. */
+  const hasBudgetValues =
+    CATEGORIES.some((category) => Object.values(budgets[category]).some((value) => value > 0)) ||
+    bonusHasContent(bonus);
 
   // SCOPED TO WHAT THIS PANEL RENDERS (design-spec §16.5). At L the
   // attributes are in the pane, so an attribute drag must not collapse a
@@ -416,7 +455,12 @@ export function BuildPanel(props: BuildPanelProps) {
         <AttributesSection attributes={build.attributes} onCommit={onAttributeCommit} />
       ) : null}
       <Section title="Badge Points & Badge Slots" storageKey="section-budget">
-        <BudgetGrid budgets={budgets} onCommit={onBudgetCommit} />
+        <BudgetGrid
+          budgets={budgets}
+          onCommit={onBudgetCommit}
+          bonus={bonus}
+          onOpenBonus={onOpenBonus}
+        />
       </Section>
       {/* F5.3/C — `Reset build`, at the foot of the panel.
        *

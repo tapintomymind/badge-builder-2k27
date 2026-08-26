@@ -182,20 +182,33 @@ export function equipSlotsUsed(
  * re-exporting an engine function is the same layering inversion the hoist
  * exists to remove. All three importers were updated instead.
  *
- * [A5] THIS PREDICATE IS CORRECT UNCHANGED. DO NOT "FIX" IT INTO BASE-KEYED —
- * IT ALREADY IS.
+ * [A5-U] THIS PREDICATE IS CORRECT UNCHANGED, AND THE REASON CHANGED.
+ * DO NOT "FIX" IT — in particular, do not re-point it at a base-only field.
  *
- * It receives the COMPOSED record, but `effectiveBudgets` is ABSORBING AT
- * ZERO: a base of 0 composes to an effective of 0 no matter how large the
- * applied bonus is, because a 0 base means "the user has not entered this
- * yet", and unknown + 2 is not 2. So `budget.equipSlots === 0` still asks
- * exactly the §4.7 question, and a category with an unset base plus an applied
- * bonus stays UNSET: the allocation is recorded, kept, disclosed ("applied and
- * waiting"), and starts counting the moment a base is entered.
+ * It receives the COMPOSED record, and `effectiveBudgets` is now PLAIN
+ * ADDITION (design-spec §17.9 Ruling ②, superseding scope.md A5-R4's
+ * absorbing-at-zero carve-out). Both contributors are non-negative, so
  *
- * Carving out at the composition instead of here is what keeps this file, the
- * roll engine, validateLoadout, feasibility, steps.ts and summary.ts all
- * correct with no edit. [scope.md §0.1 A5-R4 · src/engine/budget.ts]
+ *     budget.equipSlots === 0   ⟺   base === 0 && applied === 0
+ *
+ * which is EXACTLY §17.9's ruled predicate: unset-ness is a property of the
+ * ENTRY ACT, not of the base number, and the app has two observable entry acts
+ * — a non-zero base, and a placed bonus. Nobody allocates a bonus Badge Slot
+ * to a discipline by accident; it costs a trip into a modal, a field and a
+ * keystroke.
+ *
+ * WHAT THIS CHANGES IN BEHAVIOUR, stated so nobody reads "unchanged" as
+ * "inert": a category with base 0 and a placed bonus is now ENTERED. Its
+ * digest renders a real fraction, its Meter renders, overspend fires against
+ * the bonus capacity, and the roll engine will fill it. That is the point —
+ * the user confirmed a build can genuinely have 0 Badge Slots in a discipline
+ * when its attributes are low enough [user 2026-08-26], which made the
+ * carve-out's "it counts once a base is entered" escape unreachable and a
+ * bonus slot there permanently inert.
+ *
+ * The zero state is untouched: base 0 + bonus 0 is still UNSET, so every §4.7
+ * consequence fires at boot exactly as before (design-spec §17.13 canary 4b).
+ * [design-spec §17.9 · src/engine/budget.ts]
  */
 export function badgeSlotsCapacityUnset(budget: Budget): boolean {
   return budget.equipSlots === 0;
