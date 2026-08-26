@@ -47,7 +47,7 @@
 
 import { describe, expect, it } from "vitest";
 import { shippedDataset } from "../src/engine/dataset";
-import { ATTRS, ATTR_GROUPS, ATTR_GROUP_OF } from "../src/engine/vocabulary";
+import { ATTRS, ATTR_GROUPS, ATTR_GROUP_OF, CATEGORIES } from "../src/engine/vocabulary";
 import { cssBlock, srcSources, stripComments } from "./helpers/test-utils";
 
 const cssSources = import.meta.glob("/src/styles/*.css", {
@@ -2120,6 +2120,11 @@ const S_TOUCH_FLOOR_CENSUS = [
   // summary, and registered here so it can never silently drop below the
   // floor again.
   ".build-panel__reset",
+  // …and F16's two. The tile is a LINK, which SC 2.5.8 sizes exactly as it
+  // sizes a button; `.board-tile--empty` carries `.board-tile` too, so one
+  // rule answers for both variants.
+  ".board-tile",
+  ".board-panel__browse",
 ] as const;
 
 describe("I6 — the S touch floor, parsed from one token and re-derived per control", () => {
@@ -2669,6 +2674,512 @@ describe("F11 — the Synergy board's geometry, re-derived", () => {
     // The row's own string is untouched — four row statements become one BAND
     // statement, and nothing is compacted away.
     expect(srcSources["/src/ui/synergy/SynergyPanel.tsx"]).toContain(ROW_STRING);
+  });
+});
+
+/* ------------------------------------------ F16: the Loadout board (§3) -- */
+
+/**
+ * F16 — six discipline panels of name cells: what you hold, and how full each
+ * discipline is.
+ *
+ * Same discipline as every block above: PARSE the numbers out of the shipped
+ * stylesheet and RE-DERIVE the identity, with a canary for each that is red
+ * against the arrangement it replaces. Nothing here pastes a threshold.
+ *
+ * THE ONE MEASUREMENT IS BORROWED, NOT RETAKEN. A board tile and a Synergy
+ * board cell pose the identical typographic problem — the dataset's longest
+ * single word at --text-xs inside a padded, bordered box — so F16 consumes
+ * F11's headless-Chrome NAME_MIN_CONTENT rather than measuring a second time
+ * and inviting the two to drift. Assertion 1 pins that they are the same
+ * number for the same reason.
+ */
+
+const F16_START = "/* ==== F16 Loadout board — start ==== */";
+const F16_END = "/* ==== F16 Loadout board — end ==== */";
+
+const loadoutCssRaw = (() => {
+  const start = app.indexOf(F16_START);
+  const end = app.indexOf(F16_END);
+  if (start === -1 || end === -1) {
+    throw new Error("layout arithmetic: the F16 board block is not delimited in app.css");
+  }
+  return app.slice(start + F16_START.length, end);
+})();
+/** Declarations only — the block documents each ruling in prose beside the
+ *  rule it governs, so the zero-list greps must not read the prose. */
+const loadoutCss = stripComments(loadoutCssRaw);
+
+/** One declaration block from inside the F16 slice, by exact selector. */
+function cssBlockIn(source: string, selector: string): string {
+  const block = blocksFor(source, selector)[0];
+  if (block === undefined) {
+    throw new Error(`layout arithmetic: no ${selector} block in the F16 css`);
+  }
+  return block;
+}
+
+/** Both auto-fill floors, parsed off the rules that declare them. */
+function autoFillFloor(block: string): number {
+  return px(block, /repeat\(auto-fill,\s*minmax\((\d+)px,\s*1fr\)\)/);
+}
+const PANEL_TRACK = autoFillFloor(cssBlockIn(loadoutCssRaw, ".loadout-board"));
+const TILE_TRACK = autoFillFloor(cssBlockIn(loadoutCssRaw, ".board-panel__tiles"));
+
+const PANEL_GAP = spaceIn(loadoutCssRaw, ".loadout-board", "gap", 0);
+const PANEL_PAD = spaceIn(loadoutCssRaw, ".board-panel", "padding", 0);
+const PANEL_BORDER = px(cssBlockIn(loadoutCssRaw, ".board-panel"), /border:\s*(\d+)px solid/);
+const TILE_PAD = spaceIn(loadoutCssRaw, ".board-tile", "padding", 0);
+const TILE_BORDER = px(cssBlockIn(loadoutCssRaw, ".board-tile"), /border:\s*(\d+)px solid/);
+const TILE_GAP = spaceIn(loadoutCssRaw, ".board-panel__tiles", "gap", 0);
+
+/** THE SAME COMPOSITION F11'S CELL_FLOOR USES, over the same measurement. */
+const TILE_FLOOR = NAME_MIN_CONTENT + 2 * TILE_PAD + 2 * TILE_BORDER; // 89
+
+/** The tile's meta line: a 20px level disc, an optional role glyph and the
+ *  cost. The dataset's dearest badge is a single digit, so the whole row is
+ *  far under the name — which is why the NAME is the panel's binding driver
+ *  and the meta row is not a second floor. */
+const LEVEL_DISC = px(cssBlockIn(loadoutCssRaw, ".board-tile__level"), /width:\s*(\d+)px/);
+const TILE_META_MAX = LEVEL_DISC + SPACE_1 + Math.ceil(1 * 6.5) + SPACE_1 + Math.ceil(1 * 6.5);
+
+/** Two cells with NO slack — the OVERFLOW floor, i.e. the width below which a
+ *  panel cannot hold two cells at all. */
+const PANEL_OVERFLOW_FLOOR =
+  2 * TILE_FLOOR + TILE_GAP + 2 * PANEL_PAD + 2 * PANEL_BORDER; // 212
+/** …and the DESIGN floor: the same two cells with a full --space-6 of comfort
+ *  each. The gap between the two is the slack a panel derived to its floor
+ *  would not have. */
+const PANEL_TRACK_DERIVED =
+  2 * (TILE_FLOOR + SPACE_6) + TILE_GAP + 2 * PANEL_PAD + 2 * PANEL_BORDER; // 260
+
+/** auto-fill's own arithmetic, written once: the most tracks of at least
+ *  `floor` that fit `box`, and the width each of them then gets. */
+function autoFillTracks(box: number, floor: number, gap: number): number {
+  return Math.max(1, Math.floor((box + gap) / (floor + gap)));
+}
+function autoFillWidth(box: number, floor: number, gap: number): number {
+  const n = autoFillTracks(box, floor, gap);
+  return (box - (n - 1) * gap) / n;
+}
+/** A panel's own content box, inside its border and padding. */
+function panelContent(track: number): number {
+  return track - 2 * PANEL_PAD - 2 * PANEL_BORDER;
+}
+/** The narrowest tile the board produces at a viewport. */
+function boardTileW(viewport: number, scrollbar: number): number {
+  const track = autoFillWidth(boardBox(viewport, scrollbar), PANEL_TRACK, PANEL_GAP);
+  return autoFillWidth(panelContent(track), TILE_TRACK, TILE_GAP);
+}
+
+const boardSrc = stripComments(srcSources["/src/ui/board/LoadoutBoard.tsx"] as string);
+const panelSrc = stripComments(srcSources["/src/ui/board/DisciplinePanel.tsx"] as string);
+const tileSrc = stripComments(srcSources["/src/ui/board/BadgeTile.tsx"] as string);
+const modelSrc = stripComments(srcSources["/src/ui/board/board-model.ts"] as string);
+const F16_SOURCES = { boardSrc, panelSrc, tileSrc, modelSrc };
+
+describe("F16 — the Loadout board's geometry, re-derived", () => {
+  it("1 — TILE_FLOOR is F11's measurement, composed from PARSED tokens", () => {
+    expect(TILE_PAD).toBe(SPACE_2);
+    expect(TILE_BORDER).toBe(1);
+    expect(TILE_FLOOR).toBe(NAME_MIN_CONTENT + 2 * SPACE_2 + 2);
+    expect(TILE_FLOOR).toBe(89);
+    // ONE measurement, TWO consumers. A board tile and a Synergy board cell
+    // are the same typographic box; taking a second measurement is how two
+    // floors that must agree come to disagree.
+    expect(TILE_FLOOR).toBe(CELL_FLOOR);
+    // …and it is the CEILING of a real measurement, not a paper figure.
+    expect(NAME_MIN_CONTENT).toBe(Math.ceil(NAME_MIN_MEASURED));
+    // CANARY. The design's paper 86 must NOT be the answer — at 86 the cell
+    // offers 68px of content against the 70.156 the longest badge name wants,
+    // i.e. a floor its own binding word does not fit inside.
+    const paperFloor = 68 + 2 * SPACE_2 + 2;
+    expect(paperFloor).toBe(86);
+    expect(paperFloor).toBeLessThan(TILE_FLOOR);
+    expect(paperFloor - 2 * SPACE_2 - 2).toBeLessThan(NAME_MIN_MEASURED);
+  });
+
+  it("2 — the NAME is the binding driver; the meta row is not a second floor", () => {
+    expect(LEVEL_DISC).toBe(20);
+    // The dearest badge in the dataset is a single digit, so the cost cannot
+    // widen this row into contention. Asserted off the DATA, not assumed.
+    const dearest = Math.max(
+      ...Object.values(shippedDataset.tierCosts).flatMap((costs) => Object.values(costs)),
+    );
+    expect(String(dearest)).toHaveLength(1);
+    expect(TILE_META_MAX).toBeLessThan(NAME_MIN_CONTENT);
+  });
+
+  it("3 — PANEL_TRACK is DERIVED as the two-cell floor plus --space-6 per cell", () => {
+    expect(PANEL_PAD).toBe(SPACE_3);
+    expect(PANEL_BORDER).toBe(1);
+    expect(TILE_GAP).toBe(SPACE_2);
+    expect(PANEL_GAP).toBe(SPACE_3);
+    expect(PANEL_OVERFLOW_FLOOR).toBe(212);
+    expect(PANEL_TRACK_DERIVED).toBe(260);
+    expect(PANEL_TRACK).toBe(PANEL_TRACK_DERIVED);
+    expect(PANEL_TRACK - PANEL_OVERFLOW_FLOOR).toBe(2 * SPACE_6);
+    // …and the tile grid's own floor IS the tile floor, not a rounder number.
+    expect(TILE_TRACK).toBe(TILE_FLOOR);
+    // CANARY. A panel derived to its OVERFLOW floor is the knife edge the rail
+    // derivation already refused once — two cells that fit and nothing more.
+    expect(panelContent(PANEL_OVERFLOW_FLOOR)).toBe(2 * TILE_FLOOR + TILE_GAP);
+    expect(autoFillWidth(panelContent(PANEL_OVERFLOW_FLOOR), TILE_TRACK, TILE_GAP)).toBe(
+      TILE_FLOOR,
+    );
+    // …while the chosen track gives each cell a full --space-6 above it.
+    expect(autoFillWidth(panelContent(PANEL_TRACK), TILE_TRACK, TILE_GAP)).toBe(
+      TILE_FLOOR + SPACE_6,
+    );
+  });
+
+  it("3b — 260 AND NOT the design's 258: the number moved because the word did", () => {
+    // design.md §3.6 derived 258 from a CELL_FLOOR of 86. F11 re-pinned that
+    // floor to 89 when it measured "Unpluckable" in headless Chrome, and the
+    // same composition over the corrected floor is 260. Recorded as an
+    // arithmetic consequence so nobody "restores" the design's figure.
+    const designFloor = 68 + 2 * SPACE_2 + 2; // 86
+    const designTrack =
+      2 * (designFloor + SPACE_6) + TILE_GAP + 2 * PANEL_PAD + 2 * PANEL_BORDER;
+    expect(designTrack).toBe(254);
+    expect(PANEL_TRACK - designTrack).toBe(2 * (NAME_MIN_CONTENT - 68));
+  });
+
+  it("4 — the coverage table: no tile is ever narrower than its floor", () => {
+    // auto-fill makes this STRUCTURAL rather than lucky: the browser takes the
+    // most tracks of at least `floor` that fit, so each resulting track is
+    // >= floor by construction. The table is here to show the arrangement, and
+    // the inequality is asserted at every plausible scrollbar because that is
+    // the term the board does not control.
+    const coverage: Array<[number, number, number, number]> = [
+      // viewport, scrollbar, panels per row, tiles per row
+      [1440, 17, 3, 3],
+      [1280, 17, 3, 2],
+      [768, 15, 2, 3],
+      [390, 0, 1, 3],
+    ];
+    for (const [viewport, scrollbar, panels, tiles] of coverage) {
+      const box = boardBox(viewport, scrollbar);
+      expect(autoFillTracks(box, PANEL_TRACK, PANEL_GAP), `panels at ${viewport}`).toBe(panels);
+      const track = autoFillWidth(box, PANEL_TRACK, PANEL_GAP);
+      expect(
+        autoFillTracks(panelContent(track), TILE_TRACK, TILE_GAP),
+        `tiles at ${viewport}`,
+      ).toBe(tiles);
+    }
+    for (const viewport of [1440, 1280, 768, 390]) {
+      for (const scrollbar of SCROLLBARS) {
+        expect(
+          boardTileW(viewport, scrollbar),
+          `tile at ${viewport}/s=${scrollbar}`,
+        ).toBeGreaterThanOrEqual(TILE_FLOOR);
+      }
+    }
+    // The narrowest tile in the coverage set is at 390, not at 1280 — below
+    // 1280 the 300px attributes pane does not exist and the board gets the
+    // whole width, so the SMALL viewport is where the cells are tightest.
+    const at390 = Math.min(...SCROLLBARS.map((s) => boardTileW(390, s)));
+    const at1280 = Math.min(...SCROLLBARS.map((s) => boardTileW(1280, s)));
+    expect(at390).toBeLessThan(at1280);
+    // CANARY: a floor that could not tell a sub-floor cell from a legal one
+    // would certify anything. A 300px tile track cannot fit two cells in the
+    // 261px panel content at 1280.
+    expect(autoFillTracks(panelContent(autoFillWidth(boardBox(1280, 17), PANEL_TRACK, PANEL_GAP)), 300, TILE_GAP)).toBe(1);
+  });
+
+  it("5 — three panel columns at 1280, because there is NO detail region", () => {
+    // design.md §5.5 put the panels at TWO columns at 1280. That figure was
+    // derived against a 312px BoardDetail track beside them, which this cut
+    // does not build — so the panels take the whole 885 and fit three. Stated
+    // rather than discovered, because a later slice that adds the detail
+    // region takes the third column back.
+    const box = boardBox(1280, 17);
+    expect(box).toBe(885);
+    expect(autoFillTracks(box, PANEL_TRACK, PANEL_GAP)).toBe(3);
+    const DETAIL_TRACK = 312;
+    expect(autoFillTracks(box - DETAIL_TRACK - SPACE_6, PANEL_TRACK, PANEL_GAP)).toBe(2);
+  });
+});
+
+describe("F16 — the board's bans, asserted by absence", () => {
+  it("6 — NO scrollport and NO sticky layer", () => {
+    // A third scrollport re-breaks find-in-page, scroll restoration and every
+    // #cat-* anchor; a third sticky layer in the card column breaks the
+    // two-layer cap the whole sticky stack is derived against.
+    // `overflow-wrap` is legal and load-bearing — it is what keeps a long
+    // badge name inside its cell — so the ban is on the SCROLL properties,
+    // named exactly rather than by the shared prefix.
+    for (const banned of ["overflow:", "overflow-x:", "overflow-y:", "overflow-block"]) {
+      expect(loadoutCss, `the board declares ${banned}`).not.toContain(banned);
+    }
+    expect(loadoutCss).not.toContain("position: sticky");
+    expect(loadoutCss).not.toContain("position: fixed");
+    // POSITIVE CANARY: the pattern really does catch a scrollport.
+    expect("  overflow-y: auto;").toContain("overflow-y:");
+    expect("  overflow-wrap: anywhere;").not.toContain("overflow:");
+  });
+
+  it("7 — NO new breakpoint, NO container query, NO new token, NO opacity", () => {
+    // Every arrangement is an auto-fill outcome, which is continuous in the
+    // viewport. The ONE media query is the shipped S touch floor.
+    const queries = [...loadoutCss.matchAll(/@media \(([^)]+)\)/g)].map((m) => m[1] as string);
+    expect(queries.sort()).toEqual(["forced-colors: active", "max-width: 767px"]);
+    expect(loadoutCss).not.toContain("@container");
+    expect(loadoutCss).not.toMatch(/^\s*--[a-z0-9-]+:/m);
+    expect(loadoutCss).not.toContain("opacity");
+    // …and no bare touch-floor literal. A hard-coded 44px is invisible to the
+    // census assertion, which reads the stylesheet back by matching the TOKEN
+    // — exactly how F11's floor escaped it once.
+    expect(loadoutCss).not.toContain("44px");
+    expect(loadoutCss).toContain("min-height: var(--tap-target)");
+  });
+
+  it("8 — the board CANNOT be seen by the H2 overlay guardrail or the row helper", () => {
+    // overlays.test.tsx compares node collections selected by
+    // `.category-ledger*`, `.ledger-overview*` and `.summary` across all four
+    // overlay combinations, and synergy-panel.test.tsx indexes rows by
+    // `.synergy-row`. The board's cells legitimately change under
+    // reactionsActive and its markup sits inside neither region, so it must
+    // not borrow any of those namespaces — one shared class re-indexes ~20
+    // assertions at once.
+    for (const banned of [
+      "category-ledger",
+      "ledger-overview",
+      ".summary",
+      "synergy-row",
+      "synergy-board",
+      "badge-card",
+    ]) {
+      expect(loadoutCss, `the F16 block reaches ${banned}`).not.toContain(banned);
+      for (const [name, source] of Object.entries(F16_SOURCES)) {
+        expect(source, `${name} reaches ${banned}`).not.toContain(banned);
+      }
+    }
+  });
+
+  it("9 — the board DISPATCHES NOTHING: no write path to the build exists", () => {
+    // The single strongest safety property of this cut, and it is structural
+    // rather than promised. A project that has shipped four data-destruction
+    // defects gains ZERO new write paths from this view: Remove and synergy
+    // assignment were designed for a detail region this cut does not build,
+    // and both stay where they already ship.
+    for (const [name, source] of Object.entries(F16_SOURCES)) {
+      for (const banned of [
+        "onSetLevel",
+        "assignSynergy",
+        "clearSynergy",
+        "onSynergySlotsChange",
+        "setSynergySlots",
+        "clearSynergyReferencesTo",
+        "localStorage",
+      ]) {
+        expect(source, `${name} calls ${banned}`).not.toContain(banned);
+      }
+    }
+    // The ONE thing it writes is FILTER state, and it writes it from App.tsx.
+    expect(appTsxF14).toContain("const browseCategoryInGrid = (category: Category)");
+    expect(boardSrc).toContain("onBrowseCategory");
+  });
+
+  it("10 — it builds no over-by string and re-derives no capacity rule", () => {
+    // P0-1: one builder, N consumers. The panel is the THIRD production
+    // consumer of the shared over-by strings — after the in-grid digest and
+    // the rail Ledger overview — and it authors neither.
+    expect(panelSrc).toContain("overByBadgePoints");
+    expect(panelSrc).toContain("overByBadgeSlots");
+    expect(panelSrc).toContain('from "../grid/CategoryLedger"');
+    for (const [name, source] of Object.entries(F16_SOURCES)) {
+      expect(source, `${name} authors an over-by string`).not.toMatch(/over by/i);
+    }
+    // The 0 = capacity not set ruling comes from the ENGINE predicate, never
+    // from a local comparison. A function that knows what a capacity number
+    // MEANS is a rule.
+    expect(panelSrc).toContain("badgeSlotsCapacityUnset");
+    expect(panelSrc).toContain('from "../../engine/ledger"');
+    for (const [name, source] of Object.entries(F16_SOURCES)) {
+      expect(source, `${name} re-derives the unset predicate`).not.toMatch(
+        /equipSlots\s*===?\s*0/,
+      );
+    }
+    // POSITIVE CANARY: the two patterns really do catch what they claim to.
+    expect(/over by/i.test('const s = `over by ${n} ⚠`;')).toBe(true);
+    expect(/equipSlots\s*===?\s*0/.test("budget.equipSlots === 0")).toBe(true);
+  });
+
+  it("11 — no ranking, no scoring, no recommendation, and no invented mechanic", () => {
+    // A board is exactly the surface someone will want to add a suggester to.
+    // The working agreement forbids it: the tool shows what FITS, the user
+    // chooses. The order is the DATASET's, which is a property of the data
+    // rather than of the build.
+    for (const [name, source] of Object.entries(F16_SOURCES)) {
+      for (const banned of [
+        ".sort(",
+        "recommend",
+        "optimal",
+        "best",
+        "score",
+        "rank",
+        "suggest",
+      ]) {
+        expect(source, `${name} contains ${banned}`).not.toContain(banned);
+      }
+    }
+    expect(modelSrc).toContain("for (const badge of dataset.badges)");
+  });
+});
+
+describe("F16 — the --cat identity surface the board adds", () => {
+  /** The six explicit rules, read back OUT of the stylesheet. Written the way
+   *  the summary roster's caption is written — a `[data-category]` attribute
+   *  selector naming its own token — rather than by consuming the inherited
+   *  `var(--cat)`, because the board is not inside a `#cat-*` element and has
+   *  no --cat to inherit. */
+  const titleRules = [
+    ...loadoutCssRaw.matchAll(
+      /\.board-panel\[data-category="([a-z]+)"\] \.board-panel__title \{\s*color:\s*var\(--cat-([a-z]+)\);/g,
+    ),
+  ].map((match) => ({ category: match[1] as string, token: match[2] as string }));
+
+  it("(a) all six disciplines resolve, and each pairs with its OWN token", () => {
+    expect(titleRules).toHaveLength(CATEGORIES.length);
+    // The category and the token are compared to each other, not to a list —
+    // a copy-paste that pairs `defense` with `--cat-rebounding` is invisible
+    // to a list check and fatal to the identity channel.
+    for (const rule of titleRules) {
+      expect(rule.token, `${rule.category} takes the wrong token`).toBe(rule.category);
+    }
+    expect(titleRules.map((rule) => rule.category).sort()).toEqual(
+      CATEGORIES.map((category) => category.toLowerCase()).sort(),
+    );
+  });
+
+  it("(b) NO other board selector references a --cat token at all", () => {
+    // Read off the STYLESHEET rather than off the list above, so a selector
+    // invented later is caught too. Identity stops at the title: not the
+    // numerals, not the fence, not a tile, not the over-by.
+    for (const block of loadoutCssRaw.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!/var\(--cat/.test(block[2] as string)) continue;
+      const selector = (block[1] as string).trim().replace(/\s+/g, " ");
+      expect(selector, `unexpected --cat consumer: ${selector}`).toMatch(
+        /^\.board-panel\[data-category="[a-z]+"\] \.board-panel__title$/,
+      );
+    }
+  });
+
+  it("(c) --danger never overrides --cat on the title (identity is not state)", () => {
+    // A title that flips hue to red when the panel is over capacity makes a
+    // red Defense heading indistinguishable from "you are over budget". State
+    // lives on the fence, on the metric that is genuinely over, on the
+    // warning glyph and on the words.
+    for (const block of loadoutCssRaw.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selector = (block[1] as string).trim();
+      if (!selector.includes("board-panel__title")) continue;
+      expect((block[2] as string).includes("--danger"), `${selector} took --danger`).toBe(false);
+    }
+    // …and --danger really is on the two state surfaces, so this is not
+    // passing by the absence of the token from the whole block.
+    expect(cssBlockIn(loadoutCssRaw, ".board-panel__fence")).toContain("var(--danger)");
+    expect(loadoutCss).toContain(".board-panel__metric--over");
+  });
+
+  it("(d) colour is never the only carrier of any board state", () => {
+    // Every state has a second, non-colour channel, and each is asserted in
+    // the place that renders it rather than promised in prose.
+    expect(tileSrc).toContain("levelLetter"); // purchase level: the LETTER
+    expect(tileSrc).toContain('"⚡"'); // Fuse: a glyph…
+    expect(loadoutCss).toContain("border-left: 3px solid var(--accent)"); // …and a SOLID edge
+    expect(tileSrc).toContain('"↺"'); // Reaction: a glyph…
+    expect(loadoutCss).toContain("border-left: 3px dashed var(--info)"); // …and a DASHED edge
+    expect(tileSrc).toContain("＋"); // empty: a glyph…
+    expect(tileSrc).toContain("Badge Slot"); // …and the words
+    expect(cssBlockIn(loadoutCssRaw, ".board-tile--empty")).toContain("border: 1px dashed"); // …and a dashed rim
+    expect(tileSrc).toContain("⚠"); // stale: a glyph…
+    expect(tileSrc).toContain("no longer qualifies at this level"); // …and the words
+    // …and the tarnish is the ABSENCE of the specular highlight, not a hue.
+    expect(loadoutCssRaw).toContain('.board-tile[data-stale="true"] .board-tile__level {');
+    expect(
+      cssBlockIn(loadoutCssRaw, '.board-tile[data-stale="true"] .board-tile__level'),
+    ).toContain("box-shadow: none");
+    // the fence: tiles below a RULE, plus the shipped words and glyph
+    expect(loadoutCssRaw).toContain(".board-panel__fence::before");
+    // the panel title: the category's own NAME, as text
+    expect(panelSrc).toContain("{category}");
+  });
+});
+
+describe("F16 — the mount, the anchors and the landing position", () => {
+  it("12 — the board is a SECTION in the page flow: no route, no tab, no toggle", () => {
+    // Two <Section>s in one document is what makes "switching cannot mutate
+    // the plan" true by CONSTRUCTION — there is no switch to prove innocent.
+    expect(appTsxF14).toContain('id="panel-board"');
+    expect(appTsxF14).toContain('<Section title="Loadout board" storageKey="section-board">');
+    // A view state must never share a namespace with the build envelope.
+    expect(appTsxF14).toContain('storageKey="section-board"');
+    for (const banned of ["aria-selected", 'role="tab"', "createBrowserRouter", "history.push"]) {
+      expect(appTsxF14, `the board introduced ${banned}`).not.toContain(banned);
+    }
+  });
+
+  it("13 — it sits BETWEEN the grid and the Synergy Slots panel, inside .col-right", () => {
+    const colRight = appTsxF14.indexOf('className="col-right"');
+    const grid = appTsxF14.indexOf('<main id="badge-grid"');
+    const board = appTsxF14.indexOf('id="panel-board"');
+    const synergy = appTsxF14.indexOf('id="panel-synergy"');
+    const summary = appTsxF14.indexOf('id="panel-summary"');
+    expect(colRight).toBeLessThan(grid);
+    expect(grid).toBeLessThan(board);
+    expect(board).toBeLessThan(synergy);
+    expect(synergy).toBeLessThan(summary);
+    // NOTHING IS RE-PARENTED. All three panels are still .col-right siblings,
+    // the grid is still the <main>, and the shell's permanent band is
+    // untouched — the board is scrollable content, not chrome.
+    expect(permanentBand()).toBe(HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H);
+    expect(MIN_SHELL_H).toBe(768);
+  });
+
+  it("14 — the jump nav gains ONE chip and the panel group stays front-loaded", () => {
+    const nav = appTsxF14.slice(
+      appTsxF14.indexOf("panelAnchors={["),
+      appTsxF14.indexOf("]}", appTsxF14.indexOf("panelAnchors={[")),
+    );
+    expect(nav).toContain('{ id: "panel-board", label: "Board" }');
+    // Board before Synergy before Summary — the chip order is the page order.
+    expect(nav.indexOf("panel-board")).toBeLessThan(nav.indexOf("panel-synergy"));
+    expect(nav.indexOf("panel-synergy")).toBeLessThan(nav.indexOf("panel-summary"));
+    // The chip row scrolls rather than wrapping, so a fourth chip needs no
+    // width budget — but the nav's HEIGHT is a sticky-stack term and must not
+    // have moved.
+    expect(cssBlock(app, ".jump-nav")).toContain("overflow-x: auto");
+    expect(JUMPNAV_H).toBe(44);
+  });
+
+  it("15 — a #badge-* landing is DERIVED from the reserve, not typed", () => {
+    // The first anchors that point INTO a category section. A card sits under
+    // BOTH sticky layers, so the whole stack is reserved — unlike
+    // .grid-section, which lands under layer 1 alone.
+    const li = cssBlockIn(loadoutCssRaw, ".grid-section__cards > li");
+    expect(li).toContain(
+      "scroll-margin-top: calc(var(--sticky-stack-h) - var(--scroll-reserve))",
+    );
+    // ONE landing position, both modes. The two properties ADD, so what the
+    // element lands at is `scroll-margin-top + scroll-padding-top`, i.e.
+    // `(want − reserve) + reserve`. The reserve cancels, by construction.
+    const reserveDoc = px(app, /--scroll-reserve:\s*(\d+)px/);
+    expect(reserveDoc).toBe(0); // the document scroller declares none
+    const landing = (want: number, reserve: number): number => want - reserve + reserve;
+    expect(landing(STICKY_STACK_H, reserveDoc)).toBe(STICKY_STACK_H); // document scroller
+    expect(landing(STICKY_STACK_H, STICKY_STACK_H)).toBe(STICKY_STACK_H); // .col-right
+    expect(STICKY_STACK_H).toBe(120);
+    // CANARY: a naive `scroll-margin-top: 120px` would land at 240 under the
+    // shell — the whole reserve of overshoot, invisible on the document
+    // scroller and wrong in the mode the app actually runs in.
+    const naive = (want: number, reserve: number): number => want + reserve;
+    expect(naive(STICKY_STACK_H, STICKY_STACK_H)).toBe(240);
+    expect(naive(STICKY_STACK_H, STICKY_STACK_H)).not.toBe(landing(STICKY_STACK_H, STICKY_STACK_H));
+    // The id itself is built in ONE place and consumed by both ends.
+    expect(modelSrc).toContain("export function badgeAnchorId");
+    expect(appTsxF14).toContain("id={badgeAnchorId(badge.id)}");
+    expect(modelSrc).toContain("href: `#${badgeAnchorId(badge.id)}`");
   });
 });
 

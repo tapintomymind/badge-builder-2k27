@@ -4374,6 +4374,424 @@ main#badge-grid {
 
 /* ==== F11 board — end ==== */
 
+/* ==== F16 Loadout board — start ==== */
+/*
+ * F16 — the Loadout board. Six discipline panels of name cells: what you
+ * hold, and how full each discipline is.
+ *
+ * ONE APPENDED, DELIMITED BLOCK, placed between F11's board block and the F14
+ * shell block rather than at the foot of the file. The foot is where every
+ * in-flight slice appends, so it is the one place two branches are guaranteed
+ * to collide; and the A5-U block must stay last (layout-arithmetic asserts the
+ * file ends with its marker).
+ *
+ * NO @media OF ANY KIND except the shipped S floor, and NO @container. Every
+ * arrangement here is an `auto-fill` outcome, which is continuous in the
+ * viewport and therefore needs no breakpoint — §13.3's rule, and the same
+ * posture the summary roster took. A fourth breakpoint would be a
+ * stop-and-report.
+ *
+ * NO `overflow` AND NO `position: sticky`. A third scrollport would re-break
+ * find-in-page, scroll restoration and every #cat-* anchor; a third sticky
+ * layer in the card column would break the two-layer cap the whole sticky
+ * stack is derived against. The board is ordinary flow content inside
+ * .col-right, which is also why it adds nothing to the shell's permanent band.
+ *
+ * ZERO NEW TOKENS. Every value below is either a shipped custom property or a
+ * number derived from one in tests/layout-arithmetic.test.ts.
+ *
+ * ── THE GEOMETRY, DERIVED ────────────────────────────────────────────────
+ *
+ * TILE_FLOOR reuses F11's measurement rather than taking a second one. A
+ * board tile and a Synergy board cell are the SAME typographic problem: the
+ * dataset's longest single word at --text-xs inside a padded, bordered box.
+ * F11 measured that in headless Chrome at 70.156px ("Unpluckable") and pinned
+ * it at the ceiling, 71.
+ *
+ *   TILE_FLOOR  = NAME_MIN_CONTENT 71 + 2 x --space-2 + 2 x 1px border = 89
+ *
+ * The tile's meta line (level disc + role glyph + a one-digit cost — the
+ * dataset's dearest badge is 7 Badge Points) is narrower than the name, so
+ * the name is the binding driver and the assertion says so.
+ *
+ * PANEL_TRACK is the two-cell floor plus a full --space-6 of comfort PER
+ * CELL. The floor alone is the knife edge the rail derivation already refused
+ * once; the slack is what makes a two-line name look right rather than merely
+ * fit.
+ *
+ *   PANEL_FLOOR = 2 x TILE_FLOOR + --space-2 + 2 x --space-3 + 2 x 1px = 212
+ *   PANEL_TRACK = 2 x (TILE_FLOOR + --space-6) + --space-2
+ *                   + 2 x --space-3 + 2 x 1px                          = 260
+ *
+ * 260 AND NOT THE DESIGN'S 258. The design derived 258 from a CELL_FLOOR of
+ * 86, which F11 re-pinned to 89 when it measured the word. Two cells and the
+ * same --space-6 of comfort against the corrected floor is 260. The number
+ * moved because the measurement did.
+ */
+
+.loadout-board {
+  display: grid;
+  /* CONTINUOUS, NOT STEPPED. Panels re-flow from 3-up to 1-up on the box
+     alone: 3 at 1045 and at 885, 2 at 687, 1 at 332. */
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.board-panel {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--bg-surface);
+  min-width: 0;
+}
+
+/* THE ONE --cat SURFACE THE BOARD ADDS, and it is written the way the summary
+ * roster's caption is written — six explicit `[data-category]` rules naming
+ * the six tokens — rather than by consuming the inherited `var(--cat)`. Two
+ * reasons, in order: the board is NOT inside a `#cat-*` element so there is no
+ * --cat to inherit; and the placement lint that guards the identity channel
+ * enumerates its permitted `var(--cat)` consumers exactly, so a new one there
+ * would have to edit a RUN-never-edit gate.
+ *
+ * IDENTITY ONLY, NEVER STATE. --danger does not override the title when the
+ * panel is over capacity: state lives on the fence, on the metric that is
+ * genuinely over, on the warning glyph and on the words. A title that flips
+ * hue to red is the identity/state collision the whole colour law exists to
+ * prevent. And colour is never the only carrier — the title IS the category's
+ * name, spelled out. */
+.board-panel__title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.board-panel[data-category="finishing"] .board-panel__title {
+  color: var(--cat-finishing);
+}
+.board-panel[data-category="shooting"] .board-panel__title {
+  color: var(--cat-shooting);
+}
+.board-panel[data-category="playmaking"] .board-panel__title {
+  color: var(--cat-playmaking);
+}
+.board-panel[data-category="rebounding"] .board-panel__title {
+  color: var(--cat-rebounding);
+}
+.board-panel[data-category="defense"] .board-panel__title {
+  color: var(--cat-defense);
+}
+.board-panel[data-category="physicals"] .board-panel__title {
+  color: var(--cat-physicals);
+}
+
+/* WRAPS BY DESIGN. Both capacities are user-entered and uncapped, so the
+   string has no bounded width and "one line" could never be a floor. */
+.board-panel__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--fg-secondary);
+}
+
+.board-panel__metric .num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-primary);
+}
+
+/* PER-METRIC, NEVER PER-ROW. Only the metric that is genuinely over turns. */
+.board-panel__metric--over,
+.board-panel__metric--over .num {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.board-panel__hint,
+.board-panel__empty-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+/* A link-shaped button: it navigates and filters, it does not submit. */
+.board-panel__browse {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.board-panel__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(89px, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* I13 — equal heights come from the grid item, never from a height on the
+   tile. A two-line name in one cell must not clip the one beside it. */
+.board-panel__tiles > li {
+  display: flex;
+  min-width: 0;
+}
+
+/* WHERE A #badge-* JUMP LANDS. F16's tiles are the first anchors that point
+ * INTO a category section, so this is a new landing position and it is derived
+ * the same way every other one is. A card sits under BOTH sticky layers — the
+ * jump nav pins at the top of the scrollport and the category digest pins
+ * itself under the nav — so the whole stack is what has to be reserved, unlike
+ * `.grid-section`, which lands under layer 1 alone.
+ *
+ * The scrollport's own reserve is SUBTRACTED because scroll-padding-top and
+ * scroll-margin-top ADD. Under the shell `.col-right` already reserves the
+ * stack, so this resolves to 0 and the landing is 120; on the document
+ * scroller the reserve is 0 and this is a plain 120. One landing position,
+ * expressed once, correct in both modes. A naive 120 here would overshoot by
+ * 120 under the shell.
+ *
+ * It lives in F16's block rather than the grid's because the behaviour is
+ * F16's: before the board there was no anchor on a card to land on. It is
+ * inert at every other moment — scroll-margin affects nothing but fragment
+ * navigation and scrollIntoView. */
+.grid-section__cards > li {
+  scroll-margin-top: calc(var(--sticky-stack-h) - var(--scroll-reserve));
+}
+
+/* ---- the tile ---------------------------------------------------------- */
+
+.board-tile {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-raised);
+  color: var(--fg-primary);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.board-tile:hover {
+  border-color: var(--border-strong);
+}
+
+/* The 4px metal top edge — the purchase level's COLOUR carrier. The LETTER in
+   the disc below is its non-colour carrier, so this is never alone. */
+.board-tile__edge {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.board-tile[data-level="bronze"] .board-tile__edge {
+  background: var(--metal-face-bronze);
+}
+.board-tile[data-level="silver"] .board-tile__edge {
+  background: var(--metal-face-silver);
+}
+.board-tile[data-level="gold"] .board-tile__edge {
+  background: var(--metal-face-gold);
+}
+.board-tile[data-level="hof"] .board-tile__edge {
+  background: var(--metal-face-hof);
+}
+
+.board-tile__name {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  color: var(--fg-primary);
+}
+
+.board-tile__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: auto;
+}
+
+/* The level disc. Embossed metal, exactly as the owned pip is: a specular
+   highlight means "this is a level" everywhere in the app. */
+.board-tile__level {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--fg-on-accent);
+  box-shadow: var(--bevel-raised);
+}
+.board-tile[data-level="bronze"] .board-tile__level {
+  background: var(--metal-face-bronze);
+}
+.board-tile[data-level="silver"] .board-tile__level {
+  background: var(--metal-face-silver);
+}
+.board-tile[data-level="gold"] .board-tile__level {
+  background: var(--metal-face-gold);
+}
+.board-tile[data-level="hof"] .board-tile__level {
+  background: var(--metal-face-hof);
+}
+
+/* TARNISH — the shipped stale read. FLAT, no gradient and no highlight, so
+   the ABSENCE of the specular highlight is itself the carrier; the warning
+   glyph and the accessible name carry it in the other two channels. H8
+   discloses and never repairs: the tile still shows the level the user
+   planned. */
+.board-tile[data-stale="true"] .board-tile__level {
+  box-shadow: none;
+  color: var(--fg-primary);
+}
+.board-tile[data-stale="true"][data-level="bronze"] .board-tile__level {
+  background: var(--metal-bronze-lo);
+}
+.board-tile[data-stale="true"][data-level="silver"] .board-tile__level {
+  background: var(--metal-silver-lo);
+}
+.board-tile[data-stale="true"][data-level="gold"] .board-tile__level {
+  background: var(--metal-gold-lo);
+}
+.board-tile[data-stale="true"][data-level="hof"] .board-tile__level {
+  background: var(--metal-hof-lo);
+}
+.board-tile__warn {
+  margin-left: 1px;
+  font-size: 9px;
+}
+
+.board-tile__role {
+  font-size: var(--text-xs);
+  color: var(--fg-secondary);
+}
+
+.board-tile__cost {
+  margin-left: auto;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+  color: var(--fg-secondary);
+}
+
+/* SYNERGY — an edge SHAPE plus a glyph, never a hue alone: solid for Fuse,
+   dashed for Reaction. Matches the shipped card edges. */
+.board-tile[data-role="fuse"] {
+  border-left: 3px solid var(--accent);
+}
+.board-tile[data-role="reaction"] {
+  border-left: 3px dashed var(--info);
+}
+
+/* ---- empty capacity ---------------------------------------------------- */
+
+/* --border-strong, NOT --border. The dashed boundary is what distinguishes
+   "capacity you have not used" from "nothing here at all", which makes it
+   state-bearing and puts it under the 3:1 non-text bar: --border measures
+   2.09:1 against the surface, --border-strong 3.77:1. The plus glyph and the
+   words carry it too, so the rim is never the sole carrier. */
+.board-tile--empty {
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  border: 1px dashed var(--border-strong);
+  background: var(--bg-inset);
+  box-shadow: var(--bevel-inset);
+  color: var(--fg-muted);
+  cursor: pointer;
+  text-align: center;
+}
+
+.board-tile__plus {
+  font-size: var(--text-base);
+  line-height: 1;
+}
+
+.board-tile__empty-label {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+/* ---- the over-capacity fence ------------------------------------------- */
+
+/* THE BOARD'S BEST SINGLE IDEA. Every other surface renders overspend as a
+ * number; this renders it as a SHAPE — the badges beyond capacity sit outside
+ * a line. Same fact, read without arithmetic.
+ *
+ * IT CHANGES NO BEHAVIOUR. Nothing below it is disabled, blocked or dimmed:
+ * the badges still spend Badge Points, still hold synergy roles and still
+ * refund. Overspend is allowed and disclosed, never prevented. */
+.board-panel__fence {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  color: var(--danger);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.board-panel__fence::before,
+.board-panel__fence::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--danger);
+}
+
+.board-panel__fence-label {
+  flex: none;
+}
+
+/* Forced colors discards every metal, bevel, shadow and gradient above. Each
+   board state survives on its letter, its glyph, its border weight and its
+   words; these two re-assert the boundaries the system would otherwise flatten
+   into the canvas. */
+@media (forced-colors: active) {
+  .board-tile__edge {
+    background: CanvasText;
+  }
+  .board-tile--empty {
+    border-color: CanvasText;
+  }
+  .board-panel__fence::before,
+  .board-panel__fence::after {
+    background: CanvasText;
+  }
+}
+
+/* I6 — the S touch floor, from the shipped token and never a bare literal. A
+   hard-coded 44px is invisible to the census assertion, which reads the
+   stylesheet back by matching the TOKEN; that is exactly how F11's floor
+   escaped it once. Both classes are registered in S_TOUCH_FLOOR_CENSUS. */
+@media (max-width: 767px) {
+  .board-tile {
+    min-height: var(--tap-target);
+  }
+
+  .board-panel__browse {
+    min-height: var(--tap-target);
+  }
+}
+/* ==== F16 Loadout board — end ==== */
+
 /* ==== F14 app shell — 100dvh, no document scroll ============================
  *
  * features/app-shell/design.md. The user's ruling, verbatim: "the whole page
