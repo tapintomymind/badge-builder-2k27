@@ -9467,6 +9467,200 @@ verified with curl before closing) was closed to clear the tab cap; the live
 are `python3 -m http.server` and are left for the dispatcher to reap. `dev` was
 not merged into and `main` was not touched.
 ─────────────────────────────────────────────
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · slice-complete — F2.3 autosave concurrency + the lossy boot read
+
+**Branch** `persist-concurrency` off `origin/dev` `44de81f`, worktree `/private/tmp/bb-persist`.
+Two commits. **NOT merged to `dev`; `main` never checked out.** `origin/dev` re-fetched at the
+end and had not moved.
+
+Two defects, one shape. Both autosave writers serialized a LONG-LIVED in-memory copy and
+`setItem` over the key without ever reading it, gated on `persistableRef` — which asks a purely
+LOCAL question ("does this instance hold a state worth persisting?") and never the relational
+one ("is what I am about to write derived from the bytes currently in storage?").
+
+### Layer 1 — the flush writes only when it has something to add
+
+`App.tsx`'s flush now captures `workingRef.current` BEFORE the blur and compares references
+after. Every commit handler returns `prev` unchanged on a no-op (`handleHeightCommit`,
+`handleAttributeCommit`, the inline `onBudgetCommit`), so reference identity IS "this blur
+committed nothing" — verified by reading all three, not assumed.
+
+**Deliberately NOT a `dirty` flag.** `loadBuild` calls `markClean()`, so a dirty-keyed test is
+false for a freshly-loaded build that very much needs writing — the known trap, recorded in
+F2.2's own entry and pinned by its test 1.4. This asks only whether THIS FLUSH changed anything.
+
+### Layer 2 — a lossy boot read is not persistable YET
+
+`persistableRef`'s seed gains `!bootWasLossy`, false when the boot read lost anything through any
+of four channels: `droppedEntries`, `clearedSynergyRefs`, `ratifiedMagnitudeNormalized`, and the
+new `droppedUnknownFields`. The DriftBanner is the disclosure (unchanged, still asserted); the
+user's first edit is the acceptance (`applyEdit` → `armPersistence`, unchanged).
+
+**Layer 2 alone only delays the loss**, so the ORIGINAL BYTES ARE ALSO PRESERVED at boot, in the
+same state-initializer position and with the same reasoning as `quarantineWrite`: during the boot
+render, before any effect can run.
+
+### The single-entry quarantine question — resolved as a SECOND KEY
+
+`badge-builder-2k27:autosave-preserved:v1`, additive, never renamed anything. Three reasons, in
+order of weight:
+
+1. **Sharing inverts the never-overwrite rule into data loss.** Neither preserve path may clobber
+   a standing one (§0.1 rule 6). A drift preservation sitting in a shared entry would silently
+   block the strictly MORE severe *unreadable* case from ever being preserved — the fix would
+   have manufactured the bug it exists to remove. Pinned by test 3.6's second case.
+2. **The disclosure would lie.** `QuarantineBanner` says *"A saved build couldn't be read"* and is
+   keyed on the quarantine key's EXISTENCE. A drifted-but-readable autosave written there raises
+   that banner and tells the user something untrue.
+3. **Different event, different acceptance gesture** — DriftBanner + first edit, not a banner with
+   a Discard.
+
+**R7 is satisfied per key**: at most two preserved envelopes ever exist, each ONE ENTRY, neither
+appended to and neither overwritten while standing. Wired into `exportRawPersistedData()`,
+`clearAllPersistedData()` and `persistedDataBlastRadius()` — so "Clear ALL" takes it AND the
+confirm names it ("the preserved original autosave"), and does not name it when none stands.
+
+**The known cost, recorded rather than hidden:** never-overwrite means a SECOND, later drift while
+an earlier preservation stands is not preserved, and "Clear ALL saved data" is the only way to
+free the entry. The alternative — last-write-wins — puts an automatic boot-time write on top of
+the user's older data, which is the defect class this whole path exists to close.
+
+### Layer 3 — LANDED, optimistic concurrency on the flush
+
+`lastObservedAutosaveRef` holds the exact string this instance last OBSERVED (its boot read, which
+is why `AutosaveReadResult`'s `ok` arm now carries `raw`) or last WROTE (the bytes returned by the
+write, never a re-derivation — a second `toEnvelope` has a fresh `savedAt` and would leave the
+reference permanently wrong). `writeAutosaveIfUnmoved` reads before writing and returns
+`refused` with the foreign bytes untouched. Never adopts, never merges, no storage-event listener.
+
+**One addition was required to make it real, found by a test rather than by reasoning.** The
+flush's blur commits through `applyEdit`, which is a React state change — so the UNGUARDED
+state-change writer fires for it too. On `pagehide` the document is gone first; on
+`visibilitychange → hidden` the tab is alive and it landed exactly the stale envelope the guarded
+writer had just declined, a microtask later. Layer 3 would have been decorative on the one
+trigger that leaves a tab running. Fixed by `flushSettledWorkingRef`: the flush records the state
+it settled and the state-change writer skips that ONE run, cleared on use so a later
+`persistEpoch` bump (the Discard re-arm) still writes. Semantics, not a workaround — a flush that
+WROTE has already persisted that state, and a flush that was REFUSED decided it must not land.
+
+### The six named risks
+
+| | discharge |
+|---|---|
+| **R1** — a future field committing in a microtask makes layer 1 a false negative | `tests/ui/flush-blur-synchrony.test.tsx`. Pinned **PER COMPONENT** on both commit-on-blur primitives, and the file carries its own METHOD canary — a deliberately microtask-deferred field, watched NOT committing synchronously — so "the spy was called" cannot pass for "called in the blur". Plus a FROZEN CENSUS of the three src files containing an `onBlur` at all (NumberField, AttributeSlider, and BuildPanel's §5.3 UI-preference latch, named and excused). A fourth is a stop-and-read. |
+| **R2** — the flush is the de facto retry after a failed write | `lastWriteFailedRef`; layer 1 writes when `after === before` **and** the last write failed. Test 2.4: `setItem` throws at mount, storage recovers, unload with no edit at all writes. |
+| **R3** — the predicate must be LOSSY, not merely different | New engine seam `droppedUnknownFields`, measured on the envelope key-set (never a byte comparison, which is brittle to key order and a fresh `savedAt`), and measured **AFTER migrations** on purpose — a migration's output is a transformation the app INTENDS to persist, so a field a future migration retires is already gone from the envelope and is correctly not reported. `KNOWN_TOP_LEVEL_FIELDS` sits beside the reassembly literal and is pinned to it by a real round trip (test 3.0), so it can never report a LIVE field as dropped. |
+| **R5** — never auto-adopt, never a storage listener | The refusal writes NOTHING. No `storage` event listener was added (`rg 'addEventListener\("storage"' src/` → 0). Nothing reads the foreign bytes into memory. |
+| **R6** — read-failure read as "someone changed it" = total autosave loss | New `RawReadOutcome` tells `absent` / `present` / `failed` apart, and `writeAutosaveIfUnmoved` FAILS OPEN on both `failed` and `absent`. Test 2.3 covers both: a throwing `getItem`, and a removed key (what "Clear just the autosave" does). |
+| **R7** — a preserved-bytes entry is a second full envelope against ~5MB | One entry per key, never a list; asserted in test 3.5 (`keys().filter(preserved)` has length 1 after two lossy boots). |
+
+**`BroadcastChannel` leader election was not implemented**, as ruled.
+
+### The four required tests
+
+| # | file | what it holds |
+|---|---|---|
+| 1 | `tests/ui/flush-blur-synchrony.test.tsx` (7) | per-component blur synchrony + the method's canary + the frozen census |
+| 2 | `tests/ui/two-tab-autosave.test.tsx` (11) | **two real `App` instances, one shared storage stub.** Nothing in `tests/` referenced a second tab, a foreign write or a concurrent writer before this file |
+| 3 | `tests/ui/boot-lossy-preservation.test.tsx` (17) | each of the four lossy channels seeded SEPARATELY; the original still readable after mount, and after the first edit accepts the transform |
+| 4 | (inside 3, §3.4) | **write count** — exactly 1 on a healthy no-interaction boot, still 1 after the flush, 0 on a lossy boot, 1 on the first edit after |
+
+Two instances share one jsdom `window`, so tab A is genuinely UNMOUNTED rather than detached —
+found the hard way: a merely-detached A still holds live unload listeners and blurs B's focused
+field out from under B's own flush. `useId` was verified per-root in this React version before
+relying on scoped label queries.
+
+**PINNING PROOF.** The three new files run against `origin/dev`'s `src/` (`git checkout origin/dev
+-- src/`, restored after): **18 failed / 17 passed**. Every layer is red before and green after.
+The 17 passers are the deliberate non-regression pins, and they break down exactly:
+**synchrony 7/7 green** (they describe two primitives this slice did not change), **two-tab 6 of
+11** (layer 1's "the flush still does its one job", the no-foreign-writer backgrounded case, both
+R6 arms, R2's retry, and the documented-residual pin), **boot-lossy 4 of 17** (the drift
+disclosure, "no autosave key is manufactured", the first-ever-boot write count, and the
+unreadable-quarantine independence case).
+
+### Verification — counts computed from source BEFORE measuring
+
+Predicted 1653 + 7 + 11 + 17 + 2 (recovery-boundary) = **1690** across 74 + 3 = **77**.
+Measured **1690 / 77**. `src/` file count unchanged at **73** — no new source file — so the
+per-src-file lint counts (`persist-boundary`, vocabulary class 4, architecture c/d) do not move.
+
+- `npm test` — **1690 passed / 77 files**, 0 failed. No flakes, no re-runs, no timeout touched;
+  the two new App-rendering files carry the file-standard `{ timeout: 20000 }`.
+- `npm run typecheck` clean · `npm run build` clean (87 modules) → `index-3LpH3-vz.js` (340.67 kB)
+  / `index-CijHueLd.css` (62.54 kB, unchanged — this slice moved no CSS).
+- **RUN-never-edit gates, byte-unchanged by blob hash against `origin/dev`, not merely green:**
+  `tests/ui/overlays.test.tsx` `30a7131b…` · `tests/category-colors.test.ts` `f1539c1d…` ·
+  `tests/feasibility-golden.test.ts` `cef359dc…`. Run explicitly: **29 passed**. No golden cell
+  moved.
+- F9 touch-floor census `-t "I6 — the S touch floor"` **10 passed / 155 skipped**; the whole
+  `tests/layout-arithmetic.test.ts` **165/165**.
+- Vocabulary lint **183 passed** — class 1 (bare slot-word) 76, class 4 ("Badge Points") 77.
+
+### Browser proof — production build, port 4477, PRE-FIX contrast on 4478
+
+`5173 was avoided deliberately` (and is in use — it holds the owner's real saved data; never
+navigated to). Served bytes reconciled against `dist/` BEFORE anything was read off the screen:
+`index-3LpH3-vz.js` `07c2f390a5be3550…` and `index-CijHueLd.css` `1ac21a70…` fetched over HTTP
+and hashed — **identical to `dist/`** — and the live document's own `<script src>` resolves to
+that same hashed name. The pre-fix build on 4478 hashes to `4558582e794d4f5a…`, which is the JS
+hash this channel already recorded for `dev`.
+
+Tab cap was reached with OTHER SESSIONS' tabs, which were left alone. Tab B is therefore a
+same-origin **iframe** — a genuinely separate browsing context (`contentWindow !== window`,
+verified in-page), with its own `window`, its own `pagehide`, its own React root, and the same
+origin's `localStorage`. Position was clicked with REAL mouse clicks on the segmented control.
+
+**Scenario 1 — the exact two-tab sequence.** A sets **PG** → B opens (B shows PG) → A sets **C**
+→ A sets **PF** → B reloads.
+
+| | storage after A's work | storage after B reloads | B shows |
+|---|---|---|---|
+| **PRE-FIX** (4478) | `PF` | **`PG`** — A's two clicks destroyed | `PG` |
+| **FIXED** (4477) | `PF` | **`PF`** | `PF` |
+
+**Scenario 2 — the boot case.** A save referencing `a-badge-id-not-in-the-2k27-dataset` injected
+into the key (2148 bytes), then loaded once **touching nothing**.
+
+| | live autosave after one load | dropped row recoverable? | banner |
+|---|---|---|---|
+| **PRE-FIX** | 2071 bytes, row **gone** | **nowhere** — no key in the origin contains it | none (the outgoing flush had already clobbered the injection, so the reloaded page read a clean envelope — both halves of the defect in one measurement) |
+| **FIXED** | **2148 bytes, byte-identical to the injected string** | yes — the preserved key holds the same 2148 bytes | *"1 badge from this build no longer exists in the dataset: a-badge-id-not-in-the-2k27-dataset — removed from the plan."* |
+
+No quarantine was manufactured on the fixed run (the bytes were readable — correctly a
+preservation, not a quarantine). Then the **acceptance** was exercised with a real click (Position
+→ SG): the edit landed, the live key became the stripped state (`loadout` empty, the badge id
+absent), and **the preserved original survived it intact at 2148 bytes**.
+
+### THE RESIDUAL, stated plainly
+
+**Writer 1 (the state-change effect) is deliberately UNGUARDED.** An intentional edit in a stale
+tab still overwrites a newer tab's bytes. That is tech-strategy.md §9's documented last-write-wins
+bargain and it stands, because the alternatives are worse: refusing would silently stop autosaving
+for someone actively working (R5's failure run in reverse), and preserve-then-write would fill the
+single preserved entry with an arbitrary intermediate state on the very first alternating-tab
+edit, permanently denying it to a real drifted-boot original. Pinned as a DECISION by test 2.6, so
+changing the ruling has to change a test. §9's wording is still *"last-write-wins"* and now
+matches the shipped behaviour for edits; what no longer happens is the unintended half — a stale
+tab reverting work merely by being CLOSED.
+
+Second residual, named above: a later drift while a preservation stands is not preserved.
+
+### Housekeeping
+
+Own worktree, `node_modules` a symlink from the main checkout, **no `npm install` in any
+worktree**, no watch mode, no foreground dev server left running (both `python3 -m http.server`
+processes stopped and confirmed down; 5173 is someone else's and was left up, untouched). A
+throwaway detached worktree at `/private/tmp/bb-prefix-proof` was used to build the pre-fix bundle
+and was removed. Paths were staged EXPLICITLY, never `git add -A`; `git status` checked before
+each commit. The two test origins' `localStorage` was cleared at the end. Nothing was touched in
+`src/engine/ledger.ts` or in `src/styles/**` — the two surfaces the concurrent fuse-refund and
+roll-panel slices own; this slice's only engine change is one additive report field on
+`DeserializedSavedBuild` plus the frozen field list beside the reassembly it describes. Runtime
+`dependencies` still exactly `{react, react-dom}`. **No persisted key or serialized field was
+renamed**; the one storage change is additive.
 
 ## 2026-08-26 · Tier 2 · integration — F16.1 the fuse refund defect, onto `dev`
 
