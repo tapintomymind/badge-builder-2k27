@@ -8493,3 +8493,118 @@ so its panel is covered too.
 `4d1ba88`) and `/tmp/bb-devbase2` (detached at `16c0569`) were created purely for the
 before/after census and can both be removed. The SynergyBoard duplicate-React-key defect
 was **not** touched — another slice fixed it on `dev` while this one was in flight.
+─────────────────────────────────────────────
+## 2026-08-26 · Tier 2 · integration — F16 the Loadout board, onto `dev`
+
+**Event:** `integration-complete`
+**Landed:** `loadout-board` (8 commits off `16c0569`, worktree `/tmp/bb-board`). FAST-FORWARD.
+**`dev`:** `16c0569` → **`c3f080a`**. **Merge commits 2 before, 2 after** — counted with
+`git rev-list --merges --count dev`, never `git log --merges | wc -l`, which counts LINES.
+`main` untouched, never checked out.
+
+**The rebase was a NO-OP, and that is the whole story of this landing.** `dev` had not moved
+since the author's second in-flight rebase: `git merge-base dev c3f080a` returns `16c0569`,
+which IS `dev`'s tip. A throwaway `board-land` was cut at `c3f080a` and `git rebase dev`
+answered "Current branch board-land is up to date." `loadout-board` was never checked out or
+moved and `/tmp/bb-board` is untouched. Nothing was force-pushed. The remote
+`origin/loadout-board` still holds the OLDER base (`4d1ba88`, 1505/70) and was ignored
+throughout, as instructed.
+
+### Conflicts — NONE. All three forecast collisions failed to materialise.
+
+`.claude/reportback.md` was forecast as certain, `tests/layout-arithmetic.test.ts` and
+`src/App.tsx` as possible. None conflicted, because a no-op rebase replays nothing. The
+append-only reconstruction method was therefore not needed for the LANDING; it was used only
+for this entry.
+
+**Authored order held without intervention.** The F16 slice-complete entry (`3e9ba82`, authored
+10:09:42) is later than `dev`'s tip entry (`16c0569`, 10:02:37), so its EOF placement was
+already correct: 8339 + 156 = **8495** lines, verified. The last three integrations each had to
+insert somewhere other than EOF; this one did not.
+
+### Counts — computed before looking, then measured
+
+| | tests | files |
+|---|---|---|
+| base `16c0569` | 1496 | 72 |
+| predicted delta | +72 | +1 |
+| **predicted** | **1568** | **73** |
+| **measured** | **1568** | **73** |
+
+The base was re-measured rather than assumed, in the clean detached worktree `/tmp/bb-devbase2`
+at `16c0569`: 1496/72. Merged tree: 1568/73. 1568 − 1496 = 72; 73 − 72 = 1. Exact.
+
+### Gates
+
+- `npm test` — **1568 passed / 73 files**, 0 failed, 0 flakes (no re-runs needed).
+- `npm run typecheck` — clean, exit 0.
+- `npm run build` — clean, exit 0 (`index-CFhRbGK8.js` / `index-CijHueLd.css`).
+- RUN-never-edit, proven **byte-unchanged by blob hash** rather than merely green — the same SHA
+  on `dev`, on `board-land`, in `/tmp/bb-board` and in the working tree:
+  - `tests/ui/overlays.test.tsx` `da7de501…`
+  - `tests/category-colors.test.ts` `f1539c1d…`
+  - `tests/feasibility-golden.test.ts` `cef359dc…` — the 504-cell golden. No cell moved.
+- F9's census re-run by name: I6 #24, I6 #27 ("the census is exactly the stylesheet: not short,
+  and not long") and A5-U #33 all pass.
+- Vocabulary lint (`tests/vocabulary.test.ts`) and `tests/architecture.test.ts` pass.
+
+### The two load-bearing properties, re-verified on the merged tree
+
+1. **The board dispatches nothing.** No `onSetLevel`, no `assignSynergy`, no `clearSynergy`
+   anywhere under `src/ui/board/`. Two `onClick`s exist; both route to the same
+   `onBrowseCategory` → `browseCategoryInGrid`, which sets `filters`, moves focus, and touches
+   the build not at all. At runtime the board's 29 interactive nodes are 28
+   `<a class="board-tile">` in-page `#badge-*` fragments plus ONE
+   `<button class="board-tile--empty">`; zero `input`/`select`/`textarea`, zero radios, zero
+   dialogs, zero live regions.
+2. **No bare numeral.** 0 offenders across the board's 263 live elements, with the canary
+   confirming the detector fires on `15` and not on `6 pts`. The enforcing test is intact.
+
+### Browser confirmation — production build on port 4319 (NOT 5173; a stray server holds it)
+
+Served asset SHA-256s were diffed against `dist/` before any measurement was trusted — both
+MATCH. An earlier integration was fooled by a port that probed free but served an exited agent's
+build; this one was not.
+
+1. **1280×768** — the board renders: six panels in vocabulary order, 936×616, mounted between
+   `#badge-grid` and `#panel-synergy`, exactly as specified. **1280×767** — the F15 shell gate
+   releases, `.col-right` stops being the scroll container, `body` overflow returns to
+   `visible`, and the DOCUMENT scrolls (10784 > 767). No horizontal overflow at either height.
+2. **The pre-existing views are unchanged, re-proven independently.** The base was built at
+   `16c0569` and staged under the MERGED origin at `/base/` so both trees shared one
+   `localStorage` and rendered the identical F8 fixture — cross-origin state injection kept
+   losing to the app's unload flush, which is worth remembering. Then:
+   - **Order-sensitive text census: identical.** Taking the base page's full rendered-text
+     sequence and inserting the single string `Board` at the jump nav reproduces the merged
+     page's hash EXACTLY (`2231bd4b`). Header, ledger, build panel, filter bar, all 53 cards,
+     synergy panel, roll panel, summary, footer and dialogs carry the same text, in order.
+   - **Element multiset: identical.** Canonical histogram hash `49862546` on both sides, 219
+     keys, 3131 → 3132 elements, the +1 being `A.jump-nav__panel` — the `Board` chip.
+   - Synergy panel, summary panel, roll panel, ledger and header additionally eyeballed intact.
+
+   **ONE finding, benign and additive.** An element census keyed on `id` did NOT match, and the
+   cause is real rather than incidental: the branch adds **53 `LI#badge-<slug>`** anchor targets
+   to the grid's card wrappers — the deep-link targets the board tiles point at, which is the
+   `BadgeGridSection.tsx` (+22) hunk. Verified strictly additive: **no pre-existing id removed
+   or renamed** (`removed: []`), the shipped `#cat-*` anchors intact and in the same relative
+   order. The author's "only the Board nav chip" census compared rendered elements and text, not
+   `id` attributes; both statements are true of their own subject. React `useId` values
+   (`_r_*`) also shift, as they must when any component is added.
+3. **The roll flow still works, tested non-vacuously.** On the fixture as-shipped, *Fill
+   remaining* correctly adds nothing — attributes are too low for five of six categories to be
+   legal — so a pin assertion there would have been hollow. Attributes were raised to 90 to give
+   the roll real work: *Fill remaining* then reported **5 of 6 categories filled · 29 added**,
+   loadout 8 → 28. **Posterizer stayed Gold and stayed pinned** across it (`aria-pressed="true"`,
+   `purchasedLevel: "gold"` in the autosave both before and after).
+4. **The board offers no control that mutates the build** — property 1 above, enumerated on the
+   live DOM rather than inferred from the source.
+
+### Housekeeping
+
+`dist/base/` and the two base assets staged under `dist/assets/` for the same-origin census were
+removed afterwards, and `dist/` restored to the merged build's two files. Both preview servers
+(4319, 4327) were stopped. Nothing was staged with `git add -A`: paths were named explicitly and
+`git status` checked before the commit, so the worktrees' bare `node_modules` symlinks — which
+`.gitignore`'s trailing-slash `node_modules/` entry does not match — were never committed. The
+hygiene slice fixing that entry had NOT landed at integration time. The untracked
+`.claude/worktrees/` directory in the main checkout was left alone.
