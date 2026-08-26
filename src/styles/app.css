@@ -2957,12 +2957,28 @@ ul {
  *   ROW_LABEL_W      72px  "Reaction" at --text-sm plus --space-2 of air
  *   CELL_GAP          8px  --space-2, the grid's column-gap
  *   BAND_DIVIDER     13px  a 1px rule plus --space-3, OVER AND ABOVE one gap
- *   NAME_MIN_CONTENT 68px  "Unpluckable" — the dataset's longest single word
- *   CELL_FLOOR       86px  68 + 2 x --space-2 + 2 x 1px border
+ *   NAME_MIN_CONTENT 71px  "Unpluckable", the dataset's longest single word
+ *   CELL_FLOOR       89px  71 + 2 x --space-2 + 2 x 1px border
  *
  *   cellW(box) = (box - 72 - 7 x 8 - 13) / 8
- *   8 columns need box >= 8 x 86 + 72 + 7 x 8 + 13 = 829
- *   4 columns need box >= 4 x 86 + 72 + 3 x 8      = 440
+ *   8 columns need box >= 8 x 89 + 72 + 7 x 8 + 13 = 853
+ *   4 columns need box >= 4 x 89 + 72 + 3 x 8      = 452
+ *
+ * NAME_MIN_CONTENT WAS 68 ON PAPER AND IS 71 BECAUSE THE BROWSER SAID SO.
+ * Re-measured at the cut in headless Chrome, with a width:min-content probe
+ * inside a live board button so it inherits the cell's own face and
+ * --text-xs size: "Unpluckable" is 70.156px, not 68. PINNED AT THE CEILING,
+ * per this project's take-the-larger rule for a measured constant — F5.4
+ * kept NUMERIC_H at 27 over a measured 26 for exactly this reason, because a
+ * floor has to be pessimistic to be a floor.
+ *
+ * That moves the eight-column floor 829 -> 853, and it is a real fix rather
+ * than bookkeeping. At the old floor the board went eight-wide from box 829,
+ * where a cell offers 68px of content against the 70.156 the longest badge
+ * name wants: a number that was defensible, wrong, and green. At 853 the
+ * cell offers exactly 71 and the word fits AT the floor by construction. No
+ * coverage width moved — 1280 (box 902 at s=0, 885 at s=17) and 1440 (1062)
+ * were always well clear, and 768/390 were always below it.
  *
  * THE TRACK LIST ENCODES BOTH, and it is written so the two literals the
  * arithmetic cares about appear as themselves:
@@ -2986,10 +3002,11 @@ ul {
  * both thresholds.
  *
  * THE SECOND STEP IS DERIVED, NOT A COMFORT NUMBER. The design named "~560"
- * for the fall to two columns and explicitly declined to derive it. 440 is
- * the four-wide floor itself, which is the same rule as the 829 one step
- * down; at the two widths the coverage set names it lands identically — 768
- * (box 687) is four-wide, 390 (box 332) is two-wide.
+ * for the fall to two columns and explicitly declined to derive it. 452 is
+ * the four-wide floor itself, which is the same rule as the 853 one step
+ * down — and BECAUSE it is the same rule, it moved with the re-pin instead of
+ * having to be remembered. At the two widths the coverage set names it lands
+ * identically: 768 (box 702 at s=0) is four-wide, 390 (box 332) is two-wide.
  *
  * WHY A GRID AND NOT A TABLE LAYOUT. The cells are separate bordered boxes
  * with a real gutter between them, which `border-spacing` cannot express
@@ -3239,10 +3256,10 @@ ul {
   background: var(--bg-canvas);
 }
 
-/* -------------------------------- < 829: four and four, on the SEAM the -- */
+/* -------------------------------- < 853: four and four, on the SEAM the -- */
 /* -------------------------------- board already draws, never a midpoint -- */
 
-@container (width < 829px) {
+@container (width < 853px) {
   .synergy-board__table {
     grid-template-columns: calc(72px - var(--space-2)) repeat(4, minmax(0, 1fr));
   }
@@ -3297,11 +3314,11 @@ ul {
   }
 }
 
-/* ------------------------- < 440: four blocks of two. At this width it is -- */
+/* ------------------------- < 452: four blocks of two. At this width it is -- */
 /* ------------------------- a list of pairs rather than a board, and both -- */
 /* ------------------------- band labels are still present: nothing hides. -- */
 
-@container (width < 440px) {
+@container (width < 452px) {
   .synergy-board__table {
     grid-template-columns: calc(72px - var(--space-2)) repeat(2, minmax(0, 1fr));
   }

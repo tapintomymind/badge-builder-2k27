@@ -1,10 +1,13 @@
 F11 — the Synergy board (cut 1)
 impl-brief .claude/workspace/badge-builder-2k27/impl-briefs/f11-synergy-board.md
 branch f11-synergy-board · base origin/dev @a5fe8e1 (1204 tests / 62 files)
+RE-PINNED 2026-08-25 on ratification: NAME_MIN_CONTENT 68 -> 71,
+CELL_FLOOR 86 -> 89, thresholds 829 -> 853 and 440 -> 452. §2 and §5 below are
+the re-derivation and the re-shot seam; everything else is unchanged.
 ================================================================================
 
 
-1. SHIP GATES
+1. SHIP GATES  (re-run after the re-pin)
 --------------------------------------------------------------------------------
 === npm run typecheck ===
 
@@ -23,10 +26,10 @@ transforming...
 rendering chunks...
 computing gzip size...
 dist/index.html                   0.98 kB │ gzip:  0.45 kB
-dist/assets/index-xzmgGEA9.css   43.46 kB │ gzip:  8.02 kB
-dist/assets/index-C2c_MU6q.js   294.69 kB │ gzip: 89.03 kB
+dist/assets/index-DGkIrfbD.css   43.46 kB │ gzip:  8.02 kB
+dist/assets/index-Ctr_YUAV.js   294.69 kB │ gzip: 89.03 kB
 
-✓ built in 419ms
+✓ built in 98ms
 
 === npx vitest run (three RUN-never-edit gates, by name) ===
 
@@ -35,8 +38,8 @@ dist/assets/index-C2c_MU6q.js   294.69 kB │ gzip: 89.03 kB
 
  Test Files  3 passed (3)
       Tests  23 passed (23)
-   Start at  23:35:35
-   Duration  2.36s (transform 461ms, setup 124ms, import 520ms, tests 1.48s, environment 471ms)
+   Start at  23:46:21
+   Duration  2.32s (transform 477ms, setup 121ms, import 538ms, tests 1.43s, environment 498ms)
 
 
 === dependencies ===
@@ -54,12 +57,12 @@ Not implemented: navigation to another Document
 Not implemented: navigation to another Document
 
  Test Files  63 passed (63)
-      Tests  1246 passed (1246)
-   Start at  23:35:47
-   Duration  21.16s (transform 4.68s, setup 2.45s, import 10.96s, tests 99.89s, environment 14.20s)
+      Tests  1247 passed (1247)
+   Start at  23:46:24
+   Duration  22.92s (transform 4.79s, setup 3.07s, import 11.77s, tests 108.33s, environment 16.27s)
 
-  No skips, no .only.  63 files / 1246 tests (base 62 / 1204).
-  The +42 are this slice's: 23 in tests/ui/f11-synergy-board.test.tsx, 14 in
+  No skips, no .only.  63 files / 1247 tests (base 62 / 1204).
+  The +43 are this slice's: 23 in tests/ui/f11-synergy-board.test.tsx, 15 in
   tests/layout-arithmetic.test.ts, 1 in tests/ui/f2-source-pins.test.ts (the
   one-string append), and 4 from the per-file source lints that iterate
   src/** and now see SynergyBoard.tsx.
@@ -68,41 +71,70 @@ Not implemented: navigation to another Document
   the brief gives: it is the only gate that parses the appended app.css
   block. Vitest reads that stylesheet as a raw string and tsc never sees it.
 
+  THE THREE RUN-NEVER-EDIT GATES ARE GREEN AND UNEDITED, before and after the
+  re-pin: tests/ui/overlays.test.tsx, tests/category-colors.test.ts,
+  tests/feasibility-golden.test.ts. `git diff origin/dev` touches none of
+  them. None of the three reads the board's geometry, so the threshold move
+  could not reach them — but they were re-run by name anyway.
 
-2. BLOCKING IN-SLICE MEASUREMENT — NAME_MIN_CONTENT RE-MEASURED
+
+2. NAME_MIN_CONTENT — MEASURED, THEN RE-PINNED ON RATIFICATION
 --------------------------------------------------------------------------------
 Chrome/151.0.7922.174, --headless=new, driven over CDP, viewport 1280,
-deviceScaleFactor 1. A width:min-content probe carrying the class a real
-badge name carries, appended INSIDE a live .synergy-board__button so it
-inherits the cell's own font stack and --text-xs size.
+deviceScaleFactor 1. A width:min-content probe carrying the class a real badge
+name carries, appended INSIDE a live .synergy-board__button so it inherits the
+cell's own font stack and --text-xs size.
 
   "Unpluckable"            70.156   <- binding (11 chars, no break)
   "Interceptor"            62.563       (11 chars, tied on count)
   "High-Flying Denier"     36.969       (the hyphen breaks it early)
 
-THE PAPER FIGURE IS 68 AND THE BROWSER SAYS 70.156 — 2.156px LIGHT.
+RATIFIED: PIN AT THE CEILING, 71. Take-the-larger is this project's
+established discipline for a measured constant — F5.4 kept NUMERIC_H at 27
+over a measured 26 for the same reason: a floor derived from a constant known
+to be LOW is optimistic, and an optimistic floor is not a floor.
 
-The pin is LEFT AT 68 and the gap is recorded, in this file and as an
-assertion (tests/layout-arithmetic.test.ts, "1b"). The reasoning, stated so
-it can be overruled rather than rediscovered:
+  THE RE-DERIVATION, in full:
 
-  - Applying §13.0.1's take-the-larger rule re-pins to 71, moves CELL_FLOOR
-    86 -> 89 and moves the eight-column floor 829 -> 853.
-  - 829 is the number this slice was briefed to land on and to PROVE at the
-    828/830 seam. Moving it is a spec change, not an implementation detail.
-  - The cost is bounded and measured: only for a board box between 829 and
-    853 does the longest single word want ~2.2px more than its cell's inner
-    edge offers. It cannot scroll (no overflow anywhere in the block, and
-    document scrollWidth == clientWidth at every width below) and it cannot
-    reach the document. NO coverage width is inside that band.
-        1280 -> cell content 77.13 against 70.16 needed  (clears by 6.97)
-         830 -> cell content 68.13 against 70.16 needed  (the tightest legal
-                eight-wide box; "Unpluckable (B)" renders on two lines there
-                — see f11-seam-830.png)
+    NAME_MIN_CONTENT   68  ->  71     ceil(70.156)
+    CELL_FLOOR         86  ->  89     71 + 2 x --space-2 + 2 x 1px border
+    8-wide floor      829  -> 853     8 x 89 + 72 + 7 x 8 + 13
+    4-wide floor      440  -> 452     4 x 89 + 72 + 3 x 8
+    binding margin
+      at 1280/s=17    +7.00 -> +4.00  cellW 93.00 against CELL_FLOOR 89
+
+  WHAT IT FIXES, and it is a real defect rather than bookkeeping. At the old
+  floor the board went eight-wide from board box 829, where a cell offers
+  68.00px of content against the 70.156 the longest badge name wants. The
+  board entered a ~24px band in which its own longest name did not fit: a
+  number that was defensible, wrong, and green. At 853 the cell offers
+  exactly 71.00 and the word fits AT the floor by construction — asserted
+  directly, as `contentAtFloor(SPLIT_THRESHOLD) === NAME_MIN_CONTENT`, with
+  the old 829 kept as the canary that fails the property.
+
+  WHAT IT DOES NOT CHANGE. No coverage width moved. 1280 (box 902 at s=0, 885
+  at s=17) and 1440 (1062) were always far clear of both floors; 768 (702) is
+  four-wide under both; 390 (332) is two-wide under both. The behaviour delta
+  is confined to board box 829..852, which no coverage width occupies.
+
+  THE STYLESHEET'S NUMBER IS STILL THE DERIVED DEMAND, not a transcription.
+  Both thresholds are written in @container RANGE syntax — `(width < 853px)`
+  and `(width < 452px)` — so the figure in the CSS is the derivation's own
+  output with no max-width off-by-one in between, and
+  tests/layout-arithmetic.test.ts re-derives both from PARSED values
+  (ROW_LABEL_W off the track list, CELL_GAP off column-gap, BAND_DIVIDER off
+  the seam track plus one gutter, CELL_PAD and CELL_BORDER off the button).
+  Nothing in the block is a pasted threshold. That property is why the
+  original error was catchable at all, and it survives the re-pin: the 4-wide
+  floor moved 440 -> 452 by itself, because it is the same rule one step down.
+
+  Assertion "1b" was FLIPPED from recording a divergence to pinning the
+  ratified value: it now asserts NAME_MIN_CONTENT === ceil(NAME_MIN_MEASURED),
+  so a future re-measure that disagrees REDS rather than annotates.
 
   ROW_LABEL_W's text half, re-measured the same way:
     "Reaction" at --text-sm     59.141  against a 64px track (72 - --space-2).
-  It fits on one line with 4.86px to spare; the 72 pin holds.
+  It fits on one line with 4.86px to spare; the 72 pin holds unchanged.
 
 
 3. THE MEASURED BOARD BOX vs F5.4's DERIVATION
@@ -119,7 +151,16 @@ Confirmed against the DOM: .section__body clientWidth 934 = 902 content +
 2 x --space-4. The <Section> chrome is present and F5.4's derivation is
 intact, so the stop condition did NOT fire. tests/layout-arithmetic.test.ts
 asserts the eight-column fit across ALL of SCROLLBARS = [0, 15, 17], and
-names 885 / cellW 93.00 / margin +7.00 as the binding s=17 case.
+names 885 / cellW 93.00 / margin +4.00 as the binding s=17 case.
+
+THE BINDING MARGIN HAS BEEN QUOTED WRONG TWICE, BOTH TIMES OPTIMISTIC, and
+that is worth recording because the margin is what the NEXT addition to a
+Synergy Slot column gets checked against:
+    design.md §4.6      +13.3   (cell arithmetic 6.25px generous)
+    this slice, cut 1   +7.00   (CELL_FLOOR built on a 3px-light pin)
+    RATIFIED            +4.00
+For scale, F5.4 flagged +10.5px as binding on the adjacent synergy-row
+question. The board's column has less than half of that.
 
 
 4. THE ARRANGEMENT AT EVERY COVERAGE WIDTH — MEASURED IN THE BROWSER
@@ -130,15 +171,13 @@ names 885 / cellW 93.00 / margin +7.00 as the binding s=17 case.
   1280  (binding)         1280    902.00    8     95.13    2    True   False
   768                      768    702.00    4     151.5    4   False   False
   390                      390    332.00    2       126    8   False   False
-  SEAM box 828             894    828.00    4       183    4   False   False
-  SEAM box 830             896    830.00    8     86.13    2    True   False
-  viewport 828             828    762.00    4     166.5    4   False   False
-  viewport 830             830    764.00    4       167    4   False   False
+  SEAM box 852             918    852.00    4       189    4   False   False
+  SEAM box 853             919    853.00    8        89    2    True   False
 
   Every measured cellW equals the derivation exactly:
     8-wide   cellW = (box - 72 - 7 x 8 - 13) / 8
-      1062 -> 115.125    902 -> 95.125    830 -> 86.125
-    4-wide   cellW = (box - 72 - 3 x 8) / 4     702 -> 151.50
+      1062 -> 115.125    902 -> 95.125    853 -> 89.000  (= CELL_FLOOR)
+    4-wide   cellW = (box - 72 - 3 x 8) / 4     702 -> 151.50   852 -> 189.00
     2-wide   cellW = (box - 72 - 1 x 8) / 2     332 -> 126.00
 
   Measured gutters at 1280: column-to-column 8.00, and the 4|5 seam 20.99
@@ -153,36 +192,41 @@ names 885 / cellW 93.00 / margin +7.00 as the binding s=17 case.
   port, no page h-scroll, at any of them.
 
 
-5. THE SEAM — 828 AND 830, SHOT AS A PAIR
+5. THE SEAM — RE-SHOT AGAINST THE 853 FLOOR
 --------------------------------------------------------------------------------
-THE 829 FLOOR IS A BOARD-BOX FIGURE, NOT A VIEWPORT. Both readings are shot,
-because the dispatch names the viewport numbers and the assertion lives on
-the box.
+The seam moved with the re-pin, so the old 828/830 pair was deleted rather
+than kept: it documented a threshold that no longer exists, and a stale proof
+is worse than none. The pair is now 852 / 853, straddling the flip point
+itself rather than sitting a pixel either side of it.
 
-  a) THE ACTUAL SEAM — f11-seam-828.png / f11-seam-830.png
-     Found by sweeping the viewport and reading the measured box back:
+  f11-seam-852.png   board box 852  ->  4 + 4, split on the temporary/permanent seam
+  f11-seam-853.png   board box 853  ->  8 across, cellW exactly 89.00
 
-    viewport 890  ->  board box 824.00  ->  4 columns
-    viewport 891  ->  board box 825.00  ->  4 columns
-    viewport 892  ->  board box 826.00  ->  4 columns
-    viewport 893  ->  board box 827.00  ->  4 columns
-    viewport 894  ->  board box 828.00  ->  4 columns
-    viewport 895  ->  board box 829.00  ->  8 columns
-    viewport 896  ->  board box 830.00  ->  8 columns
-    viewport 897  ->  board box 831.00  ->  8 columns
-    viewport 898  ->  board box 832.00  ->  8 columns
+  Found by sweeping the viewport and reading the measured box back:
 
-     board box 828  ->  4 + 4, split on the temporary/permanent seam
-     board box 830  ->  8 across, cellW 86.13, clearing CELL_FLOOR 86 by 0.13
-     The flip is exact and lands where the arithmetic says: `@container
-     (width < 829px)`, range syntax, so the number in the stylesheet IS the
-     derived demand with no max-width off-by-one to reconcile.
+    viewport 915  ->  board box 849.00  ->  4 columns
+    viewport 916  ->  board box 850.00  ->  4 columns
+    viewport 917  ->  board box 851.00  ->  4 columns
+    viewport 918  ->  board box 852.00  ->  4 columns
+    viewport 919  ->  board box 853.00  ->  8 columns
+    viewport 920  ->  board box 854.00  ->  8 columns
+    viewport 921  ->  board box 855.00  ->  8 columns
+    viewport 922  ->  board box 856.00  ->  8 columns
+    viewport 923  ->  board box 857.00  ->  8 columns
 
-  b) THE LITERAL VIEWPORTS — f11-seam-viewport-828.png / -830.png
-     828 -> box 762 -> 4+4 ;  830 -> box 764 -> 4+4.
-     BOTH are four-wide, and that is correct rather than a failure: at a
-     sub-1280 viewport the box is v - 2 x --space-4 - 34, so 8-wide needs
-     viewport >= 895 at s=0. Shot and kept so the reading is on the record.
+  THE FLIP IS EXACT AND LANDS ON THE DERIVATION. `@container (width < 853px)`
+  in range syntax, so the number in the stylesheet IS the derived demand.
+  At the flip the cell is 89.00 = CELL_FLOOR to the pixel, and its content box
+  is 71.00 against the 70.156 the longest badge name wants — the property the
+  re-pin exists to buy, visible in f11-seam-853.png where "Unpluckable" sits
+  on one line inside its cell.
+
+  ON VIEWPORT vs BOARD BOX. 853 is a BOARD-BOX figure. Below 1280 the box is
+  `viewport - 2 x --space-4 - SECTION_CHROME` = viewport - 66 at s=0, so the
+  seam sits at viewport 919. The separate f11-seam-viewport-*.png pair from
+  cut 1 is gone: at the new floor the seam viewports (918/919) ARE the
+  viewports that produce boxes 852/853, so the two readings coincide and a
+  second pair would have been byte-identical duplicates.
 
 
 6. LOCKED COLUMNS — THE DE-OPACIFIED RECIPE (design-spec §6 / I2)
@@ -270,7 +314,7 @@ track, and the arrangement is correct in the DOM at every width.
   src/ui/synergy/SynergyBoard.tsx          new — the whole slice
   src/ui/synergy/SynergyPanel.tsx          two edits: the mount, and the id anchor
   src/styles/app.css                       one appended delimited block
-  tests/layout-arithmetic.test.ts          14 assertions
+  tests/layout-arithmetic.test.ts          15 assertions, APPENDED AT EOF
   tests/ui/f11-synergy-board.test.tsx      new — 23 cases
   tests/ui/f2-source-pins.test.ts          ONE string appended to the :96 array
   docs/proof/f11-*.png, f11-verification.txt
