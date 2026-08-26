@@ -9467,3 +9467,187 @@ verified with curl before closing) was closed to clear the tab cap; the live
 are `python3 -m http.server` and are left for the dispatcher to reap. `dev` was
 not merged into and `main` was not touched.
 ─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · integration — F16.1 the fuse refund defect, onto `dev`
+
+**Event:** `integration-complete`
+**Landed:** `fuse-refund` (4 commits off `44de81f`, worktree `/private/tmp/bb-fuse-refund`).
+Checked out as a throwaway `fuse-integrate`, then FAST-FORWARD.
+**`dev`:** `44de81f` → **`2aa11bc`** by the fast-forward, then one commit further for this
+entry. **Merge commits 2 before, 2 after** — counted with `git rev-list --merges --count dev`,
+never `git log --merges | wc -l`, which counts LINES. `main` never checked out.
+`fuse-refund` itself was never moved and `/private/tmp/bb-fuse-refund` is untouched.
+
+### The forecast rebase was NOT needed, and that was measured rather than assumed
+
+`git fetch --all --prune` first, then `git merge-base dev fuse-refund` — **`44de81f`, exactly
+`dev`'s tip.** The branch was already a linear four-commit fast-forward, so no rebase was
+performed and no conflict was resolved. Re-fetched again immediately before landing and
+`origin/dev` was still `44de81f`, still an ancestor of the integration tip.
+
+**Every forecast conflict therefore failed to materialise, and none was papered over:**
+
+| forecast | outcome |
+|---|---|
+| `.claude/reportback.md` (certain) | **no conflict** — neither sibling agent had landed |
+| `src/App.tsx` (if the autosave fix landed first) | **no conflict** — it has not landed |
+| `src/ui/board/**`, `src/ui/grid/CategoryLedger.tsx` (if the layout fix landed first) | **no conflict** — it has not landed |
+
+The two sibling branches are still unlanded and visible as `persist-concurrency` (ahead 2) and
+`rollpanel-overflow` (ahead 1). **Whichever lands next inherits this slice's `src/App.tsx`
+change** — `fromSaved` now calls `applyRatifiedRefundTrigger` and threads
+`refundTriggerNormalized` to `SynergyPanel` — and both sides must be kept.
+
+Because there was no conflict, `.claude/reportback.md` needed no reconstruction. It was still
+handled by the append-only method: the base was taken from the **source blob**
+(`git show HEAD:.claude/reportback.md`), `cmp`-verified byte-identical to the worktree before the
+append, and `cmp`-verified byte-identical over its first 9,469 lines afterwards.
+
+**Authored order was checked, not assumed.** The last entry present is the F16.1 slice-complete
+banner, authored `2026-08-26 12:06:39 -0400`. This entry is later than every entry in the file,
+so **EOF is the correct position** and no splice was required.
+
+### Counts — computed from source before measuring
+
+| | tests | files |
+|---|---|---|
+| base `44de81f` | 1653 | 74 |
+| predicted delta | +16 | +1 |
+| **predicted** | **1669** | **75** |
+| **measured** | **1669** | **75** |
+
+The +16 was **derived, and the first derivation was wrong in an instructive way.** Counting
+`^\s*it(` lines across the diff gives **+14**, not +16: `tests/config.test.ts` adds four `it`
+lines but one of them sits inside `for (const stale of ["legendByAnyMeans",
+"legendByPermanentBoostOnly", "hofOrAbove"])`, so **4 lines expand to 6 runtime cases**. A static
+line count cannot see a loop-generated case. Re-derived per file and confirmed by running each:
+
+- `tests/ui/f16-1-fuse-refund.test.tsx` — new file, **8** cases (8 `it(`, no `.each`, no loop
+  generation; the nested `for` at its end is inside one test body) → **+8, +1 file**
+- `tests/config.test.ts` — **9 → 15**, i.e. 2 standalone + 3 loop-generated + 1 PREMISE PIN → **+6**
+- `tests/ledger.test.ts` — **17 → 19**, the two LedgerState constructor pins → **+2**
+- `tests/ui/f8-roster.test.tsx` — +69/−35 lines but **17 → 17**, a rig re-point, not new cases
+- `tests/ui/m4-rig.ts` — a rig, contributes no cases
+
+**8 + 6 + 2 = 16**; **1653 + 16 = 1669**; **74 + 1 = 75.** Both match the run exactly.
+
+### The three properties, verified by blob hash and not by eye
+
+**1 — serialization and the save path are byte-unchanged.** This slice normalises a rule at
+*load*; it must not touch the persisted shape, and there is no translation boundary in the save
+path to hide a change in.
+
+| file | `dev` and integration tip |
+|---|---|
+| `src/engine/serialization.ts` | `070481dc718c06272a86763bb5ec1172169bab20` |
+| `src/persist/local-storage.ts` | `72f655039386083949998fe31d7956a4d13cdd24` |
+
+Identical hashes, so identical bytes. `git diff origin/dev -- src/persist/ src/engine/serialization.ts`
+is empty over the **whole** `src/persist/` tree, not just the one file.
+
+**2 — the three RUN-never-edit gates are byte-unchanged.**
+
+| gate | `dev` and integration tip |
+|---|---|
+| `tests/ui/overlays.test.tsx` | `30a7131b22a9344025c91ff32b60e052335ff07e` |
+| `tests/category-colors.test.ts` | `f1539c1dda0dbeb625f3891cb31d31646e1151a3` |
+| `tests/feasibility-golden.test.ts` | `cef359dc01c40ddda1ef5a629c4f81ec060288d7` |
+
+`git diff origin/dev` over all three is empty. **The 504-cell golden did not move a cell** — the
+blob hash settles that without needing to read it.
+
+**3 — the regression test survives intact, and so does its canary.** All 8 cases are present and
+`tests/ui/f16-1-fuse-refund.test.tsx` is unmodified from the branch. The negative canary —
+*"NEGATIVE CANARY: the same committed state under the alternate trigger really is `over by 1`"* —
+still asserts `refunded === 0` **and** `overByBadgePoints(...) === "over by 1 ⚠"` on the same
+committed state with only the trigger changed. Nothing weakened it, because no resolution
+touched it. The sibling canary at case 4 — *"A DISCLOSURE THAT ALWAYS RENDERS IS NOT ONE"* — is
+also intact. The file's `{ timeout: 20000 }` was **not** lowered or tightened.
+
+### Gates
+
+- `npm test` — **1669 passed / 75 files**, 0 failed, 22.49s. **No flakes, no re-runs, no timeout
+  touched.** The run was held until a sibling agent's vitest had drained so contention could not
+  manufacture one.
+- `npm run typecheck` — clean, exit 0.
+- `npm run build` — clean, exit 0 → `index-BZ98Es7Q.js` (340.05 kB) / `index-CijHueLd.css`
+  (62.54 kB, unchanged — this slice moved no CSS).
+- RUN-never-edit gates, run explicitly: `tests/ui/overlays.test.tsx` **4/4**,
+  `tests/category-colors.test.ts` **21/21**, `tests/feasibility-golden.test.ts` **4/4** — 29 total.
+- F9's touch-floor census — `-t "I6 — the S touch floor"` **10 passed / 338 skipped**; the whole
+  `tests/layout-arithmetic.test.ts` **165/165**.
+- Vocabulary lints, whole file **183/183**, and per class: H1 bare `slot` **76**, class 2 ranking
+  vocabulary **11**, class 3 lock vocabulary **15**, class 4 Badge Tokens **77**. `src/` still
+  holds **73** `.ts`/`.tsx` files, so the globbed classes keep their **4 + 73 = 77** and
+  **3 + 73 = 76** shapes — this slice added no source file, only edited three.
+- `tests/ui/f16-1-fuse-refund.test.tsx` alone — **8/8**.
+
+### Browser proof — both states, production build, port 4611, staleness ruled out FIRST
+
+Never 5173, and that origin was not navigated to, read from or written to at any point; the
+owner's real saved data was not touched. `dist/` was served by `python3 -m http.server` on
+**4611** from a copy, and the **staleness check came before any assertion**: the served
+`index.html` references `assets/index-BZ98Es7Q.js` and `assets/index-CijHueLd.css`, matching
+`dist/assets/` exactly, and all three files were additionally SHA-256'd over the wire against
+`dist` —
+
+```
+index.html                    ab6a6f60abda38fc1a9057ed41942d288fa449a36937b60e5c5089d2ab7d8342
+assets/index-BZ98Es7Q.js      28de0d2f72da338551d92be4e40884e1de014c01d730e7905084e33d618adf92
+assets/index-CijHueLd.css     1ac21a705075ed434affc2a14fe5640e870d29eb7e0674581ec567f92b4972c0
+```
+
+— all three MATCH, and the served bundle contains the disclosure string, so the page under test
+is provably this tree's build.
+
+**The fixture was seeded from a same-origin NON-app page** (`/seed.html`, no app bundle) so the
+app's unload flush could not overwrite it, and the envelope itself was produced by the
+**production serializer** (`serializeSavedBuild` over `makeRig`), not hand-written — the user's
+exact five Finishing badges, Ghost Stepper Gold / Paint Prodigy Bronze 1 / Physical Finisher
+Bronze 2 / Post Spin Catalyst Silver 3 / Posterizer Bronze 3, pool 12, Synergy Slot 1 unlocked
+with Paint Prodigy in the Fuse position, and `config.refundTrigger: "legendByAnyMeans"`.
+
+**State 1 — the load, corrected.** Board panel reads
+`Badge Tokens 13/12left 0Badge Slots 5/5`, and the rendered text is `Badge Tokens 13/12` ·
+`left 0` · `Badge Slots 5/5`. **No `over by`.** The in-grid digest agrees:
+`FinishingBadge Tokens 13 / 12left 0Badge Slots 5 / 5`. The refund row is present and was read
+**structurally**, not by substring, because `refunded 1` abuts `0 pts left` in `textContent` and
+would read as `refunded 10` to a careless eye —
+`<span>refunded <span class="num">1</span></span>` is its own element: **`refunded 1`**. The
+disclosure note renders once. Paint Prodigy's tile still carries its `⚡` —
+`"Paint Prodigy, Bronze, 1 Badge Token, Fuse in Synergy Slot 1"` — so the numbers did not come
+from the fuse quietly disappearing. `localStorage` after mount carries `"onFuse"`: the
+correction is durable, not in-memory only.
+
+**State 2 — cleared through the REAL picker.** The `⚡ Fuse` `<select>` in Synergy Slot 1's row
+was set to `None` through the page's own control. The board returns to
+`Badge Tokens 13/12 over by 1 ⚠Badge Slots 5/5`, the digest to
+`FinishingBadge Tokens 13 / 12over by 1 ⚠`, the `refunded` row disappears entirely (0 ledes) and
+the tile's aria-label drops the Fuse clause. The refund is derived, never accumulated.
+
+Screenshots came back blank: `document.visibilityState` is `hidden` for the pane's tab, so it
+does not paint. That is a capture limitation, **not** an app failure — the panel is
+`display: block`, `visibility: visible`, `opacity: 1`, `offsetParent` non-null, with a real
+292×288 rect, and its `innerText` is the painted text quoted above. Every assertion above is a
+DOM read, which is the same surface the regression test asserts against.
+
+**One observation, not a regression.** In state 1 the meter element keeps
+`class="meter meter--over"` and `aria-valuetext="13 of 12, over by 1"` while the visible copy
+reads `left 0`. That is the **gross** meter by design — 13/12 is the gross numerator and the
+refund is carried by `left`/`refunded` — and it is identical on a post-ratification save, which
+case 4 of the regression file pins. Flagged for the record; nothing was changed for it.
+
+### Housekeeping
+
+Explicit paths staged, **no `git add -A`**. `main` was not checked out, not merged and not
+pushed; local `444d034` and `origin/main` `e6b3ae4` still diverge exactly as found, which
+pre-dates this slice. The two stray `python3 -m http.server` servers on **4577** and **4578**
+left by the previous agent were **reaped**; the owner's 5173 dev server, the live 5199 preview
+and its Browser tab, and the 5390 server were all left alone. One dead Browser tab (port 4477,
+confirmed not listening with `lsof` before closing) was closed to clear the tab cap. The
+throwaway `fuse-integrate` and the port-4611 server are torn down at the end of this run; branch
+deletion may be refused by the permission layer, in which case it is left for the operator. A
+temporary fixture-emitting test was written under `tests/`, run once, and **deleted before any
+staging** — `git status` was re-checked immediately after and showed only the pre-existing
+untracked `.claude/worktrees/`. No `npm install` was run.
+─────────────────────────────────────────────
