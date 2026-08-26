@@ -9027,3 +9027,182 @@ in any worktree, no watch mode, no foreground dev server. Paths staged explicitl
 `badge-points-rename` branch from the transposed first attempt has no commits and could not be
 deleted — the permission layer blocks agents from deleting branches — so it is left for the
 operator.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · integration — the "Badge Points" → "Badge Tokens" sweep, onto `dev`
+
+**Event:** `integration-complete`
+**Landed:** `badge-tokens-rename` (6 commits off `e927a70`, worktree `/tmp/bb-rename`). Rebased
+onto a throwaway `rename-integrate`, then FAST-FORWARD.
+**`dev`:** `e927a70` → **`cb2eac8`**. **Merge commits 2 before, 2 after** — counted with
+`git rev-list --merges --count dev`, never `git log --merges | wc -l`, which counts LINES.
+`main` never checked out. `badge-tokens-rename` itself was never moved and `/tmp/bb-rename` is
+untouched.
+
+### The forecast rebase had ALREADY happened, and that was checked rather than assumed
+
+The dispatch forecast a rebase "through the hygiene landing (+3 tests)" from a `4982a68` cut, and
+conflicts in `.claude/reportback.md` (certain) and `tests/layout-arithmetic.test.ts` (possible).
+**None of that was outstanding.** `git merge-base dev badge-tokens-rename` returned `e927a70` —
+`dev`'s own tip — and `git rev-list --count badge-tokens-rename..dev` returned **0**, so the
+branch already contained the hygiene landing. `git reflog show badge-tokens-rename` names the
+moment: entry `@{2}` is `rebase (finish): refs/heads/badge-tokens-rename onto e927a70`, with the
+last two commits authored after it. The slice's own reportback entry says the same thing in
+prose. `git rebase dev` on the throwaway therefore reported *"Current branch rename-integrate is
+up to date"* and the tree hash was **identical before and after — `083374c0…`**. Zero conflicts,
+zero resolutions, and no opportunity for one to be resolved wrongly.
+
+That does not make the two forecast collisions unexamined — it moves them from *resolve* to
+*audit*, because a bad resolution in the earlier rebase would land here just as silently.
+
+**`tests/layout-arithmetic.test.ts` — both sides present.** The branch differs from `dev` by
+**exactly one line** (`--numstat` = `1 1`), a comment at ~1568 inside the F5.3/C reset-scope
+assertion, changing *"Also clear Badge Points and Badge Slots"* to *"…Badge Tokens…"* so the
+comment still quotes the checkbox it is about. The hygiene slice's work all survives: the hoisted
+`floorSelectors()` is defined ONCE at line 2063 with its five call sites intact (assertion 27 at
+2262 on `min-height`, assertion 31 at 2436 on `min-width`, three inside assertion 32's canaries at
+2473/2486/2500). Nothing was dropped to make the file parse. Whole file: **165/165 green**.
+
+**`.claude/reportback.md` — a pure append, no splice.** The branch's block is 159 lines appended
+at `@@ -8870,0 +8871,159 @@`, i.e. onto the post-hygiene EOF, not into the middle of it.
+
+### The three properties the sweep had to preserve, verified by hash and by diff
+
+**1 — no persisted or serialized name moved.** The two files that define the wire format are
+**byte-unchanged, proven by blob hash** and absent from the 39-file diff entirely:
+
+- `src/engine/serialization.ts` — `070481dc…` on `dev` **and** on the branch
+- `src/persist/local-storage.ts` — `72f65503…` on `dev` **and** on the branch
+
+The storage keys were enumerated independently on both refs and compared as sets — identical:
+`badge-builder-2k27:autosave:v1`, `…:autosave-quarantine:v1`, `…:named-builds:v1`,
+`…:ui-state:v1`, `badge-builder-2k27-raw-saved-data.json`, `bb2k27.ui.scrollTop.colRight`.
+Then the stronger check, run over the diff rather than over the endpoints: **every removed line**
+in `src/` and `tests/` was grepped for `earnedPoints|appliedPoints|earnedEquipSlots|
+appliedEquipSlots|"points"|equipSlots`. Exactly **one** line matched —
+
+```
+-          {unpinnedPoints} {unpinnedPoints === 1 ? "point" : "points"}) and fills the pool
++          {unpinnedPoints} {unpinnedPoints === 1 ? "token" : "tokens"}) and fills the pool
+```
+
+— in `RollPanel.tsx`, where the two matches are the singular/plural **display noun** and the
+identifier `unpinnedPoints` is unchanged on both sides. The `"points" | "equipSlots"`
+discriminator occurs twice on `dev` and twice on the branch. Every economy identifier's occurrence
+count **rose** rather than fell (`earnedPoints` 40→46, `appliedPoints` 54→59, `earnedEquipSlots`
+79→81, `appliedEquipSlots` 104→106, `SavedBuild` 280→294) — the new round-trip guard and the
+class-4 negative canaries reference them. Nothing was renamed.
+
+`src/engine/types.ts` is the largest src hunk (+26/−3) and is **entirely a comment**: a new
+`DISPLAY VOCABULARY vs STORAGE VOCABULARY` seam note over `BonusBudget` explaining that the
+divergence is deliberate. `earnedEquipSlots` and `earnedPoints` are declared exactly as before.
+
+**2 — `tests/ui/overlays.test.tsx`: four lines, vocabulary only.** `--numstat` = **`4 4`**. All
+four sit inside asserted strings: a regex literal at 101 (`Points are unchanged` →
+`Tokens are unchanged`), the argument to `toContain` at 135 (`"Badge Points 7 / 16"` →
+`"Badge Tokens 7 / 16"`), and two full literal strings at 149 and 156. **No matcher changed**
+(`toContain` on both sides), no assertion was added or removed, no `it` or `describe` name moved,
+and **line 41's `budgets: { Finishing: { points: 16, equipSlots: 3 } }` is untouched** — it is
+not in the diff, and it was read back off the branch to confirm. The other two RUN-never-edit
+gates are **byte-unchanged by blob hash**, not merely green:
+
+- `tests/category-colors.test.ts` — `f1539c1d…` on both refs
+- `tests/feasibility-golden.test.ts` — `cef359dc…` on both refs — the 504-cell golden
+  (7 × 6 × 4 × 3 = 504), which did not move
+
+**3 — `docs/proof/` is untouched.** `git diff --name-only dev badge-tokens-rename -- docs/proof/`
+returns **0 files**. *Correction to the dispatch's framing:* the directory holds **139** tracked
+files, not eight — 108 `.png`, 28 `.txt`, 3 `.md`. Zero of the 139 changed, so the property holds
+either way, but the count is recorded here so the next slice inherits the real number. Past
+`.claude/reportback.md` entries were likewise appended, never revised: the 9,029 lines that
+preceded this entry are byte-identical to `HEAD`'s blob, checked with `cmp` before writing.
+
+### Counts — computed from source before measuring
+
+| | tests | files |
+|---|---|---|
+| base `e927a70` | 1571 | 73 |
+| predicted delta | +82 | +1 |
+| **predicted** | **1653** | **74** |
+| **measured** | **1653** | **74** |
+
+The +82 was derived, not copied from the dispatch. `tests/vocabulary.test.ts` class 4 is a
+**4 + N** shape: four fixed canaries plus one `it` per source file, where the file set is
+`srcSources` = `import.meta.glob("/src/**/*.{ts,tsx}")` in `tests/helpers/test-utils.ts`, and the
+branch's `src/` holds **73** `.ts`/`.tsx` files → **77**. `tests/rename-old-save-roundtrip.test.ts`
+is the one new file and contributes **5**. **1571 + 77 + 5 = 1653**; **73 + 1 = 74**. Confirmed
+against the run: `vitest -t "class 4"` reports **77 passed | 106 skipped (183)**, and 106 + 77 =
+183 is the whole vocabulary file.
+
+### Gates
+
+- `npm test` — **1653 passed / 74 files**, 0 failed. **No flakes, no re-runs, no timeout touched.**
+- `npm run typecheck` — clean, exit 0.
+- `npm run build` — clean, exit 0 → `index-BWArAc6g.js` (339.34 kB) / `index-CijHueLd.css`
+  (62.54 kB, unchanged from the hygiene landing — the sweep moved no CSS but one comment).
+- RUN-never-edit gates, run explicitly: `tests/ui/overlays.test.tsx` **4/4**,
+  `tests/category-colors.test.ts` **21/21**, `tests/feasibility-golden.test.ts` **4/4**.
+- F9's touch-floor census — `-t "I6 — the S touch floor"` **10 passed / 155 skipped**; the whole
+  `tests/layout-arithmetic.test.ts` **165/165**.
+- `tests/rename-old-save-roundtrip.test.ts` — **5/5**, named individually, including
+  *"RE-SERIALIZES BYTE-IDENTICALLY"* and *"the saved JSON still spells the currency `points`"*.
+  The fixture was **not** regenerated, reformatted or reflowed: it entered the tree in `88789b2`
+  and has not been touched since. Its value is that it is genuinely old output.
+
+### Both vocabulary lints WATCHED FAILING — externally, on a real source file
+
+Green lints prove nothing; the in-suite canaries were re-proved from outside the suite by
+mutating shipped source and watching the run go red. `src/ui/grid/CategoryLedger.tsx` was the
+subject both times, and was restored from `git checkout --` afterwards with its blob re-hashed to
+`043cae18…` = `HEAD`'s, and `git status` re-checked clean.
+
+| mutation | expected | observed |
+|---|---|---|
+| `Badge Tokens{" "}` → `Badge Points{" "}` | class 4 red | **2 failed** — the per-file lint AND *"THE REGRESSION CANARY"* |
+| `Badge Slots{" "}` → `Slots{" "}` | class 1 red | **1 failed** — H1 bare-`slot` lint |
+
+Class 4's own regression canary is the right shape: it takes the **real** `CategoryLedger.tsx`
+text, strips comments, asserts clean, then does `shipped.replace("Badge Tokens", "Badge Points")`
+and asserts the lint catches it — with a guard that the replace actually found something, so a
+drifted fixture fails loudly instead of vacuously passing. It also asserts a comment-only mention
+stays legal, which is what lets `types.ts` name the old word to explain the divergence.
+
+### Browser proof — production build, port 4319, staleness ruled out FIRST
+
+`dist/` served by `python3 -m http.server 4319`. **5173 was avoided deliberately** (and was in
+use by another process). An earlier agent on this project was fooled by a stale page, so the
+served bytes were reconciled against `dist/` **before** anything was read off the screen:
+
+1. served `index.html` references `assets/index-BWArAc6g.js` + `assets/index-CijHueLd.css` —
+   the two names `vite build` had just emitted;
+2. both were fetched over HTTP and `cmp`'d against `dist/assets/` — **byte-identical**
+   (`sha256` heads `4558582e794d4f5a`, `1ac21a705075ed43`);
+3. the live document's own `<script src>` / `<link href>` were read back in-page and are the
+   same two hashes.
+
+With that established:
+
+- **Bonus dialog** (opened by real click on `Bonus Badge Tokens & Badge Slots…`): title
+  **"Bonus Badge Tokens & Badge Slots"**, field label **"Bonus Badge Tokens earned in total"**,
+  column header **"Badge Tokens"**, and six per-category labels *"Finishing bonus Badge Tokens"*
+  … *"Physicals bonus Badge Tokens"*.
+- **Category ledger**: `.category-ledger` renders **"FINISHING / Badge Tokens 0 / 0 / left 0 /
+  Badge Slots 0"**; 18 ledger nodes present.
+- **Old word absent from the running app**: with the dialog open, `/badge\s+points?/i` over
+  `document.body.innerText` → **false**.
+- **Old word absent from the bundle**: the same case- and whitespace-insensitive pattern over
+  `dist/assets/*.js`, `dist/assets/*.css` and `dist/index.html` → **0, 0, 0**. `Badge Tokens`
+  → **25** in the JS. The whitespace-tolerant form matters: it is the one that would catch
+  JSX-wrapped `Badge\n  Points`, which a plain `grep -F "Badge Points"` would miss.
+
+### Housekeeping
+
+The 4319 server was stopped and `dist/` left as the merged build's two files. **Nothing was
+staged with `git add -A`** — paths were named explicitly and `git status` re-checked before the
+commit, so the untracked `.claude/worktrees/` directory in the main checkout was left alone, as
+were the bare `node_modules` symlinks in the sibling worktrees. No `npm install` in any worktree,
+no watch mode, no foreground dev server. The throwaway `rename-integrate` was deleted after the
+fast-forward.
+
+**`main` was NOT touched and is NOT reconciled.** Local `main` is `444d034`, `origin/main` is
+`e6b3ae4`, and they diverge. That divergence pre-dates this slice and was left exactly as found.
