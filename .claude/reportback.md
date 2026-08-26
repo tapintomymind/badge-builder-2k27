@@ -4907,3 +4907,245 @@ Merge order stands: F8-S2 → A5-U → F8-R2, and F8-S2 must read BOTH carried-
 forward items above — the post-A5 baseline function AND the 885px box — before
 it authors a single golden.
 ─────────────────────────────────────────────
+
+SLICE-COMPLETE — A6-E Cap Breakers: engine, persistence, containment lint, and
+rider ② near-miss reasons, 2026-08-25
+─────────────────────────────────────────────
+
+WHAT LANDED
+Branch `a6-e-cap-breakers`, worktree /tmp/bb-a6e, TWO implementation commits on
+top of dev @ a5fe8e1. NOT merged to dev; main untouched; no dev server started.
+
+  c09c090  feat(a6-e): Cap Breakers — the engine, the persistence, the
+           containment lint
+  e61c080  feat(a6-e): rider ② — near-miss reasons, every locked pip becomes
+           a meter
+
+A cap breaker is a per-attribute value the user DECLARES above the value they
+entered. It counts for badge ELIGIBILITY ONLY — no extra Badge Points, no extra
+Badge Slots. Stored ABSOLUTE (`capBrokenAttributes.threePt = 83`), never a
+delta: a delta would tempt a future reader to carry +23 across a base edit,
+i.e. to assert that a base of 65 also earns +23, and that assertion is
+unpublished 2K data. `effectiveAttribute = max(entered, declared)`.
+
+WORKTREE PROVENANCE — READ THIS FIRST
+/tmp/bb-a6e ALREADY EXISTED when this dispatch opened, on branch
+`a6-e-cap-breakers` at 4f3e47e (three commits behind dev, pre-F5.4), carrying
+~220 lines of UNCOMMITTED work from an interrupted earlier run: src complete-ish
+with commit-1 and commit-2 changes already MIXED TOGETHER, no new test files, no
+lint (g), no makeBuild param. Nothing was discarded. The work was saved twice —
+`git stash push -u` (stash@{0}, still present) and a patch at
+scratchpad/a6e-prior-wip.patch — then the branch was fast-forwarded to dev
+(no reset, no force) and A6-E re-implemented in the required two-commit order.
+The prior run's prose was high quality and much of it survives, re-verified
+line by line against scope.md and the design doc rather than trusted.
+
+  OPERATOR ACTION, TRIVIAL: `git -C /tmp/bb-a6e stash drop` once this entry is
+  read. It is redundant with the patch file and with both commits.
+
+COMMIT 1 — THE ZERO-DIFF PROOF, MEASURED AT ITS OWN TIP (c09c090)
+The gate is "A6-E changes not one rendered string and not one number on
+screen", because nothing in commit 1 can WRITE a cap breaker. Measured, not
+asserted:
+
+  · EXACTLY TWO behavioural lines switched, both in eligibility.ts —
+    `linePassesAt` and `reasonsForLevel`'s `and` arm. The ENTIRE src/ diff
+    deletes FIVE lines; the other three are an import widening (config), a
+    docstring (types), and a reformatted ternary (BuildPanel). Verbatim:
+        -import type { Category } from "../engine/vocabulary";
+        -  return build.attributes[line.attr] >= threshold; // >=, not >
+        -      } else if (build.attributes[line.attr] < threshold) {
+        -  /** 0–99 per attribute. */
+        -    ? hasBudgetValues || Object.values(build.attributes).some(...)
+  · ZERO ASSERTION EDITS. `git diff -U0 -- tests/ | grep '^-[^-]' | grep -c
+    'expect('` → 0. Not one expect() line deleted or modified anywhere. The
+    only test-file deletions in the whole commit are two import lines and
+    makeBuild's return statement (the one sanctioned optional param).
+  · Full suite 1204 → 1242 (+38), 62 → 63 files, all green.
+  · tests/ui/overlays.test.tsx, tests/category-colors.test.ts,
+    tests/feasibility-golden.test.ts: 23/23 with ZERO file diff. No golden
+    cell moved. RUN-never-edit honoured.
+
+Everything downstream inherits with zero diff — levelPasses,
+maxPurchasableLevel, validateBadge, entryIsStale, recheckEligibility,
+legalSteps, exchangeSteps, the roster, the roll, the pips. steps.ts and
+randomize.ts are UNTOUCHED (F8-E3's file, as the contract demanded).
+
+NO EXTRA TOKENS AND NO EXTRA BADGE SLOTS — STRUCTURAL, NOT POLICED
+The fourteen economy modules read no attribute at all and `LedgerState`
+carries no `Build`, so there is no channel through which a cap breaker could
+reach a cost. Test 1.5 pins the property (spent / refunded / remainingPoints /
+equipSlotsUsed / totalCost / whatIf / costForLevel byte-identical while
+maxPurchasableLevel moves); the architecture lint pins the reason.
+
+PERSISTENCE — the highest-risk part, done exactly as ruled
+  · `capBrokenAttributes?:` is OPTIONAL IN TYPESCRIPT, deliberately. Required
+    would compile, produce a runtime object with no key, keep every in-memory
+    test green (they are compiler-forced to supply it) and throw only on a real
+    reload of a pre-A6 autosave.
+  · NO `normalizeBuild()` was written. NO change to
+    `envelope["build"] as unknown as Build`. Test 5.4 makes any future
+    field-by-field "tidy" of that cast fail RED instead of silently dropping
+    the field on every load→save.
+  · schemaVersion stays 1; MIGRATIONS stays empty; AppConfig and
+    validateConfig do not move.
+  · The validator widens as a strict superset: absent ✓, wire null ✓, {} ✓,
+    0..99 ✓, non-integer ✓ (validateBudgets has no integer check either),
+    unknown keys IGNORED, and `declared < entered` ACCEPTED SILENTLY — the
+    app's own UI writes that state, and refusing it would be the fifth
+    instance of this project's data-destruction shape. Made inert by Math.max.
+  · A pre-A6 file round-trips WITHOUT gaining the key (test 5.4b), and the
+    whole existing 1204-test suite — every one of whose UI cases boots a
+    pre-A6-shaped autosave — is the pre-A6-reload result, mechanised.
+
+THE GUARD LANDS BEFORE THE WRITER
+`workingHasContent`, `playerHasContent` and BuildPanel's dirty check widen now,
+while inert, so A6-U's control ships into a clobber-confirm that already sees
+what it writes. `resetBlastRadius` and the reset announcement were NOT touched
+(A6-U's, and F5.3 owns that file).
+
+SHIP GATES
+  1.6 — no cap-breaker count → boost mapping anywhere: a src-wide vocabulary
+        lint (perBreaker / breakerBoost / BOOST_PER / breakersToBoost /
+        capBreakerCount), plus attributes.ts asserted to contain NO arithmetic
+        operator and no numeric literal but the `?? 0` floor, plus a positive
+        canary that also proves it does NOT fire on A6's own shipped names.
+  4.2 — AttributeGrid keeps the ENTERED record: a real end-to-end test seeds a
+        cap breaker into the autosave, boots App, asserts the slider reads 60
+        (not 95), commits it to 70, and asserts the STORED value is 70 with the
+        declaration still 95. Plus an unrelated-slider case.
+
+COMMIT 2 — RIDER ② (e61c080), separate on purpose
+`needs 96 Close (now 91) or 95 Layup (now 88) for HOF`. One builder gains one
+term; the card line, the stale line, the pip ariaLabel, DriftBanner, the roster
+and the text block all inherit. BadgeCard.tsx is NOT edited.
+
+  THE TRAP WAS REAL AND IS BOUND. BadgeCard's `reasonsFor` selects by
+  `reason.endsWith(`for ${label}`)`, so a parenthetical after the level suffix
+  would silently empty the eligibility line on all 53 cards. It goes INSIDE.
+  Four guards: the mandatory positive canary (pip selector returns exactly one
+  non-empty reason for a two-term `or`, and EMPTY for the rejected trailing
+  form); a canary-PREMISE test asserting BadgeCard still selects by that
+  suffix, so the transcribed canary cannot drift from what it watches; a
+  dataset-wide sweep over all 53 badges; and the required grep
+  `for Gold)|for HOF)|for Silver)|for Bronze)` over src/ → CLEAN.
+
+  Arms: `and` annotates FAILING terms only; `or`/`single` annotates every term
+  (which is why one trailing note cannot work); a `null` threshold gets NO
+  parenthetical. Every `(now N)` reads effectiveAttribute. A cap-broken value
+  renders `(now 83 cap-broken)`; a STALE declaration (declared 83, slider since
+  dragged to 90) is NOT announced as cap-broken, because `isCapBroken` compares
+  the values rather than testing the field's presence. Both branches ship
+  dead-but-tested. The accessible comma variant is DEFERRED as ruled.
+
+  FIVE assertion edits, each with an in-line reason:
+   · tests/eligibility.test.ts — Flash's HOF reason gains `(now 81)`.
+   · tests/ui/badge-card.test.tsx — locked-pip ariaLabel + card line.
+   · tests/ui/f2-eligibility-disclosure.test.tsx — the STALE line; still
+     exactly one dash in the sentence, because the note sits inside the reason.
+   · tests/summary-text.test.ts — §14.5's golden, exactly ONE line moved. The
+     assertion is a byte-for-byte compare against real formatter output, so
+     green IS the regeneration proof.
+   · tests/ui/app.test.tsx — NOT on §5A.9's allowed list. Reported, not quietly
+     widened: same class the list enumerates (a reason-string assertion its
+     enumeration missed), one line, no behaviour change.
+  tests/ui/boot-drift.test.tsx needed NO regeneration.
+
+GATES, BOTH COMMITS
+  npm run test        63 files, 1250 tests, all green   (dev baseline: 62/1204)
+  npm run typecheck   clean
+  npm run build       clean, tsc --noEmit + vite build
+  overlays / category-colors / feasibility-golden: 23/23, zero file diff.
+  Runtime deps still exactly {react, react-dom}. No dev server was started, so
+  there is no port to report and no shared-localStorage exposure.
+
+BRIEF ↔ CODE DIVERGENCES, reported rather than silently weakened
+  1. A6-R9 2.1 asks for `capBrokenAttributes` in EXACTLY ONE src/ file. It is
+     THREE, and the two extras are structural: types.ts must DECLARE the field,
+     serialization.ts must name the wire KEY on an untyped record before any
+     `Build` exists. Neither is a second read path. Expressed as an explicit
+     allowlist with a why per entry plus a drift guard, in the same idiom as
+     the shipped MATH_RANDOM_ALLOWLIST — which makes the same disclosure about
+     its own rule. The ruling that matters (one composition point; no component
+     may reach it) is enforced whole by the allowlist plus the `.tsx` ban.
+  2. §5A.9's allowed-paths list omits tests/ui/app.test.tsx, which carries a
+     reason-string assertion. One line, edited, reported above.
+  3. The contract cites BuildPanel's dirty check at :175. F5.4 moved it to
+     :241 AND rewrote it as a `withAttributes` ternary. The cap-breaker term
+     rides INSIDE the true arm: at L the sliders are in the pane, so the cap
+     breakers are too, and the latch stays scoped to what the panel renders
+     (§16.5). Widening the whole predicate would have re-broken F5.4's ruling.
+
+INVENTORY ROW §5A.6 CONFIRMED PRESENT
+`reasonsForLevel`'s `or`/`single` arm (eligibility.ts) read no attribute before
+② and is a reader now. It is inside §5's allowlist (same file, same function),
+so no widening was needed, and it is covered by tests.
+
+MERGE-CONFLICT FORECAST — a5-u-bonus-mode, f9-touch-floors, f8-s2-summary,
+f13-physique-strip
+MECHANICALLY, ALL FOUR MERGE CLEAN TODAY (`git merge-tree --write-tree`
+exit 0 on each) — but that is not a result: ALL FOUR CARRY ZERO COMMITS OF
+THEIR OWN. a5-u-bonus-mode sits at 4f3e47e (behind dev, pre-F5.4); the other
+three sit exactly at dev @ a5fe8e1. The forecast below is therefore by declared
+file surface, not by merge test.
+
+  · a5-u-bonus-mode — HIGH, and it is the one to sequence.
+    A5-U edits `workingHasContent` / `playerHasContent` / `resetBlastRadius` in
+    src/App.tsx; A6-E inserted `hasCapBreakers(working.build)` into the first
+    two, adjacent to A5's own `bonusHasContent` term. Textual conflict is
+    likely in both predicates and in BuildPanel's `hasValues`. RESOLUTION RULE,
+    already ruled at A6-R8: whichever lands second WIDENS, never replaces —
+    keep both terms. Its bigger problem is not A6 at all: it is based pre-F5.4,
+    so F5.4's 466-line App.tsx churn dominates its rebase.
+  · f8-s2-summary — HIGH, and it is a CORRECTNESS risk, not just a textual one.
+    F8-S2 authors §14.5's goldens, and ② moved one line of the shipped golden.
+    F8-S2 HAS NOT SEALED (zero commits), so it must author against the POST-②
+    string — a golden authored against dev's pre-② output will conflict, and
+    resolving it the wrong way silently reverts ② in the text block with a
+    green suite. Its `RosterRow` consumers inherit the parenthetical
+    automatically through `reasonsForLevel`; §14.5.1 already rules the golden
+    GENERATED, never transcribed, so the fix is "regenerate after merging
+    A6-E". No source conflict: summary.ts and summary-text.ts are untouched.
+    This is the same warning the F5.4 entry above already carries for F8-S2,
+    now with a second reason.
+  · f13-physique-strip — MEDIUM, one hunk.
+    It will edit src/ui/build/BuildPanel.tsx (PhysiqueSection), and A6-E
+    touched that file's import block and the `hasValues` ternary. If F13 edits
+    the ternary's FALSE arm (`hasBudgetValues || build.position !== undefined`
+    — the physique-shaped one), it is the same hunk as A6's true-arm edit.
+    Small, mechanical, no rule in tension.
+  · f9-touch-floors — LOW.
+    Touch-target floors are src/styles/app.css, tests/layout-arithmetic.test.ts
+    and possibly AttributeSlider — A6-E touched NONE of those, changed no CSS
+    and no markup. Only contact is BuildPanel, and A6's edit there is not
+    markup. Expect clean.
+
+CARRIED FORWARD
+  · A6-U is unblocked by this slice and still waits on Designer's design-spec
+    §18, exactly as §5 says. It relaxes lint (g)'s `.tsx` ban to the one
+    control file BY NAME — never by deleting the rule — and it owns
+    resetBlastRadius, the reset copy, ResetBuildDialog's counts, the
+    stale-declaration hint and summary-text's one line.
+  · A5-E's implementer warning stands and is now doubly earned: do NOT tidy
+    `envelope["build"] as unknown as Build` into a field-by-field literal. Test
+    5.4 now fails red if anyone does.
+  · OQ-A6-1 (is 99 really the per-attribute bound?) and OQ-A6-2 (is there a
+    cap-breaker budget?) are both still open and both still block nothing.
+    ATTRIBUTE_CEILING is the one constant to edit if the real bound lands.
+
+KNOWN, AND DELIBERATELY NOT "FIXED"
+The load-dependent vitest flake class. vite.config.ts untouched, no
+{ timeout: 20000 } lowered, none added below that. No flake observed across the
+nine full or partial runs this slice made. If one appears, RE-RUN.
+
+SCOPE / PLAN IMPACT
+None to scope.md / tech-strategy.md / the H-rulings. schemaVersion 1,
+MIGRATIONS empty, dataVersion and ROLL_ALGORITHM_VERSION untouched, dataset
+untouched, AppConfig untouched.
+
+NEXT
+Branch pushed. `dev` untouched at a5fe8e1; `main` untouched. Recommended merge
+order is unchanged except that A6-E should land BEFORE F8-S2 authors its
+goldens: **A6-E → F8-S2 → A5-U → F8-R2**, which is exactly A6-R8's ordering
+ruling ("A6-E lands BEFORE S2, immediately after A5-E").
+─────────────────────────────────────────────
