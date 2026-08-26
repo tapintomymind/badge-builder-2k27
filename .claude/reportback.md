@@ -7358,3 +7358,95 @@ is a RUN-never-edit gate.
 **OPERATOR ACTION:** branch pushed as `header-compaction`, not merged. Worktree
 `/tmp/bb-header` left in place. Proof: `docs/proof/f15-verification.txt` + four
 screenshots (`f15-1280x768`, `f15-1280x767`, `f15-1440x810`, `f15-1280x900`).
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · integration — F15 header compaction + user-facing docs, onto `dev`
+
+**Event:** `integration-complete`
+**Landed:** `header-compaction` first, then `docs-landing`. Both FAST-FORWARDS.
+`dev` `bc2002f` → `a53ced7` → **`d731160`**. `main` (`444d034`) untouched, never checked out.
+**Merge commits on `dev`: 2 before, 2 after** (`git rev-list --merges --count dev`, not `wc -l`).
+No dev server started; port 5173 never bound.
+
+### Method, per branch
+
+Both branches forked from `bc2002f` itself (`git merge-base` = `dev`'s tip for each), so all
+conflict work fell to `docs-landing`, rebased through the header change.
+
+**`header-compaction` — 1426/69 → 1433/69.** A direct descendant of `dev`, so it landed as a
+plain `git merge --ff-only header-compaction` with ZERO conflicts — no throwaway branch was
+needed, and the branch ref was left untouched on its worktree. Expected 1426 + 7 = 1433 (branch
+delta), file count held at 69 (it touches only test files that already existed). Actual 1433/69.
+
+**`docs-landing` — 1433/69 → 1433/69.** Rebased onto `a53ced7` via throwaway branch
+`docs-integrate` (the branch itself is checked out on a worktree and was not moved). Docs-only:
+expected NO test change, and the three doc files plus the reportback entry are the whole delta.
+Actual 1433/69. `README.md`, `EXPLANATION.md`, `GUIDE.md` verified byte-identical to their
+`docs-landing` blobs after the rebase; `git diff --name-only` confirms nothing under `src/`,
+`tests/` or `public/` was touched. The build output hashes were unchanged across the landing
+(`index-BxZBj_cN.css`, `index-BHAHqaVy.js`) — an independent check that the docs are inert.
+
+### Conflicts and resolutions
+
+Exactly one conflict, as forecast. The three doc-file commits applied clean.
+
+- **`.claude/reportback.md`** — append-only; both branches append at EOF over the same base.
+  Resolved by RECONSTRUCTION FROM SOURCE BLOBS, never by hand-editing conflicted text. The three
+  merge stages were first checked against their blobs (`:1` == `bc2002f`, `:2` == `dev`,
+  `:3` == `docs-landing`), and each side confirmed a PURE APPEND (first 7111 lines byte-identical
+  to base). Resolved as base 7111 + docs 100 + header 149 = **7360**, with each of the three
+  thirds then `cmp`-verified byte-identical against its own source block.
+
+**ORDER — the authored-time rule bit here, and it is worth recording.** The landing order and the
+authored order DISAGREE for the first time: `docs-landing`'s entry was authored `06:23:37` and
+`header-compaction`'s at `08:53:30`, but the header landed FIRST and was already pushed with its
+block at EOF. Per the standing rule — every entry survives verbatim in AUTHORED order, "not at the
+seam where it was written" — the docs block was placed BEFORE the header block, so the file reads
+docs (06:23) → F15 (08:53). This was a pure reordering: a sorted-byte comparison against the
+naive append-order build confirms not one byte of content differs, and the docs commit is still
+`100 insertions(+), 0 deletions(-)`. The correction was made by amending the unpushed docs
+commit, so no force-push and no rewrite of anything already on `origin`.
+
+The collapse hazard did NOT materialise this time: the docs block opens with its own `─────` rule
+and the header block opens with its own blank + `---`, so each seam carries a separator from the
+block's own bytes. Reconstruction preserved both verbatim rather than relying on git, which was
+still the right method — a marker-strip would have unified the shared boundary as it has four
+times before.
+
+### Gates
+
+`npm test` **1433/1433 across 69/69** · `npm run typecheck` clean · `npm run build` clean — all
+three run after EACH landing, with the expected count computed from the branch's own delta BEFORE
+the actual was read. RUN-never-edit trio run explicitly after each: `tests/ui/overlays.test.tsx` +
+`tests/category-colors.test.ts` + `tests/feasibility-golden.test.ts` = 29/29, the 504-cell golden
+unmoved. F9's touch-floor census (`S_TOUCH_FLOOR_CENSUS`, `tests/layout-arithmetic.test.ts`)
+re-run: 10/10, and the whole file 142/142. **No flake was observed in either full run** despite
+other agents being active; no timeout was lowered, tightened, raised or added.
+
+### Browser confirmation — production build, port 4317 (never 5173)
+
+`vite preview` on a production `dist`, driven at three viewports:
+
+- **1440×810 — shell ON.** Gate matches, `body` `overflow: hidden`, document not scrollable
+  (`scrollHeight` 810 == `clientHeight`), `.col-right` is the scroller (`overflow-y: auto`).
+- **1280×768 — shell ON.** The point of the slice: the gate's new floor admits an ordinary laptop.
+  `.app-header` measures **62px**, one row, confirming `HEADER_H` 62 in the live tree.
+- **1280×767 — shell OFF, document scrolling.** Gate false, `body` `overflow: visible`,
+  `.col-right` no longer a scroller, `scrollHeight` 21768 > 767, and a scripted scroll moved the
+  document. The gate is exact at the 768 boundary.
+
+**Anchors land flush:** computed `scroll-padding-top: 120px` on `.col-right` and
+`scroll-margin-top: -76px` on `.grid-section` → 120 + (−76) = **44** = `--sticky-jumpnav-h`. Both
+remain DERIVED, not literal: `--scroll-reserve: var(--sticky-stack-h)` feeds the padding and the
+margin is `calc(var(--sticky-jumpnav-h) - var(--scroll-reserve))`. The gate itself likewise stays
+computed — `src/styles/app.css` carries the formula
+`MIN_SHELL_H = ceil((HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H) / 0.40) = ceil(767.5) = 768`
+and `tests/layout-arithmetic.test.ts` re-derives it. Nothing hand-wrote 768.
+
+Header copy confirmed un-drifted in the live DOM: the controls read `Export` and `Import` with no
+` JSON` suffix, and the header's computed `column-gap` is `12px` (`--space-3`).
+
+**OPERATOR ACTION:** `dev` pushed. Both source branches and their worktrees (`/tmp/bb-header`,
+`/tmp/bb-docs`) are left in place; the throwaway `docs-integrate` was deleted. The two design-spec
+contradictions the F15 entry raised (§3.2 button copy vs §3.1's quoted `Export JSON`; §3.2's "Two
+rows on desktop") are still UNRESOLVED and need the one-line rev it asked for.
