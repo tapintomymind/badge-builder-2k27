@@ -8868,3 +8868,162 @@ NOT in effect in the integration worktree until it landed, so nothing was staged
 `git add -A` — paths were named explicitly and `git status` was checked before each commit. No
 `npm install` was run in any worktree, no watch mode, no dev server. The untracked
 `.claude/worktrees/` directory in the main checkout was left alone.
+
+---
+
+## The "Badge Points" → "Badge Tokens" vocabulary sweep — slice-complete
+
+**38 files changed, 398 insertions, 130 deletions** against `e927a70`. 18 `src/`, 16 `tests/`,
+3 shipped docs, `docs/vocabulary.md`.
+
+### The brief arrived with the direction transposed, and it was NOT executed as written
+
+The dispatch asked for **"Badge Tokens" → "Badge Points"**. Every authority in the tree says the
+opposite, and running it would have been destructive rather than merely wrong:
+
+- `reportback.md:6854` names the slice **"The Badge Points → Badge Tokens rename sweep"**.
+- `reportback.md:7141` — *"'Badge Tokens' is NOT the shipped word … the sweep has not run."*
+- `types.ts:207` and `BonusDialog.tsx:38` both recorded the rename as approved-but-pending.
+- `EXPLANATION.md:59` and `config/index.ts:30` cite **2K's own page** for the term "Badge Tokens".
+
+The brief also asserted that the docs had shipped the new word and the UI had not; both said
+"Badge Points" and agreed with each other. Executing as written would have rewritten three true
+statements about 2K's terminology into false ones — **inventing 2K27 data, the one thing the seed
+forbids outright** — and deleted the record of the approval. Stopped and surfaced; direction was
+confirmed reversed before any file was touched.
+
+### Display copy only — the storage vocabulary deliberately did NOT move
+
+`serializeSavedBuild` is a bare `JSON.stringify` with no translation boundary, so property names
+ARE the on-disk format. Left exactly as they were, and now commented as such at the seam
+(`BonusBudget` in `types.ts`):
+
+| kind | names held back |
+|---|---|
+| localStorage keys | `badge-builder-2k27:autosave:v1` · `:named-builds:v1` · `:ui-state:v1` · `:autosave-quarantine:v1` |
+| sessionStorage key | `bb2k27.ui.scrollTop.colRight` |
+| `SavedBuild` fields | `schemaVersion` `dataVersion` `savedAt` `name` `build` `budgets` `bonus` `loadout` `synergy` `config` |
+| economy fields | `Budget.points` · `BonusBudget.earnedPoints` / `appliedPoints` / `earnedEquipSlots` / `appliedEquipSlots` |
+| identifiers | `remainingPoints` `basePoints` `bonusPoints` `pointsPool` `BUDGET_POINTS_MAX` `overByBadgePoints` `freesPointsToCategory` `pinnedOverPoints` `unpinnedPoints` |
+| discriminator | the `"points" \| "equipSlots"` pool union |
+
+`src/engine/serialization.ts` and `src/persist/local-storage.ts` are **byte-unchanged** by the
+sweep, and the four `SavedBuild`/`Budget`/`BonusBudget`/`LoadoutEntry` field lists diff IDENTICAL
+against `origin/dev`.
+
+### The old-save round-trip, proved rather than asserted
+
+`tests/rename-old-save-roundtrip.test.ts` (5 assertions). **The fixture was emitted by
+pre-rename code** — `serializeSavedBuild` at `e927a70` — and pasted in byte-for-byte, because a
+fixture hand-typed by whoever wrote the rename only proves that person's beliefs were
+self-consistent. It deserializes without throwing; both drift channels (`droppedEntries`,
+`clearedSynergyRefs` — what drive the disclosure banner) are empty; every economy value survives;
+it **re-serializes BYTE-IDENTICALLY**; and the JSON still spells `points`, which now fails loudly
+if anyone tidies it.
+
+Also proved in the browser on the production build (below).
+
+### Judgement calls — matches deliberately NOT swept
+
+- **`src/styles/tokens.css`** and `app.css`'s token references — design tokens, a different sense.
+- **`scripts/generate-badges.ts`** — parser tokens (threshold token, em-dash null token).
+- **`src/engine/randomize.ts`** — `ReproducibilityToken`, a seed-versioning type.
+- **`docs/vocabulary.md` / `tests/vocabulary.test.ts`** "banned token" — the lint/lexical sense.
+  The page's own wording was changed to "banned **word**" so the two senses stop colliding.
+- **`layout-arithmetic.test.ts`'s I6 census** — "FROM THE TOKEN" is the design-token read-back.
+- **`config/index.ts:94`** — `"The attribute → (equipSlots, points) derivation"` is written in
+  IDENTIFIER vocabulary (it says `equipSlots`, not "Badge Slots"), so it stays.
+- **`docs/proof/` (8 files)** — dated records of what specific verification runs observed.
+  Rewriting them would make them assert things that never happened. Same principle applied to
+  past reportback entries: this is an APPEND, and `:6854` / `:7141` are left as written.
+
+### `pts` — the one open item, deliberately not decided here
+
+The app abbreviates the currency as **`pts`** in 39 places (`6 pts`, `N pts left`, `15 / 16 pts ·
+left 1`), and `BadgeTile.tsx:117` documents it as *"the app's own shipped abbreviation"*. It is
+NOT gate-asserted (all three gates contain zero `pts`). It was left alone: `tks`/`tkns` would coin
+an abbreviation, and expanding to `tokens` would change an established compact format across 4
+test files — both are copy-standard inventions, which the ruling weighed as more risk than the
+inconsistency. **Flagged for a decision, not silently skipped.**
+
+### The vocabulary lint now has a currency class
+
+Class 4 in `tests/vocabulary.test.ts` bans the phrase **"Badge Points"** from shipped code and
+copy, and nothing more — it does NOT mandate the full term everywhere. Bare `slot` is banned
+because it COLLIDES (Badge Slots vs Synergy Slots); there is no second token currency, so the
+analogy is not extended. The pattern **requires whitespace between the two words**, so
+`overByBadgePoints` / `earnedPoints` / `remainingPoints` can never match it — the lint can never
+pressure anyone into renaming a serialized field.
+
+**Watched failing, not merely asserted.** Reintroducing `Badge Points{" "}` into
+`CategoryLedger.tsx`'s rendered lede turned the per-file scan RED with its own diagnostic, and the
+canary alongside it exercises the lint MECHANISM (`stripComments` + `exec` over real file
+contents) rather than the regex against a literal. Restored byte-identically afterwards
+(`git diff --quiet` clean).
+
+### Gates
+
+`tests/ui/overlays.test.tsx` was touched under **narrow authorization: vocabulary only**, four
+asserted strings, nothing structural — no matcher, assertion count, test name, `describe`, or
+fixture value; `{ points: 16, equipSlots: 3 }` at line 41 untouched. The diff is exactly 4 changed
+lines. The gate pins the ledger/overlay separation, a STRUCTURAL property expressed through exact
+strings; renaming the vocabulary underneath preserves what it protects.
+
+| was | now |
+|---|---|
+| `… ceilings. Points are unchanged.` | `… ceilings. Tokens are unchanged.` |
+| `Badge Points 7 / 16` | `Badge Tokens 7 / 16` |
+| `… Primary points are unchanged; 1 of 6 …` | `… Primary tokens are unchanged; 1 of 6 …` |
+| (the two above, concatenated) | (both, renamed) |
+
+**The other two gates are byte-unchanged, verified by blob hash rather than by passing:**
+`tests/category-colors.test.ts` `f1539c1dda0dbeb625f3891cb31d31646e1151a3` ·
+`tests/feasibility-golden.test.ts` `cef359dc01c40ddda1ef5a629c4f81ec060288d7` — both identical to
+their pre-sweep values. The 504-cell golden did not move. Their `point` hits were ordinary English
+("entry points") and identifiers (`remainingPoints`), neither of which this rename touches.
+
+### Verification
+
+- **`npm test` — 73 files, 1648 passed.** Predicted before looking: baseline 1645 after the sweep
+  (1568 + 77 from class 4: 1 breadth + 73 per-file + 3 canaries), then +3 from the hygiene slice
+  picked up in the rebase, then +5 from the round-trip guard → **1653** at final count.
+- `npm run typecheck` clean · `npm run build` clean (87 modules).
+- Three gates run explicitly: 29 passed.
+- F9 / I6 touch-floor census: `layout-arithmetic.test.ts` 165 passed.
+- Vocabulary lint incl. class 4: 183 passed.
+
+### Browser proof — production build, free port, hashes diffed first
+
+Served `dist/` on **5252** (5173 was occupied by a stray server). Before trusting anything, the
+served bytes were checksummed against disk: `index-BWArAc6g.js`
+`4558582e794d4f5a31c13b534656fe3161f049af36c7f5b4df981c9ea9b090d4` and
+`index-CijHueLd.css` `1ac21a705075ed434affc2a14fe5640e870d29eb7e0674581ec567f92b4972c0` — both
+**MATCH `dist/`**, and the live DOM's `<script>`/`<link>` resolve to those same hashed names. The
+served bundle contains **zero** "Badge Points".
+
+- Build panel renders `Badge Tokens & Badge Slots`; ledger lede `Badge Tokens 0 / 23 · left 23 ·
+  Badge Slots 0 / 5`.
+- **F9's bonus dialog**: title `Bonus Badge Tokens & Badge Slots`, both column heads, and both
+  `data-pool` attributes (the S container query prints them via `::before`) — 9 "Badge Token" hits,
+  9 "Badge Slots" hits, 0 "Badge Points".
+- **Old save loaded through the real Import route**: the confirm dialog read `pre-rename build` /
+  `2026-08-26T09:00:00.000Z` / `2026-08-26.1`; after `Replace working build`, name, per-category
+  budgets (16/3), bonus (`earnedPoints` 12, `appliedPoints.Finishing` 7) and both loadout entries
+  all came back, the ledger composed base+bonus correctly (`0/23`, `6/21`), **no disclosure banner
+  and no quarantine key**, and the autosave it wrote back still spells `points` / `earnedPoints` /
+  `appliedPoints` with no `tokens` field anywhere.
+
+**One pre-existing behaviour observed and cleared as NOT this slice's:** an autosave payload
+injected directly into `localStorage` is overwritten by a mount-time write rather than restored.
+The identical procedure was run against a **pre-rename build of `e927a70` served on 5300** and
+behaves the same way, so it predates the sweep. Noted, not fixed here — the Import route is the
+real user path and it round-trips correctly.
+
+### Housekeeping
+
+Own worktree on `badge-tokens-rename`, rebased onto `e927a70` when the hygiene slice landed
+mid-slice (clean, no conflicts; the slice's new files carried no currency copy). No `npm install`
+in any worktree, no watch mode, no foreground dev server. Paths staged explicitly. The stale
+`badge-points-rename` branch from the transposed first attempt has no commits and could not be
+deleted — the permission layer blocks agents from deleting branches — so it is left for the
+operator.
