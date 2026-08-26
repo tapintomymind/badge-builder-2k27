@@ -6719,3 +6719,136 @@ still stand from earlier passes (`git -C /tmp/bb-a6e stash drop`, and `git branc
 `f8s2-merge-probe` / `a5e-trial-merge` refs, which the permission layer refuses to an agent). This
 pass's own two throwaways deleted cleanly with `git branch -d`.
 ─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · F14 the app shell — implemented, with one ruling reverted
+
+**Event:** `milestone-complete` + `stop-condition-triggered` + `decision-needed`
+**Branch:** `f14-app-shell` off `origin/dev` @ `0e96632`. **`dev` and `main` untouched.**
+No dev server started; port 5173 never bound (a production build was served on :4188).
+**Spec:** `workspace/badge-builder-2k27/features/app-shell/design.md`, which marked itself
+UNVERIFIED-AGAINST-TREE. All nine of its §11.1 searches were run before a line was written.
+**Full arithmetic + every measurement:** `docs/proof/f14-verification.txt`.
+
+### THE SPEC'S LITERALS MOVED, AND SO DID THE GATE
+
+Four of the seven vertical inputs were wrong. The two that matter:
+
+- **`HEADER_H` 70 → 102.** The header flex-wraps to two rows at 1280 (62 at 1440). §16.4's "~70px"
+  predates the header's growth and was never re-measured.
+- **`STICKY_STACK_H` 107 → 120.** **107 is the S pair (48 + 59).** The document used the phone's
+  sticky stack as the desktop's. At M and L the nav is 44 and the digest 76.
+
+`STRIP_H`, the one flagged placeholder, was very nearly right (92 → 92.19, pinned at 93).
+
+```
+MIN_SHELL_H = ceil((HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H) / 0.40)
+  as ruled     ceil((70  + 92 + 32 + 107) / 0.40) = 753  -> 760 chosen
+  as MEASURED  ceil((102 + 93 + 32 + 120) / 0.40) = 868
+```
+
+**THE SHIPPED GATE IS `(min-width: 1280px) and (min-height: 868px)`, not the ruled 760.** 760 fails
+its own rule — cards get 54.3% against design-spec §5.3's ≥60%. The suite asserts the FORMULA, not
+the number, so the next chrome addition reddens loudly (assertion 3's canary proves it).
+
+**The user-visible consequence, and it is the one decision worth surfacing:** at 1280 wide the shell
+now needs an 868px-tall viewport. A 1440-wide window only needs 768 (its header is 62), but the gate
+is a single literal that must hold at the narrowest shelled width. On a 1440×900 display with ordinary
+browser chrome (~810 CSS px) the shell is therefore OFF. Two ways to recover it, neither taken here:
+a width-tiered gate (a second literal, against §8.2 assertion 18), or stopping the header wrapping at
+1280 (~40px back, and it is not this slice's surface).
+
+### THE RAIL 300 → 340 RULING IS NOT IMPLEMENTABLE. TRIED, MEASURED, REVERTED.
+
+It was applied and the suite run. It breaks a shipped **outcome** floor, not a pinned literal:
+
+```
+un-stacking the numeric field (cell > I9's 287)   needs RAIL >  329
+the slider track clearing I9's 224px              needs RAIL >= 330
+F11's board staying 8-wide (cell >= 89)           needs RAIL <= 332   @ scrollbar 17
+the synergy panel staying 2-up at 1280            needs RAIL <= 321   @ scrollbar 17
+```
+
+At 340 an F11 board cell is **88.00 against its 89px floor** — the dataset's longest single word
+stops fitting in a board cell at 1280 on every classic-scrollbar OS, on a surface that sealed this
+week. 340 also moves `.summary` off 885/902 to 845/862, which the dispatch independently named as a
+broken guard. The only rails that both un-stack the numeric and keep the board 8-wide are **330-332**,
+and every value in that range puts the synergy panel to 1-up AND lands the slider track ON its 224
+floor with 0-2px of slack.
+
+**The lever itself is real** — design.md §10.1's 9/8/7-versus-6/5/5 table is arithmetically correct.
+Spending it requires re-cutting F11's 8-wide container threshold or its `CELL_FLOOR`. **DECISION
+NEEDED, owned by F11, not by this slice.** The shell ships with its two-slider cost unmitigated.
+
+### TWO DEFECTS THE PAPER COULD NOT HAVE CAUGHT, BOTH FOUND IN THE BROWSER
+
+1. **`scroll-padding-top` and `scroll-margin-top` ADD.** §4.3 and §6.2 derive them independently;
+   they are not independent. Shipped naively, a `#cat-*` jump landed the section **164px** down with
+   120px of the previous category showing under the nav — the exact hole §4.3 set out to avoid,
+   arriving from the other direction. Fixed with a `--scroll-reserve` property that every
+   scroll-margin subtracts, so the LANDING POSITION is one number at every breakpoint.
+2. **`html, body { overflow: hidden }` does not stop the viewport scrolling.** The root's overflow
+   propagates to the viewport and the root's own used overflow becomes `visible`; the viewport stayed
+   a scroll container with an **8584px** scrolling area. Clicking the Summary chip scrolled it 365px
+   and took the header and the F13 strip off screen — SH-2, the frame the slice exists for, failing.
+   `overflow: clip` on the root does NOT fix it (measured). `.app-shell { position: fixed }` does
+   (scrolling area 8584 → 900, measured).
+
+### WHAT THE FOUR §16.4 COSTS ACTUALLY COST
+
+- **Find-in-page:** unmitigated and unmitigable, bounded to 40 strings. No workaround invented.
+- **`scrollRestoration`:** `.col-right` only, ~50 lines in `src/ui/shell/scroll-memory.ts`. All five
+  structural rules met and asserted: `sessionStorage`, one `bb2k27.ui.*` key, read-never-writes,
+  zero imports of any kind, rAF-coalesced swallowing writes. Reload restores 3200 exactly; the pane
+  stays at 0 by design; `localStorage` is untouched; the hash beats memory.
+- **Anchors:** all eight land flush under the pinned nav (43.5-44.3 in the scroller, gap ≈ 0) and the
+  document never moves.
+- **`dvh` after `vh`:** in place, order asserted within the block, with the full `@supports` degrade.
+
+### HORIZONTAL IDENTITY HELD
+
+`.summary` measures **902 / 887 / 885** at scrollbar 0 / 15 / 17 — the pinned outcomes to the pixel,
+identical shell-on and shell-off. `--space-4 → --space-3` page padding exactly funds `.col-right`'s
+4px focus-ring gutter. F11's board cell, §16.8's +10.5 and +30.5 margins, §14.2's five constants and
+the 3-up card count are all unmoved.
+
+### ROUTED OUT, NOT FIXED — and design.md §8.4 is only half right
+
+§16.8's "three tracks need 1188" is indeed wrong (auto-fit counts against the 280 min, so three need
+888) and §8.4 correctly corrects it. **But the 2-up/3-up OS flip §8.4 and `layout-arithmetic` both
+describe does not exist in the browser:** region B has exactly TWO tables and `auto-fit` collapses
+every track beyond the item count. Measured resolved tracks are **2 at scrollbar 0, 15 and 17**. The
+model's `tracks()` helper counts fittable tracks, not occupied ones. Both corrections belong to
+§14.2's owner; nothing in `.summary` was edited.
+
+### GATES
+
+`npm run test` **1399/1399 across 68 files** (1374 → 1399: +20 F14 assertions, +5 per-file
+architecture lints for the new module). `npm run typecheck` clean. `npm run build` clean.
+Named explicitly by the dispatch and re-run: `tests/ui/overlays.test.tsx`,
+`tests/category-colors.test.ts`, `tests/feasibility-golden.test.ts` — all pass, and the 504-cell
+golden is unmoved and was not edited. F9's touch-floor census is still set-equal in both directions:
+the shell adds no rule below 768, no `min-height: var(--tap-target)`, and no literal 44 for the
+census to be blind to. Runtime deps `{react, react-dom}`; zero network; zero new tokens.
+
+### CONFLICT FORECAST
+
+- **`a5-u-bonus-mode` (parallel):** LOW on code, CERTAIN on `.claude/reportback.md`. Bonus mode is
+  dialog-only and every dialog is shell-safe (top layer, viewport-sized, internally scrolled).
+  Overlap is `src/App.tsx` — this slice touches four lines of its JSX (root class, `.col-right` ref,
+  `<main>` tabIndex, footer re-parent) plus one import and one `useLayoutEffect`. Textual conflict is
+  likely only if A5-U also edits the root element or the footer.
+- **Roll UI (F8-S2/R2):** its one-line dependency is DISCHARGED. `scroll-padding-top` is on
+  `.col-right`, so §14.10's focus move to the roll report's heading clears the sticky stack.
+  **But it must use `scroll-margin-top: calc(<want> - var(--scroll-reserve))` if it adds a target** —
+  a bare scroll-margin now double-counts by 120px.
+- **Feedback loop:** HARD, as §11.3 said, and now mechanical. Any new always-visible region is a
+  fifth term in the permanent band and MUST move `MIN_SHELL_H`; assertion 3 fails loudly if it does
+  not. At 868 there is **0.02pp** of margin — effectively zero. Budget the gate move up front.
+- **Reset placement:** §15.18's rationale is now doubly stale. Under the shell `.attr-pane`'s foot is
+  the end of a fixed-height scroller holding attributes only, and it is `position: static`. Re-point
+  or re-home before that slice is cut.
+- **Summary roster / synergy board:** NONE on geometry (885/902 reproduced exactly). But §14.2's
+  owner has two corrections waiting — the 888-not-1188 floor, and the fact that the pinned 3-up-at-
+  overlay outcome is a model artifact the browser never produces.
+
+**OPERATOR ACTION:** the worktree `/tmp/bb-shell` is left in place on `f14-app-shell`.
