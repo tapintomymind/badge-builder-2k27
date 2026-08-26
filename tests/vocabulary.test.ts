@@ -424,3 +424,125 @@ describe("F8-R2 vocabulary lint, class 3: the pin is never called a lock", () =>
     }
   });
 });
+
+/* ------------------------------------------- 2026-08-26: vocabulary class 4 -- */
+
+/**
+ * CLASS 4 — the badge currency is "Badge Tokens", and never "Badge Points".
+ *
+ * "Badge Tokens" is 2K's own term, printed on the official 2K MyPlayer Builder
+ * page. The app shipped "Badge Points" through its early milestones and
+ * adopted 2K's word app-wide on 2026-08-26. This lint is what stops the old
+ * word creeping back one string at a time.
+ *
+ * WHAT IT ENFORCES, AND DELIBERATELY NOTHING MORE: the phrase "Badge Points"
+ * (or its singular) must not appear in shipped code or copy. It does NOT
+ * mandate the full term everywhere. Bare "token" / "tokens" is permitted in
+ * exactly the places bare "point" / "points" was permitted before the sweep —
+ * the preview strip, the re-roll dialog's blast radius, BadgeCard's aria
+ * labels — and in no new places.
+ *
+ * NARROWER THAN CLASS 1 ON PURPOSE. Bare `slot` is banned because it COLLIDES:
+ * "slot" means both Badge Slots and Synergy Slots, so a bare use is genuinely
+ * ambiguous. There is only one token currency, so no such collision exists,
+ * the analogy does not carry, and it is not extended. Expanding bare "tokens"
+ * into the full term everywhere would invent a copy standard mid-ship, which
+ * is more risk than the inconsistency it would fix.
+ *
+ * IDENTIFIERS ARE OUT OF REACH BY CONSTRUCTION, which is the whole trick. Every
+ * field name, every persisted localStorage key and every serialized SavedBuild
+ * field still says `points`: `serializeSavedBuild` is a bare `JSON.stringify`
+ * with no translation boundary, so renaming one would strand every build a user
+ * has already saved (see the storage note on `BonusBudget` in
+ * src/engine/types.ts). The pattern REQUIRES WHITESPACE between the two words,
+ * so `overByBadgePoints`, `earnedPoints` and `remainingPoints` can never match
+ * it however this file evolves.
+ *
+ * COMMENTS ARE STRIPPED, exactly as class 1 does — code and string copy are
+ * what ship. That is also what lets the seam comment in types.ts name the old
+ * word in order to explain the divergence.
+ */
+const CLASS_4 = /badge\s+points?/i;
+
+describe("vocabulary lint, class 4: the currency is Badge Tokens, never Badge Points", () => {
+  const files = Object.keys(srcSources);
+
+  it("scans a non-trivial set of source files", () => {
+    expect(files.length).toBeGreaterThan(5);
+  });
+
+  for (const file of files) {
+    it(`${file} does not say "Badge Points"`, () => {
+      const code = stripComments(srcSources[file] as string);
+      const match = CLASS_4.exec(code);
+      expect(
+        match,
+        `"${match?.[0]}" found in ${file} — the currency is "Badge Tokens" ` +
+          "(2K's own term, adopted app-wide 2026-08-26). Identifiers and " +
+          "serialized fields keep `points` and cannot match this pattern.",
+      ).toBeNull();
+    });
+  }
+
+  it("POSITIVE CANARY: strings that SHOULD fail class 4 do fail it", () => {
+    // A lint that cannot fail on its own canary is worse than no lint
+    // [memory/lessons-learned.md 2026-05-19]. Do NOT weaken the pattern to
+    // make these pass.
+    expect(CLASS_4.test('<th scope="col">Badge Points</th>')).toBe(true);
+    expect(CLASS_4.test('label = "Bonus Badge Points earned in total"')).toBe(true);
+    expect(CLASS_4.test("copy = `Badge Points ${spent} / ${pool}`")).toBe(true);
+    expect(CLASS_4.test('noun = "Badge Point"')).toBe(true);
+    expect(CLASS_4.test('<td data-pool="Badge Points">')).toBe(true);
+    // Casing and whitespace variants are all the same violation.
+    expect(CLASS_4.test("badge points")).toBe(true);
+    expect(CLASS_4.test("BADGE POINTS")).toBe(true);
+    expect(CLASS_4.test("Badge  Points")).toBe(true);
+    expect(CLASS_4.test("Badge\n          Points")).toBe(true); // wrapped JSX text
+  });
+
+  it("THE REGRESSION CANARY: the lint fails on a REAL source file when the old word returns", () => {
+    // The canary that actually matters, and the one this codebase has three
+    // times lacked: not "does the regex match a literal" but "does the LINT
+    // MECHANISM — stripComments + exec, over genuine file contents — go red
+    // when someone reintroduces the old vocabulary?" Watched failing here so
+    // nobody has to discover it in production copy.
+    const real = srcSources["/src/ui/grid/CategoryLedger.tsx"] as string;
+    expect(real, "CategoryLedger.tsx is missing — the class-4 canary drifted").toBeDefined();
+
+    // As it ships today: clean. Comments are stripped FIRST, so what remains
+    // is exactly the code and copy that reaches a user.
+    const shipped = stripComments(real);
+    expect(CLASS_4.exec(shipped)).toBeNull();
+
+    // Reintroduce the old word exactly as a careless revert would — in the
+    // rendered ledger lede. Replacing inside the STRIPPED text guarantees the
+    // regression lands in shipped copy rather than in prose the lint ignores.
+    const regressed = shipped.replace("Badge Tokens", "Badge Points");
+    expect(regressed, "the replace found nothing — the fixture drifted").not.toBe(shipped);
+    const caught = CLASS_4.exec(regressed);
+    expect(caught, "class 4 did NOT catch a reintroduced 'Badge Points'").not.toBeNull();
+    expect(caught?.[0]).toBe("Badge Points");
+
+    // And a comment-only mention stays legal — that is what lets types.ts
+    // explain the display/storage divergence by naming the old word.
+    const commentOnly = `// the 2026-08-26 "Badge Points" -> "Badge Tokens" sweep\nconst x = 1;`;
+    expect(CLASS_4.exec(stripComments(commentOnly))).toBeNull();
+  });
+
+  it("negative canary: the new vocabulary and the surviving identifiers pass", () => {
+    expect(CLASS_4.test('<th scope="col">Badge Tokens</th>')).toBe(false);
+    expect(CLASS_4.test('copy = "Badge Tokens 12 base + 4 bonus"')).toBe(false);
+    expect(CLASS_4.test('copy = "Tokens are unchanged."')).toBe(false);
+    // THE IMPORTANT HALF: every persisted / serialized name must stay legal,
+    // because every one of them still says `points` and must keep doing so.
+    expect(CLASS_4.test("const overByBadgePoints = x;")).toBe(false);
+    expect(CLASS_4.test("bonus.earnedPoints")).toBe(false);
+    expect(CLASS_4.test("bonus.appliedPoints[category]")).toBe(false);
+    expect(CLASS_4.test("const { spent, remainingPoints } = readout;")).toBe(false);
+    expect(CLASS_4.test("budgets: Record<Category, Budget> // { equipSlots, points }")).toBe(false);
+    expect(CLASS_4.test('onEarnedCommit("points", value)')).toBe(false);
+    // Badge Slots and Synergy Slots are untouched by this rename.
+    expect(CLASS_4.test('copy = "Badge Slots 2/3"')).toBe(false);
+    expect(CLASS_4.test('copy = "Synergy Slot 5 · Permanent · +2"')).toBe(false);
+  });
+});
