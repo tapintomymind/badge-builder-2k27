@@ -5055,3 +5055,114 @@ state in a real browser will hit this.
 NEXT
 Branch pushed, NOT merged. `dev` untouched, `main` untouched.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+2026-08-25 · F13 — the phone carve-out (user ruling) · follow-up commit
+branch `f13-physique-strip` · follow-up on 4ae2521, NOT an amend — the first
+commit was already pushed, so the pre-ruling tree stays in the history as the
+evidence the ruling was made on.
+─────────────────────────────────────────────
+
+THE RULING
+Hide the physique strip below 768. Desktop keeps the always-visible strip and
+its −210px gain at 1280; the phone reverts to the collapsible panel exactly as
+it behaves today. The user's reasoning, recorded because it is the general
+principle and not a one-off: the app's whole point is planning with a phone
+next to the console, so a permanent ~200px tax on the surface they actually
+use loses to a first-load gain they see once.
+
+THE FOUR NUMBERS AT 390 — re-measured, pre-F13 tree vs this one
+  zero state (panel open)              3396.86 → 3396.86   IDENTICAL
+  latched (steady state)                656.00 →  656.00   IDENTICAL
+and, because "unchanged" should not be checked only where it was asked:
+  clamp standing (Any → C)             3384.86 → 3384.86   IDENTICAL
+  767, last width below the seam       2405.70 → 2405.70   IDENTICAL
+
+**390 IS BYTE-IDENTICAL TO PRE-F13 IN EVERY STATE MEASURED.** So is the
+collapsed digest (`6'6" · 0 pts · 0 Badge Slots`), the Physique Section's own
+collapse state and its `section-physique` key, and the landmark arrangement
+(no `aria-label="Physique"` below 768; the controls sit inside
+`aria-label="Build"`, where they were).
+
+≥768 is untouched by the ruling: 1280 zero 1386.33 (−210.37), 1280 latched
+845.19, 768 zero 2011.89 (−200.81).
+
+THE LATCH AT 390, with Physique back in the panel — driven in the browser on
+both trees, identical on every step: open at zero state · STILL OPEN after
+picking a position · collapsed after the first budget commit. It was always
+going to be: the `build.position` term F13 removed lived in the L branch only.
+The latch fix is kept at every width and is a no-op at 390 BY CONSTRUCTION —
+nothing there depends on it and nothing there was disturbed to keep it.
+
+THE COPY CONSOLIDATION IS KEPT AT BOTH WIDTHS and is structurally guaranteed,
+not promised: the sentence is authored ONCE in a shared `PhysiqueControls`
+body that both `PhysiqueStrip` and `PhysiqueSection` render. At 390: 2 range
+recitations before, 1 at rest now, 2 with a clamp standing.
+
+THE 768–1279 BAND IS NOT MOOT — it is where the strip's narrowest real layout
+lives (768: one 3-track row, 101.75px, no overflow, −200.81px). What DID
+collapse into the phone path is the stacking CSS, and it is DELETED: the
+`@media (max-width: 767px)` block and its four grid-placement resets are gone,
+because a media query for an element that is never in the DOM at that width is
+dead CSS a later reader will trust. The narrowest width the bar lays out at is
+now exactly 768 — 736px content box against a 494.75px track demand, clearing
+by 241px and still clearing with a 17px classic scrollbar. F13 assertion 6
+asserts the ABSENCE and that exactly one `.physique-strip__row` block survives.
+
+ONE THING PUT BACK BY HAND — AND MY FIRST DIAGNOSIS OF IT WAS WRONG
+HeightField's notice is a sibling of the fieldset now, so inside a <Section>
+it is a FOURTH child of `.section__body` — a flex column with a --space-3 gap.
+The notice therefore bought an extra flex gap it never used to cost: the clamp
+state at 390 came out exactly +12. I first blamed `.attr-group`'s bottom
+margin, which is ALSO 12px and ALSO sits between those two elements — fixed
+it, re-measured, and the number had not moved by a pixel, because it was never
+the cause. Three rules scoped to `.build-panel` now zero the fieldset's margin
+while the notice follows it, cancel the introduced gap, and re-declare
+--space-3 below the notice where pre-F13 it was. **Third time on this project
+a plausible diagnosis has been overturned by measurement; logging it as the
+pattern, not the incident.**
+
+GATES, re-run: tsc clean · build clean · vitest 62 files / **1214 passed**
+(1212 after the first commit, 1204 pre-slice). All RUN-never-edit files
+UNMODIFIED and green, feasibility-golden 4 with no cell moved. Casualties from
+the carve-out: THREE, all of them F13's own assertions from the first commit.
+
+CONFLICT FORECAST — CORRECTED FRAMING FIRST
+`f9-touch-floors` (c57c350) and `f8-s2-summary` (617b13e) are sealed on their
+own branches and are **NOT reachable from `dev`** — checked with
+`git merge-base --is-ancestor`; `dev` is still a5fe8e1, this branch's base. So
+every number above is measured against the correct tree and none of it is
+stale. Forecasts below are against branches that have not landed.
+
+  · f9-touch-floors — **ITS NOTE ABOUT THIS SLICE IS NOW CLOSED, not
+    dangling.** Both hazards F9 named are MOOT: the strip is not rendered
+    below 768, so no rule inside `.physique-strip` is ever evaluated at S and
+    there is no strip at 390 to grow by ~33px. F9's S floors land on the
+    Physique Section's controls instead — the same `.segmented label` and
+    `.number-field input`, in the same place, as pre-F13. **F9 may delete its
+    `.physique-strip` note.** Small residual: at ≥768 the strip keeps 29px
+    labels and 26px inputs, which is what they measure today.
+  · f8-s2-summary — **NO CONTACT.** This slice moves none of its inputs: page
+    padding, the rail, the column gap and Section chrome are all untouched,
+    and the strip is full-bleed OUTSIDE `.layout`, so it changes the y of the
+    grid and never its x. Its 885/902 two-scrollbar-regime pin is unaffected.
+  · a6-e-cap-breakers — LOW, unchanged. Textual conflict likely at the tail of
+    tests/layout-arithmetic.test.ts, where both append.
+  · a5-u-bonus-mode — MEDIUM. At ≥768 `hasBudgetValues` is the ENTIRE latch
+    predicate, so F5.4 §12's bonus-only-never-latches gap is total there;
+    below 768 the attribute term is still in it, exactly as pre-F13. a5-u must
+    add the bonus totals either way.
+  · f10-feedback-loop — still cannot forecast; not a local branch, not on the
+    remote.
+
+CARRIED FORWARD — unchanged from the first entry
+  · `src/ui/README.md:14` still says "BuildPanel (+ PhysiqueSection)". That is
+    now HALF right — `PhysiqueSection` exists again — but the file also omits
+    `PhysiqueStrip`. Still out of allowlist, still one line.
+  · design-spec §16.5 describes Physique as a setup-panel Section. After the
+    carve-out that is TRUE BELOW 768 and false at and above it. Not in
+    allowlist; not amended.
+
+NEXT
+Branch pushed, NOT merged. `dev` untouched, `main` untouched.
+─────────────────────────────────────────────

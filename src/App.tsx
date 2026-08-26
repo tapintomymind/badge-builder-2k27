@@ -547,6 +547,31 @@ export default function App() {
    * tests. tests/layout-arithmetic.test.ts asserts this source text. */
   const isLarge = !useMediaQuery("(max-width: 1279px)");
 
+  /** F13 (user ruling, 2026-08-25) — THE ONE OWNER of the M breakpoint, and
+   * the whole of the phone carve-out.
+   *
+   * The physique strip is worth its height where it lays out as ONE
+   * horizontal row and where the setup panel is not the surface the user
+   * lives in. Below 768 neither holds. Measured on this tree: the strip's
+   * three max-content tracks cannot fit a 358px content box, so at 390 it
+   * STACKS into 199.56px of permanent chrome — the same vertical block the
+   * ask was about, minus the ability to collapse it. That is a −122.19px
+   * gain the user sees ONCE at first load, against +199.56px of lead on
+   * every visit after the auto-collapse latch has fired, on the device this
+   * app is used on (planning with a phone beside the console).
+   *
+   * So below 768 Physique goes back into the setup panel, as the <Section>
+   * it was pre-F13, with the same latch and the same collapse. NOT a third
+   * arrangement: the pre-F13 behaviour, restored.
+   *
+   * SAME NEGATION DIRECTION AND SAME REASON AS isLarge ABOVE. jsdom has no
+   * matchMedia, so `!useMediaQuery("(max-width: 767px)")` yields isWide =
+   * true and every component test keeps rendering the desktop shape — the
+   * strip. `useMediaQuery("(min-width: 768px)")` would flip the whole suite
+   * to the phone shape silently. tests/layout-arithmetic.test.ts asserts
+   * this source text. */
+  const isWide = !useMediaQuery("(max-width: 767px)");
+
   /** EVERY working-state mutation flows through here (write-through ref). */
   const applyWorking = useCallback(
     (update: WorkingState | ((prev: WorkingState) => WorkingState)) => {
@@ -1212,6 +1237,21 @@ export default function App() {
     (violation) => violation.reason,
   );
 
+  /** F13 — ONE bundle, built once, handed to EXACTLY ONE of the two surfaces
+   * that can render Physique. The seam is `isWide` and it is expressed here
+   * and nowhere else (§16.10's rule, applied to the M query): at >=768 the
+   * strip gets it and BuildPanel gets `physique={null}`; below 768 it is the
+   * other way round. There is no width at which both render it, and no
+   * component below re-asks the question. */
+  const physiqueProps = {
+    build: working.build,
+    heightRange,
+    buildViolationReasons,
+    clampNotice,
+    onHeightCommit: handleHeightCommit,
+    onPositionChange: handlePositionChange,
+  };
+
   const clearAllFilters = () => {
     setFilters(defaultFilterState());
   };
@@ -1312,14 +1352,7 @@ export default function App() {
 
           OUTSIDE `.layout`, so it is genuinely full-bleed at both widths and
           is unaffected by the L media query that owns the pane. */}
-      <PhysiqueStrip
-        build={working.build}
-        heightRange={heightRange}
-        buildViolationReasons={buildViolationReasons}
-        clampNotice={clampNotice}
-        onHeightCommit={handleHeightCommit}
-        onPositionChange={handlePositionChange}
-      />
+      {isWide ? <PhysiqueStrip {...physiqueProps} /> : null}
 
       {/* F5.4 (design-spec §16) — .layout is EXACTLY TWO grid items at L: the
           attributes pane, and everything else. That is not tidiness. A sticky
@@ -1404,8 +1437,11 @@ export default function App() {
               BEFORE you shop for badges (§16.5).
 
               F13 — PHYSIQUE LEFT THIS PANEL for the full-bleed strip above
-              `.layout`. What stays is the budget grid (+ the 20 sliders at
-              M/S) and F5.3's Reset. The `<Section title="Build">` wrapper
+              `.layout` AT >=768 ONLY. Below 768 the strip is not rendered
+              and Physique comes back here as the <Section> it was pre-F13,
+              because at 390 a "horizontal strip" is not horizontal — it
+              stacks, and it cannot collapse. What stays at every width is
+              the budget grid (+ the 20 sliders at M/S) and F5.3's Reset. The `<Section title="Build">` wrapper
               STAYS even though the panel holds a single child Section at L,
               and it is not decoration: it is the surface the one-shot
               auto-collapse latch closes, and closing it turns a 595px block
@@ -1426,6 +1462,7 @@ export default function App() {
               budgets={baseBudgets}
               compact={!isLarge}
               withAttributes={!isLarge}
+              physique={isWide ? null : physiqueProps}
               onAttributeCommit={handleAttributeCommit}
               onResetRequest={() => {
                 setResetOpen(true);

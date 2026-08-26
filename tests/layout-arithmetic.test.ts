@@ -1617,8 +1617,15 @@ const STRIP_H_390 = 199.56;
  *  what a first load renders and what the reported defect was a picture of). */
 const LEAD_BEFORE_1280 = 1596.7;
 const LEAD_AFTER_1280 = 1386.33;
-const LEAD_BEFORE_390 = 3396.86;
-const LEAD_AFTER_390 = 3274.67;
+
+/** THE PHONE CARVE-OUT (user ruling). Below 768 the strip is not rendered and
+ *  Physique is the <Section> it was pre-F13, so 390 is UNCHANGED — in every
+ *  state, not just the two headline ones. All four re-measured after the
+ *  carve-out, pre-F13 tree vs this one, same session, same driver. */
+const LEAD_390_REST = 3396.86; // zero state, panel open
+const LEAD_390_CLAMP = 3384.86; // a clamp standing (Any -> C)
+const LEAD_390_LATCHED = 656; // the steady state, panel collapsed
+const LEAD_767 = 2405.7; // the last width below the seam
 
 describe("F13 — Physique as a full-bleed strip, not a block in the setup panel", () => {
   it("1 — the strip is a SIBLING of the banner region, after it, and outside .layout", () => {
@@ -1631,6 +1638,16 @@ describe("F13 — Physique as a full-bleed strip, not a block in the setup panel
     expect(strip).toBeGreaterThan(banners); // AFTER the banners …
     expect(strip).toBeLessThan(layout); // … and before the layout grid.
     expect(strip).toBeLessThan(grid); // §4.5's skip target still clears it.
+
+    // F13 CARVE-OUT: the strip is GATED on the M query, and App owns that
+    // query with the SAME negation direction as the L one — jsdom has no
+    // matchMedia, so both must default to the desktop shape or a large,
+    // hard-to-attribute set of component tests silently flips to mobile.
+    expect(appTsx).toContain('const isWide = !useMediaQuery("(max-width: 767px)")');
+    expect(appTsx).toContain("{isWide ? <PhysiqueStrip");
+    // MUTUALLY EXCLUSIVE, expressed once: the panel gets the bundle exactly
+    // when the strip does not.
+    expect(appTsx).toContain("physique={isWide ? null : physiqueProps}");
 
     // NOT NESTED IN THE BANNER. The banner renders only on a dataVersion
     // mismatch or a deserializer strip/heal report; the strip is
@@ -1725,11 +1742,29 @@ describe("F13 — Physique as a full-bleed strip, not a block in the setup panel
 
     // The digest stopped reciting height and position, because the strip
     // renders both permanently and a collapsed panel is not hiding them.
+    //
+    // F13 CARVE-OUT: below 768 Physique is back inside this panel, so the
+    // panel's own children are width-dependent again — but through the ONE
+    // seam prop, never a query asked here.
+    expect(body).toContain("physique !== null ? <PhysiqueSection");
+    // …and it still asks NO media query of its own (§16.10's one-owner rule).
+    // Matched on the CALL, not the word: the F5.4 docblock says "no longer
+    // calls useMediaQuery at all" in prose, and a bare substring check would
+    // fail on the very comment that documents the rule.
+    expect(buildPanel).not.toContain("useMediaQuery(");
+
+    // THE DIGEST FOLLOWS THE SURFACE. It exists to say what a COLLAPSED
+    // panel is hiding: at >=768 that is the budget totals only, because the
+    // strip shows height and position permanently; below 768 the panel
+    // hides Physique too, so the pre-F13 digest comes back with it. Both
+    // halves are guarded — an unconditional digest in either direction is
+    // the defect.
     const digest = body.slice(body.indexOf("const digest"), body.indexOf("return (", body.indexOf("const digest")));
     expect(digest).toContain("pts");
     expect(digest).toContain("Badge Slots");
-    expect(digest).not.toContain("formatHeightInches");
-    expect(digest).not.toContain("build.position");
+    expect(digest).toContain("physique !== null");
+    expect(digest).toContain("formatHeightInches");
+    expect(digest).toContain("build.position");
   });
 
   it("5 — keys, landmarks and the two-sticky-layer cap all survive", () => {
@@ -1740,14 +1775,19 @@ describe("F13 — Physique as a full-bleed strip, not a block in the setup panel
     expect(buildPanel).toContain('"section-build-panel"');
     expect(buildPanel).toContain('storageKey="section-budget"');
     expect(appTsx).toContain('storageKey="section-ledger-overview"');
-    // `section-physique` retired WITH its <Section>. A key left behind would
-    // read as a live preference for a collapse control that no longer exists.
-    expect(buildPanel).not.toContain("section-physique");
+    // `section-physique` SURVIVES, and after the F13 carve-out that is the
+    // correct answer rather than a leftover: the <Section> it keys still
+    // renders below 768. A phone user's collapsed-Physique preference is
+    // still honoured, exactly as it was pre-F13.
+    expect(buildPanel).toContain('storageKey="section-physique"');
 
     // Both landmarks the slice had to keep, plus the strip's own name.
     expect(appTsx).toContain('aria-label="Build"');
     expect(appTsx).toContain('aria-label="Ledger overview"');
     expect(appTsx).toContain('aria-label="Attributes"');
+    // The strip's landmark exists at >=768. Below 768 there is no strip and
+    // Physique is inside `aria-label="Build"`, which is where it was
+    // pre-F13 — so no width leaves those two controls outside a landmark.
     expect(buildPanel).toContain('aria-label="Physique"');
 
     // I5: the strip is in normal flow above <main>, so it scrolls away. A
@@ -1757,42 +1797,104 @@ describe("F13 — Physique as a full-bleed strip, not a block in the setup panel
     }
   });
 
-  it("6 — below 768 the strip STACKS, because max-content tracks do not wrap", () => {
-    const stacked = /@media \(max-width: 767px\) \{\s*\.physique-strip__row \{\s*grid-template-columns: minmax\(0, 1fr\);/;
-    expect(stripComments(app)).toMatch(stacked);
+  it("6 — below 768 the strip is NOT RENDERED, and its stacking CSS is GONE", () => {
+    // THE ARITHMETIC BEHIND THE CARVE-OUT. Grid tracks sized to
+    // `max-content` do not wrap — they overflow. Measured, the two controls
+    // demand this much before the prose column gets a pixel:
+    const positionTrack = 256.73; // identical at 390 and 1280
+    const heightTrack = 214.02; // ft + in + the `= NN in` echo
+    const demand = positionTrack + SPACE_6 + heightTrack;
+    expect(demand).toBeCloseTo(494.75, 2);
 
-    // THE ARITHMETIC THE MEDIA QUERY IS FOR. Grid tracks sized to
-    // `max-content` do not wrap — they overflow. At 390 the content box is
-    // 358px and the two controls alone demand more than that before the
-    // prose column gets a pixel, so without this query the strip would push
-    // a horizontal scrollbar onto the whole document.
+    // At 390 that does not fit, so the bar is not a bar — it stacks, which
+    // is the same vertical block the slice set out to remove, minus the
+    // ability to collapse it. The user ruled: don't render it there.
     const contentBox390 = 390 - 2 * SPACE_4;
     expect(contentBox390).toBe(358);
-    const positionTrack = 256.73; // measured, identical at 390 and 1280
-    const heightTrack = 214.02; // measured: ft + in + the `= NN in` echo
-    expect(positionTrack + SPACE_6 + heightTrack).toBeGreaterThan(contentBox390);
+    expect(demand).toBeGreaterThan(contentBox390);
+
+    // At 768 — the narrowest width the strip ever lays out at — it clears by
+    // 241px, and still clears with a 17px classic scrollbar.
+    const contentBox768 = 768 - 2 * SPACE_4;
+    expect(contentBox768).toBe(736);
+    expect(contentBox768 - demand).toBeGreaterThan(SPACE_6 * 10);
+    expect(contentBox768 - 17 - demand).toBeGreaterThan(0);
+
+    // AND THE STACKING RULES ARE DELETED, not left behind reading as live.
+    // A media query for a surface that never renders at that width is dead
+    // CSS that a later reader will trust.
+    expect(stripComments(app)).not.toMatch(/@media \(max-width: 767px\)\s*\{\s*\.physique-strip/);
+    expect(stripComments(app)).not.toMatch(/\.physique-strip[^{]*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+    // Exactly ONE .physique-strip__row block survives — the base one. Two
+    // would mean a width-scoped variant came back.
+    expect(blocksFor(app, ".physique-strip__row")).toHaveLength(1);
   });
 
-  it("7 — the before/after lead, and the state it is measured in", () => {
-    // Physique's block cost, and the strip that replaced it.
+  it("7 — the lead at >=768: what the strip bought, and what it costs", () => {
+    // Physique's block cost at 1280, and the strip that replaced it.
     expect(PHYSIQUE_BLOCK_1280 - STRIP_H_1280).toBeCloseTo(210.37, 2);
-    expect(PHYSIQUE_BLOCK_390 - STRIP_H_390).toBeCloseTo(122.19, 2);
 
     // …and that difference IS the whole of the change in lead, to the pixel.
     // Nothing else in the document moved: the strip is additive above
     // `.layout` and the panel shrank by exactly the block it lost.
     expect(LEAD_BEFORE_1280 - LEAD_AFTER_1280).toBeCloseTo(PHYSIQUE_BLOCK_1280 - STRIP_H_1280, 2);
-    expect(LEAD_BEFORE_390 - LEAD_AFTER_390).toBeCloseTo(PHYSIQUE_BLOCK_390 - STRIP_H_390, 2);
 
-    // CANARY — THE COST, RECORDED RATHER THAN OMITTED. Once the one-shot
-    // latch has fired, the pre-F13 panel collapsed to a 53px digest and took
-    // Physique down with it, out of sight. The strip does not collapse, so
-    // in the LATCHED state it is pure additive lead: measured 753 → 845.19
-    // at 1280 and 656 → 855.56 at 390, exactly the strip's own height each
-    // time. That is what permanent access to the two controls costs, and at
-    // 390 it puts the first card below an 844px fold it was previously just
-    // above. Priced here so the trade is a decision and not a surprise.
+    // THE COST, RECORDED RATHER THAN OMITTED. Once the one-shot latch has
+    // fired, the pre-F13 panel collapsed to a 53px digest and took Physique
+    // down with it, out of sight. The strip does not collapse, so in the
+    // LATCHED state it is pure additive lead — measured 753 -> 845.19 at
+    // 1280, exactly the strip's own height. That is what permanent access to
+    // the two controls costs at a width where the bar is one row.
     expect(845.19 - 753).toBeCloseTo(STRIP_H_1280, 2);
-    expect(855.56 - 656).toBeCloseTo(STRIP_H_390, 2);
+  });
+
+  it("8 — the phone carve-out: 390 is UNCHANGED, in every state", () => {
+    // WHY THE CARVE-OUT EXISTS, as the arithmetic the user ruled on. At 390
+    // the strip stacked to 199.56px and could not collapse, so the latched
+    // lead went 656 -> 855.56 — +199.56px on EVERY visit, against a -122.19
+    // zero-state gain seen once, on the device this app is used on.
+    expect(PHYSIQUE_BLOCK_390 - STRIP_H_390).toBeCloseTo(122.19, 2);
+    expect(855.56 - LEAD_390_LATCHED).toBeCloseTo(STRIP_H_390, 2);
+    expect(STRIP_H_390).toBeGreaterThan(PHYSIQUE_BLOCK_390 - STRIP_H_390);
+
+    // AND THE RESULT: with the strip not rendered below 768, all four
+    // measured 390 states are byte-identical to the pre-F13 tree. Pinned as
+    // exact equalities, because "unchanged" is the whole claim.
+    expect(LEAD_390_REST).toBe(3396.86);
+    expect(LEAD_390_CLAMP).toBe(3384.86);
+    expect(LEAD_390_LATCHED).toBe(656);
+    expect(LEAD_767).toBe(2405.7);
+
+    // THE ONE THING THAT HAD TO BE PUT BACK BY HAND, and it is not the one
+    // it looked like. HeightField's notice is a SIBLING of the fieldset now,
+    // so inside a <Section> it is a FOURTH child of `.section__body` — which
+    // is a flex column with a --space-3 gap. The notice therefore bought an
+    // extra gap it never used to cost, and the clamp state measured +12.
+    // (`.attr-group`'s bottom margin is also 12px and sits between the same
+    // two elements; it was the first suspect and it was not the cause.)
+    expect(spaceIn(app, ".section__body", "gap", 0)).toBe(SPACE_3);
+    const zeroed = cssBlock(app, ".build-panel .height-field:has(+ .height-field__notice)");
+    expect(zeroed).toContain("margin-bottom: 0");
+    const notice = cssBlock(app, ".build-panel .height-field__notice");
+    expect(notice).toContain("margin-top: calc(-1 * var(--space-3))"); // cancels the gap
+    expect(notice).toContain("margin-bottom: var(--space-3)"); // …below it, where it was
+    // Scoped to the panel: the strip lays the notice out as a grid row and
+    // never had a flex gap to cancel.
+    expect(stripComments(app)).not.toMatch(/\.physique-strip[^{]*__notice[^{]*\{[^}]*margin-top/);
+  });
+
+  it("9 — the copy consolidation and the latch fix hold at BOTH widths", () => {
+    // These two are NOT part of the carve-out. The strip reverts below 768;
+    // the copy and the latch do not, because neither depends on the
+    // arrangement. One shared body is what makes that structural rather
+    // than a promise: `PhysiqueControls` is authored once and both
+    // `PhysiqueStrip` and `PhysiqueSection` render it.
+    const buildPanel = srcSources["/src/ui/build/BuildPanel.tsx"] as string;
+    expect(buildPanel).toContain("function PhysiqueControls(");
+    expect(buildPanel.match(/<PhysiqueControls \{\.\.\.props\} \/>/g)).toHaveLength(2);
+    // The dropped recitation is dropped once, in the shared body, so it
+    // cannot come back at one width only.
+    expect(buildPanel.match(/Sets the available height range\./g)).toHaveLength(1);
+    expect(buildPanel).not.toContain("Sets the available height range (");
   });
 });

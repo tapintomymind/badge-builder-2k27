@@ -1470,6 +1470,40 @@ ul {
   margin-bottom: var(--space-1);
 }
 
+/* F13 CARVE-OUT — restoring the PRE-F13 BOX INSIDE THE SETUP PANEL, to the
+ * pixel, and the reason is not the one it first looks like.
+ *
+ * HeightField's notice is a SIBLING of the fieldset now rather than its last
+ * child (the strip needs that; see HeightField.tsx). Below 768, where
+ * Physique is a <Section> again, that makes it a FOURTH CHILD of
+ * `.section__body` — which is `display: flex; flex-direction: column; gap:
+ * var(--space-3)`. So the notice's arrival buys an extra FLEX GAP it never
+ * used to cost, and the measured clamp state at 390 came out exactly 12px
+ * taller than the tree this slice is supposed to leave untouched there.
+ *
+ * The first fix attempted here was `.attr-group`'s bottom margin, which is
+ * also 12px and also sits between the two — and it changed nothing, because
+ * it was never the cause. Measured, not assumed, the second time:
+ *
+ *   pre-F13   fieldset 131.56 (notice inside) + 12 margin        = 143.56
+ *   naive     fieldset  93.19 + 12 GAP + notice 38.38 + 12       = 155.57
+ *   here      fieldset  93.19 + 12 gap - 12 + notice 38.38 + 12  = 143.57
+ *
+ * So: zero the fieldset's own margin while the notice follows it, cancel the
+ * flex gap the fourth child introduced, and re-declare that --space-3 BELOW
+ * the notice, where pre-F13 it was. The `:has(+ …)` form is already this
+ * stylesheet's idiom (`.segmented label:has(input:checked)`), and every rule
+ * is scoped to `.build-panel`, so the strip — which lays the notice out as a
+ * grid row and never had a flex gap — is untouched. */
+.build-panel .height-field:has(+ .height-field__notice) {
+  margin-bottom: 0;
+}
+
+.build-panel .height-field__notice {
+  margin-top: calc(-1 * var(--space-3));
+  margin-bottom: var(--space-3);
+}
+
 /* MEASURED, not stylistic. `.number-field` stacks its label over its input —
  * correct for the AttributeGrid and the 12-field budget table, and 23.2px of
  * pure vertical cost in a bar whose entire job is to be one row. Turned on
@@ -1489,30 +1523,36 @@ ul {
 
 /* The engine's validateBuild() disclosure, when a restored build sits outside
  * its position's range. Rare, and it gets its own line under the bar rather
- * than a column in it. */
-.physique-strip > .banner {
-  margin-top: var(--space-2);
+ * than a column in it.
+ *
+ * `grid-row` is deliberately AUTO while the column span is definite. Grid
+ * auto-placement then puts it in the first row its full-width span fits —
+ * row 2 when no clamp notice is standing, row 3 when one is. Pinning it to
+ * row 3 would leave an empty row 2 whose row-gap still counts, so the banner
+ * would float 8px low in the common case. */
+.physique-strip__row > .banner {
+  grid-column: 1 / -1;
 }
 
-/* S (<768): one column. The three-track row needs 256.73 (Position) +
- * 24 + ~180 (Height) + 24 = 485px before the Hint gets a pixel, against a
- * 366px content box at 390 — the tracks would overflow the viewport rather
- * than wrap, because `max-content` columns do not wrap. Stacked, every item
- * spans the single track and the row assignments are released. */
-@media (max-width: 767px) {
-  .physique-strip__row {
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-  }
-
-  .physique-strip .segmented,
-  .physique-strip .height-field,
-  .physique-strip__row > .hint:not(.height-field__notice),
-  .physique-strip .height-field__notice {
-    grid-column: 1;
-    grid-row: auto;
-  }
-}
+/* NO `@media (max-width: 767px)` BLOCK HERE, AND THE ABSENCE IS THE RULING.
+ *
+ * F13 first shipped one: below 768 the three max-content tracks cannot fit
+ * (256.73 Position + 24 + 214.02 Height = 494.75 against a 358px content box
+ * at 390, and max-content tracks OVERFLOW rather than wrap), so the row
+ * stacked into a single column. It worked, and it was the wrong answer —
+ * stacked, the strip is the same vertical block the ask was about, minus the
+ * ability to collapse it, and it cost the phone 199.56px of lead on every
+ * visit after the auto-collapse latch fires.
+ *
+ * The user ruled: below 768 the strip is NOT RENDERED AT ALL and Physique
+ * goes back into the setup panel (App owns that seam via `isWide`). So the
+ * stacking rules had no surface left to apply to and were deleted rather
+ * than left behind reading as live.
+ *
+ * The narrowest width this bar ever lays out at is therefore 768 — a 736px
+ * content box against the same 494.75px demand, which clears it by 241px and
+ * still clears it with a 17px classic scrollbar. Re-derived in
+ * tests/layout-arithmetic.test.ts (F13 assertion 6). */
 
 /* --------------------------------------------- preview strip (§3.2 M4) -- */
 
