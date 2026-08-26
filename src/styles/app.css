@@ -997,22 +997,37 @@ main#badge-grid {
  *     1 x 2px  gap before the Legend mark  2
  *     1 x 16px Legend mark                16   role="img", NOT a target
  *     1 x 4px  cost gutter (--space-1)     4
- *     COST_MAX `from 3`                   36   measured, take-the-larger
+ *     COST_MAX `from 3`                   37   measured 38.08, take-the-larger
  *                                        ---
- *     ROW2_MIN                            160
+ *     ROW2_MIN                            161
  *   CHROME
  *     3px synergy/left edge + 1px right border      4
  *     2 x --space-2 inline padding                 16
  *                                                 ---
- *     FLOOR = 160 + 20 =                          180
+ *     FLOOR = 161 + 20 =                          181
  *
- * At 180 the catalog is 3-up at 1280 (556 <= 559 at the 17px scrollbar) AND
- * 3-up at 1440 — 4-up there would need a floor <= 178, so the 20px the floor
- * sits above ROW2_MIN is what holds the mockup's ratified density. Both are
- * re-derived in tests/layout-arithmetic.test.ts (I3, I12+I13). */
+ * 180 -> 181 BY THE COST READOUT (user ask, 2026-08-26: make the cost more
+ * apparent). The number went --text-xs -> --text-sm/700, which moved the
+ * widest arm `from 3` from 36.88 to 38.08.
+ *
+ * 181 IS THE CEILING, MEASURED, NOT ESTIMATED. The catalog's grid box at
+ * 1280 is 576, so with a 17px scrollbar it is 559: three 181px tracks plus
+ * two 8px gaps is 559 EXACTLY, and 182 drops to 2-up on every classic
+ * scrollbar. There is no slack left in this floor — which is safe only
+ * because tests/layout-arithmetic.test.ts DERIVES it from these terms and
+ * asserts the resolved track count at 0/15/17px scrollbars, so the next
+ * pixel added to row 2 reddens the suite instead of silently costing the
+ * catalog its third column. 3-up at 1440 is unaffected (4-up would need a
+ * floor <= 178). Do not add to row 2 without re-running that derivation.
+ *
+ * FAILURE MODE, NAMED: `from` is the one term in --font-ui rather than
+ * --font-num, so its advance varies with the platform's UI face. Where it
+ * renders wider than measured here the row WRAPS (the wrap grant is
+ * declared, not incidental) and that card gets taller — the 3-up layout
+ * itself cannot break, because the floor is a fixed CSS number. */
 @media (min-width: 768px) {
   .grid-section__cards {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(181px, 1fr));
   }
 }
 
@@ -3530,11 +3545,40 @@ main#badge-grid {
  * mockup's `.bc-cost` is. `margin-inline-start: auto` and not
  * `justify-content: space-between`, so a wrapped role chip does not get
  * flung to the opposite edge of its own line. */
+/* THE PRICE, and it is the one number on the compact tile (user ask,
+ * 2026-08-26: "make the badge cost more apparent within each card").
+ *
+ * THE APPARENCY IS BOUGHT WITH HIERARCHY, NOT WIDTH, and that is forced
+ * rather than chosen: `COST_MAX` is a term of the card floor, the floor is
+ * 180, and 3-up at 1280 clears by ~3px. Anything that widens `from 3` past
+ * its 38px ceiling costs the catalog its third column — the exact regression
+ * R12 slice 2 was written to undo. So the WORD recedes to --fg-muted at
+ * --text-xs and the NUMBER steps up to --text-sm/700 in --fg-primary. The
+ * number is always ONE character (the `from` arm reads the cheapest
+ * reachable level, which tops out at 3; the purchased arm is a single digit
+ * because total-to-own costs are 1–7), so the size bump buys contrast for
+ * about a pixel. Re-measured after the change and re-pinned in
+ * tests/layout-arithmetic.test.ts.
+ *
+ * NOT COLOUR-CODED, and the temptation is worth naming: gold would read as
+ * "currency" instantly and is exactly wrong here — `--lvl-gold` is the Gold
+ * LEVEL colour, and a gold numeral sitting beside the B/S/G/H/L pips would
+ * collide with the very channel those pips own (§2.8.1). Weight and size
+ * carry no such meaning, so they are free to carry emphasis. */
 .badge-card__cost {
   margin-inline-start: auto;
   font-size: var(--text-xs);
-  color: var(--fg-secondary);
+  color: var(--fg-muted);
   white-space: nowrap;
+}
+
+.badge-card__cost .num {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--fg-primary);
+  /* Keeps the taller glyph from setting a line box the 24px pip row does not
+   * need; the row's align-items does the vertical placement. */
+  line-height: 1;
 }
 
 /* THE EXPAND CONTROL. 24px square at M/L — SC 2.5.8 AA, the same floor the

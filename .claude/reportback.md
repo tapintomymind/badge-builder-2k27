@@ -10849,3 +10849,43 @@ the totals cells.
 Slot's empty Fuse → eligible purchased badges glow in the catalog → click to assign). It is the
 delight feature of the approved mockup and nothing breaks without it; it was cut to get the
 redesign in front of users. First candidate for the next slice.
+
+## 2026-08-26 · Tier 2 · fyi — the badge cost readout, made apparent (card floor 180 → 181)
+
+**Event:** `fyi`
+**Provenance:** user ask 2026-08-26 — "Can we make the badge cost more apparent within each card?"
+
+**What changed.** The compact tile's cost was `--text-xs` at weight 400 in `--fg-secondary` — the
+same weight and nearly the same colour as everything around it, and the least prominent thing on a
+card whose entire subject is spending Badge Tokens. It is now a HIERARCHY rather than a size jump:
+the word `from` recedes to `--fg-muted`, and the number steps to `--text-sm` / 700 / `--fg-primary`
+with `line-height: 1` so the taller glyph sets no taller row (card height stays 73px).
+
+**Why not bigger.** Measured, not assumed. `COST_MAX` is a term of the card floor, and the catalog's
+grid box at 1280 is 576 — so 559 with a 17px scrollbar, which is EXACTLY three 181px tracks plus two
+8px gaps. At `--text-base` the widest arm `from 3` measures 39.28, forcing a 182 floor, and **182
+drops the catalog to 2-up on every classic scrollbar** — the precise regression slice 2 existed to
+undo. `--text-sm` measures 38.08 and fits. Weight was free: `--font-num` is monospace, so a bold
+digit has the same advance.
+
+**What it cost, stated plainly.** `COST_MAX` 38 → 39, `ROW2_MIN` 160 → 161, the floor 180 → 181, and
+with it the 3px of slack that assertion used to report. **181 is now the ceiling and there is no
+margin left in row 2.** That is safe only because the suite DERIVES the floor from its terms and
+asserts the resolved track count at 0/15/17px scrollbars — seven pinned literals moved in step, and
+a new canary asserts that floor + 1 really does fall to 2-up. The 3-up seam moved 1277 → 1280, i.e.
+exactly the workbench gate; the property that matters (the workbench cannot be entered at a width
+that cannot hold three cards) still holds, now with equality.
+
+**Failure mode, named:** `from` is the one term in `--font-ui` rather than `--font-num`, so its
+advance varies with the platform UI face. Where it renders wider than measured here the row wraps
+(the wrap grant is declared, not incidental) and that card gets taller — the 3-up layout itself
+cannot break, because the floor is a fixed CSS number.
+
+**Not done, and why:** no colour channel. Gold would read as "currency" instantly and is exactly
+wrong — `--lvl-gold` is the Gold LEVEL colour and a gold numeral beside the B/S/G/H/L pips would
+collide with the channel those pips own (§2.8.1). The visible unit stays sr-only for the same width
+reason as above. Both remain available if the user wants more prominence and will accept a copy
+change (e.g. `3+` for `from 3`, which frees ~21px and would allow a much larger numeral).
+
+Gates: tsc clean · 80 files / 1,781 tests green · vite build clean · 3-up re-verified in Chrome at
+1280 across all three simulated scrollbar widths.
