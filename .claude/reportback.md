@@ -4334,3 +4334,127 @@ Nothing blocking. dev is at 0edc86c, pushed. main untouched at 444d034.
 F8-S2 is next per A5-R8 and must read the CARRIED FORWARD note above before it
 authors a single §14.5 golden.
 ─────────────────────────────────────────────
+
+INTEGRATION — main → dev backmerge (Vercel hosting), 2026-08-25
+─────────────────────────────────────────────
+
+WHAT LANDED
+The two commits the operator put on main while this session was paused, brought
+onto dev. main was 290c73d "feat: prep app for Vercel hosting" merged as
+e6b3ae4 (PR #3) over the original scaffold 444d034; dev was 58 commits ahead on
+everything else. dev is now ac61296 and CONTAINS main in full.
+
+Nothing in src/ or tests/ moved. The whole surface is seven root files.
+
+INTEGRATION MECHANISM — a merge commit, and the first one on dev
+Every prior integration in this file rebased onto a throwaway and fast-forwarded
+dev, keeping merge-commit count at 0. This one does not, deliberately and with
+the operator's explicit sanction. A rebase of dev onto main would rewrite 58
+ALREADY-PUSHED commits — destructive, and it would invalidate every live
+worktree in /tmp. Cherry-picking main's two commits was the other option and was
+rejected for a subtler reason: it would leave e6b3ae4 outside dev's ancestry, so
+the next dev → main promotion would replay these same conflicts against a main
+that already has the content. The merge records the ancestry once.
+
+Merge-commit count: 0 before, 1 after. Linear history resumes from here.
+main is UNTOUCHED at e6b3ae4 and was not pushed to.
+
+THE SEVEN FILES — resolved against merge-base 444d034, diff read before rule applied
+  vercel.json          main-only. Taken wholesale. Vite preset, SPA-fallback
+                       rewrite, immutable /assets caching, three security
+                       headers. Auto-added by the merge, no decision needed.
+  public/favicon.svg   main-only. Taken wholesale. 228 bytes, inline SVG, no
+                       network reference — consistent with the zero-network
+                       runtime rule.
+  .gitignore           NOT a conflict. dev never diverged from base here, so
+                       git took main's side and the union is automatic: base
+                       plus main's `.vercel/` block. Verified by diffing dev
+                       against base for this path — empty.
+  package.json         Auto-merged clean, and the one to check hardest.
+                       RUNTIME `dependencies` REMAIN EXACTLY {react, react-dom}.
+                       main's PR added NO runtime dependency, so the stop-and-
+                       report condition did not fire. Absorbed from main: the
+                       `description` rewrite (it now says "deploys to Vercel",
+                       which is true, where dev's said "no deploy", which is
+                       not) and `engines: { node: "22.x" }`. Survived from dev:
+                       the `generate:badges` script and BOTH devDependencies
+                       added since main branched (jsdom ^30.0.1,
+                       @testing-library/react ^16.3.2). Enforced independently
+                       by tests/architecture.test.ts group (b), which imports
+                       package.json and asserts the dependency set is a subset
+                       of {react, react-dom}; it passes.
+  package-lock.json    Auto-merged clean. The root "" entry now carries the
+                       engines block above dev's devDep set. NOT regenerated —
+                       no `npm install` was run, so no resolved version moved
+                       and no transitive tree churned. main's only other
+                       lockfile change was the removal of `libc` arrays from
+                       some optional platform packages, a pure npm-version
+                       artifact with no semantic content.
+  index.html           CONFLICT. Took both sides. The two edits were adjacent
+                       rather than overlapping — dev rewrote the <title> line,
+                       main appended six lines directly beneath it — which is
+                       exactly the shape git refuses to guess at. Resolution:
+                       dev's <title>Badge Builder — 2K27</title> (the em-dash
+                       form the app has used since M3) plus main's full block:
+                       meta description, og:title, og:description, og:type,
+                       theme-color #1a1a2e, and the /favicon.svg icon link.
+                       The viewport meta and the /src/main.tsx module entry are
+                       byte-identical on both sides and on base, so nothing was
+                       at stake there despite the brief flagging them.
+                       ONE THING LEFT AS AUTHORED, ON PURPOSE: main's og:title
+                       reads "Badge Builder 2K27" without the em-dash, so it now
+                       differs from the <title>. That tag is main's content, not
+                       dev's, and harmonising it would be an edit neither branch
+                       asked for. Flagged for the documentation slice rather
+                       than silently changed.
+  README.md            CONFLICT. Took MAIN's wholesale, per instruction. dev's
+                       was still the M1-era scaffold stub asserting "local-only,
+                       no deploy" — now false. main's is 106 lines longer and
+                       carries the hosting posture.
+                       FOR THE QUEUED DOCUMENTATION SLICE: main introduced
+                       content that MUST survive the full-README rewrite —
+                       §"Posture: static and client-side, no backend"; the whole
+                       §"Deploying (Vercel)" section (vercel.json's role, the
+                       import-the-repo steps, the custom-domain + DNS steps, and
+                       the line that `npm run build` runs `tsc --noEmit` first
+                       so a type error fails the deploy); and inside §"Known
+                       constraints" the localStorage-is-keyed-to-origin warning
+                       — that changing the custom domain later ORPHANS every
+                       saved build, alongside the existing strictPort:5173
+                       rationale. Also note main's README still carries a
+                       "Status: skeleton" blockquote that is 58 commits stale.
+
+GATES
+  npm test        62 files / 1187 passed — dev's exact pre-merge baseline.
+                  The backmerge adds and removes zero tests.
+  npm run typecheck   clean.
+  npm run build       clean. Run because it is the only gate that catches a
+                  malformed CSS comment, and because it is now also the deploy
+                  gate. dist/ = index.html 983 B + favicon.svg + hashed
+                  assets, confirming Vite picks up the new public/ directory
+                  and that the meta block survives the transform.
+  The three RUN-never-edit files re-run explicitly:
+                  tests/ui/overlays.test.tsx, tests/category-colors.test.ts,
+                  tests/feasibility-golden.test.ts — 3 files / 23 passed.
+                  Not edited. No cell of the 504-cell golden moved.
+
+KNOWN, AND DELIBERATELY NOT "FIXED"
+The load-dependent vitest flake class. vite.config.ts is untouched by this
+merge — main never modified it, so it never entered the conflict set. No
+{ timeout: 20000 } was lowered. No flake was observed on any run here.
+
+SCOPE / PLAN IMPACT
+One posture fact changed and it is not cosmetic: the project is no longer
+local-only. It is hosted, on a public origin, and the seed's "single user,
+single machine" framing is superseded for anything that reasons about who can
+reach the app. What did NOT change: no backend, no accounts, no network egress
+at runtime, no secrets, persistence still localStorage in each visitor's own
+browser. The zero-network rule and the {react, react-dom} runtime allowlist are
+untouched and still mechanised by tests/architecture.test.ts.
+
+Deployment consequence worth stating once: every push to main now deploys to
+production. dev → main promotion is a release action from here on, not just a
+bookkeeping merge.
+
+NEXT
+F5.4 (f5-4-attribute-pane, tip 6d21927) integrates on top of this.
