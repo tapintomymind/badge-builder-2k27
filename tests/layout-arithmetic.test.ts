@@ -1421,7 +1421,14 @@ describe("F5.3/B — collapsible categories, checked structurally", () => {
     // block is how this pin would silently stop checking anything.
     const sticky = cssBlock(app, ".category-ledger");
     expect(sticky).toContain("position: sticky");
-    expect(sticky).toContain("top: 44px");
+    // F14 HOISTED THE OFFSET. It used to be a hard-coded 44 here, matched by a
+    // second 44 living in prose in the jump nav's comment; the shell added a
+    // third and a fourth consumer (scroll-margin-top on .grid-section,
+    // scroll-padding-top on .col-right) so the number now has exactly ONE home.
+    // Assertion 28 proves that home carries the nav's actual composed height,
+    // which is what lets this pin check the wiring alone.
+    expect(sticky).toContain("top: var(--sticky-jumpnav-h)");
+    expect(sticky).not.toMatch(/top:\s*\d/);
     // The wrapper declares nothing that creates a containing block or a clip.
     // Every one of these would make the <details> the sticky element's
     // containing block and the header would die with this file still green —
@@ -2039,6 +2046,21 @@ const STICKY_LAYER_1_MAX = 48; // jump nav — "44px chips + 2px padding each si
 const STICKY_LAYER_2_MAX = 88; // the per-category digest
 const STICKY_TOTAL_MAX = 136; // two layers, at every breakpoint
 
+/* ------------------------------------- F14: the sticky stack, PARSED ------ */
+
+/** F14 hoisted the two sticky heights into `:root` so ONE number owns each.
+ *  PARSED, never restated — assertion 28 proves layer 1 equals the nav's own
+ *  composition, F14's own block proves layer 2 clears §5.3's cap and that the
+ *  pair is what `.col-right`'s scroll-padding-top reserves.
+ *
+ *  THESE ARE THE L/M PAIR (44 + 76 = 120). The S pair is 48 + 59 = 107 and the
+ *  two must not be swapped: 107 is what the shell's own design document
+ *  carried for L, and using it would under-reserve the tab-into-a-card fix by
+ *  13px and put MIN_SHELL_H 32px low. */
+const JUMPNAV_H = px(app, /--sticky-jumpnav-h:\s*(\d+)px/);
+const DIGEST_H = px(app, /--sticky-digest-h:\s*(\d+)px/);
+const STICKY_STACK_H = JUMPNAV_H + DIGEST_H;
+
 /** Every control class F9 raises, with the class of surface it belongs to.
  *  This census is the test's contract: assertion 27 proves it is neither short
  *  (a rule in the stylesheet with no census entry) nor long (a census entry
@@ -2204,8 +2226,14 @@ describe("I6 — the S touch floor, parsed from one token and re-derived per con
     const navPadBase = spaceToken(
       (/padding:\s*var\(--([a-z0-9-]+)\)\s+0/.exec(navBase) as RegExpExecArray)[1] as string,
     );
-    expect(2 * navPadBase + px(app, /\.btn--sm \{[^}]*height:\s*(\d+)px/)).toBe(44);
-    expect(cssBlock(app, ".category-ledger")).toContain("top: 44px");
+    const navComposedML = 2 * navPadBase + px(app, /\.btn--sm \{[^}]*height:\s*(\d+)px/);
+    expect(navComposedML).toBe(44);
+    // …AND F14's hoisted token IS that composition, not a number that happens
+    // to agree with it today. This is the assertion that gives the token teeth:
+    // resize the chip and --sticky-jumpnav-h has to move with it, or the digest
+    // slides under the nav and .col-right's scroll-padding-top under-reserves.
+    expect(JUMPNAV_H).toBe(navComposedML);
+    expect(cssBlock(app, ".category-ledger")).toContain("top: var(--sticky-jumpnav-h)");
   });
 
   it("29 — the pass is S-ONLY: no F9 rule can reach 768 and above", () => {
@@ -2916,5 +2944,512 @@ describe("F13 — Physique as a full-bleed strip, not a block in the setup panel
     // cannot come back at one width only.
     expect(buildPanel.match(/Sets the available height range\./g)).toHaveLength(1);
     expect(buildPanel).not.toContain("Sets the available height range (");
+  });
+});
+
+/* =========================================================== F14 — the shell */
+
+/**
+ * The app shell: 100dvh, two scrollports, no document scroll.
+ * features/app-shell/design.md §8.2, re-derived against the MEASURED tree.
+ *
+ * FOUR OF THE DESIGN'S SEVEN VERTICAL INPUTS MOVED WHEN THEY WERE MEASURED, and
+ * the gate literal moved 108px with them. That is why every assertion below
+ * derives rather than pins: the numbers this slice turns on are browser
+ * measurements of surfaces three other slices own, and any of them can move
+ * again. What is pinned here is the FORMULA and the OUTCOME RULE.
+ */
+
+/** The shell's own at-rule header, and every assertion resolves through it so
+ *  a moved gate cannot leave a stale copy behind in one of them. */
+const SHELL_HEADER = (() => {
+  const match = /@media \(min-width: (\d+)px\) and \(min-height: (\d+)px\) \{/.exec(app);
+  if (match === null) throw new Error("layout arithmetic: no F14 shell media query");
+  return { text: match[0], width: Number(match[1]), height: Number(match[2]) };
+})();
+
+/** Brace-matched body of an at-rule, by header text. A slice-to-EOF would
+ *  absorb the @supports fallback and make every "the shell declares X"
+ *  assertion answerable by the block that UNDOES X. */
+function balancedBody(source: string, header: string, from = 0): string {
+  const start = source.indexOf(header, from);
+  if (start === -1) throw new Error(`layout arithmetic: at-rule not found — ${header}`);
+  let depth = 0;
+  for (let at = start + header.length - 1; at < source.length; at += 1) {
+    if (source[at] === "{") depth += 1;
+    else if (source[at] === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, at + 1);
+    }
+  }
+  throw new Error(`layout arithmetic: unbalanced at-rule — ${header}`);
+}
+
+const SHELL_BLOCK = balancedBody(app, SHELL_HEADER.text);
+const SUPPORTS_BLOCK = balancedBody(app, "@supports not (height: 100dvh) {");
+const shellPlain = stripComments(SHELL_BLOCK);
+
+/** One rule's declarations out of the shell block, by exact selector list. */
+function shellRule(selector: string): string {
+  for (const rule of shellPlain.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selectors = (rule[1] as string).split(",").map((s) => s.trim().replace(/\s+/g, " "));
+    if (selectors.includes(selector)) return rule[2] as string;
+  }
+  throw new Error(`layout arithmetic: the shell block declares no "${selector}"`);
+}
+
+/* ---- the vertical inputs, MEASURED in headless Chrome at the cut ---------- */
+
+/** Chrome/151.0.7922.174 --headless=new over CDP at 1280 x 900, zero state,
+ *  docs/proof/f14-verification.txt. Every one of these is a getBoundingClientRect
+ *  height off the SHIPPED tree, not a paper sum, because the shell makes each of
+ *  them a permanent subtraction from the card region rather than something the
+ *  user can scroll past.
+ *
+ *  HEADER_H IS THE BIG ONE and it is measured AT 1280 on purpose: the header
+ *  flex-wraps to two rows there (102) and is one row at 1440 (62). The gate is a
+ *  single literal that must hold at the NARROWEST shelled viewport, so 102 is the
+ *  binding case. The design document carried "~70" from §16.4 and was 32px light.
+ *
+ *  STRIP_H is F13's full-bleed Physique strip at 92.19, pinned at its CEILING per
+ *  §13.0.1's take-the-larger rule — a low chrome figure yields an optimistic gate,
+ *  and an optimistic gate is not a gate. */
+const HEADER_H = 102;
+const STRIP_H = 93;
+const HEADER_H_MEASURED = 102;
+const STRIP_H_MEASURED = 92.19;
+/** `.layout { padding-block: var(--space-4) }`, both edges. The shell overrides
+ *  padding-INLINE only, so this term is parsed rather than measured. */
+const PAGE_PAD_Y = 2 * SPACE_4;
+/** design-spec §5.3's outcome rule, as the fraction NOT available to cards. */
+const CARDS_FLOOR_FRACTION = 0.6;
+
+/** I18, as one function. Everything the viewport owes before a badge card can
+ *  have a pixel, under a layout that cannot grow. */
+const permanentBand = (): number => HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H;
+const MIN_SHELL_H = Math.ceil(permanentBand() / (1 - CARDS_FLOOR_FRACTION));
+
+/** Both scrollports get the SAME height — they are siblings in one flex row. */
+const scrollerH = (viewport: number): number => viewport - HEADER_H - STRIP_H - PAGE_PAD_Y;
+const cardsBand = (viewport: number): number => scrollerH(viewport) - STICKY_STACK_H;
+/** `slidersVisible` takes the pane's box; under the shell that box is the flex
+ *  row rather than `viewport − 2 × --space-3`. */
+const shellSlidersVisible = (viewport: number): number =>
+  slidersVisible(scrollerH(viewport) + 2 * SPACE_3, SECTION_LEAD_Y);
+
+/* ---- the horizontal identity: the shell must move NOTHING ---------------- */
+
+/** `.col-right`'s CONTENT box under the shell. The document scrollbar is gone,
+ *  so the OS width is charged inside the grid track by `scrollbar-gutter`
+ *  instead of outside `.layout` — and the page padding drops 16 → 12 to fund
+ *  the 4px focus-ring gutter that the move makes necessary. */
+function colRightContentShell(viewport: number, scrollbar: number): number {
+  return viewport - 2 * SPACE_3 - SPACE_3 - RAIL - scrollbar - 2 * SPACE_1;
+}
+/** The same box WITHOUT the compensation pair — the canary. */
+function colRightContentUncompensated(viewport: number, scrollbar: number): number {
+  return viewport - 2 * SPACE_4 - SPACE_3 - RAIL - scrollbar;
+}
+
+const scrollMemory = srcSources["/src/ui/shell/scroll-memory.ts"] as string;
+const appTsxF14 = srcSources["/src/App.tsx"] as string;
+
+describe("F14 — the app shell, derived rather than pinned", () => {
+  it("1 — min-height: 0 exists on every box the shell asks to shrink", () => {
+    // A flex or grid item's AUTOMATIC MINIMUM SIZE refuses to shrink below its
+    // content. Omit this on .layout and the shell simply does not scroll — the
+    // whole layout turns on one invisible declaration, which is this slice's
+    // F5.2-D1. Named individually so a failure says WHICH box lost it.
+    expect(shellRule(".app-shell")).toContain("min-height: 0");
+    // OUT OF FLOW, and it is not a stylistic choice. The root element's
+    // overflow propagates to the VIEWPORT and the root's own used overflow
+    // becomes `visible`, so `html, body { overflow: hidden }` leaves the
+    // viewport a scroll container the browser can still drive — measured at an
+    // 8584px scrolling area, and an anchor click moved it 365px and took the
+    // header off screen. Taking the shell out of flow leaves nothing to move.
+    expect(shellRule(".app-shell")).toContain("position: fixed");
+    expect(stripComments(SUPPORTS_BLOCK)).toContain("position: static");
+    expect(shellRule(".app-shell > .layout")).toContain("min-height: 0");
+    expect(shellRule(".attr-pane-column")).toContain("min-height: 0");
+    expect(shellRule(".attr-pane")).toContain("min-height: 0");
+    expect(shellRule(".col-right")).toContain("min-height: 0");
+    // …and .layout is the one that gets forgotten, so it also carries the grow.
+    expect(shellRule(".app-shell > .layout")).toContain("flex: 1 1 auto");
+    expect(shellRule(".app-shell > *")).toContain("flex: 0 0 auto");
+
+    // CANARY: a shell block missing it on the growing item must not read as
+    // compliant just because the other four have it.
+    const fixture = ".app-shell > .layout { flex: 1 1 auto; }";
+    expect(fixture).not.toContain("min-height: 0");
+  });
+
+  it("2 — the shell block is the LAST 1280px block in the file", () => {
+    // Reversed, F5.4's block wins and silently restores `position: sticky` and
+    // a max-height on the pane — a layout that looks nearly right and scrolls
+    // the document underneath a pane that no longer clamps.
+    const f54 = app.lastIndexOf("@media (min-width: 1280px) {");
+    expect(f54).toBeGreaterThan(-1);
+    expect(app.indexOf(SHELL_HEADER.text)).toBeGreaterThan(f54);
+    // …and F5.4's own block is untouched: still sticky, still the vh/dvh pair.
+    const paneBase = cssBlock(app, ".attr-pane");
+    expect(paneBase).toContain("position: sticky");
+    expect(paneBase).toContain("max-height: calc(100vh - var(--space-6))");
+    expect(paneBase).toContain("max-height: calc(100dvh - var(--space-6))");
+  });
+
+  it("3 — THE GATE IS DERIVED, and the CSS literal is >= the derivation", () => {
+    expect(SHELL_HEADER.width).toBe(L_BREAKPOINT);
+    expect(MIN_SHELL_H).toBe(868);
+    expect(SHELL_HEADER.height).toBeGreaterThanOrEqual(MIN_SHELL_H);
+
+    // WHAT MOVED, and why this assertion is the one that matters. The design
+    // document was written with no search tooling and derived 753 → 760 from
+    // HEADER_H 70 and a sticky stack of 107. Measured, the header is 102 at
+    // 1280 and the L stack is 120, so the gate is 868. Both deltas are recorded
+    // so a re-measure can disagree with a number rather than with a memory.
+    const asDesigned = Math.ceil((70 + 92 + PAGE_PAD_Y + 107) / (1 - CARDS_FLOOR_FRACTION));
+    expect(asDesigned).toBe(753);
+    expect(MIN_SHELL_H - asDesigned).toBe(115);
+
+    // CANARY, and it is the whole point of the formula being in the suite: a
+    // future slice that adds 40px of always-visible chrome and leaves the
+    // literal alone must FAIL here rather than shrink the cards in silence.
+    const withMoreChrome = Math.ceil(
+      (HEADER_H + STRIP_H + 40 + PAGE_PAD_Y + STICKY_STACK_H) / (1 - CARDS_FLOOR_FRACTION),
+    );
+    expect(withMoreChrome).toBe(968);
+    expect(SHELL_HEADER.height).toBeLessThan(withMoreChrome);
+  });
+
+  it("4 — the >= 60% outcome rule holds AT the gate, and the margin is reported", () => {
+    const atGate = cardsBand(SHELL_HEADER.height) / SHELL_HEADER.height;
+    expect(atGate).toBeGreaterThanOrEqual(CARDS_FLOOR_FRACTION);
+    // 60.02% — the gate is AT THE LIMIT by construction, which is the honest
+    // place for it. Reported rather than merely passed so the next reader sees
+    // that there is 0.02pp of room, not "plenty".
+    expect(Number((atGate * 100).toFixed(2))).toBe(60.02);
+    expect(Number(((cardsBand(900) / 900) * 100).toFixed(1))).toBe(61.4);
+
+    // …and one pixel below the gate the rule FAILS, which is why the gate is a
+    // media condition instead of a hope.
+    expect(cardsBand(867) / 867).toBeLessThan(CARDS_FLOOR_FRACTION);
+    // The shape the gate exists for: a 1366x768 laptop is ~648 CSS px tall.
+    expect(Number(((cardsBand(648) / 648) * 100).toFixed(1))).toBe(46.5);
+  });
+
+  it("5 — I15 under the shell: the floor moved, and the OLD floor now fails", () => {
+    // §16.12 state 50 asserted >= 6 / 7 / 8 at 700 / 800 / 900 against the
+    // sticky pane. The shell takes the header, the strip and the page padding
+    // out of the pane's box permanently, so the floor is re-cut — and the
+    // regression has to be VISIBLE in the suite, not only in a document.
+    expect(shellSlidersVisible(900)).toBe(6);
+    expect(shellSlidersVisible(SHELL_HEADER.height)).toBe(5);
+    // The sticky tree's own counts at the same viewports, for the delta.
+    expect(slidersVisible(900, SECTION_LEAD_Y)).toBe(8);
+    expect(slidersVisible(SHELL_HEADER.height, SECTION_LEAD_Y)).toBe(7);
+    // −2 at every shelled viewport. That is the shell's headline cost.
+    expect(slidersVisible(900, SECTION_LEAD_Y) - shellSlidersVisible(900)).toBe(2);
+
+    // CANARY: the old floor must not still pass under the shell.
+    expect(shellSlidersVisible(900) >= 8).toBe(false);
+
+    // …and below the gate there IS no shell, so the sticky counts stand.
+    expect(800).toBeLessThan(SHELL_HEADER.height);
+    expect(slidersVisible(800, SECTION_LEAD_Y)).toBe(7);
+  });
+
+  it("6 — the scrollbar compensation is a PAIR, and neither half stands alone", () => {
+    expect(shellRule(".layout")).toContain("padding-inline: var(--space-3)");
+    expect(shellRule(".col-right")).toContain("padding-inline: var(--space-1)");
+    expect(shellRule(".col-right")).toContain("scrollbar-gutter: stable");
+    // The pair is exact: 2 x (16 − 12) given back to the grid == 2 x 4 taken by
+    // the column. Not "about the same" — the same.
+    expect(2 * (SPACE_4 - SPACE_3)).toBe(2 * SPACE_1);
+    // padding-BLOCK is untouched; it is a term of MIN_SHELL_H.
+    expect(shellRule(".layout")).not.toContain("padding-block");
+    expect(shellRule(".layout")).not.toContain("padding:");
+  });
+
+  it("7 — the right column reproduces TODAY's geometry, to the pixel", () => {
+    // The claim the whole compensation exists to make: the shell moves the
+    // scrollbar from outside .layout to inside the grid track and the content
+    // box does not move. 885 / 902 are §14.2's pinned outcomes and F11's board
+    // box, so a 3px error here reflows two other slices.
+    expect(colRightContentShell(1280, 17)).toBe(919);
+    expect(colRightContentShell(1280, 0)).toBe(936);
+    expect(colRightContentShell(1280, 17) - SECTION_CHROME).toBe(885);
+    expect(colRightContentShell(1280, 0) - SECTION_CHROME).toBe(902);
+    // …identical to the shipped derivation, which is the actual assertion.
+    for (const scrollbar of SCROLLBARS) {
+      expect(colRightContentShell(1280, scrollbar), `scrollbar ${scrollbar}px`).toBe(
+        centreColumn(1280, scrollbar),
+      );
+      expect(colRightContentShell(1440, scrollbar)).toBe(centreColumn(1440, scrollbar));
+    }
+
+    // CANARY: drop the page-padding half and the box moves 8px, which is enough
+    // to change nothing visible and everything derived.
+    expect(colRightContentUncompensated(1280, 17) - 2 * SPACE_1).toBe(911);
+    expect(colRightContentUncompensated(1280, 17) - 2 * SPACE_1).not.toBe(919);
+  });
+
+  it("8 — §16.8's and §14.2's margins survive the shell untouched", () => {
+    // Every downstream consumer of the box, re-run against the shell's own
+    // derivation rather than against a promise that it is the same.
+    const shellBody = (scrollbar: number) => colRightContentShell(1280, scrollbar) - SECTION_CHROME;
+    expect(shellBody(17)).toBe(885);
+    expect(synergyRowBox(1280, 17)).toBe(436.5);
+    expect(synergyRowBox(1280, 17) - synergyRowFloor).toBe(10.5);
+    expect(synergyRowBox(1280, 17) - ROW_CHROME - CONTAINER_THRESHOLD).toBe(30.5);
+    expect(synergyColumns(1280, 17)).toBe(2);
+    // The pane's own cell, and the badge grid's count.
+    expect(RAIL - 2 * PANE_PAD_X - SECTION_CHROME).toBe(258);
+    expect(cardsPerRow(centreColumn(1280, 17))).toBe(3);
+  });
+
+  it("9 — dvh comes AFTER vh, and the whole shell has a no-dvh fallback", () => {
+    // `vh` resolves against the LARGE viewport, so a 100vh shell with browser
+    // chrome showing extends UNDER it — and with no document scroll there is
+    // nothing to recover the lost band. Order is the fix and order is the
+    // assertion, scoped to the block: a file-wide indexOf is ambiguous now that
+    // F5.4's pane declares the same pair.
+    const shell = cssBlock(app, ".app-shell");
+    expect(shell.indexOf("100vh")).toBeGreaterThan(-1);
+    expect(shell.indexOf("100dvh")).toBeGreaterThan(shell.indexOf("100vh"));
+
+    // The fallback degrades the WHOLE shell rather than clipping it.
+    expect(SUPPORTS_BLOCK).toContain(SHELL_HEADER.text);
+    const fallback = stripComments(SUPPORTS_BLOCK);
+    expect(fallback).toContain("overflow: visible");
+    expect(fallback).toContain("position: sticky");
+    expect(fallback).toContain("display: block");
+  });
+
+  it("10 — ONE number owns each sticky layer, and no bare literal remains", () => {
+    expect(JUMPNAV_H).toBe(44);
+    expect(DIGEST_H).toBe(76);
+    expect(STICKY_STACK_H).toBe(120);
+    // Declared exactly once each — a second home is how the pair drifts.
+    expect(app.match(/--sticky-jumpnav-h:\s/g)).toHaveLength(1);
+    expect(app.match(/--sticky-digest-h:\s/g)).toHaveLength(1);
+    expect(app).toContain(
+      "--sticky-stack-h: calc(var(--sticky-jumpnav-h) + var(--sticky-digest-h))",
+    );
+    // Both consumers read the token, never the number.
+    expect(cssBlock(app, ".category-ledger")).toContain("top: var(--sticky-jumpnav-h)");
+    expect(shellRule(".col-right")).toContain("--scroll-reserve: var(--sticky-stack-h)");
+    expect(shellRule(".col-right")).toContain("scroll-padding-top: var(--scroll-reserve)");
+
+    // §5.3's caps still hold at L, on the MEASURED pair rather than the S one.
+    expect(JUMPNAV_H).toBeLessThanOrEqual(STICKY_LAYER_1_MAX);
+    expect(DIGEST_H).toBeLessThanOrEqual(STICKY_LAYER_2_MAX);
+    expect(STICKY_STACK_H).toBeLessThanOrEqual(STICKY_TOTAL_MAX);
+    // 107 IS THE S PAIR. It is what the design document carried for L, and
+    // using it would under-reserve scroll-padding-top by 13px.
+    expect(STICKY_LAYER_1_MAX + 59).toBe(107);
+    expect(STICKY_STACK_H).not.toBe(107);
+
+    // No bare offset survives on any sticky or scroll-padding declaration.
+    for (const match of stripComments(app).matchAll(/(scroll-padding-top|scroll-margin-top):\s*([^;]+)/g)) {
+      expect(match[2], `${match[0]} is a literal`).toContain("var(");
+    }
+  });
+
+  it("11 — scroll-margin-top is DERIVED and SPLIT: layer 1, not the stack", () => {
+    // The digest pins ITSELF under the nav, so a #cat-* jump only has to clear
+    // layer 1. Reserving the whole stack leaves a 76px hole above the section.
+    expect(cssBlock(app, ".grid-section")).toContain(
+      "scroll-margin-top: calc(var(--sticky-jumpnav-h) - var(--scroll-reserve))",
+    );
+    const panels = cssBlock(app, "#panel-synergy,\n#panel-summary,\nmain#badge-grid");
+    expect(panels).toContain("scroll-margin-top: calc(var(--space-3) - var(--scroll-reserve))");
+
+    // THE SUBTRACTION IS NOT DECORATION, and it was found in the browser rather
+    // than on paper: scroll-padding-top and scroll-margin-top ADD. With 120 on
+    // the scrollport and a plain 44 on the section, a #cat-* jump landed the
+    // section 164px down and left 120px of the PREVIOUS category showing under
+    // the nav. The landing position is what is asserted, at both reserves.
+    const RESERVE_DOC = px(app, /--scroll-reserve:\s*(\d+)px/);
+    expect(RESERVE_DOC).toBe(0);
+    expect(shellRule(".col-right")).toContain("--scroll-reserve: var(--sticky-stack-h)");
+    expect(shellRule(".col-right")).toContain("scroll-padding-top: var(--scroll-reserve)");
+
+    const landing = (want: number, reserve: number): number => reserve + (want - reserve);
+    expect(landing(JUMPNAV_H, RESERVE_DOC)).toBe(44); // document scroller
+    expect(landing(JUMPNAV_H, STICKY_STACK_H)).toBe(44); // .col-right, under the shell
+    expect(landing(SPACE_3, STICKY_STACK_H)).toBe(SPACE_3);
+    // …and the shell's own subtraction is genuinely negative, which is the bit
+    // a reader will assume is a typo.
+    expect(JUMPNAV_H - STICKY_STACK_H).toBe(-76);
+    expect(SPACE_3 - STICKY_STACK_H).toBe(-108);
+
+    // CANARY: the un-subtracted form, i.e. the bug that shipped for an hour.
+    expect(STICKY_STACK_H + JUMPNAV_H).toBe(164);
+  });
+
+  it("12 — I5 re-scoped: the shell opens no third sticky layer", () => {
+    function declaresSticky(selector: string): boolean {
+      try {
+        return blocksFor(app, selector).some((block) => block.includes("position: sticky"));
+      } catch {
+        return false;
+      }
+    }
+    for (const selector of [".app-shell", ".col-right", ".ledger-panel", ".setup-panel"]) {
+      expect(declaresSticky(selector), `${selector} is sticky`).toBe(false);
+    }
+    // The two that ARE the cap survive.
+    expect(declaresSticky(".jump-nav")).toBe(true);
+    expect(declaresSticky(".category-ledger")).toBe(true);
+    // Nothing inside the pane, including in the shell block.
+    for (const rule of stripComments(app).matchAll(/\.attr-pane\s+[^{}\s][^{}]*\{([^}]*)\}/g)) {
+      expect(rule[1]).not.toContain("position: sticky");
+    }
+    // …and the pane itself is STATIC under the shell, which is the credit: the
+    // F5.2-D1 clamp problem becomes structurally inapplicable.
+    expect(shellRule(".attr-pane")).toContain("position: static");
+    expect(shellRule(".attr-pane")).toContain("max-height: none");
+  });
+
+  it("13 — no overflow on .layout or <main>, anywhere in the file", () => {
+    // An overflow on .layout re-points the two sticky layers' containing block
+    // at the wrong box AND nests .col-right's scroller inside a second one; an
+    // overflow on <main> re-parents the six digests' scrollport. Both are
+    // silent — the layout still looks plausible.
+    for (const block of blocksFor(app, ".layout")) {
+      expect(stripComments(block), ".layout declares an overflow").not.toMatch(/overflow[-a-z]*:/);
+    }
+    const css = stripComments(app);
+    expect(css).not.toMatch(/main#badge-grid[^{]*\{[^}]*overflow/);
+    expect(css).not.toMatch(/#badge-grid[^{]*\{[^}]*overflow/);
+    // …and .col-right's is auto, never hidden: hidden kills all eight anchors.
+    expect(shellRule(".col-right")).toContain("overflow-y: auto");
+    expect(shellRule(".col-right")).not.toContain("overflow: hidden");
+  });
+
+  it("14 — the scroll module is QUARANTINED from every persistence path", () => {
+    // This is the assertion the four shipped data-loss defects paid for. All
+    // four lived in the persisted-READ path and all four failed OPEN into a
+    // write; a scroll offset must be structurally unable to reach that path.
+    expect(scrollMemory).toBeDefined();
+    const code = stripComments(scrollMemory);
+    expect(code).toContain("sessionStorage");
+    expect(code).not.toContain("localStorage");
+    for (const banned of [
+      "SavedBuild",
+      "schemaVersion",
+      "JSON.parse",
+      "JSON.stringify",
+      "autosave",
+      "writeStore",
+      "deserialize",
+    ]) {
+      expect(code, `scroll-memory names ${banned}`).not.toContain(banned);
+    }
+    // Physical separation, both directions.
+    for (const specifier of [
+      ...code.matchAll(/(?:from\s+|import\s*\(\s*)["']([^"']+)["']/g),
+    ].map((m) => m[1] as string)) {
+      expect(specifier, `scroll-memory imports ${specifier}`).toBe("");
+    }
+    for (const [path, source] of Object.entries(srcSources)) {
+      if (!path.startsWith("/src/persist/") && !path.startsWith("/src/engine/")) continue;
+      expect(source, `${path} imports scroll-memory`).not.toContain("scroll-memory");
+    }
+    // The key is namespaced ui, and it is the only one.
+    expect(code).toContain('"bb2k27.ui.scrollTop.colRight"');
+    expect(code.match(/sessionStorage\./g)).toHaveLength(2);
+  });
+
+  it("15 — the READ path contains no write, and no throw", () => {
+    // The exact shape of the shipped defects: a read that heals, clears or
+    // falls back into a write. The reader's body is inspected on its own.
+    const read = /export function readColRightScrollTop\(\)[\s\S]*?\n}/.exec(
+      stripComments(scrollMemory),
+    );
+    expect(read).not.toBeNull();
+    const body = (read as RegExpExecArray)[0];
+    for (const banned of ["setItem", "removeItem", "clear(", "throw"]) {
+      expect(body, `the read path contains ${banned}`).not.toContain(banned);
+    }
+    expect(body).toContain("catch");
+    expect(body).toContain("return null");
+    // The restore clamps rather than trusting, and the hash beats memory.
+    const code = stripComments(scrollMemory);
+    expect(code).toContain("Math.min(saved, travel)");
+    expect(code).toContain("window.location.hash");
+    // The write is coalesced and swallowing.
+    expect(code).toContain("requestAnimationFrame");
+    expect(code).toContain("pagehide");
+    expect(code).toContain("event.persisted");
+  });
+
+  it("16 — the skip target is focusable, and still last of the three", () => {
+    // A skip link to a non-focusable target moves the next TAB STOP in most
+    // engines but does not move FOCUS in all — and under a shell a focus move
+    // is what drives the scrollport, so the difference is now visible.
+    expect(appTsxF14).toContain('<main id="badge-grid" tabIndex={-1}>');
+    const grid = appTsxF14.indexOf('id="badge-grid" tabIndex');
+    expect(appTsxF14.indexOf('aria-label="Ledger overview"')).toBeLessThan(grid);
+    expect(appTsxF14.indexOf('aria-label="Build"')).toBeLessThan(grid);
+  });
+
+  it("17 — .app-shell is PRESENTATION, and it added no element", () => {
+    // `.col-right`'s precedent exactly: no landmark, no id, no aria, no state.
+    expect(appTsxF14).toContain('<div className="app app-shell">');
+    expect(appTsxF14).not.toMatch(/className="app app-shell"[^>]*\b(id|role|aria-)/);
+    // It rides the EXISTING root, so no wrapper was introduced.
+    expect(appTsxF14.match(/className="app app-shell"/g)).toHaveLength(1);
+    expect(stripComments(app)).not.toContain("#root");
+  });
+
+  it("18 — the gate literal is one value, repeated verbatim in both places", () => {
+    // A drifted pair silently shells a viewport the gate excluded, or leaves a
+    // dvh-less browser on a clipped shell.
+    const gates = [...app.matchAll(/\(min-height:\s*(\d+)px\)/g)].map((m) => Number(m[1]));
+    expect(gates).toHaveLength(2);
+    expect(new Set(gates).size).toBe(1);
+    expect(gates[0]).toBe(SHELL_HEADER.height);
+    // …and no NEW width breakpoint came with it.
+    expect(SHELL_HEADER.width).toBe(L_BREAKPOINT);
+  });
+
+  it("19 — the footer left the chrome, and the shell's chrome list is closed", () => {
+    // Outside .layout the footer is a direct child of .app-shell, which under
+    // the shell means 69px of dataset provenance pinned to every viewport and
+    // added to MIN_SHELL_H. It is a citation, not a control.
+    const colRight = appTsxF14.indexOf('className="col-right"');
+    const footer = appTsxF14.indexOf('<footer className="app-footer">');
+    const layoutClose = appTsxF14.indexOf("<BuildManagerDialog");
+    expect(colRight).toBeGreaterThan(-1);
+    expect(footer).toBeGreaterThan(colRight);
+    expect(footer).toBeLessThan(layoutClose);
+    expect(appTsxF14.indexOf('id="panel-summary"')).toBeLessThan(footer);
+    // The permanent band is exactly four terms. If a fifth ever arrives it has
+    // to move MIN_SHELL_H, and assertion 3's canary is what makes it.
+    expect(permanentBand()).toBe(HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H);
+    expect(permanentBand()).toBe(347);
+    // The measured values the two pins are ceilings of, kept so a re-measure
+    // has something to disagree WITH.
+    expect(HEADER_H).toBe(Math.ceil(HEADER_H_MEASURED));
+    expect(STRIP_H).toBe(Math.ceil(STRIP_H_MEASURED));
+  });
+
+  it("20 — the transient chrome is named, not folded into the gate", () => {
+    // §5.3's cap counted the two sticky layers and excluded banners, and the
+    // gate keeps that scope. The preview strip and up to three banners are
+    // real, they are self-clearing, and under the shell they take from the
+    // cards instead of pushing them down — so the worst frame is stated here
+    // rather than discovered by a user.
+    const PREVIEW_STRIP_H = 47;
+    const BANNER_H = 51;
+    const withChrome = (viewport: number, extra: number): number =>
+      (cardsBand(viewport) - extra) / viewport;
+    expect(Number((withChrome(900, PREVIEW_STRIP_H) * 100).toFixed(1))).toBe(56.2);
+    expect(Number((withChrome(900, PREVIEW_STRIP_H + BANNER_H) * 100).toFixed(1))).toBe(50.6);
+    expect(Number((withChrome(900, PREVIEW_STRIP_H + 3 * BANNER_H) * 100).toFixed(1))).toBe(39.2);
+    // Banners STAY in the chrome. They are role="alert"-class disclosures whose
+    // whole value is that they cannot be scrolled past.
+    expect(appTsxF14).toContain('<div className="app-banners">');
   });
 });

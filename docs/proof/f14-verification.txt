@@ -1,0 +1,312 @@
+F14 — the app shell: 100dvh, two scrollports, no document scroll
+features/app-shell/design.md · new invariant I18
+branch f14-app-shell · base dev @0e96632 (1374/1374 across 68 files)
+================================================================================
+
+Driver, the user verbatim [2026-08-26]:
+  "The whole page should be 100% height and width and all scrolling happens
+   inside the specific containers."
+
+All measurements: Chrome/151.0.7922.174 --headless=new, driven over CDP
+(Runtime.evaluate against a production build served by `vite preview` on
+:4188 — never :5173, which the operator's real profile uses).
+
+
+0. THE DESIGN DOCUMENT WAS UNVERIFIED-AGAINST-TREE. WHAT MOVED.
+--------------------------------------------------------------------------------
+design.md §0.2 marked itself UNVERIFIED and listed nine searches in §11.1
+because Bash, Grep and Glob were all unavailable to its author. All nine were
+run. Four of the seven vertical inputs moved, and the gate literal moved 108px
+with them.
+
+  input              design.md      MEASURED    delta   how it was wrong
+  -----------------  -------------  ----------  ------  -----------------------
+  HEADER_H            70 (§16.4)     102        +32     the header FLEX-WRAPS to
+                                                        two rows at 1280 (62 at
+                                                        1440). §16.4's "~70px"
+                                                        was never re-measured
+                                                        after the header grew.
+  STRIP_H             92 PLACEHOLDER  92.19     +0.19   the one placeholder in
+                                                        the document, and it was
+                                                        very nearly right.
+  --sticky-jumpnav-h  48 [relayed]    44        −4      48 is the S height. At
+                                                        M and L the chips stay
+                                                        28px and the nav is 44.
+  --sticky-digest-h   59 [relayed]    76        +17     59 is the S height. The
+                                                        L digest is 76.
+  STICKY_STACK_H     107 [relayed]   120        +13     107 = 48 + 59 = THE S
+                                                        PAIR. The document used
+                                                        the phone's sticky stack
+                                                        as the desktop's.
+  PAGE_PAD_Y          32              32         0      parsed, correct.
+  SECTION_LEAD_Y      53              53         0      derived, correct
+                                                        (measured pane-top to
+                                                        first-slider-top 79 =
+                                                        53 + GROUP_LEGEND_H 26).
+
+  MIN_SHELL_H = ceil((HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H) / 0.40)
+      as designed  ceil((70  + 92 + 32 + 107) / 0.40) = ceil(752.5) = 753 -> 760
+      as MEASURED  ceil((102 + 93 + 32 + 120) / 0.40) = ceil(867.5) = 753 + 115
+                                                                    = 868
+
+  THE GATE LITERAL SHIPPED IS 868, NOT THE RULED 760. It is derived, it is
+  asserted by the formula rather than pinned, and 760 fails its own rule:
+  (760 − 347) / 760 = 54.3% against design-spec §5.3's >= 60% for cards.
+  At 868 the cards get 60.02% — the gate is AT THE LIMIT by construction.
+
+  STRIP_H is pinned at the CEILING of 92.19 per §13.0.1's take-the-larger rule:
+  a low chrome figure yields an optimistic gate, and an optimistic gate is not
+  a gate.
+
+§11.1's other findings:
+  1  F9's touch floors ARE S-scoped — every one is inside the single
+     `@media (max-width: 767px)` block at app.css:3594. HEADER_H at L is
+     unaffected and the census (assertions 24/27) is untouched by this slice:
+     the shell adds NO rule below 768 and NO `min-height: var(--tap-target)`.
+  2  `.jump-nav` was `top: 0`, `.category-ledger` was a hard-coded `top: 44px`,
+     and they did NOT overlap — 44 is the nav's true M/L height. Both literals
+     are now hoisted; F9's S override (`calc(var(--tap-target) + 4px)`) is
+     untouched and still wins below 768.
+  3  NO `scroll-padding-top` existed anywhere. The shell fixes the
+     tab-into-a-card-under-the-sticky-stack defect for the FIRST time rather
+     than inheriting it.
+  4  `.physique-strip`, rendered 92.19 at >=1280 (101.75 at 768, not rendered
+     at 390), a sibling of `.app-banners`, OUTSIDE `.layout`. §5.1's ruling
+     holds unchanged.
+  5  `<footer className="app-footer">` exists, 69px, and WAS a sibling of
+     `.layout` — i.e. it would have become a fifth permanent band. Moved.
+  6  `.layout` is the grid and `.app` is the flex root, as §2.1 assumed. §5.1's
+     "`.app`" was the wrong name for the grid.
+  7  `100vh`/`100dvh` occur as F5.4's pane pair; assertion 9 is scoped to
+     `cssBlock(app, ".app-shell")` accordingly.
+  8  readUiSectionOpen/writeUiSectionOpen live in src/persist/local-storage.ts.
+     scroll-memory.ts imports nothing at all, so §4.2 rule 4 is structural.
+  9  No collisions: `app-shell`, `scrollbar-gutter` and `sessionStorage` appear
+     nowhere in src/, tests/ or scripts/ before this slice.
+
+
+1. TWO DEFECTS FOUND IN THE BROWSER THAT NO AMOUNT OF PAPER WOULD HAVE CAUGHT
+--------------------------------------------------------------------------------
+(a) scroll-padding-top and scroll-margin-top ADD.
+
+  design.md §4.3 derives `.grid-section { scroll-margin-top: 48 }` and §6.2
+  derives `.col-right { scroll-padding-top: 107 }` INDEPENDENTLY. They are not
+  independent: the scrollport's padding and the target's margin sum.
+
+    shipped for one hour   120 reserve + 44 margin  ->  section landed 164.1
+                           down, with 120px of the PREVIOUS category showing
+                           under the nav — the exact hole §4.3 set out to avoid,
+                           arriving from the other direction.
+
+  FIX: a `--scroll-reserve` custom property, 0 on the document scroller and
+  `var(--sticky-stack-h)` on `.col-right` under the shell, subtracted by every
+  scroll-margin. The LANDING POSITION is then one number at every breakpoint
+  and only one of the two terms ever moves. Under the shell `.grid-section`'s
+  computed scroll-margin-top is −76px, which is correct and looks like a typo,
+  which is why assertion 11 asserts the landing rather than the declaration.
+
+(b) `html, body { overflow: hidden }` does NOT stop the viewport scrolling.
+
+  The root element's overflow PROPAGATES to the viewport and the root's own
+  used overflow becomes `visible`, so the viewport remained a scroll container
+  with an 8584px scrolling area even though body was 900 and clipping. Hidden
+  stops the USER; it does not stop the browser, and scroll-an-element-into-view
+  walks every scrollable ancestor.
+
+    MEASURED, shell on at 1280x900, clicking the Summary jump chip:
+      documentElement.scrollHeight  8584   (clientHeight 900)
+      documentElement.scrollTop      365   after the click
+      .app-header top               −365   header and F13 strip off screen
+
+  That is SH-2 — the frame the whole slice exists to make possible — failing.
+  Three candidate fixes were measured:
+
+      html { overflow: clip }            scrollArea 8584, top 365   FAILS
+      html { height/max-height: 100dvh } scrollArea 8584, top 365   FAILS
+      .app-shell { position: fixed }     scrollArea  900, top   0   PASSES
+
+  FIX: the shell root is taken out of flow (`position: fixed; top/left/right: 0`
+  with the explicit vh/dvh height pair — never `inset: 0`, which would infer the
+  height from a viewport the pair exists to disambiguate). The @supports
+  fallback restores `position: static`.
+
+
+2. THE HEIGHT BUDGET, MEASURED
+--------------------------------------------------------------------------------
+  SCROLLER_H(V) = V − 102 − 93 − 32 = V − 227     (both scrollports, identical)
+  cardsBand(V)  = SCROLLER_H(V) − 120
+
+  V      shell   SCROLLER_H  sliders   sticky sliders   cards %   note
+  ----   -----   ----------  -------   --------------   -------   ---------------
+  900    ON      673.81         6            8           61.5%
+  868    ON      641.81         5            7           60.0%    THE GATE
+  867    off     —              7            7           —        seam, shot pair
+  800    off     —              7            7           —
+  760    off     —              6            6           —        ruled gate: off
+  759    off     —              6            6           —
+ 1440    ON      713.81         6            8           65.9%    header 62
+
+  The shell costs exactly TWO attribute sliders at every shelled viewport, as
+  design.md §10 line 1 predicted. It is NOT recoverable in this slice — see §4.
+
+  Worst transient chrome, forced at 1280x900 (SH-8): preview strip + two
+  banners = 130px of extra chrome, scroller 543.81, cards 47.1%. Banners stay
+  in the chrome by ruling — they are role="alert"-class disclosures whose whole
+  value is that they cannot be scrolled past.
+
+
+3. THE HORIZONTAL IDENTITY — 885 / 902 REPRODUCED EXACTLY
+--------------------------------------------------------------------------------
+Page padding --space-4 -> --space-3 funds `.col-right { padding-inline:
+var(--space-1); scrollbar-gutter: stable }`. Net horizontal change: zero.
+
+  scrollbar   .summary width   region B   roster   synergy   cards   card w
+  ---------   --------------   --------   ------   -------   -----   ------
+      0            902            2         1         2        3     304.00
+     15            887            2         1         2        3     299.00
+     17            885            2         1         2        3     298.33
+
+  885 at 17 and 902 at 0 are the pinned outcomes, reproduced to the pixel. 887
+  at 15 is OQ-5's Safari always-show figure, also exact. Every one of these is
+  identical shell-on (900) and shell-off (867), measured at both.
+
+  F11's board cell: 93.13 / 91.25 / 91.00 at scrollbar 0 / 15 / 17, all clear
+  of the 89px CELL_FLOOR. §16.8's synergy row is 436.5 (+10.5 over 426) and its
+  content box 402.5 (+30.5 over 372), unchanged.
+
+  ROUTED OUT, NOT FIXED — and design.md §8.4 is itself half right.
+  §16.8's "three tracks need 1188" is wrong (it uses the 380 max; auto-fit
+  counts against the 280 min, so three need 888) and §8.4 correctly corrects it.
+  But the 2-up/3-up OS flip §8.4 and layout-arithmetic both describe DOES NOT
+  EXIST IN THE BROWSER: region B has exactly TWO tables, and `auto-fit`
+  collapses every track beyond the item count. Measured resolved tracks are 2 at
+  scrollbar 0, 15 and 17, and 2 at 1279, 1440 and 1280 alike. The model's
+  `tracks()` helper counts fittable tracks, not occupied ones, so the pinned
+  "3-up at overlay" is a paper artifact. Both corrections belong to §14.2's
+  owner; nothing in .summary was edited here.
+
+
+4. THE RULED RAIL 300 -> 340 IS NOT IMPLEMENTABLE. IT WAS TRIED AND REVERTED.
+--------------------------------------------------------------------------------
+It was applied, the suite was run, and it broke a shipped OUTCOME floor rather
+than a pinned literal. Solved at 1280 against every floor the rail feeds:
+
+  un-stacking the numeric field (cell > I9's 287)   needs RAIL >  329
+  the slider track clearing I9's 224px             needs RAIL >= 330
+  F11's board staying 8-wide (cell >= 89)          needs RAIL <= 332  @ sb 17
+  the synergy panel staying 2-up at 1280           needs RAIL <= 321  @ sb 17
+
+  RAIL   cell  track  un-stacked   board cell @17   synergy   .summary @17
+  ----   ----  -----  ----------   --------------   -------   ------------
+  300     258    258      no            93.00          2          885
+  320     278    278      no            90.50          2          865
+  330     288    224      YES           89.25          1          855
+  332     290    226      YES           89.00          1          853
+  340     298    234      YES           88.00  FAIL    1          845
+
+At the ruled 340 an F11 board cell is 88.00 against its 89px floor: the
+dataset's longest single word ("Unpluckable", min-content 70.156 + 16 padding
++ 2 border = 88.16) stops fitting in a board cell at 1280 on every
+classic-scrollbar OS. 340 also moves .summary off 885/902 to 845/862, which the
+dispatch named as a broken guard in its own right.
+
+The window that both un-stacks the numeric AND keeps the board 8-wide is
+330-332, and every value in it puts the synergy panel to 1-up at 1280 and lands
+the slider track ON its 224 floor with 0-2px of slack. There is no rail width
+that buys the two sliders back without breaking something that sealed this week.
+
+The lever is real (9/8/7 sliders at rail 340 under the shell, versus 6/5/5 at
+300 — design.md §10.1's table is arithmetically correct). Spending it requires
+re-cutting F11's 8-wide container threshold or its CELL_FLOOR, which is F11's
+call. ROUTED, not taken.
+
+
+5. THE FOUR §16.4 COSTS AS THEY ACTUALLY LANDED
+--------------------------------------------------------------------------------
+FIND-IN-PAGE — unmitigable, unmitigated, bounded to 40 strings (20 attribute
+labels + 20 numeric readouts). No workaround was invented; the suggested one is
+the sticky design being replaced. DOM order is unchanged, so §16.4's
+"'3 of 11' no longer corresponds to reading order" stays corrected.
+
+scrollRestoration — restored manually for `.col-right` ONLY, 5 structural rules
+all met and all asserted (assertions 14 + 15):
+
+  MEASURED SH-7, 1280x900: scroll to 3200, reload
+    .col-right scrollTop      3200   restored
+    .attr-pane scrollTop         0   intended — the pane is not restored
+    sessionStorage keys       ["bb2k27.ui.scrollTop.colRight"]   exactly one
+    localStorage keys         ["…:ui-state:v1", "…:autosave:v1"] UNCHANGED
+    banners                      0   no disclosure, no error
+  HASH BEATS MEMORY: loading #cat-rebounding with 3200 stored lands the section
+  at 43.9 in the scroller, not at 3200.
+
+ANCHORS — all eight targets, clicked, at 1280x900 under the shell. Reported as
+[href, top within .col-right, gap below the pinned jump nav, documentElement.scrollTop]:
+
+  ["#panel-synergy",  12.1,    24.0, 0]
+  ["#panel-summary",  47.2,  1008.1, 0]   at the scroller's end stop
+  ["#cat-finishing",  44.1,     0.0, 0]
+  ["#cat-shooting",   43.9,    −0.1, 0]
+  ["#cat-playmaking", 43.5,    −0.5, 0]
+  ["#cat-defense",    44.3,     0.3, 0]
+  ["#cat-rebounding", 43.9,    −0.1, 0]
+  ["#cat-physicals",  43.5,    −0.5, 0]
+
+  Every section lands FLUSH under the nav, and the document never moves.
+
+dvh AFTER vh — `.app-shell { height: 100vh; height: 100dvh }`, order asserted
+within the block. `@supports not (height: 100dvh)` degrades the entire shell to
+the shipped sticky layout (static position, auto height, sticky pane, visible
+overflow, --space-4 page padding), gate literal repeated verbatim.
+
+
+6. COVERAGE FRAMES
+--------------------------------------------------------------------------------
+  SH-1  f14-1280x900.png · f14-1280x868.png
+        Shell at rest. No document scrollbar, both columns scroll
+        independently, 6 sliders at 900 and 5 at 868, cards >= 60%.
+  SH-2  f14-SH2-summary-1280x900.png
+        THE FRAME THAT JUSTIFIES THE SLICE. Right column scrolled to the
+        Summary panel and the footer; header top 0, F13 strip top 102, pane top
+        210 — all three unmoved; documentElement.scrollTop 0. Sticky could not
+        do this above `.layout`.
+  SH-3  f14-1280x868.png / f14-1280x867.png   THE GATE SEAM, shot as a pair.
+        868: shell (body overflow hidden, .app-shell fixed, pane static).
+        867: no shell (document scrolls 8766, pane sticky, page padding 16).
+        The ruled 760/759 pair is ALSO shot (f14-1280x760.png /
+        f14-1280x759.png) and both are below the derived gate: no shell at
+        either, which is the finding.
+  SH-4  f14-1279x900.png / f14-1280x900.png   the 1279/1280 seam, re-shot.
+  SH-5  anchors — §5 above.
+  SH-6  keyboard: skip link focuses #badge-grid (tabIndex -1 present); a
+        control 382.1 into the scroller sits clear of the 155.1 stack bottom;
+        documentElement.scrollTop 0.
+  SH-7  reload — §5 above.
+  SH-8  f14-worst-chrome-1280x900.png — preview strip + 2 banners, cards 47.1%.
+  SH-9  scrollbar regimes — §3 above.
+  UNTOUCHED, one frame each, derived as bit-identical and confirmed:
+        f14-768x1024.png (strip in flow at 101.75, no shell, 2-up cards)
+        f14-390x844.png  (strip NOT rendered, nav 48 / digest 59 — the S sticky
+                          pair, untouched by the hoist)
+        f14-1440x900.png (shell ON, header 62, 4-up cards, roster 2-up)
+
+
+7. GATES
+--------------------------------------------------------------------------------
+  npm run test         1399 passed / 68 files   (1374 -> 1399: +20 F14
+                       assertions, +5 per-file architecture lints for the new
+                       module). ZERO failures, zero skips.
+  npm run typecheck    clean
+  npm run build        clean — tsc --noEmit && vite build
+  named explicitly by the dispatch:
+    tests/ui/overlays.test.tsx        pass
+    tests/category-colors.test.ts     pass
+    tests/feasibility-golden.test.ts  pass — the 504-cell golden is UNMOVED and
+                                      was not edited
+  F9 touch-floor census (assertions 24 + 27, set-equal in BOTH directions):
+    pass. The shell adds no rule below 768 and no `min-height: var(--tap-target)`
+    anywhere; no literal 44 was introduced (the census is blind to one, so the
+    check is that none exists to be blind to).
+  Runtime dependencies: {react, react-dom}. Zero network. Zero new tokens in
+  src/styles/tokens.css (the three sticky custom properties are declared on
+  :root in app.css, which is where the consumers live).

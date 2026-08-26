@@ -19,7 +19,7 @@
  * basis type has no representation for it.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { defaultAppConfig, deriveBudget } from "./config";
 import { hasCapBreakers } from "./engine/attributes";
 import { bonusHasContent, effectiveBudgets, zeroBonus } from "./engine/budget";
@@ -101,6 +101,7 @@ import { AutosaveWarning } from "./ui/shell/AutosaveWarning";
 import { DriftBanner } from "./ui/shell/DriftBanner";
 import { PreviewModeStrip } from "./ui/shell/PreviewModeStrip";
 import { QuarantineBanner } from "./ui/shell/QuarantineBanner";
+import { mountColRightScrollMemory } from "./ui/shell/scroll-memory";
 import { Section } from "./ui/primitives/Section";
 import { Toggle } from "./ui/primitives/Toggle";
 import { useMediaQuery } from "./ui/useMediaQuery";
@@ -467,6 +468,12 @@ export default function App() {
    * mutation, so the pagehide/visibilitychange flush can persist the very
    * last edit without waiting on a React render. */
   const workingRef = useRef<WorkingState>(working);
+  /** F14 — the right column's scrollport. Under the app shell it is one of the
+   * app's TWO scrollers and the only one worth remembering across a reload;
+   * below the gate it is not a scrollport at all and the effect below is a
+   * no-op. Wiring only: every rule about what may be persisted, where, and how
+   * the read must behave lives in ui/shell/scroll-memory.ts. */
+  const colRightRef = useRef<HTMLDivElement | null>(null);
   /** Has the user edited the working build this session? Drives the switcher
    * guard and the "— unsaved changes" label. Ref + state pair: the ref is
    * read synchronously inside handlers, the state re-renders the label. */
@@ -1093,6 +1100,29 @@ export default function App() {
     armPersistence();
   }, [armPersistence]);
 
+  /* F14 — restore the right column's scroll offset, then keep it current.
+   *
+   * useLayoutEffect, and the choice is load-bearing: F5.3's per-category
+   * collapse state and Section's open state are read from storage during
+   * render, and every one of those components' own layout effects has already
+   * run by the time a PARENT's layout effect fires in the same commit. Restore
+   * any earlier and the column's scrollHeight is the wrong one and the offset
+   * lands in the wrong place. Restore in a passive effect instead and the user
+   * watches the grid jump after paint.
+   *
+   * Empty deps: the element identity never changes for the life of the app,
+   * and re-running on every render would re-restore over the user's scrolling.
+   *
+   * There is no `isLarge` guard here on purpose (§4.2 rule 4's spirit): below
+   * the shell's gate `.col-right` is not a scrollport, so `scroll` never fires
+   * and the restore clamps to zero. A JS mirror of a CSS breakpoint is a
+   * desync waiting to happen — assertion 12 exists because of the last one. */
+  useLayoutEffect(() => {
+    const element = colRightRef.current;
+    if (element === null) return undefined;
+    return mountColRightScrollMemory(element);
+  }, []);
+
   // ---- import (M4): file → engine deserializer → confirm dialog. The
   // deserializer's H8 drift report rides along so the disclosure banner can
   // name what was stripped. ----
@@ -1288,7 +1318,13 @@ export default function App() {
   };
 
   return (
-    <div className="app">
+    /* F14 — `app-shell` rides the EXISTING root element rather than adding a
+       wrapper, so the component inventory does not move. It is presentation
+       only, exactly as `.col-right` is: no landmark, no id, no aria, no state.
+       At >=1280 x >=868 the stylesheet turns this element into a 100dvh flex
+       column whose only growing child is `.layout`; everywhere else it is
+       inert and `.app`'s shipped rules are the whole behaviour. */
+    <div className="app app-shell">
       <a className="skip-link" href="#badge-grid">
         Skip to badge grid
       </a>
@@ -1414,7 +1450,7 @@ export default function App() {
           </div>
         ) : null}
 
-        <div className="col-right">
+        <div className="col-right" ref={colRightRef}>
           <aside className="ledger-panel" aria-label="Ledger overview">
             <Section title="Ledger overview" storageKey="section-ledger-overview">
               <div className="ledger-overview">
@@ -1515,7 +1551,12 @@ export default function App() {
             />
           </aside>
 
-          <main id="badge-grid">
+          {/* tabIndex={-1} is not decoration under a shell. A skip link whose
+              target is not focusable moves the NEXT tab stop in most engines
+              but does not move FOCUS in all of them — and a focus move is what
+              drives a scrollport. Without it the skip link can leave
+              `.col-right` exactly where it was. */}
+          <main id="badge-grid" tabIndex={-1}>
             <FilterBar
               filters={filters}
               onChange={setFilters}
@@ -1638,14 +1679,28 @@ export default function App() {
                   the only one; tests/layout-arithmetic.test.ts pins this. */}
             </Section>
           </div>
+
+          {/* F14 MOVED THE FOOTER INSIDE THE SCROLLER, unconditionally.
+              Outside `.layout` it is a direct child of `.app-shell`, which
+              under the shell means CHROME — 69px of dataset provenance pinned
+              to the bottom of every viewport forever, taken straight out of
+              the card region and added to MIN_SHELL_H. It is a citation, not a
+              control: it belongs at the end of the reading order, which is
+              where the right column ends.
+
+              UNCONDITIONAL on purpose. Below 1280 this is a one-level nesting
+              change with no visual effect (`.col-right` is `.layout`'s only
+              grid item there), and a conditionally-parented landmark is a
+              second breakpoint mirror to keep in sync. `<footer>` still maps
+              to contentinfo: `.col-right` is a plain <div>, not a sectioning
+              element. */}
+          <footer className="app-footer">
+            <span className="num">dataset {shippedDataset.dataVersion}</span> ·{" "}
+            {shippedDataset.source} · as of {shippedDataset.asOf} · confidence:{" "}
+            {shippedDataset.confidence}
+          </footer>
         </div>
       </div>
-
-      <footer className="app-footer">
-        <span className="num">dataset {shippedDataset.dataVersion}</span> ·{" "}
-        {shippedDataset.source} · as of {shippedDataset.asOf} · confidence:{" "}
-        {shippedDataset.confidence}
-      </footer>
 
       <BuildManagerDialog
         open={managerOpen}
