@@ -10803,3 +10803,49 @@ still runs through the attribute groups, the grid section headers and the totals
 **Next:** merge `main` (14 commits: roster overflow fixes + deploy hardening) into this branch,
 then promote for a production build.
 
+
+## 2026-08-26 · Tier 2 · integration — R12 the workbench redesign, onto `main` (SHIPPED)
+
+**Event:** `integration-complete`
+**Promotion:** `claude/app-design-system-5e4dd6` → `dev` (`9547d7f`) → `main` (`bc90c2b`), both no-ff,
+both pushed. `main` moved `1006bda..bc90c2b`.
+**Live:** verified serving `index-C1hVjBQG.js` in production, and rendered — the workbench at
+1440×900 and the three-tab shell at 375×812, both checked in a real browser against the deployed
+origin rather than against the dev server.
+
+**Provenance:** user directive 2026-08-26 — "get this full redesign to main branch for a latest
+prod build so my friends will use this redesign."
+
+### The merge, and the one thing git could not see
+
+`dev` was 6 commits BEHIND `main` and the branch was 14 behind; the branch merged `main` first, so
+the promotion back-filled that gap in the same move. Two textual conflicts, both resolved by
+keeping BOTH sides (`src/App.tsx`'s storage-scope disclosure travelled into `planPanels`, so it now
+reaches the rail AND the sub-gate column; the append-only reportback kept both histories).
+
+**The semantic conflict is the one worth recording.** `main` moved the roster's pin reason into a
+spanning row so a 47-character sentence would stop sizing the pin column; R12 moved the CARD's roll
+controls behind the expand control. Git merged both files cleanly and the RESULT was wrong: the
+card test reached for a control that is no longer permanent chrome. Nothing in the text conflicted;
+only the meaning did. `tests/ui/f8-pin-exclude.test.tsx` now expands the card first, and both
+slices' contracts stand unweakened. Verified after the merge that main's fix still holds on its new
+surface: the roster table is 285px inside its 306px host in the rail — no overflow.
+
+### Gates, run at every hop (branch tip → dev → main), never once
+
+`npx tsc --noEmit` clean · `npx vitest run` **80 files / 1,781 tests green** · `npm run build`
+clean · browser checks at 1440×900, 1024×800, 375×812.
+
+### The one open item carried to Tier 1
+
+The badge card's left edge remains the SYNERGY-ROLE channel rather than the category hue the mockup
+shows. Putting `--cat` there would make the card a fifth consumer and fails
+`tests/category-colors.test.ts`'s §2.8.1 channel-rule allowlist — identity must not ride a surface
+that carries state. Widening that allowlist is a **designer ratification, not an implementer
+call**. The category thread still runs through the attribute groups, the grid section headers and
+the totals cells.
+
+**Deferred by scope decision, not forgotten:** the lit-loop cross-column picking (press a Synergy
+Slot's empty Fuse → eligible purchased badges glow in the catalog → click to assign). It is the
+delight feature of the approved mockup and nothing breaks without it; it was cut to get the
+redesign in front of users. First candidate for the next slice.
