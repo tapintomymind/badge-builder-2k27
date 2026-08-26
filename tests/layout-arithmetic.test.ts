@@ -2228,3 +2228,334 @@ describe("I6 — the S touch floor, parsed from one token and re-derived per con
     expect(SECTION_CHROME).toBe(34); // 1px border + --space-4, both sides
   });
 });
+
+/* ------------------------------------------- F11: the Synergy board (§5) -- */
+
+/**
+ * F11 — the 2 x 8 Synergy board that heads the Synergy Slots <Section>.
+ *
+ * Same discipline as everything above: PARSE the numbers out of the shipped
+ * stylesheet and RE-DERIVE the identity, with a canary for each that is red
+ * against the arrangement it replaces. Nothing here pastes a threshold.
+ *
+ * The design's own §4.6 table (119.3 / 99.3 / 106.5 / 74.5 / 30.1) is wrong
+ * by a uniform +6.25px per cell. No verdict flips, but the binding margin at
+ * 1280 is +7.00px and not +13.3 — within ~3px of the +10.5 margin F5.4
+ * flagged as binding on the adjacent synergy-row question, which is a very
+ * different thing to be told about the next addition to a column header.
+ */
+
+const BOARD_START = "/* ==== F11 board — start ==== */";
+const BOARD_END = "/* ==== F11 board — end ==== */";
+
+/** The board's own appended block, sliced between its delimiters. Slicing
+ *  from AFTER the start marker matters: begin mid-comment and stripComments
+ *  leaves the tail of that comment behind as pseudo-declarations, and every
+ *  zero-list assertion below would be grading prose. */
+const boardCssRaw = (() => {
+  const start = app.indexOf(BOARD_START);
+  const end = app.indexOf(BOARD_END);
+  if (start === -1 || end === -1) {
+    throw new Error("layout arithmetic: the F11 board block is not delimited in app.css");
+  }
+  return app.slice(start + BOARD_START.length, end);
+})();
+/** Declarations only. The block documents each ruling in prose beside the
+ *  rule it governs, so the zero-list greps must not read the prose. */
+const boardCss = stripComments(boardCssRaw);
+
+const boardTableBlocks = blocksFor(boardCssRaw, ".synergy-board__table");
+const boardTableBase = boardTableBlocks[0] as string;
+const boardButtonBase = blocksFor(boardCssRaw, ".synergy-board__button")[0] as string;
+
+/** The row-label column, INCLUDING the grid gutter that follows it — the
+ *  track is declared `calc(72px - var(--space-2))` precisely so this literal
+ *  appears as itself and the label-to-column junction is not a second gap. */
+const ROW_LABEL_W = px(boardTableBase, /calc\((\d+)px - var\(--space-2\)\)/);
+/** The grid's own column-gap. */
+const CELL_GAP = spaceToken(
+  (/column-gap:\s*var\(--([a-z0-9-]+)\)/.exec(boardTableBase) ??
+    (() => {
+      throw new Error("layout arithmetic: the board declares no column-gap");
+    })())[1] as string,
+);
+/** PARSED FROM THE IMPLEMENTED RULE, never pinned. The seam is its own grid
+ *  track, so it costs the box the track PLUS one extra gutter — and that sum
+ *  is what BAND_DIVIDER means. Put --space-3 on both sides instead and this
+ *  reads 25, the floor moves to 841, and the container query moves with it
+ *  BY CONSTRUCTION rather than by someone remembering to. */
+const SEAM_TRACK = (() => {
+  const match = /calc\((\d+)px \+ var\(--([a-z0-9-]+)\) - var\(--([a-z0-9-]+)\)\)/.exec(
+    boardTableBase,
+  );
+  if (match === null) throw new Error("layout arithmetic: the board declares no seam track");
+  return (
+    Number.parseInt(match[1] as string, 10) +
+    spaceToken(match[2] as string) -
+    spaceToken(match[3] as string)
+  );
+})();
+const BAND_DIVIDER = SEAM_TRACK + CELL_GAP; // 13 = a 1px rule + --space-3
+
+/** The cell's own chrome, parsed off the one button every interactive thing
+ *  on the board is. */
+const CELL_PAD = spaceIn(boardCssRaw, ".synergy-board__button", "padding", 0);
+const CELL_BORDER = px(boardButtonBase, /border:\s*(\d+)px solid/);
+
+/** MEASURED ON PAPER and RE-MEASURED IN HEADLESS CHROME AT THE CUT
+ *  (docs/proof/f11-verification.txt): the min-content width of the dataset's
+ *  longest single word at --text-xs. The word is verified — "Unpluckable",
+ *  11 characters, tied with "Interceptor"; "High-Flying" is 11 but carries a
+ *  hyphen break, so it breaks earlier and is not the binding case.
+ *
+ *  The failure direction is benign and that is why a paper figure is
+ *  tolerable here at all: every cell is an auto-fill outcome, so an error
+ *  produces a three-line name and the row equalises (I13). It cannot produce
+ *  a horizontal scrollbar. */
+const NAME_MIN_CONTENT = 68;
+/** WHAT THE BROWSER ACTUALLY SAID, and it is 2.156px MORE than the pin above.
+ *  Chrome/151.0.7922.174 --headless=new over CDP, a width:min-content probe
+ *  inside a real .synergy-board__button at viewport 1280
+ *  (docs/proof/f11-verification.txt):
+ *
+ *    "Unpluckable"        70.156   <- binding
+ *    "Interceptor"        62.563
+ *    "High-Flying Denier" 36.969   (the hyphen breaks it early)
+ *
+ *  THE PIN IS LEFT AT 68 DELIBERATELY, and the gap is recorded here rather
+ *  than quietly absorbed. §13.0.1's take-the-larger rule would re-pin to 71
+ *  and move the 8-wide floor from 829 to 853 — a threshold this slice was
+ *  briefed to land on 829 and to PROVE at the 828/830 seam. Moving it is a
+ *  spec change, not an implementation detail, so it is surfaced for
+ *  ratification instead of taken unilaterally.
+ *
+ *  WHAT IT COSTS, quantified so the next reader does not have to re-derive
+ *  it: between board box 829 and 853 the dataset's longest single word has
+ *  ~2.2px less room than it wants and bleeds that far past its cell's inner
+ *  edge. It cannot scroll and it cannot overflow the document (asserted
+ *  below and measured at every coverage width). NONE of the coverage widths
+ *  is in that band — 1280 gives the cell 75.13px of content against 70.16
+ *  needed, and 830 (the tightest legal 8-wide box) gives 68.13. */
+const NAME_MIN_MEASURED = 70.156;
+const CELL_FLOOR = NAME_MIN_CONTENT + 2 * CELL_PAD + 2 * CELL_BORDER; // 86
+
+/** The two container thresholds, parsed. Range syntax is used so the number
+ *  in the stylesheet IS the derived demand — `max-width: 828px` would be the
+ *  same seam expressed one pixel off, and the off-by-one is exactly the kind
+ *  of thing a re-derivation should not have to know about. */
+function containerThreshold(index: number): number {
+  const all = [...boardCssRaw.matchAll(/@container \(width < (\d+)px\)/g)];
+  const found = all[index];
+  if (found === undefined) throw new Error(`layout arithmetic: no board @container #${index}`);
+  return Number.parseInt(found[1] as string, 10);
+}
+const SPLIT_THRESHOLD = containerThreshold(0); // 8-wide floor
+const PAIRS_THRESHOLD = containerThreshold(1); // 4-wide floor
+
+/** The <Section> body the board sits in. REUSES F5.4's derivation rather
+ *  than writing a fourth copy of `centre − SECTION_CHROME`: at L the box is
+ *  the centre column less the <Section> chrome; below L the grid is one
+ *  column and the page padding is all that is taken off first. */
+function boardBox(viewport: number, scrollbar: number): number {
+  if (viewport >= L_BREAKPOINT) return centreColumn(viewport, scrollbar) - SECTION_CHROME;
+  return viewport - scrollbar - 2 * (viewport >= 768 ? SPACE_4 : SPACE_3) - SECTION_CHROME;
+}
+function cellW(box: number): number {
+  return (box - ROW_LABEL_W - 7 * CELL_GAP - BAND_DIVIDER) / 8;
+}
+/** The narrow arrangements carry no divider — the split IS the divider — so
+ *  they are one row label, n cells and n−1 gaps. */
+function splitCellW(box: number, perBlock: number): number {
+  return (box - ROW_LABEL_W - (perBlock - 1) * CELL_GAP) / perBlock;
+}
+
+const boardTsx = srcSources["/src/ui/synergy/SynergyBoard.tsx"] as string;
+/** Code and user-visible copy, without the prose. The board's own docblock
+ *  QUOTES both the banned string and the engine helpers it deliberately does
+ *  not call, so every "must not contain" below has to read the code. */
+const boardCode = stripComments(boardTsx);
+
+describe("F11 — the Synergy board's geometry, re-derived", () => {
+  it("1 — CELL_FLOOR composes from PARSED tokens, and 86 is nowhere in the stylesheet", () => {
+    expect(CELL_PAD).toBe(SPACE_2);
+    expect(CELL_BORDER).toBe(1);
+    expect(CELL_FLOOR).toBe(NAME_MIN_CONTENT + 2 * SPACE_2 + 2);
+    expect(CELL_FLOOR).toBe(86);
+    // CANARY: the floor is a COMPOSITION. A hardcoded 86px in the block
+    // would satisfy the arrangement while decoupling it from --space-2, so
+    // re-tuning the token would silently stop moving the floor.
+    expect(boardCss).not.toContain("86px");
+    expect(boardButtonBase).toContain("padding: var(--space-2)");
+  });
+
+  it("1b — the paper NAME_MIN_CONTENT is 2.156px LIGHT, and the cost is bounded", () => {
+    // Recorded as an assertion rather than only as prose: re-pinning to the
+    // measured width is a THRESHOLD change (829 -> 853) and has to be a
+    // ratified decision, so this fails the day someone moves either number
+    // without moving the other.
+    expect(NAME_MIN_MEASURED).toBeGreaterThan(NAME_MIN_CONTENT);
+    expect(+(NAME_MIN_MEASURED - NAME_MIN_CONTENT).toFixed(3)).toBe(2.156);
+    const measuredFloor = Math.ceil(NAME_MIN_MEASURED) + 2 * CELL_PAD + 2 * CELL_BORDER; // 89
+    const measuredSplit = 8 * measuredFloor + ROW_LABEL_W + 7 * CELL_GAP + BAND_DIVIDER;
+    expect(measuredSplit).toBe(853);
+    // The affected band, named. No coverage width falls inside it.
+    for (const [viewport, scrollbar] of [
+      [1440, 17],
+      [1280, 17],
+      [768, 15],
+      [390, 0],
+    ] as const) {
+      const box = boardBox(viewport, scrollbar);
+      expect(box < SPLIT_THRESHOLD || box >= measuredSplit, `box ${box}`).toBe(true);
+    }
+  });
+
+  it("2 — the split threshold IS the derived demand, on the box the query evaluates", () => {
+    expect(SPLIT_THRESHOLD).toBe(
+      8 * CELL_FLOOR + ROW_LABEL_W + 7 * CELL_GAP + BAND_DIVIDER,
+    );
+    expect(SPLIT_THRESHOLD).toBe(829);
+    // Self-consistent by construction: at the threshold the cell IS the floor.
+    expect(cellW(SPLIT_THRESHOLD)).toBe(CELL_FLOOR);
+
+    // The divider is PARSED, not pinned. --space-3 on BOTH sides costs 25 and
+    // moves the floor to 841; this equality moves with it rather than lying.
+    expect(BAND_DIVIDER).toBe(1 + SPACE_3);
+    expect(SEAM_TRACK).toBe(1 + SPACE_3 - SPACE_2);
+
+    // I16 — 829 is a CONTENT-box figure and the query evaluates the content
+    // box. The two are the same number only because the board carries no
+    // padding of its own; assert that, so a later slice that adds padding
+    // fails here instead of shipping a threshold 2 x pad too small.
+    expect(blocksFor(boardCssRaw, ".synergy-board")[0]).not.toContain("padding");
+
+    // The second step is DERIVED too, not the design's undecided "~560".
+    expect(PAIRS_THRESHOLD).toBe(4 * CELL_FLOOR + ROW_LABEL_W + 3 * CELL_GAP);
+    expect(PAIRS_THRESHOLD).toBe(440);
+    expect(splitCellW(PAIRS_THRESHOLD, 4)).toBe(CELL_FLOOR);
+  });
+
+  it("3 — eight columns fit at 1280 at every scrollbar, and CANNOT at 768", () => {
+    for (const scrollbar of SCROLLBARS) {
+      expect(cellW(boardBox(1280, scrollbar)), `scrollbar ${scrollbar}px`).toBeGreaterThanOrEqual(
+        CELL_FLOOR,
+      );
+      expect(boardBox(1280, scrollbar)).toBeGreaterThanOrEqual(SPLIT_THRESHOLD);
+    }
+    // THE BINDING MARGIN, named at its true size. The design said +13.3.
+    expect(boardBox(1280, 17)).toBe(885);
+    expect(cellW(boardBox(1280, 17))).toBe(93);
+    expect(cellW(boardBox(1280, 17)) - CELL_FLOOR).toBe(7);
+
+    // 1440 is comfortable; the other two coverage widths are foreclosed and
+    // that is what FORCES the split. Asserting the failure is the point.
+    expect(boardBox(1440, 17)).toBe(1045);
+    expect(cellW(boardBox(1440, 17))).toBe(113);
+    expect(boardBox(768, 15)).toBe(687);
+    expect(cellW(boardBox(768, 15))).toBeLessThan(CELL_FLOOR);
+    expect(cellW(boardBox(768, 15))).toBe(68.25);
+    expect(boardBox(390, 0)).toBe(332);
+    expect(cellW(boardBox(390, 0))).toBeLessThan(CELL_FLOOR);
+
+    // …and what the split actually renders there, on the semantic seam.
+    expect(boardBox(768, 15)).toBeLessThan(SPLIT_THRESHOLD);
+    expect(boardBox(768, 15)).toBeGreaterThanOrEqual(PAIRS_THRESHOLD);
+    expect(splitCellW(boardBox(768, 15), 4)).toBe(147.75);
+    expect(boardBox(390, 0)).toBeLessThan(PAIRS_THRESHOLD);
+    expect(splitCellW(boardBox(390, 0), 2)).toBe(126);
+    expect(splitCellW(boardBox(390, 0), 2)).toBeGreaterThan(CELL_FLOOR);
+  });
+
+  it("4 — the header renders slot.magnitude, and NO distribution is hardcoded", () => {
+    // Synergy Slot 8 has been user-confirmed as the second +2. When that
+    // ratification lands the shape becomes the seed's 6/2 and this component
+    // must need NO edit — which reading `magnitude` gives for free, because
+    // magnitudeForSynergySlot already derives from ratified ∪ user-designated
+    // and `magnitude` is a persisted field on SynergySlot.
+    expect(boardCode).toContain("(+{synergySlot.magnitude})");
+    // CANARY: a hardcoded (+2) on columns 7 and 8 would silently disagree
+    // with a loaded build. No literal boost appears in the board's markup.
+    expect(boardCode).not.toMatch(/\(\+[12]\)/);
+    // …and the board never re-derives the membership it should be reading.
+    expect(boardCode).not.toContain("RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS");
+    expect(boardCode).not.toContain("magnitudeForSynergySlot");
+  });
+
+  it("5 — BOARD_BOX reuses F5.4's derivation, chrome and all", () => {
+    expect(centreColumn(1280, 17) - boardBox(1280, 17)).toBe(SECTION_CHROME);
+    // CANARY: dropping the 34 — T16's root cause — reads 919 and hides a
+    // −34px error at every width the board is derived at.
+    expect(centreColumn(1280, 17)).toBe(919);
+    expect(cellW(919)).toBeGreaterThan(cellW(885));
+  });
+
+  it("6 — the board adds NO third sticky layer in the card column (I5)", () => {
+    expect(boardCss).not.toContain("position: sticky");
+  });
+
+  it("7 — the board opens NO third scrollport (§16.4)", () => {
+    // A third one re-breaks find-in-page, scrollRestoration and every #cat-*
+    // anchor. The board never needs one: below its floor it re-arranges.
+    expect(boardCss).not.toContain("overflow");
+  });
+
+  it("8 — the board carries NO container transparency (I2 / design-spec §6)", () => {
+    // The locked recipe is a canvas fill plus the muted token spelled out ON
+    // the text — 6.15:1 — rather than a container the browser composites
+    // into unreadability. `.synergy-row--dimmed` is a known live violation of
+    // the same rule and is deliberately NOT touched by this slice.
+    expect(boardCss).not.toContain("opacity");
+    expect(app).toContain(".synergy-row--dimmed");
+  });
+
+  it("9 — the board DEFINES no token (src/styles/tokens.css is denied)", () => {
+    expect(boardCss).not.toMatch(/--[a-z0-9-]+\s*:/);
+    // …while genuinely consuming them, so the assertion above cannot pass by
+    // the block having no colours at all.
+    expect(boardCss).toContain("var(--fg-muted)");
+    expect(boardCss).toContain("var(--info)");
+    expect(boardCss).toContain("var(--bg-inset)");
+  });
+
+  it("10 — the board is not a --cat surface (§2.8.1's placement law)", () => {
+    expect(boardCss).not.toContain("--cat");
+  });
+
+  it("11 — the board SPANS .synergy-panel's tracks", () => {
+    expect(blocksFor(boardCssRaw, ".synergy-board")[0]).toContain("grid-column: 1 / -1");
+    // The shipped precedent, eight lines from .synergy-panel's declaration.
+    expect(cssBlock(app, ".synergy-panel > .banner")).toContain("grid-column: 1 / -1");
+    // CANARY: without the span the board lands in ONE auto-fill track —
+    // 436.5px at 1280 against an 829px floor, i.e. permanently four-wide.
+    expect(synergyRowBox(1280, 17)).toBe(436.5);
+    expect(synergyRowBox(1280, 17)).toBeLessThan(SPLIT_THRESHOLD);
+  });
+
+  it("12 — every board button clears the 44px touch floor at S (I6)", () => {
+    const touch = /@media \(max-width: 767px\) \{\s*\.synergy-board__button \{\s*min-height: 44px;/;
+    expect(touch.test(boardCss)).toBe(true);
+    // …and there is exactly ONE button class, so the rule above is total.
+    // A second one would be a control the rule silently does not reach.
+    const classNames = [...boardCode.matchAll(/className=\{?[`"]([^`"]*)[`"]/g)].map(
+      (match) => match[1] as string,
+    );
+    const buttonClasses = classNames.filter((name) => name.includes("__button"));
+    expect(buttonClasses.length).toBeGreaterThan(0);
+    for (const name of buttonClasses) {
+      expect(name, `board button class: ${name}`).toContain("synergy-board__button ");
+    }
+  });
+
+  it("13 — the band's season-reset string DIFFERS from the row's", () => {
+    // tests/ui/overlays.test.tsx does a global exact
+    // getByText("⟳ Disabled by season-reset preview"), and getByText THROWS
+    // on a second match. Asserted here, at source level, so a re-worded band
+    // reds in this file first rather than in a RUN-never-edit ship gate.
+    const ROW_STRING = "⟳ Disabled by season-reset preview";
+    expect(boardCode).not.toContain(`"${ROW_STRING}"`);
+    expect(boardCode).toContain("⟳ Temporary Synergy Slots disabled by season-reset preview");
+    // The row's own string is untouched — four row statements become one BAND
+    // statement, and nothing is compacted away.
+    expect(srcSources["/src/ui/synergy/SynergyPanel.tsx"]).toContain(ROW_STRING);
+  });
+});

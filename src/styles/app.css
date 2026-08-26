@@ -3587,3 +3587,439 @@ ul {
 }
 
 /* ==== end F9 ==== */
+
+/* ==== F11 board — start ==== */
+
+/* ==================================================== F11 — the Synergy
+ * board (impl-brief f11-synergy-board §5, §6, §7) =========================
+ *
+ * ONE appended, delimited block, after F5.4's. tests/layout-arithmetic.test.ts
+ * slices it between these two markers and re-derives every number in it, so
+ * the delimiters are machinery, not decoration.
+ *
+ * THE ARITHMETIC, and it is the whole of the responsive story.
+ *
+ *   ROW_LABEL_W      72px  "Reaction" at --text-sm plus --space-2 of air
+ *   CELL_GAP          8px  --space-2, the grid's column-gap
+ *   BAND_DIVIDER     13px  a 1px rule plus --space-3, OVER AND ABOVE one gap
+ *   NAME_MIN_CONTENT 68px  "Unpluckable" — the dataset's longest single word
+ *   CELL_FLOOR       86px  68 + 2 x --space-2 + 2 x 1px border
+ *
+ *   cellW(box) = (box - 72 - 7 x 8 - 13) / 8
+ *   8 columns need box >= 8 x 86 + 72 + 7 x 8 + 13 = 829
+ *   4 columns need box >= 4 x 86 + 72 + 3 x 8      = 440
+ *
+ * THE TRACK LIST ENCODES BOTH, and it is written so the two literals the
+ * arithmetic cares about appear as themselves:
+ *
+ *   calc(72px - var(--space-2))                  the row-label column, MINUS
+ *                                                the grid gutter that follows
+ *                                                it — so the pair costs the
+ *                                                box exactly ROW_LABEL_W and
+ *                                                the label-to-column junction
+ *                                                is not a second gap
+ *   calc(1px + var(--space-3) - var(--space-2))  the seam track: it plus its
+ *                                                one extra gutter cost 13px
+ *                                                more than the plain gap it
+ *                                                replaces, which IS
+ *                                                BAND_DIVIDER
+ *
+ * I16 — TWO BOXES, ONE ARRANGEMENT, CONVERSION WRITTEN DOWN. 829 and 440 are
+ * CONTENT-box figures, and this element carries no padding of its own inside
+ * .section__body, so the container query and the derived demand are the same
+ * number TODAY. A later slice that gives the board padding must add it to
+ * both thresholds.
+ *
+ * THE SECOND STEP IS DERIVED, NOT A COMFORT NUMBER. The design named "~560"
+ * for the fall to two columns and explicitly declined to derive it. 440 is
+ * the four-wide floor itself, which is the same rule as the 829 one step
+ * down; at the two widths the coverage set names it lands identically — 768
+ * (box 687) is four-wide, 390 (box 332) is two-wide.
+ *
+ * WHY A GRID AND NOT A TABLE LAYOUT. The cells are separate bordered boxes
+ * with a real gutter between them, which `border-spacing` cannot express
+ * without also paying for two OUTER gutters the arithmetic does not have.
+ * The <table> element and its scope="col"/scope="row" headers are kept —
+ * SynergyBoard.tsx declares every ARIA role explicitly, because a changed
+ * `display` strips native table semantics in every engine.
+ *
+ * WHY THE BOARD SPANS. .synergy-panel is
+ * `repeat(auto-fill, minmax(min(426px, 100%), 1fr))`, so a new direct child
+ * lands in ONE 436.5px track at 1280 — against an 829px floor, i.e.
+ * permanently in the degraded four-wide form at every width. The shipped
+ * precedent eight lines from that declaration is
+ * `.synergy-panel > .banner { grid-column: 1 / -1 }`; this follows it. */
+.synergy-board {
+  grid-column: 1 / -1;
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.synergy-board__heading {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-secondary);
+}
+
+.synergy-board__table {
+  display: grid;
+  grid-template-columns:
+    calc(72px - var(--space-2))
+    repeat(4, minmax(0, 1fr))
+    calc(1px + var(--space-3) - var(--space-2))
+    repeat(4, minmax(0, 1fr));
+  column-gap: var(--space-2);
+  row-gap: var(--space-2);
+  width: 100%;
+}
+
+/* Flatten the table's own boxes so every header and cell is a direct grid
+ * item. The roles in the TSX are what carry the semantics through this. */
+.synergy-board__table > thead,
+.synergy-board__table > tbody,
+.synergy-board__table tr {
+  display: contents;
+}
+
+/* ------------------------------------------------------- the two bands -- */
+
+.synergy-board__band {
+  display: block;
+  grid-row: 1;
+  min-width: 0;
+  text-align: left;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--fg-secondary);
+  padding-bottom: var(--space-1);
+}
+
+.synergy-board__band[data-band="temporary"] {
+  grid-column: 2 / 6;
+}
+
+.synergy-board__band[data-band="permanent"] {
+  grid-column: 7 / 11;
+}
+
+/* The season-reset preview, stated ONCE for the band instead of four times
+ * for four rows. A dashed --info rule (6.85:1 on --bg-surface) plus the
+ * glyph plus a full sentence — three carriers, none of them hue alone. The
+ * controls in the band STAY OPERABLE: the preview is a display overlay, not
+ * a state change, and rev 1's defect was dimming rows it simultaneously
+ * declared operable. */
+.synergy-board__band[data-preview="disabled"] {
+  border-bottom: 1px dashed var(--info);
+}
+
+.synergy-board__preview-note {
+  color: var(--info);
+  font-weight: 400;
+}
+
+/* The divider our permanence model has and the reference does not. */
+.synergy-board__seam {
+  display: block;
+  grid-column: 6;
+  grid-row: 1 / 5;
+  border-left: 1px solid var(--border-subtle);
+}
+
+/* ------------------------------------------ headers, labels and columns -- */
+
+.synergy-board__colhead {
+  display: block;
+  grid-row: 2;
+  min-width: 0;
+  text-align: left;
+  font-weight: 400;
+}
+
+.synergy-board__lock-note {
+  display: block;
+  padding-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.synergy-board__rowlabel {
+  display: block;
+  grid-column: 1;
+  align-self: center;
+  min-width: 0;
+  text-align: left;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-secondary);
+}
+
+/* Four label pairs exist in the DOM, one per two-column block; each
+ * arrangement below shows exactly as many as it has blocks. */
+.synergy-board__rowlabel[data-block="1"],
+.synergy-board__rowlabel[data-block="2"],
+.synergy-board__rowlabel[data-block="3"] {
+  display: none;
+}
+
+.synergy-board__rowlabel[data-role="fuse"],
+.synergy-board__cell[data-role="fuse"] {
+  grid-row: 3;
+}
+
+.synergy-board__rowlabel[data-role="reaction"],
+.synergy-board__cell[data-role="reaction"] {
+  grid-row: 4;
+}
+
+.synergy-board [data-column="1"] {
+  grid-column: 2;
+}
+.synergy-board [data-column="2"] {
+  grid-column: 3;
+}
+.synergy-board [data-column="3"] {
+  grid-column: 4;
+}
+.synergy-board [data-column="4"] {
+  grid-column: 5;
+}
+.synergy-board [data-column="5"] {
+  grid-column: 7;
+}
+.synergy-board [data-column="6"] {
+  grid-column: 8;
+}
+.synergy-board [data-column="7"] {
+  grid-column: 9;
+}
+.synergy-board [data-column="8"] {
+  grid-column: 10;
+}
+
+/* --------------------------------------------------------------- cells -- */
+
+.synergy-board__cell {
+  display: block;
+  min-width: 0;
+}
+
+/* EVERY interactive thing on the board is this one button — a cell, or a
+ * column header. No <select>, no SegmentedControl, no Toggle: SELECT_FLOOR
+ * is 180px against a 93px cell at 1280, and the controls stay in the rows
+ * below at their shipped size. */
+.synergy-board__button {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--fg-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  cursor: pointer;
+}
+
+/* I13 — the boxes in a row end at the same pixel. A locked cell IS the <td>
+ * and a grid item, so it stretches to the row; a button inside a <td> is
+ * content-height and would sit short beside it. Measured at 1280 before this
+ * rule: the Locked box outran "Float Game (G)" by a full line box. */
+.synergy-board__cell .synergy-board__button {
+  height: 100%;
+}
+
+.synergy-board__button:focus-visible {
+  box-shadow: var(--ring-focus);
+  outline: 2px solid transparent;
+}
+
+/* Selection. aria-pressed carries it for assistive tech; the inset bar is
+ * the non-colour carrier for everyone else — a bar that is ABSENT when the
+ * column is not selected, so the state never rides on hue alone. */
+.synergy-board__button[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.synergy-board__button--empty {
+  text-align: center;
+  background: var(--bg-inset);
+  border-style: dashed;
+  border-color: var(--border-strong);
+  color: var(--fg-muted);
+}
+
+.synergy-board__level {
+  color: var(--fg-secondary);
+}
+
+/* A LOCKED COLUMN, de-opacified per design-spec §6 / invariant I2. The
+ * general law: a container transparency is permitted on an element holding
+ * no text and on a native control carrying `disabled`, and NEVER on an
+ * ancestor of text the user must read to act. The recipe is a --bg-canvas
+ * fill, a --border-subtle rim, and the muted token spelled out ON THE TEXT
+ * — 6.15:1, which clears AA, where a composited container would not.
+ *
+ * The cells of a locked column are NOT buttons: H4's invariant class says
+ * the control is not offered rather than offered-and-refused.
+ *
+ * `.synergy-row--dimmed` in the shipped rows is a known live violation of
+ * the same rule. It is NOT touched here — different surface, and it sits
+ * directly under tests/ui/overlays.test.tsx, a RUN-never-edit gate. It is
+ * routed as its own micro-slice. */
+.synergy-board__cell--locked {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.synergy-board__colhead[data-locked="true"] .synergy-board__button {
+  background: var(--bg-canvas);
+}
+
+/* -------------------------------- < 829: four and four, on the SEAM the -- */
+/* -------------------------------- board already draws, never a midpoint -- */
+
+@container (width < 829px) {
+  .synergy-board__table {
+    grid-template-columns: calc(72px - var(--space-2)) repeat(4, minmax(0, 1fr));
+  }
+
+  .synergy-board__seam {
+    display: none;
+  }
+
+  /* BOTH bands are named explicitly, and that is load-bearing rather than
+   * tidy: the wide placements are `.synergy-board__band[data-band=...]`, so a
+   * bare `.synergy-board__band` here LOSES on specificity, the Permanent band
+   * keeps columns 7/11, and the grid grows five implicit tracks the template
+   * never sized. Every 1fr column then collapses -- measured at 88.97px
+   * against a 151.50px demand at 768 before this selector was matched to the
+   * one it has to beat. */
+  .synergy-board__band[data-band="temporary"],
+  .synergy-board__band[data-band="permanent"] {
+    grid-column: 1 / -1;
+  }
+
+  .synergy-board__band[data-band="permanent"] {
+    grid-row: 5;
+  }
+
+  .synergy-board [data-column="5"] {
+    grid-column: 2;
+  }
+  .synergy-board [data-column="6"] {
+    grid-column: 3;
+  }
+  .synergy-board [data-column="7"] {
+    grid-column: 4;
+  }
+  .synergy-board [data-column="8"] {
+    grid-column: 5;
+  }
+
+  .synergy-board__colhead[data-band="permanent"] {
+    grid-row: 6;
+  }
+
+  .synergy-board [data-band="permanent"][data-role="fuse"] {
+    grid-row: 7;
+  }
+
+  .synergy-board [data-band="permanent"][data-role="reaction"] {
+    grid-row: 8;
+  }
+
+  .synergy-board__rowlabel[data-block="2"] {
+    display: block;
+  }
+}
+
+/* ------------------------- < 440: four blocks of two. At this width it is -- */
+/* ------------------------- a list of pairs rather than a board, and both -- */
+/* ------------------------- band labels are still present: nothing hides. -- */
+
+@container (width < 440px) {
+  .synergy-board__table {
+    grid-template-columns: calc(72px - var(--space-2)) repeat(2, minmax(0, 1fr));
+  }
+
+  .synergy-board [data-column="3"],
+  .synergy-board [data-column="5"],
+  .synergy-board [data-column="7"] {
+    grid-column: 2;
+  }
+  .synergy-board [data-column="4"],
+  .synergy-board [data-column="6"],
+  .synergy-board [data-column="8"] {
+    grid-column: 3;
+  }
+
+  .synergy-board__colhead[data-block="1"] {
+    grid-row: 5;
+  }
+  .synergy-board [data-block="1"][data-role="fuse"] {
+    grid-row: 6;
+  }
+  .synergy-board [data-block="1"][data-role="reaction"] {
+    grid-row: 7;
+  }
+
+  .synergy-board__band[data-band="permanent"] {
+    grid-row: 8;
+  }
+
+  .synergy-board__colhead[data-block="2"] {
+    grid-row: 9;
+  }
+  .synergy-board [data-block="2"][data-role="fuse"] {
+    grid-row: 10;
+  }
+  .synergy-board [data-block="2"][data-role="reaction"] {
+    grid-row: 11;
+  }
+
+  .synergy-board__colhead[data-block="3"] {
+    grid-row: 12;
+  }
+  .synergy-board [data-block="3"][data-role="fuse"] {
+    grid-row: 13;
+  }
+  .synergy-board [data-block="3"][data-role="reaction"] {
+    grid-row: 14;
+  }
+
+  .synergy-board__rowlabel[data-block="1"],
+  .synergy-board__rowlabel[data-block="3"] {
+    display: block;
+  }
+}
+
+/* I6 touch floor, on the shipped 767 breakpoint — no new one is added. */
+@media (max-width: 767px) {
+  .synergy-board__button {
+    min-height: 44px;
+  }
+}
+
+/* §10.6 forced-colors companion: every board state already survives on
+ * glyph, border weight and words. The two custom-property rules become
+ * system colours so they are not silently discarded. */
+@media (forced-colors: active) {
+  .synergy-board__seam {
+    border-left-color: CanvasText;
+  }
+
+  .synergy-board__band[data-preview="disabled"] {
+    border-bottom-color: CanvasText;
+  }
+}
+
+/* ==== F11 board — end ==== */

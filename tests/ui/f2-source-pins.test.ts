@@ -94,7 +94,7 @@ describe("E — the F5.2 L re-cut: one rail, and one tier", () => {
 describe("F — canonical preview predicate adopted (no hand-negation)", () => {
   const handNegated = /permanence === "temporary" && \w+\.unlocked|\w+\.unlocked && .*permanence === "temporary"/;
 
-  for (const file of ["src/ui/grid/BadgeCard.tsx", "src/ui/synergy/SynergyPanel.tsx"]) {
+  for (const file of ["src/ui/grid/BadgeCard.tsx", "src/ui/synergy/SynergyPanel.tsx", "src/ui/synergy/SynergyBoard.tsx"]) {
     it(`${file} imports synergySlotDisabledByPreview and carries no inline copy`, () => {
       const source = read(file);
       // PRE-FIX: both files re-derived `overlay.seasonReset &&
