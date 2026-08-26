@@ -6998,3 +6998,114 @@ census to be blind to. Runtime deps `{react, react-dom}`; zero network; zero new
   overlay outcome is a model artifact the browser never produces.
 
 **OPERATOR ACTION:** the worktree `/tmp/bb-shell` is left in place on `f14-app-shell`.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · integration — F14 the app shell + A5-U bonus mode, onto `dev`
+
+**Event:** `integration-complete`
+**Landed:** `f14-app-shell` first, then `a5-u-bonus-mode-v2`. Both FAST-FORWARDS via a throwaway
+branch (`integrate-f14`, `integrate-a5u`), both deleted with `git branch -d` after landing.
+`dev` `0e96632` → `6f54e2c` → **`dd1f0dc`**. `main` (`444d034`) untouched.
+**Merge commits on `dev`: 2 before, 2 after** (`git rev-list --merges --count dev`, not `wc -l`).
+No dev server started; port 5173 never bound.
+
+### Method, per branch
+
+Both branches forked from `0e96632` itself (`git merge-base` = `dev`'s tip), so F14 landed as a
+pure fast-forward with ZERO conflicts. All conflict work fell to A5-U, rebased through the shell.
+
+**F14 — 1374/68 → 1399/68.** Expected 1374 + 25 = 1399; the branch touches only
+`layout-arithmetic.test.ts`, which already existed, so file count held at 68. Actual 1399/68.
+
+**A5-U — 1399/68 → 1426/69.** Expected 1399 + 27 = 1426 (branch delta 1401 − 1374 = +27) and
+68 + 1 = 69 (`tests/ui/f9-bonus-mode.test.tsx` is new). Actual 1426/69.
+
+### Conflicts and resolutions
+
+`src/App.tsx` **auto-merged** — not trusted on that basis. Every line each side ADDED versus
+`0e96632` was checked present in the merged file: both sets complete. A5-U's `bonus`,
+`onOpenBonus`, `baseBudget` and `appliedBonus` interleave with F14's `compact`, `withAttributes`
+and `physique` at the `BuildPanel` and `CategoryLedgerLede` call sites. Both sides kept; neither
+picked.
+
+Three real conflicts, all resolved by RECONSTRUCTION FROM SOURCE BLOBS with each half then
+diffed byte-identically (`cmp`), never by hand-editing conflicted text:
+
+- **`src/styles/app.css`** — both branches append at EOF. Resolved as `dev`'s file (4539) +
+  A5-U's 226-line append = **4765**. Marker-stripping would have given 4764: git unified the
+  shared leading blank line at 4323, abutting F14's end comment against A5-U's opening comment.
+- **`tests/layout-arithmetic.test.ts`** — both append at EOF, and git ALSO unified a shared
+  trailing suffix (`  });` / `});`), so marker-stripping would have left F14's describe block
+  unclosed. Resolved as merged base content (2954) + F14's complete block (507) + A5-U's
+  complete block (182) = **3643**.
+- **`.claude/reportback.md`** — append-only, all entries kept in chronological order BY AUTHORED
+  TIME: A5-U `00:51:43` before F14 `01:19:56`. Resolved as base (6721) + A5-U (146) + F14 (133)
+  = **7000**. Markers would have given 6999 — the same collapse hazard, one blank line short.
+
+Collapse hazard cost across the three files: 3 lines that a naive marker-strip would have lost.
+
+### Gates
+
+`npm test` 1426/69 · `npm run typecheck` clean · `npm run build` clean (CSS 52.13 → 54.67 kB,
+consistent with +226 lines; the build is the only gate that catches a malformed CSS comment).
+
+RUN-never-edit, run explicitly: `tests/ui/overlays.test.tsx`, `tests/category-colors.test.ts`,
+`tests/feasibility-golden.test.ts` — **29 passed**, and all three are byte-identical to `0e96632`
+(golden md5 `b8e4a39c…` unchanged, so no cell moved in the 504-cell golden).
+
+F9's touch-floor census re-run: I6 assertions green, **17 entries**, set-equal in both directions.
+Because that census is blind to hard-coded values, the literal audit was done separately by
+diffing `44px` DECLARATIONS: control-floor counts identical across all three trees
+(`height` 3 · `min-height` 2 · `min-width` 1 · `width` 3). F14's only added `44px` is
+`--sticky-jumpnav-h`, which REPLACES a hard-coded `top: 44px` — a de-literalization, consumed by
+assertion 28. A5-U added none.
+
+### The four shell properties, re-checked on the MERGED tree
+
+1. **Gate and degradation.** `@media (min-width: 1280px) and (min-height: 868px)` appears twice,
+   verbatim; below either threshold it simply does not match and the document scrolls. The
+   `@supports not (height: 100dvh)` fallback is intact and restores `position: static` /
+   `height: auto` / `overflow: visible`. `.app-shell` is `position: fixed` (root `overflow:
+   hidden` does NOT stop the viewport scrolling) with `height: 100vh` then `height: 100dvh` —
+   the order is the assertion. A5-U's block adds no 1280px media block.
+2. **Anchors.** Eight targets: five `#cat-*` via `.grid-section`, plus `#panel-synergy`,
+   `#panel-summary`, `main#badge-grid`. `--scroll-reserve` is `0px` shell-off and
+   `--sticky-stack-h` (120) shell-on; `.grid-section` takes `calc(44 − reserve)` = **−76px**,
+   which is exactly `−1 × --sticky-digest-h` and lands flush because scroll-padding (120) and
+   scroll-margin (−76) ADD to 44. NOT double-counted: A5-U's CSS block declares no
+   `scroll-margin`, `scroll-padding` or `--scroll-reserve` at all, and its two new ids
+   (`dialog-bonus`, `dialog-bonus-title`) are ARIA wiring — no `href` targets them and they
+   carry no CSS selector.
+3. **`.summary` geometry.** Measured, not assumed, from the real tokens
+   (SPACE_1 4 · SPACE_3 12 · SPACE_4 16 · RAIL 300 · SECTION_CHROME 34): **902 / 887 / 885** at
+   scrollbar 0 / 15 / 17, IDENTICAL shell-on and shell-off. Both paths reduce to `902 − s`
+   (off `1280−s−32−12−300−34`; on `1280−24−12−300−s−8−34`). Note 887 is pinned nowhere in the
+   suite — it was derived here rather than taken on faith.
+4. **Scroll memory.** `src/ui/shell/scroll-memory.ts` still has **zero imports**, two
+   `sessionStorage` calls under ONE key (`bb2k27.ui.scrollTop.colRight`), and zero `localStorage`
+   in code — its two `localStorage` mentions are both comments.
+
+### Test-run instability during this pass — CLASSIFIED AS FLAKE, NOT REGRESSION
+
+The first full run on the final tree was **1426/1426 green in 21.58s**. Later runs on the SAME
+tree reported 7–12 failures with wall-clock durations of 92–973s, file counts collapsing to 65/69
+as vitest workers failed to spawn. Three other agents were running against this machine and it
+was suspending repeatedly; load average peaked at **20.4**.
+
+Every failure was DURATION, never content: `Test timed out` / `Hook timed out`, plus
+`[vitest-pool]: Failed to start forks worker`. No `AssertionError`, no expected-vs-received
+anywhere. Two lookalikes were ruled out explicitly — f22's
+`Unable to find role="dialog"` comes from `await screen.findByRole`, which is how a Testing
+Library RETRY query reports a timeout, and an `expect(...).toBe(true)` in the output was a
+stack-frame source line, not a failed assertion.
+
+Isolation evidence, one file at a time: `app.test.tsx` 6/6 · `f22-import-guard` 4/4 ·
+`f4-badge-card-description` 9/9 · `f4-slot7` 17/17 · `f9-bonus-mode` 17/17 ·
+`recovery-boundary` 8/8 · `reset-build` 16/16 · `synergy-panel` 8/8 · `overlays.test.tsx` 4/4.
+`randomize.test.ts`'s 150-seed fuzz case (line 575, which already carries an explicit
+`{ timeout: 20000 }`) passes ALONE in **859ms** against 126,275ms under load — a ~150×
+contention slowdown. No timeout was lowered or tightened to make anything pass.
+
+**OPERATOR ACTION:** the worktrees `/tmp/bb-shell` and `/tmp/bb-a5u` are left in place on
+`f14-app-shell` and `a5-u-bonus-mode-v2`. Both landed branches can be deleted at the operator's
+discretion; `git branch -d` on them is refused to an agent by the permission layer.
