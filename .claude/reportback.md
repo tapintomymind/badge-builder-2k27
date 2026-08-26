@@ -10355,3 +10355,105 @@ pre-existing untracked `.claude/worktrees/`. No `npm install` was run. The stati
 was stopped and the temporary `dist/seed.html` deleted (`dist/` is gitignored, so neither ever
 reached the index). The scratch worktree `/private/tmp/bb-verify` is left for the dispatcher to
 reap and holds no commits.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · promotion — `dev` → `main`, the ship
+
+**Event:** `promotion-complete`
+
+**The two `main` SHAs, confirmed before anything was touched.** Local `main` was `444d034` — the
+original Vite+React+TS scaffold commit, never checked out this session. `origin/main` was
+**`e6b3ae4`**, carrying PR #3 *"Prep app for Vercel hosting"* which the repo owner merged himself
+(2026-08-25T23:13:37Z). That SHA was confirmed with `git ls-remote origin refs/heads/main` —
+straight off the server, not merely the local remote-tracking ref, which is the one thing a stale
+`.git` cannot fake. **The remote was treated as authoritative in both directions:** local `main`
+was moved FORWARD onto `e6b3ae4` with `git merge --ff-only origin/main`, which can only advance a
+ref and would have failed loudly had the two genuinely diverged. Nothing was reconciled toward the
+stale local ref, and **nothing was force-pushed at any point**.
+
+**Containment — `origin/main` held nothing absent from `dev`.** `git rev-list --count
+dev..origin/main` returned **0** and `git merge-base --is-ancestor origin/main dev` succeeded, so
+`e6b3ae4` is fully reachable from `dev`; `dev` was **146 commits** ahead. The stop-and-report
+condition (work landed on `main` outside this session, needing a back-merge first) **did not
+fire**. The Vercel work was already in `dev` by way of `ac61296` *"Merge branch 'main' into dev —
+Vercel hosting backmerge"*.
+
+**Merge commits: 2 before, 2 after** (`git rev-list --merges --count dev` = 2 — `e6b3ae4` the PR
+merge and `ac61296` the backmerge, both inherited from that same Vercel work), plus the promotion
+merge itself now on `main`.
+
+### The promotion
+
+`dev` → `main` as a **`--no-ff` merge**, per this project's branch discipline: one auditable
+commit rather than a fast-forward. It merged **cleanly, with no conflicts**.
+
+It was performed in a **throwaway worktree**, not in the main working directory, and deliberately
+so: a `vite` dev server (PID 62499) is live on **port 5173** with its cwd set to the repo root,
+and that origin holds the owner's real saved builds in `localStorage`. Checking `main` out there
+would have yanked 146 commits of `src/` out from under a running server mid-session. The worktree
+symlinked `node_modules`; **no `npm install` was run**.
+
+**The strongest integrity proof available was taken, and it is exact:** the merged `main` tree
+hashes to **`b462216bb959751fea473e99e9109a6032594213`** — *byte-for-byte the same tree object as
+`dev`*. `git diff HEAD dev` is empty. The promotion therefore added no content, dropped no
+content, and altered no file; `main`'s tree simply became `dev`'s tree.
+
+### Gates, all re-run on the merged `main` (not on `dev`, and not assumed)
+
+- **`npm test` — 1715 passed / 78 files, exit 0.** Matches the `dev` baseline exactly.
+- **`npm run typecheck`** — clean, exit 0.
+- **`npm run build`** — clean, exit 0. Emits **`dist/`** (`index.html` 0.98 kB, `assets/index-ByLFPND1.css`
+  62.92 kB, `assets/index-CaUagHFW.js` 341.72 kB).
+- **The three RUN-never-edit gates ran, and are proven byte-unchanged by blob hash** — not merely
+  green, but provably the same file: `tests/ui/overlays.test.tsx` **`30a7131b`**,
+  `tests/category-colors.test.ts` **`f1539c1d`**, `tests/feasibility-golden.test.ts` **`cef359dc`**.
+  All three match the pinned prefixes.
+- **The 504-cell golden is intact, cell for cell.** INV-19's matrix is `7 * 6 * 4 * 3` = **504**,
+  and *"every affordable-upgrade count is unchanged, cell for cell"* passed, as did the
+  dataset pin (`dataVersion 2026-08-26.1`). **No cell moved**, so the stop-and-report did not fire.
+- **F9/I6 touch-floor census, BOTH axes.** Height axis (checks 23–29) and the WIDTH axis (checks
+  30–32, *"the literal blind spot"*) both green, canaries included.
+- **All four vocabulary lint classes green** — class 1 (bare `slot` banned in `src/**`, 76 checks),
+  class 2 (no ranking vocabulary in the roll engine, 11), class 3 (the pin is never called a lock,
+  15), class 4 (the currency is Badge Tokens, never Badge Points, 77).
+
+### The Vercel configuration survived — diffed explicitly, not eyeballed
+
+`git diff origin/main HEAD -- vercel.json` is **empty**. By blob hash the file is
+**`9f03c29b6b3e3553a3b3cac755a241c2119ed8c8` on `origin/main` and the identical
+`9f03c29b6b3e3553a3b3cac755a241c2119ed8c8` on the merged `main`**. `public/favicon.svg` likewise
+unchanged (`d7f2f4c9`). Every other artefact of PR #3 was confirmed present on the merged result
+rather than assumed: the `.vercel/` ignore rule, the favicon link and the og/description/theme-color
+meta tags in `index.html`, the `engines.node = 22.x` pin, and the reworded package description.
+
+`vercel.json` configures: `framework: "vite"` (so Vercel infers the build — there is **no explicit
+`buildCommand` or `outputDirectory`**, and the Vite preset's default output `dist` is exactly what
+`npm run build` emits, so the two agree), an SPA rewrite of `/(.*)` → `/index.html`, a one-year
+immutable `Cache-Control` on `/assets/(.*)`, and `X-Content-Type-Options: nosniff` /
+`X-Frame-Options: DENY` / `Referrer-Policy: strict-origin-when-cross-origin` on all routes.
+
+### Deploy — NOT verified, and the reason is not a failure
+
+**The `vercel` CLI is installed (53.4.0) but its stored token is invalid** — `vercel whoami`
+returns *"The specified token is not valid."* Re-authenticating was declined on purpose: entering
+credentials is out of bounds for an agent. So deployment state could not be read from Vercel, and
+is **not** being guessed at here.
+
+What the GitHub side shows, which is evidence but not proof: **no deployments** on the repo, **no
+check runs** and **no commit statuses** on `e6b3ae4`, **no webhooks**, and an empty `homepageUrl`.
+PR #3 prepared the *repository* for Vercel; README step 1 (*"In the Vercel dashboard, import this
+GitHub repo"*) is a manual dashboard action, and nothing observable suggests it has been done. The
+likeliest reading is that **the repo is not yet connected to a Vercel project, so the push to
+`main` triggers nothing**. The owner has to confirm that himself.
+
+Also worth the owner's eye before real users arrive: the repo is **PUBLIC**, and its **default
+branch is `dev`**, not `main` — so a visitor lands on `dev`, and any Vercel import would default
+its production branch to `dev` unless told otherwise.
+
+### Housekeeping
+
+`git add` was given **explicit paths only**; `git add -A` was never used. **No `npm install`.**
+**Nothing was force-pushed.** Port **5173 was left strictly alone** — never bound, never killed,
+never served against. The promotion worktree holds no commits and is left for the dispatcher to
+reap. The ~30 accumulated throwaway branches and worktrees still need the owner's hand: the
+permission layer refuses agent branch deletion, so none were removed.
