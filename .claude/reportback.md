@@ -8738,3 +8738,133 @@ removed afterwards, and `dist/` restored to the merged build's two files. Both p
 `.gitignore`'s trailing-slash `node_modules/` entry does not match — were never committed. The
 hygiene slice fixing that entry had NOT landed at integration time. The untracked
 `.claude/worktrees/` directory in the main checkout was left alone.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · integration — hygiene sweep, onto `dev`
+
+**Event:** `integration-complete`
+**Landed:** `hygiene-sweep` (3 commits off `16c0569`, worktree `/tmp/bb-hygiene`). Rebased
+through the Loadout Board landing onto a throwaway `land-hygiene`, then FAST-FORWARD.
+**`dev`:** `4982a68` → **`12822b7`**. **Merge commits 2 before, 2 after** — counted with
+`git rev-list --merges --count dev`, never `git log --merges | wc -l`, which counts LINES.
+`main` untouched, never checked out. `hygiene-sweep` itself was never moved and
+`/tmp/bb-hygiene` is untouched.
+
+### Conflicts — ONE of the two forecast, and it was the expected one
+
+`tests/layout-arithmetic.test.ts` was forecast as the likely collision and **did not conflict**.
+The two sides edited the same file in four places that never overlap: F16 appended to
+`S_TOUCH_FLOOR_CENSUS` at ~2120 and added its own block after F11's `describe` close at ~2672,
+while the hygiene branch hoisted the helper at ~2052, rewrote assertion 27's scan body at ~2207
+and inserted the width block at ~2302. Git's 3-way merge replayed the branch verbatim: the
+branch's own diff and `git diff dev..land-hygiene` for that file are **byte-identical modulo
+hunk headers**, checked with `cmp`. Both sides are present — F16's `.board-tile` and
+`.board-panel__browse` census registrations AND the hoisted helper, the width census and
+assertions 30/31/32. Nothing was dropped to make the file parse.
+
+`.claude/reportback.md` conflicted, as it always does.
+
+### The hoisted helper, verified rather than assumed
+
+`floorSelectors()` is defined ONCE (line 2063) and has five call sites: assertion 27
+(`min-height`), assertion 31 (`min-width`) and three inside assertion 32's canaries. So a canary
+red is evidence about the line that ships, which is the entire point of the hoist. **Assertion
+27 behaves identically**: with `property = "min-height"` the template literal
+`` `${property}: var(--tap-target)` `` is the same string the old inline scan matched, over the
+same `/([^{}]+)\{([^{}]*)\}/g` rule split and the same
+`.trim().replace(/\s+/g, " ")` normalisation. 27 is green on the merged tree and its census is
+long-by-one under mutation (c) below — it still discriminates.
+
+**Why the width census survived F16 unchanged.** F16's own S block declares `min-height` only —
+no `min-width`, so assertion 31's read-back is still exactly `.filter-chip`, `.pin-control`,
+`.roll-seed__regen`. F16's four literal sizes (`4px`, `20px`, `20px`, `1px`) all sit OUTSIDE any
+`@media (max-width: 767px)` body, so `literalSizes(S_BODIES)` is untouched and 32(d)'s
+exact-set assertion against the frozen four still holds. Checked before the rebase, not after
+the tests happened to pass.
+
+### `.claude/reportback.md` — reconstructed from source blobs, never hand-edited
+
+Ninth use of the append-only method. Both sides are pure appends at line 8339: `dev` added
+lines 8340–8610 (+271), the branch added 8340–8469 (+130). Expected merged length computed
+BEFORE building it: 8610 + 130 = **8740**. Measured: **8740**.
+
+**The entry does NOT go at EOF.** Authored order, by commit author date:
+
+| entry | authored | placement |
+|---|---|---|
+| F16 slice-complete (`3e9ba82`) | 10:09:42 | 8340 |
+| **hygiene sweep (`69b43a2`)** | **10:21:28** | **8498** |
+| F16 integration (`4982a68`) | 10:47:58 | 8627 |
+
+All three entries carry the same calendar date, so the ordering came from author timestamps, not
+from the headers. The hygiene block was spliced between the two F16 entries. Its leading blank
+line also restores the file's `rule / blank / header` convention, which the F16 entries had
+dropped.
+
+Four `cmp` checks, all byte-identical: `merged[1..8496]` vs `dev[1..8496]`;
+`merged[8497..8626]` vs the branch's 130 authored lines; `merged[8627..8740]` vs
+`dev[8497..8610]`; and the whole-file cross-check `merged` minus the spliced range vs `dev`.
+
+### Counts — computed before looking, then measured
+
+| | tests | files |
+|---|---|---|
+| base `4982a68` | 1568 | 73 |
+| predicted delta | +3 | +0 |
+| **predicted** | **1571** | **73** |
+| **measured** | **1571** | **73** |
+
+The branch adds exactly three assertions (30, 31, 32) to an existing file, so no file count
+moves. 1571 − 1568 = 3. Exact.
+
+### Gates
+
+- `npm test` — **1571 passed / 73 files**, 0 failed. No flakes, no re-runs needed.
+- `npm run typecheck` — clean, exit 0.
+- `npm run build` — clean, exit 0 (`index-CFhRbGK8.js` / `index-CijHueLd.css`, unchanged from
+  the F16 landing, as a test-only + gitignore change should leave them).
+- RUN-never-edit, proven **byte-unchanged by blob hash** rather than merely green — identical
+  before the run, after the run, and to `dev:<path>`:
+  - `tests/ui/overlays.test.tsx` `da7de501…`
+  - `tests/category-colors.test.ts` `f1539c1d…`
+  - `tests/feasibility-golden.test.ts` `cef359dc…` — the 504-cell golden (7 × 6 × 4 × 3).
+    `toEqual(GOLDEN)` passed. **No cell moved.**
+- F9's census re-run by name: I6 #23–#29 and the new #30–#32 all pass, plus F5.3/C #20 and
+  F11 #12.
+- Vocabulary lint (`tests/vocabulary.test.ts`) passes.
+
+### The mutation tests, re-run ON THE MERGED TREE
+
+The point of the slice is that the census goes RED against the escapes it names, and a merge
+could silently defeat that. All three shapes re-checked after the rebase. `src/styles/app.css`
+baseline blob `291698d9345fa9922d56cdf36d1ebdb7fc299153`.
+
+| # | mutation | reddens |
+|---|---|---|
+| a | delete the `.pin-control, .roll-seed__regen` `min-width` rule | **30, 31, 32** |
+| b | add a hard-coded `min-height: 44px` in an S block | **31, 32** — 27 stays GREEN |
+| c | add a control 44 tall and `min-width: 34px` | **27, 31, 32** |
+
+- **(a)** 30 fails `no S rule for .pin-control`; 31's read-back collapses to `['.filter-chip']`
+  against the 3-entry census; 32(a) fails `the canary did not actually remove the rule` —
+  self-detecting that the rule it exists to delete is already gone. This is the regression the
+  roll slice's fix was held by NOTHING against before assertion 31 existed.
+- **(b)** 31 fails with its own diagnostic — *"spells min-height as 44px — use var(--tap-target)
+  so the census can see it (this is the F11 / [A7] escape shape)"* — and 32(d)'s frozen-four set
+  grows to five. **Assertion 27 stays green**, which is the blind spot being closed, demonstrated
+  rather than asserted: a literal floor is invisible to the token read-back.
+- **(c)** 27's census goes long by one (20 vs 19) AND 31's literal sweep catches the `34px`.
+  Both axes fire.
+
+**The stylesheet was restored byte-identically after each**, via `git checkout --` and verified
+two ways every time: `git hash-object` back to `291698d9…`, and `cmp` against a pristine copy
+taken before the first mutation. I6 re-run green afterwards. `git status` clean at the end.
+
+### Housekeeping
+
+The `.gitignore` fix (`node_modules/` → `node_modules`) is the reason it was authored: a git
+worktree's `node_modules` is a bare SYMLINK, which a trailing-slash entry does not match. It was
+NOT in effect in the integration worktree until it landed, so nothing was staged with
+`git add -A` — paths were named explicitly and `git status` was checked before each commit. No
+`npm install` was run in any worktree, no watch mode, no dev server. The untracked
+`.claude/worktrees/` directory in the main checkout was left alone.
