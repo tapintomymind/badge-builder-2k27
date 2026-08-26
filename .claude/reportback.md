@@ -6480,3 +6480,55 @@ CARRIED FORWARD — unchanged from the first entry
 NEXT
 Branch pushed, NOT merged. `dev` untouched, `main` untouched.
 ─────────────────────────────────────────────
+
+ADDENDUM (same session) — RE-MEASURED AGAINST CURRENT dev, and a CORRECTION
+
+CORRECTION. The entry above says f9-touch-floors and f8-s2-summary are "NOT
+reachable from dev". True when checked, FALSE NOW: `dev` moved a5fe8e1 →
+c6f52f1 mid-slice and A6-E, F9 and F8-S2 all landed as re-commits — which is
+why an is-ancestor check on the original branch SHAs still says no. Forecast
+replaced with measurement.
+
+TRIAL MERGE of dev @c6f52f1 into this branch (throwaway worktree; **the branch
+is NOT rebased or merged**). THREE conflicts, all resolvable, and the merged
+tree is GREEN: tsc clean · build clean · **67 files / 1331 passed**.
+  · `src/ui/build/BuildPanel.tsx` — ONE SEMANTIC CONFLICT AND IT COMPOSES.
+    A6-E widened the latch's `withAttributes` TRUE arm with
+    `hasCapBreakers(build)`; F13 narrowed the FALSE arm by dropping
+    `build.position`. Different arms — git sees adjacent lines, a human sees
+    two independent edits. Keep both.
+  · `tests/layout-arithmetic.test.ts` — append vs append at the tail, as
+    forecast. Deterministic fix: take dev's file, re-append F13's describe
+    block verbatim from the `F13 — the physique strip` banner to EOF.
+  · `.claude/reportback.md` — append vs append. dev's entry first.
+  · `src/App.tsx` and `src/styles/app.css` auto-merged, no conflict.
+  Exact resolutions recorded in `docs/proof/f13-verification.txt` §B1.
+
+EVERY DELTA SURVIVES THE MERGE UNCHANGED — 1280 zero −210.37 · 1280 latched
++92.19 · 768 zero −200.81 · 767 IDENTICAL · **390 zero, clamp and latched all
+IDENTICAL** — even though dev's own 390 numbers MOVED under me (3396.86 →
+3638.86 at rest, 656 → 757 latched) because F9 made the phone taller. That is
+the carve-out's mechanism earning its keep: "390 is unchanged" holds because
+the strip is NOT RENDERED there, not because a number lined up. A pinned
+figure would have gone stale the moment F9 landed; an absence cannot.
+Latch at 390 on the merged tree is identical to dev (position → open, budget →
+collapsed); clamp notice renders and stays wired; no overflow at any width.
+
+**F9's NOTE ABOUT THIS SLICE IS CLOSED — measured, not argued.** On the merged
+tree the height inputs are 56×44 at 390 (F9's floor, on the restored Physique
+Section's controls, same place as pre-F13) and 56×26 at 1280 (the strip,
+untouched). F9's two `.physique-strip` hazards are moot because no rule inside
+`.physique-strip` is ever evaluated below 768. Neither slice had to change for
+the other. **F9 may delete its `.physique-strip` note.**
+
+F8-S2 — no contact, confirmed: its 885/902 two-scrollbar-regime pins and
+column counts pass on the merged tree, and this slice moves none of their
+inputs (page padding, rail, column gap, Section chrome all untouched; the
+strip is full-bleed outside `.layout`, so it moves the grid's y and never
+its x).
+
+PROCESS NOTE, so the history reads honestly: this follow-up landed as ONE
+commit carrying both the code and the reportback entry, not the usual
+feat + `chore(reportback)` pair. The coordinator asked for "a follow-up
+commit"; the first delivery (4ae2521 + 8915e44) used the pair.
+─────────────────────────────────────────────
