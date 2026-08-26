@@ -76,7 +76,11 @@ export function PurchasedTile({
     role === null
       ? ""
       : `, ${ROLE_WORD[role.kind]} in Synergy Slot ${role.synergySlotId}`;
-  const costText = cost === null ? "" : `, ${cost} Badge Points`;
+  // Singular where the number is one, the way the app already writes
+  // `Badge Slot${n === 1 ? "" : "s"}` in its feasibility line. This string is
+  // read aloud, and "1 Badge Points" is the kind of seam a screen-reader user
+  // notices immediately.
+  const costText = cost === null ? "" : `, ${cost} Badge Point${cost === 1 ? "" : "s"}`;
   const staleText = stale ? ", no longer qualifies at this level" : "";
 
   return (
