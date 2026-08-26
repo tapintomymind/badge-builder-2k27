@@ -1727,24 +1727,51 @@ ul {
 
 /* -------------------------------------------------- summary (§3.6 M4) -- */
 
-/* Full width is the opposite problem from a 142px rail, not the absence of
- * one: .summary__table is width:100%, so across a 1231px below-grid box it
- * puts the label at the far left of the screen and the figure at the far
- * right. Cap the tracks and sit them side by side, left-aligned — the
- * table's own max-content is ~196px, so a 280 floor is comfortable and a 380
- * cap keeps two of them readable. .summary__table's width:100% is untouched;
- * the cap is what tames it. */
+/* F8-S2 (§14.2) — THE TWO-REGION RE-CUT, and the reason it had to happen.
+ *
+ * §13.5 gave THIS element `repeat(auto-fit, minmax(280px, 380px))`, derived
+ * explicitly from "the table's max-content is ~196px". That derivation is
+ * correct for the two legacy tables and WRONG for a roster of badge names,
+ * whose row max-content is 412px. Reusing a number measured for one surface
+ * on another is the I11 failure shape, so the cap did not get widened — it
+ * got MOVED to the region it was measured for.
+ *
+ *   .summary          — a plain single-column stack. No cap of its own.
+ *   .summary-roster   — REGION A, its own auto-fill on a 444px floor.
+ *   .summary__tables  — REGION B, §13.5's cap PRESERVED VERBATIM.
+ *
+ * THE BOX IS 885, NOT 1231. The pre-F8 comment here cited a 1231px
+ * below-grid box; F5.4 nested this panel inside .col-right, so the chain at
+ * 1280 with a 17px scrollbar is
+ *   1263 ICB − 32 (.layout padding) = 1231
+ *        − 300 (the attributes pane) − 12 (.layout column-gap) = 919
+ *        − 2 (.section border) − 32 (.section__body padding) = 885.
+ * tests/layout-arithmetic.test.ts re-derives all of it, pins region B's
+ * RESOLVED column count (2 — three tracks would need 888, so the region sits
+ * 3px from a reflow) and re-derives region A's own seams. */
 .summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 380px));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4) var(--space-6);
-  justify-content: start;
   align-items: start;
 }
 
 .summary > .banner,
 .summary__warning {
   grid-column: 1 / -1;
+}
+
+/* REGION B — the two legacy tables. §13.5's derivation is CORRECT for them
+ * and is preserved verbatim, cap, floor, gap and justification alike. The
+ * whole point of splitting the regions is that this one never needed to
+ * change. */
+.summary__tables {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 380px));
+  gap: var(--space-4) var(--space-6);
+  justify-content: start;
+  align-items: start;
 }
 
 .summary__warning {
@@ -1814,6 +1841,349 @@ ul {
 .summary__total {
   font-size: var(--text-xl);
   line-height: 1.25;
+}
+
+/* §3.6 ⑤ — the `capacity not set (N of 6 categories)` footnote was ratified
+ * and never shipped, so the panel's spend total and the pasted text block
+ * could not be asserted equal. Advisory weight, never --danger: an unset
+ * capacity is missing information, not an overspend (§4.7). */
+.summary__footnote {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+
+/* ------------------------------------- F8-S2 loadout roster (§14.2/§14.4) -- */
+
+/* REGION A. min() so a 366px S container yields a 366px track instead of a
+ * 444px overflow — §3.3's attribute-cell idiom, reused.
+ *
+ * The five constants behind the 444 floor (§14.2, re-derived in
+ * tests/layout-arithmetic.test.ts):
+ *   PIN_CHIP_MAX 60 (F8-R2's column; NOT rendered here and NOT reserved)
+ *   + ROSTER_NAME_MAX 144 ("Versatile Visionary", 19ch — the dataset's
+ *     longest name) + TIER_MEDALLION_MAX 24 + ROSTER_LEVEL_MAX 120
+ *   + ROSTER_COST_MAX 32, with four --space-2 gutters
+ *   = ROSTER_ROW_MAX 412, + 2 × --space-4 of group padding = 444.
+ *
+ * NO @container RULE AND NO `display: block` ON A <tr> OR <td>. That is the
+ * obvious mobile-table trick and it strips the table role from the
+ * accessibility tree in every target engine, SILENTLY — and <caption> +
+ * <th scope> + row/column association is the roster's whole screen-reader
+ * value. A table wraps its cells natively; that is the mechanism and it
+ * needs no CSS at all. No new media query either: auto-fill arithmetic is
+ * continuous in the viewport (§13.3). */
+.summary-roster {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(444px, 100%), 1fr));
+  gap: var(--space-4) var(--space-6);
+  align-items: start;
+}
+
+.summary-roster__group {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+/* ROSTER_TABLE_MAX. The 76px of slack above the group floor is a BOUND, not
+ * a leftover: uncapped, a 603px track puts "Versatile Visionary" and its
+ * level cell 191px apart, which is §13.5's own far-left/far-right defect
+ * arriving through a wider door. */
+.summary-roster__table {
+  width: 100%;
+  max-width: 520px;
+  border-collapse: collapse;
+}
+
+.summary-roster__caption {
+  text-align: left;
+  font-size: var(--text-base);
+  font-weight: 600;
+  padding-bottom: var(--space-2);
+}
+
+.summary-roster__head th {
+  text-align: right;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--fg-muted);
+  padding: 0 0 var(--space-1) var(--space-2);
+}
+
+.summary-roster__name {
+  text-align: left;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-primary);
+  padding: var(--space-1) var(--space-2) var(--space-1) 0;
+  /* §13.4's device: fall back to min-content and wrap INSIDE the column,
+   * never re-order the row. */
+  min-width: 0;
+}
+
+.summary-roster__tier {
+  padding: var(--space-1) var(--space-2);
+  white-space: nowrap;
+}
+
+.summary-roster__level {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  text-align: right;
+  min-width: 0;
+}
+
+/* §10.3 — text is NEVER a gradient. Flat --lvl-* on the level word, which is
+ * the payoff of the metallic identity layer: five words, five recognisable
+ * colours, no legend needed. Overlay-invariant by construction: this cell
+ * reads entry.purchasedLevel. */
+.summary-roster__level[data-purchased-level="bronze"] { color: var(--lvl-bronze); }
+.summary-roster__level[data-purchased-level="silver"] { color: var(--lvl-silver); }
+.summary-roster__level[data-purchased-level="gold"]   { color: var(--lvl-gold); }
+.summary-roster__level[data-purchased-level="hof"]    { color: var(--lvl-hof); }
+
+.summary-roster__effective {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--fg-secondary);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.summary-roster__effective-level[data-effective-level="silver"] { color: var(--lvl-silver); }
+.summary-roster__effective-level[data-effective-level="gold"]   { color: var(--lvl-gold); }
+.summary-roster__effective-level[data-effective-level="hof"]    { color: var(--lvl-hof); }
+.summary-roster__effective-level[data-effective-level="legend"] { color: var(--lvl-legend); }
+
+.summary-roster__cost {
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-sm);
+  color: var(--fg-primary);
+  text-align: right;
+}
+
+/* The stale disclosure: a second <tr> beneath its own, spanning the table.
+ * H8 — this DISCLOSES and never repairs. */
+.summary-roster__stale td {
+  padding: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--fg-secondary);
+  max-width: 65ch;
+}
+
+.summary-roster__stale-glyph {
+  color: var(--warning);
+}
+
+/* §14.6's labelled projection. All four §3.4 markers: the dashed rule, the
+ * literal overlay name (rendered by the component), --text-xs in --info one
+ * step below the primary's --text-sm --fg-primary, and rendered ONLY where
+ * the projection differs. */
+.summary-roster__projection td {
+  padding: 0 0 var(--space-2);
+  border-top: 1px dashed var(--border-subtle);
+  font-size: var(--text-xs);
+  color: var(--info);
+}
+
+.summary-roster__foot td {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--fg-secondary);
+}
+
+/* --danger is PER-METRIC, never per-row (P0-1). The over-by token carries
+ * .ledger-over — the same class the in-grid digest and the rail overview
+ * use, from the same string builder. */
+.summary-roster__digest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  align-items: baseline;
+}
+
+.summary-roster__empty,
+.summary-roster__omitted {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-secondary);
+}
+
+/* ------------------------------------------- F8-S2 synergy digest (§14.4) -- */
+
+/* READ-ONLY. No picker, no toggle, no control of any kind — acting on a
+ * Synergy Slot happens in §3.5's panel, one jump-nav chip away. */
+.synergy-digest {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.synergy-digest__title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--fg-primary);
+}
+
+.synergy-digest__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.synergy-digest__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--fg-secondary);
+}
+
+.synergy-digest__head {
+  font-weight: 600;
+  color: var(--fg-primary);
+  min-width: 0;
+}
+
+.synergy-digest__roles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.synergy-digest__frees {
+  color: var(--fg-muted);
+}
+
+.synergy-digest__tail {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+/* ------------------------------------------- F8-S2 copy-as-text (§14.5) -- */
+
+/* navigator.clipboard requires a SECURE CONTEXT. OQ-A4 shipped
+ * `server: { host: true }` so the app opens from the phone on the LAN at
+ * http://<lan-ip>:5173 — which is NOT one. So on the single device this
+ * feature exists to serve, the API is undefined, and the <textarea> is the
+ * PRIMARY path rather than a fallback: select-all + long-press-copy is
+ * native on iOS and Android and needs no API at all. */
+.summary__copy {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.summary__copy-text {
+  width: 100%;
+  max-height: 40vh;
+  overflow: auto;
+  resize: vertical;
+  background: var(--bg-inset);
+  color: var(--fg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  font-family: var(--font-num);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+/* The print block sits HERE, immediately after the surfaces it overrides,
+ * rather than at the foot of the file. Two reasons, and the first is a
+ * cascade fact: its non-`!important` declarations (the caption's 700 weight,
+ * the group's black border, `break-inside`) must come AFTER the rules they
+ * beat, and every one of those is in the block above. The second is
+ * mechanical — the foot of this file is where every slice appends, so a rule
+ * parked there collides with whatever else shipped that week. */
+
+/* ================================================ F8-S2 · print (§14.5) ==
+ * A DEFECT FIX, NOT A NICETY. Browsers do not print backgrounds by default,
+ * so on paper --fg-primary #E6EDF3 lands on white and the whole app prints
+ * as invisible text. This is ~25 lines of LEGIBILITY ONLY.
+ *
+ * IT IS NOT A FOURTH LAYOUT. No page headers or footers, no column re-flow,
+ * no font change, no @page rules. If it grows a layout it has become a
+ * fourth breakpoint, and that is a stop-and-report.
+ *
+ * F8-R2's .roll-panel and .pin-control are deliberately ABSENT from the
+ * hide list: neither element exists yet, and a rule for a selector nothing
+ * emits reads as live while asserting nothing. R2 adds them with them. */
+@media print {
+  /* Only the summary prints. */
+  .app-header,
+  .jump-nav,
+  .filter-bar,
+  .skip-link,
+  .preview-strip,
+  .attr-pane-column,
+  .ledger-panel,
+  .setup-panel,
+  main,
+  .summary__copy,
+  .export-import,
+  .app-footer {
+    display: none !important;
+  }
+
+  :root,
+  body,
+  .section,
+  .summary-roster__group {
+    background: #fff !important;
+  }
+
+  * {
+    color: #000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* §14.3's hue is 5.20:1 on --bg-surface and unmeasured on paper —
+   * identity yields to legibility, and weight carries what hue carried on
+   * screen. */
+  .summary-roster__caption {
+    color: #000 !important;
+    font-weight: 700;
+  }
+
+  /* Nothing collapsed: a printed page cannot be expanded. */
+  details {
+    display: block !important;
+  }
+
+  details > summary {
+    list-style: none;
+  }
+
+  details:not([open]) > *:not(summary) {
+    display: revert !important;
+  }
+
+  .summary-roster__group {
+    break-inside: avoid;
+    border: 1px solid #000;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
 }
 
 /* ------------------------------------------- export / import (§3.6) -- */
@@ -2505,6 +2875,52 @@ ul {
   border-color: var(--cat);
 }
 
+/* 5. The F8-S2 roster group caption — §14.3's ruling, and it is the ONLY
+ * new --cat-* selector the summary is permitted. Granted on §12.12.6's own
+ * evidence: the category digest title already carries hue on type next to a
+ * --rule-gold hairline and a --danger left border, and this caption is a
+ * strictly weaker adjacency — no hairline, no pips, --danger a full table
+ * away in the <tfoot>.
+ *
+ * THE THREE CONDITIONS, and they are not negotiable:
+ *   1. The caption carries IDENTITY ONLY. --danger must never override
+ *      --cat-* here at overspend; state lives in the <tfoot>, per-metric
+ *      (invariant I10). A caption that flips hue → red conflates two systems
+ *      on one node and is the one thing that would force dropping this.
+ *   2. --cat-* does not propagate past the caption — not to a <th>, a <td>,
+ *      the <tfoot>, the cost column, either legacy table, or the text block.
+ *   3. Contrast asserted on --bg-surface: worst is Defense at 5.20:1 against
+ *      a 4.5:1 bar. tests/category-colors.test.ts re-derives it.
+ *
+ * Written as six explicit rules rather than `--cat: …` + `var(--cat)` so the
+ * §12.10 channel lint keeps reading the summary as a --cat-free surface: the
+ * inherited custom property never enters .summary at all. Adding a SEVENTH
+ * .summary* selector here is a stop-and-report, not an implementation
+ * choice. Flat hue on type — no bar, no ::before, no border, no background. */
+.summary-roster__group[data-category="finishing"] .summary-roster__caption {
+  color: var(--cat-finishing);
+}
+
+.summary-roster__group[data-category="shooting"] .summary-roster__caption {
+  color: var(--cat-shooting);
+}
+
+.summary-roster__group[data-category="playmaking"] .summary-roster__caption {
+  color: var(--cat-playmaking);
+}
+
+.summary-roster__group[data-category="defense"] .summary-roster__caption {
+  color: var(--cat-defense);
+}
+
+.summary-roster__group[data-category="rebounding"] .summary-roster__caption {
+  color: var(--cat-rebounding);
+}
+
+.summary-roster__group[data-category="physicals"] .summary-roster__caption {
+  color: var(--cat-physicals);
+}
+
 /* 4. The attribute slider fill is wired at .attr-slider__row (F3 block).
  *
  * Deliberately NOT wired: the badge cards themselves. F5 already owns every
@@ -2519,7 +2935,8 @@ ul {
  * keeps its text, which is what carried the category all along. */
 @media (forced-colors: active) {
   .attr-group[data-attr-group] legend,
-  .category-ledger h2 {
+  .category-ledger h2,
+  .summary-roster__caption {
     color: CanvasText;
   }
 
