@@ -183,12 +183,23 @@ function RosterRowCells({
       <td className="summary-roster__effective">
         {boosted ? (
           <>
-            {"→ "}
-            <span
-              className="summary-roster__effective-level"
-              data-effective-level={row.committedEffectiveLevel}
-            >
-              {LEVEL_LABELS[row.committedEffectiveLevel]}
+            {/* THE ARROW AND THE LEVEL ARE ONE TOKEN, the role marker is a
+                second. The cell used to be `white-space: nowrap`, which made
+                its min-content the whole of "→ HOF ⚡2" (85.2px measured) and
+                is one of the two things that put the row over its card at a
+                283px content box. Letting the cell wrap without this span
+                strands the arrow on a line of its own — measured, 3 lines with
+                a 12.5px first line. The span is a WRAPPING BOUNDARY only: it
+                adds no text, so every textContent assertion over this cell
+                reads exactly what it read before. */}
+            <span className="summary-roster__effective-pair">
+              {"→ "}
+              <span
+                className="summary-roster__effective-level"
+                data-effective-level={row.committedEffectiveLevel}
+              >
+                {LEVEL_LABELS[row.committedEffectiveLevel]}
+              </span>
             </span>
             {row.synergyRole !== null
               ? ` ${roleGlyph(row.synergyRole.kind)}${row.synergyRole.synergySlotId}`
