@@ -9,6 +9,7 @@ import { badgeById, loadBadge, shippedDataset } from "../src/engine/dataset";
 import {
   entryIsStale,
   maxPurchasableLevel,
+  reasonsForLevel,
   recheckEligibility,
   validateBadge,
 } from "../src/engine/eligibility";
@@ -28,7 +29,7 @@ import {
   syntheticOrBothNull,
   syntheticThresholdBoundary,
 } from "../src/engine/__fixtures__/synthetic-badges";
-import { makeBuild } from "./helpers/test-utils";
+import { makeBuild, srcSources, stripComments } from "./helpers/test-utils";
 
 describe("H3 synthetic fixtures (the shipped dataset cannot exercise these)", () => {
   it("fixture isolation: synthetic ids ∩ badges.json ids = ∅ — synthetic data can NEVER leak into the shipped dataset", () => {
@@ -113,7 +114,12 @@ describe("eligibility against the real dataset", () => {
     const eligibility = validateBadge(flash!, makeBuild(78, 0, { speed: 99, agility: 81 }));
     expect(eligibility.allowed).toBe(true);
     expect(eligibility.maxPurchasableLevel).toBe("gold");
-    expect(eligibility.reasons.some((reason) => /needs 91 Agility for HOF/.test(reason))).toBe(true);
+    // [A6 rider ②] The reason now carries the near-miss value. Agility is 81
+    // against HOF's 91 — the point of the annotation is that the disclosure
+    // says how far away the build is, not only what the badge wants.
+    expect(
+      eligibility.reasons.some((reason) => /needs 91 Agility \(now 81\) for HOF/.test(reason)),
+    ).toBe(true);
   });
 
   it("a build meeting every threshold has no reasons and max HOF (Glove, Steal 99 at 6'6)", () => {
@@ -209,5 +215,135 @@ describe("INV-20 — entryIsStale IS recheckEligibility's predicate, not a secon
     // in range, but purchased above the level the build supports
     expect(entryIsStale(badge, makeBuild(78, 61), "gold")).toBe(true);
     expect(entryIsStale(badge, makeBuild(78, 61), "bronze")).toBe(false);
+  });
+});
+
+/* ------------------------------ A6 rider ②: near-miss reasons, all three arms -- */
+
+/**
+ * Every locked pip becomes a near-miss meter: the reason says HOW FAR AWAY
+ * the build is, not only what the badge wants
+ * [features/visible-feedback-loop/design.md §3 · engine-data-design §5A].
+ *
+ * Landed as A6-E's SECOND commit, never folded into the first — ② changes a
+ * rendered string on all 53 cards, and merging it would have destroyed the
+ * inert-by-construction proof that is the whole point of commit 1.
+ */
+describe("A6 ② — the near-miss parenthetical", () => {
+  // The SHIPPED badge, read from the dataset — its thresholds are never
+  // re-typed here (never invent 2K27 data, and never transcribe it either).
+  const floatGame = badgeById(shippedDataset, "float-game") as Badge;
+
+  it("② `or` — EVERY term carries its own value, which is why one trailing note cannot work", () => {
+    const build = makeBuild(78, 0, { close: 90, layup: 70 });
+    expect(reasonsForLevel(floatGame.requirements, build, "hof")).toEqual([
+      "needs 96 Close (now 90) or 95 Layup (now 70) for HOF",
+    ]);
+  });
+
+  it("② `and` — FAILING terms only, each annotated; a met term contributes nothing", () => {
+    const posterizer = badgeById(shippedDataset, "posterizer") as Badge;
+    // Vertical clears Gold (80); Driving Dunk (93) does not.
+    const build = makeBuild(78, 0, { drivingDunk: 70, vertical: 85 });
+    const reasons = reasonsForLevel(posterizer.requirements, build, "gold");
+    expect(reasons).toEqual(["needs 93 Driving Dunk (now 70) for Gold"]);
+    expect(reasons.some((reason) => reason.includes("Vertical"))).toBe(false);
+  });
+
+  it("② `null` threshold — NO parenthetical: there is no distance to be near", () => {
+    const trailingNull = loadBadge(syntheticAndTrailingNull);
+    const reasons = reasonsForLevel(trailingNull.requirements, makeBuild(78, 0), "hof");
+    expect(reasons).toContain("HOF is unreachable via Layup");
+    for (const reason of reasons) {
+      if (reason.includes("unreachable")) expect(reason).not.toMatch(/\(now /);
+    }
+
+    const bothNull = loadBadge(syntheticOrBothNull);
+    expect(reasonsForLevel(bothNull.requirements, makeBuild(78, 0), "gold")).toEqual([
+      "Gold is unreachable via this badge's attributes",
+    ]);
+  });
+
+  it("② reads effectiveAttribute — a cap-broken value says so, beside a slider that does not", () => {
+    // The whole reason the marker is mandatory: without it the user reads
+    // "(now 83)", looks at the slider showing 60, and concludes the app is
+    // wrong about the one thing it exists to be right about.
+    const build = makeBuild(78, 0, { close: 60, layup: 70 }, { close: 83 });
+    expect(reasonsForLevel(floatGame.requirements, build, "hof")).toEqual([
+      "needs 96 Close (now 83 cap-broken) or 95 Layup (now 70) for HOF",
+    ]);
+  });
+
+  it("② a STALE declaration is not announced as cap-broken — it is inert, not active", () => {
+    // Declared 83, slider since dragged to 90. Math.max makes the declaration
+    // inert, and the disclosure must not credit a cap breaker that is doing
+    // nothing. Derived by COMPARING the values, never by testing presence.
+    const build = makeBuild(78, 0, { close: 90, layup: 70 }, { close: 83 });
+    expect(reasonsForLevel(floatGame.requirements, build, "hof")).toEqual([
+      "needs 96 Close (now 90) or 95 Layup (now 70) for HOF",
+    ]);
+  });
+
+  /* ------------------------------------------------- THE MANDATORY CANARY -- */
+
+  /**
+   * `BadgeCard.tsx`'s `reasonsFor` (:80-86) selects which reason belongs to
+   * which pip by string-matching the TRAILING `for Gold` / `for HOF`. A
+   * parenthetical appended AFTER that suffix silently empties both
+   * `nextLockedReasons` and `staleReasons` — and the card renders its
+   * eligibility line only when that array is non-empty, so the load-bearing
+   * H8 disclosure would vanish from all 53 cards with no error and no
+   * exception. WITHOUT THIS CANARY THAT REGRESSION SHIPS GREEN [§5A.3].
+   *
+   * Transcribed from the component rather than imported, because the function
+   * is private — so the transcription's premise is pinned too, immediately
+   * below. A canary that has silently drifted from the thing it watches is
+   * worse than no canary.
+   */
+  function reasonsForPip(levelLabel: string, reasons: string[]): string[] {
+    return reasons.filter(
+      (reason) =>
+        reason.endsWith(`for ${levelLabel}`) || reason.startsWith(`${levelLabel} is unreachable`),
+    );
+  }
+
+  it("② POSITIVE CANARY — the pip selector still finds a two-term `or` reason", () => {
+    const build = makeBuild(78, 0, { close: 90, layup: 70 });
+    const reasons = validateBadge(floatGame, build).reasons;
+    expect(reasons.length).toBeGreaterThan(0);
+
+    const selected = reasonsForPip("HOF", reasons);
+    expect(selected.length, "the §5A.3 trap fired — the card's eligibility line is EMPTY").toBe(1);
+    expect(selected[0]).toContain("(now 90)");
+    expect(selected[0]).toContain("(now 70)");
+    expect(selected[0]?.endsWith("for HOF")).toBe(true);
+
+    // The negative half: this is precisely what the rejected form would do.
+    const trailingForm = ["needs 96 Close or 95 Layup for HOF (now 90)"];
+    expect(reasonsForPip("HOF", trailingForm)).toEqual([]);
+  });
+
+  it("② CANARY PREMISE — BadgeCard still selects by the trailing `for {label}` suffix", () => {
+    // If this reddens, the canary above is watching a function that no longer
+    // exists in that shape: re-derive it before trusting either.
+    const source = stripComments(srcSources["/src/ui/grid/BadgeCard.tsx"] as string);
+    expect(source).toContain("reason.endsWith(`for ${label}`)");
+    expect(source).toContain("reason.startsWith(`${label} is unreachable`)");
+  });
+
+  it("② every purchasable level's reason still ends in its own level suffix", () => {
+    // The trap, swept across the whole shipped dataset rather than one badge.
+    const build = makeBuild(78, 0, { close: 60, layup: 40 }, { close: 83 });
+    for (const badge of shippedDataset.badges) {
+      const eligibility = validateBadge(badge, build);
+      if (!eligibility.allowed) continue;
+      for (const reason of eligibility.reasons) {
+        expect(
+          /(?: for (?:Bronze|Silver|Gold|HOF))$|is unreachable/.test(reason),
+          `${badge.id}: "${reason}" would be invisible on the card`,
+        ).toBe(true);
+        expect(reason).not.toMatch(/for (?:Bronze|Silver|Gold|HOF)\s*\(/);
+      }
+    }
   });
 });

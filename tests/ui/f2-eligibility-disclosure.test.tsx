@@ -59,11 +59,20 @@ describe("A(a) — stale purchase renders disclosed, never as a clean current pi
       name: /^Gold, current level — no longer meets requirements/,
     }) as HTMLInputElement;
     expect(gold.checked).toBe(true);
-    expect(gold.getAttribute("aria-label")).toContain("needs 90 Close or 93 Layup for Gold");
+    // [A6 rider ②] The STALE line gains the parenthetical too, and gains it
+    // from the same single builder — ② adds no second string and no second
+    // disclosure path. Note there is still exactly ONE dash in the rendered
+    // sentence: the parenthetical sits inside the reason, so it cannot read
+    // as a second clause of the "Purchased at Gold — …" dash.
+    expect(gold.getAttribute("aria-label")).toContain(
+      "needs 90 Close (now 70) or 93 Layup (now 0) for Gold",
+    );
     expect(pips.querySelector(".pip--stale")).not.toBeNull();
     // The card: the engine's failing-requirement string, rendered.
     expect(
-      screen.getByText(/Purchased at Gold — no longer meets requirements: needs 90 Close/),
+      screen.getByText(
+        /Purchased at Gold — no longer meets requirements: needs 90 Close \(now 70\)/,
+      ),
     ).toBeTruthy();
   });
 

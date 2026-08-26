@@ -57,6 +57,26 @@ export function effectiveAttribute(build: Build, attr: Attr): number {
 }
 
 /**
+ * Does this attribute's effective value come from a cap breaker rather than
+ * from the slider?
+ *
+ * Exists so the near-miss disclosure can say "(now 83 cap-broken)" instead of
+ * a bare "(now 83)" beside a slider the user can see reading 60 — WITHOUT
+ * `eligibility.ts` (or any component) naming the field or reading the entered
+ * value. Without the marker the user reads 83, looks at the slider, sees 60,
+ * and concludes the app is wrong about the one thing it exists to be right
+ * about. The marker only ever appears on an attribute the user themselves
+ * declared [engine-data-design §5A.5].
+ *
+ * Derived by COMPARING the two, never by testing the field's presence: a
+ * declaration that has gone stale (declared 83, slider since dragged to 90)
+ * is present but inert, and must NOT be announced as cap-broken.
+ */
+export function isCapBroken(build: Build, attr: Attr): boolean {
+  return effectiveAttribute(build, attr) !== build.attributes[attr];
+}
+
+/**
  * Is there a cap breaker worth guarding in this build? The content predicates
  * (`workingHasContent`, `playerHasContent`, BuildPanel's dirty check) call
  * THIS rather than enumerating the field, so the containment lint holds and

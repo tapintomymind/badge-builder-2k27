@@ -88,7 +88,11 @@ describe("the M3 outcome: build → gate → buy → ledger → save → reload"
     // The pips gate correctly: Gold selectable, HOF locked with the reason.
     const pips = floatGamePips();
     const hof = within(pips).getByRole("radio", { name: /^HOF, locked/ });
-    expect(hof.getAttribute("aria-label")).toContain("needs 96 Close or 95 Layup for HOF");
+    // [A6 rider ②] Same single builder, same inherited pip ariaLabel — the
+    // reason now carries each term's near-miss value.
+    expect(hof.getAttribute("aria-label")).toContain(
+      "needs 96 Close (now 90) or 95 Layup (now 0) for HOF",
+    );
 
     // Buy Gold (tier A: total-to-own 6).
     fireEvent.click(within(pips).getByRole("radio", { name: /^Gold/ }));

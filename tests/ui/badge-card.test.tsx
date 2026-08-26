@@ -93,10 +93,18 @@ describe("BadgeCard — eligibility rendering (engine strings, never invented)",
     const build = makeBuild(78, 0, { close: 90 });
     renderCard(badge, build);
     const hofPip = screen.getByRole("radio", { name: /^HOF, locked/ });
-    expect(hofPip.getAttribute("aria-label")).toContain("needs 96 Close or 95 Layup for HOF");
+    // [A6 rider ②] Each `or` TERM carries its own near-miss value — one
+    // trailing annotation could not say which term it belonged to. The pip's
+    // ariaLabel inherits the new form automatically through `failReasonText`;
+    // BadgeCard.tsx is not edited by ②.
+    expect(hofPip.getAttribute("aria-label")).toContain(
+      "needs 96 Close (now 90) or 95 Layup (now 0) for HOF",
+    );
     expect(hofPip.getAttribute("aria-disabled")).toBe("true");
     // The card's eligibility line names the NEXT failing level only.
-    expect(screen.getByText(/needs 96 Close or 95 Layup for HOF/)).toBeTruthy();
+    expect(
+      screen.getByText(/needs 96 Close \(now 90\) or 95 Layup \(now 0\) for HOF/),
+    ).toBeTruthy();
   });
 
   it("a height-blocked card is greyed with the engine reason and no cycling", () => {

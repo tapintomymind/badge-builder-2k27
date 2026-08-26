@@ -15,7 +15,7 @@
  *  - Thresholds are >=, not >.
  */
 
-import { effectiveAttribute } from "./attributes";
+import { effectiveAttribute, isCapBroken } from "./attributes";
 import { badgeById } from "./dataset";
 import type {
   Badge,
@@ -26,7 +26,7 @@ import type {
   LoadoutEntry,
   SavedBuild,
 } from "./types";
-import type { PurchasableLevel } from "./vocabulary";
+import type { Attr, PurchasableLevel } from "./vocabulary";
 import {
   ATTR_LABELS,
   LEVEL_LABELS,
@@ -78,9 +78,47 @@ export function maxPurchasableLevel(badge: Badge, build: Build): PurchasableLeve
 }
 
 /**
+ * NEAR-MISS ANNOTATION — the value this build actually brings to one
+ * requirement line, so a locked level says HOW FAR AWAY it is rather than
+ * only what it wants: `needs 96 Close (now 91) or 95 Layup (now 88) for HOF`.
+ *
+ * THE PARENTHETICAL GOES INSIDE THE STRING, BEFORE THE `for {level}` TAIL,
+ * AND THAT POSITION IS FORCED — not a matter of taste. `BadgeCard`'s
+ * `reasonsFor` (:80-86) selects which of `validateBadge`'s union of reason
+ * strings belong to which pip by string-matching the TRAILING `for Gold` /
+ * `for HOF`. Anything appended AFTER the level suffix silently empties both
+ * `nextLockedReasons` and `staleReasons`, and the card renders its
+ * eligibility line only when that array is non-empty — so the load-bearing H8
+ * disclosure would disappear from all 53 cards with no error and no exception
+ * thrown. The em-dash form (`… for HOF — now 88`) hits the same trap.
+ * `tests/eligibility.test.ts` carries the positive canary that catches it,
+ * because without one the regression ships green [engine-data-design §5A.3].
+ *
+ * PARENTHETICAL RATHER THAN A TRAILING DASH ON COMPOSITION GROUNDS TOO: an
+ * `or` line is a MULTI-TERM list, and one trailing annotation cannot say
+ * which term it belongs to. The surfaces that render these strings also carry
+ * dashes of their own ("Purchased at Gold — no longer meets requirements: …"),
+ * where a second dash would read as the same clause.
+ *
+ * "(now 83 cap-broken)" WHEN THE EFFECTIVE VALUE IS NOT THE ENTERED ONE
+ * [§5A.5]. A bare "(now 83)" beside a slider the user can see reading 60 says
+ * the app is broken; naming the cap breaker says the app is doing what they
+ * asked. At A6-E time that branch is UNREACHABLE through the UI — nothing can
+ * write a cap breaker until A6-U — so it ships dead but tested, the same
+ * "guard lands before the writer" discipline as the content predicates.
+ *
+ * NEVER on a null-threshold ("unreachable") line: there is no distance to
+ * report, so there is nothing to be near.
+ */
+function nowNote(build: Build, attr: Attr): string {
+  const current = effectiveAttribute(build, attr);
+  return isCapBroken(build, attr) ? ` (now ${current} cap-broken)` : ` (now ${current})`;
+}
+
+/**
  * Why one level fails, in the phrasing every disclosure surface shares
- * ("needs 90 Close or 93 Layup"). EXPORTED in F8-E1 — unchanged body, no new
- * rule — because the copy-as-text block must reproduce §3.4's stale-purchase
+ * ("needs 90 Close (now 60) or 93 Layup (now 88)"). EXPORTED in F8-E1 —
+ * because the copy-as-text block must reproduce §3.4's stale-purchase
  * sentence, and it needs the reasons for the PURCHASED level specifically
  * rather than `validateBadge`'s union over all four.
  */
@@ -95,12 +133,18 @@ export function reasonsForLevel(
     for (const line of requirements.attrs) {
       const threshold = line.perLevel[level];
       if (threshold === null) {
+        // A null threshold is "unreachable via this line", not a near miss —
+        // there is no distance to report, so no parenthetical.
         reasons.push(`${levelLabel} is unreachable via ${ATTR_LABELS[line.attr]}`);
       } else if (effectiveAttribute(build, line.attr) < threshold) {
         // [A6] THE SECOND AND LAST GATE LINE. The `and` arm reports FAILING
         // terms only — a line the build already meets contributes no reason,
-        // and "already meets" now means the EFFECTIVE value.
-        reasons.push(`needs ${threshold} ${ATTR_LABELS[line.attr]} for ${levelLabel}`);
+        // and "already meets" now means the EFFECTIVE value. No filtering
+        // logic is added by the parenthetical; it rides on the term.
+        reasons.push(
+          `needs ${threshold} ${ATTR_LABELS[line.attr]}${nowNote(build, line.attr)}` +
+            ` for ${levelLabel}`,
+        );
       }
     }
     return reasons;
@@ -109,8 +153,12 @@ export function reasonsForLevel(
   if (nonNull.length === 0) {
     return [`${levelLabel} is unreachable via this badge's attributes`];
   }
+  // When an `or`/`single` level fails, `levelPasses` is `.some()` — so NO
+  // term passed, and every term rendered here is already a failing one. No
+  // filtering logic is added; each term simply gains its own parenthetical,
+  // which is the whole reason the annotation cannot be a single trailing one.
   const needs = nonNull
-    .map((line) => `${line.perLevel[level]} ${ATTR_LABELS[line.attr]}`)
+    .map((line) => `${line.perLevel[level]} ${ATTR_LABELS[line.attr]}${nowNote(build, line.attr)}`)
     .join(" or ");
   return [`needs ${needs} for ${levelLabel}`];
 }

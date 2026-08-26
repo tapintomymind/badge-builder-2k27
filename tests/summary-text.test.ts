@@ -120,12 +120,20 @@ function summarize(state: SynergyLedgerState): {
   };
 }
 
+/**
+ * [A6 rider ②] REGENERATED, not hand-edited: exactly ONE line moved — Float
+ * Game's stale-purchase reason now carries its per-term near-miss values. The
+ * assertion below is a BYTE-FOR-BYTE comparison against real formatter
+ * output, so this block being green IS the regeneration proof: any other byte
+ * that had drifted would fail here. Nothing else in §14.5's format changed —
+ * no heading, no arithmetic, no ordering, no Synergy row, no total.
+ */
 const GOLDEN = `## Badge Builder — 2K27 · Slasher v2
 6'6" (78 in) · SF · dataset 2026-08-26.1
 Badge Points and Badge Slots are unverified — 2K has not published the derivation.
 
 ### Finishing — 15 / 16 pts · left 1 · 3 / 3 Badge Slots
-- Float Game [A] Gold — 6   !! no longer qualifies: needs 90 Close or 93 Layup for Gold
+- Float Game [A] Gold — 6   !! no longer qualifies: needs 90 Close (now 85) or 93 Layup (now 70) for Gold
 - Posterizer [A] Gold -> HOF (Fuse, Synergy Slot 5) — 6
 - Rise Up [C] Silver — 3
 
