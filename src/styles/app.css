@@ -1382,6 +1382,138 @@ ul {
   font-size: var(--text-xs);
 }
 
+/* ------------------------------------------------ physique strip (F13) -- */
+
+/* Position + Height as a FULL-BLEED HORIZONTAL BAR in the band the drift
+ * banner occupies — a SIBLING of `.app-banners` in the DOM, never a child of
+ * it. The banner is conditional on a dataVersion mismatch; these two controls
+ * are unconditional. Same band, different lifetimes.
+ *
+ * `padding-inline` matches `.banner`'s own --space-4 so the strip's first
+ * glyph column-aligns with the banner's when both are on screen.
+ *
+ * NO --cat, NO metallic treatment: §12.5/§12.12's placement law permits four
+ * category-colour surfaces and this is none of them. */
+.physique-strip {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+/* THE CAP, STATED AS TRACKS. Two `max-content` columns and ONE `1fr`: the
+ * controls take exactly the width their content needs and the prose Hint is
+ * the only thing that may absorb what is left over — and `.hint`'s own 65ch
+ * caps even that. Nothing here hands `.number-field input` a percentage or an
+ * `auto` track, so its base `width: 56px` stands and the ~434px-wide number
+ * input that `.summary`'s track cap and F5.4/A1 both exist to prevent cannot
+ * be reached from this rule. Measured at 1280: 56px, unchanged.
+ *
+ * `align-items: end` puts the two controls on a shared BASELINE-ish bottom
+ * edge — the Position track and the Height row are different heights and a
+ * top alignment leaves the taller one's hint hanging below nothing. */
+.physique-strip__row {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+  column-gap: var(--space-6);
+  row-gap: var(--space-2);
+  align-items: start;
+}
+
+/* EXPLICIT PLACEMENT, NOT SOURCE ORDER, and that is the whole reason
+ * HeightField returns a fragment. Its second child — the clamp notice —
+ * exists only while a clamp is live. Under auto-placement its arrival would
+ * shove the Hint out of row 1 and re-flow the entire bar on every position
+ * switch that clamps. Pinned to a row of its own, the notice appears and
+ * disappears without moving a single control. */
+.physique-strip .segmented {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+/* `.attr-group`'s --space-3 bottom margin is a stacked-form idiom; in a
+ * one-row bar it is 12px of dead space under the fields. */
+.physique-strip .height-field {
+  grid-column: 2;
+  grid-row: 1;
+  margin-bottom: 0;
+}
+
+/* The Position hint. `:not(.height-field__notice)` is LOAD-BEARING, not
+ * defensive: the clamp notice carries `class="hint height-field__notice"`
+ * and is also a direct child of this row, so a bare `> .hint` selects both
+ * and the notice's own placement rule then has to win on source order — a
+ * silent dependency on rule ordering for whether a disclosure lands in the
+ * right grid cell. Named exclusion instead.
+ *
+ * It is the ONLY grid item allowed to grow, and
+ * `align-self: end` drops it to the bar's bottom edge so it reads level with
+ * the range hint under the Height fields — one muted footnote band across the
+ * strip, rather than a paragraph starting at legend height. */
+.physique-strip__row > .hint:not(.height-field__notice) {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: end;
+}
+
+/* Two legends side by side in one bar must be ONE treatment. `.attr-group
+ * legend` is the stacked-form idiom (uppercase, letter-spaced, --fg-muted,
+ * --space-2 below); next to `Position` it read as a different rank of thing
+ * and sat 4px lower. Re-pointed at `.segmented legend`'s treatment for the
+ * strip only — the stacked idiom is untouched everywhere it still applies
+ * (the AttributeGrid's six group legends). */
+.physique-strip .height-field legend {
+  font-size: var(--text-xs);
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--fg-secondary);
+  font-weight: 500;
+  margin-bottom: var(--space-1);
+}
+
+/* MEASURED, not stylistic. `.number-field` stacks its label over its input —
+ * correct for the AttributeGrid and the 12-field budget table, and 23.2px of
+ * pure vertical cost in a bar whose entire job is to be one row. Turned on
+ * its side here the `ft` / `in` labels sit beside their fields and the strip
+ * loses a whole text line. The input's `width: 56px` is untouched: this rule
+ * changes the FLOW DIRECTION of the wrapper, never the field's width. */
+.physique-strip .number-field {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.physique-strip .height-field__notice {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+/* The engine's validateBuild() disclosure, when a restored build sits outside
+ * its position's range. Rare, and it gets its own line under the bar rather
+ * than a column in it. */
+.physique-strip > .banner {
+  margin-top: var(--space-2);
+}
+
+/* S (<768): one column. The three-track row needs 256.73 (Position) +
+ * 24 + ~180 (Height) + 24 = 485px before the Hint gets a pixel, against a
+ * 366px content box at 390 — the tracks would overflow the viewport rather
+ * than wrap, because `max-content` columns do not wrap. Stacked, every item
+ * spans the single track and the row assignments are released. */
+@media (max-width: 767px) {
+  .physique-strip__row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .physique-strip .segmented,
+  .physique-strip .height-field,
+  .physique-strip__row > .hint:not(.height-field__notice),
+  .physique-strip .height-field__notice {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
 /* --------------------------------------------- preview strip (§3.2 M4) -- */
 
 /* 28px full-width bar directly under the header, ONLY while an overlay is

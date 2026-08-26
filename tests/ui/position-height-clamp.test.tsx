@@ -8,7 +8,27 @@
  * (non-blocking). "Any" = position unset = the dataset's own 69–88.
  *
  * PRE-F3 these fail: no Any segment exists, position never touches height,
- * and the PhysiqueSection still carries the withdrawn "Cosmetic" treatment.
+ * and the Physique surface still carries the withdrawn "Cosmetic" treatment.
+ *
+ * F13 — ORCHESTRATOR-RATIFIED AMENDMENT to scope.md §0.1 A2's copy
+ * consequence. Physique moved out of the setup panel into the full-bleed
+ * `.physique-strip`, where the Position control and the HeightField sit in
+ * one row. The range was being recited THREE times at once (Position hint,
+ * HeightField hint, clamp notice); in the strip the first two are inches
+ * apart, so the Position hint's `(Position: min–max)` parenthetical was
+ * dropped.
+ *
+ * WHAT THE AMENDMENT DID NOT TOUCH, and what the describe at the foot of
+ * this file now guards instead:
+ *   · the Position hint still states BOTH of its facts — that position sets
+ *     the height range, and that no badge has a position requirement;
+ *   · a LIVE range readout still updates on a position switch. It is the
+ *     HeightField hint now rather than the Position hint. That assertion is
+ *     re-pointed, never dropped: it is the F3 clamp's load-bearing
+ *     disclosure and the reason the recitation existed at all;
+ *   · the clamp notice is BYTE-UNCHANGED. It still names the range, and
+ *     that is not duplication — it is the record of a value the app changed
+ *     on the user's behalf.
  */
 
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -146,21 +166,66 @@ describe("no position selected (\"Any\") — the dataset's 69–88, today's beha
   });
 });
 
-describe("the withdrawn \"Cosmetic\" treatment (scope.md §0.1 A2 copy consequence)", () => {
-  it("the new hint states the range-setting truth; the Cosmetic chip is gone", { timeout: 20000 }, () => {
+describe("the withdrawn \"Cosmetic\" treatment (scope.md §0.1 A2 copy consequence, F13-amended)", () => {
+  /** Every leaf node anywhere in the physique strip that renders a
+   *  feet-and-inches figure. Counting NODES rather than asserting on one
+   *  string is the point: the defect being guarded is DUPLICATION, and a
+   *  by-name assertion cannot see a second copy it was not told about. */
+  function rangeRecitations(): string[] {
+    const strip = document.querySelector(".physique-strip");
+    if (strip === null) throw new Error("no physique strip");
+    return [...strip.querySelectorAll("*")]
+      .filter(
+        (element) =>
+          /\d'\d+"/.test(element.textContent ?? "") &&
+          ![...element.children].some((child) => /\d'\d+"/.test(child.textContent ?? "")),
+      )
+      .map((element) => (element.textContent ?? "").trim());
+  }
+
+  it("the hint keeps BOTH its facts and stops reciting the range", { timeout: 20000 }, () => {
     render(<App />);
     expect(screen.queryByText("Cosmetic")).toBeNull();
+
+    // Fact 1: position sets the height range — so "changing position can
+    // move your height" stays discoverable. Fact 2: position gates nothing,
+    // height and attributes do. Both still stated outright.
     expect(
-      screen.getByText(/Sets the available height range \(Any: 5'9"–7'4"\)\. No badge has a position requirement; badges gate on height and attributes only\./),
+      screen.getByText(
+        "Sets the available height range. No badge has a position requirement; badges gate on height and attributes only.",
+      ),
     ).toBeTruthy();
+
+    // CANARY — the pre-F13 copy, which recited the range a third time. A
+    // regex that still matched it would let the duplication back in.
+    expect(screen.queryByText(/Sets the available height range \(Any: 5'9"–7'4"\)/)).toBeNull();
+    expect(screen.queryByText(/Sets the available height range \([A-Z]{1,2}: /)).toBeNull();
+  });
+
+  it("the SURVIVING range readout is live: Any → SF re-renders it", { timeout: 20000 }, () => {
+    render(<App />);
+    // At rest, in the strip, the range is rendered EXACTLY ONCE. Pre-F13
+    // this was two (Position hint + HeightField hint), and three with a
+    // clamp standing.
+    expect(rangeRecitations()).toEqual([`5'9"–7'4", the range this dataset covers.`]);
+
     pickPosition("SF");
-    expect(
-      screen.getByText(/Sets the available height range \(SF: 6'4"–6'10"\)\./),
-    ).toBeTruthy();
+    // Still exactly once, and it MOVED — this is the F3 disclosure the old
+    // Position-hint assertion was guarding, re-pointed at the survivor.
+    expect(rangeRecitations()).toEqual([`SF: 6'4"–6'10"`]);
+    expect(screen.getByText(`SF: 6'4"–6'10"`)).toBeTruthy();
+
+    pickPosition("C");
+    expect(rangeRecitations()).toEqual([
+      `C: 6'7"–7'4"`,
+      // The clamp notice is the SECOND and last: it fired because 6'6" is
+      // below C's floor, and what it discloses is un-weakened.
+      `⚠ Height adjusted 6'6" → 6'7" to fit C's range (6'7"–7'4").`,
+    ]);
   });
 });
 
-describe("engine violation surfaces in PhysiqueSection (HARD-DISCLOSED)", () => {
+describe("engine violation surfaces in the physique strip (HARD-DISCLOSED)", () => {
   it("a restored out-of-range build renders the warning Banner, un-mutated", { timeout: 20000 }, () => {
     // A build saved before F3 (or imported): 7'0" PG. The deserializer must
     // NOT reject it and the UI must NOT silently re-clamp it (H8) — it

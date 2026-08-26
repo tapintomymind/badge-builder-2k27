@@ -74,7 +74,7 @@ import {
   writeAutosave,
 } from "./persist/local-storage";
 import type { NamedBuildSummary, PersistResult } from "./persist/local-storage";
-import { AttributesSection, BuildPanel } from "./ui/build/BuildPanel";
+import { AttributesSection, BuildPanel, PhysiqueStrip } from "./ui/build/BuildPanel";
 import type { HeightClampNotice } from "./ui/build/BuildPanel";
 import { ResetBuildDialog } from "./ui/build/ResetBuildDialog";
 import type { ResetBlastRadius } from "./ui/build/ResetBuildDialog";
@@ -782,6 +782,25 @@ export default function App() {
     [applyEdit],
   );
 
+  /** F13 — HOISTED out of the BuildPanel call site, byte-for-byte the same
+   * body. Physique now renders in the PhysiqueStrip above `.layout`, so the
+   * handler can no longer be an inline closure inside the setup panel's JSX.
+   * Fields commit on EVERY blur — a no-change commit is a no-op (returning
+   * prev), so tabbing through never marks dirty. */
+  const handleHeightCommit = useCallback(
+    (heightInches: number) => {
+      const changed = workingRef.current.build.heightInches !== heightInches;
+      applyEdit((prev) =>
+        prev.build.heightInches === heightInches
+          ? prev
+          : { ...prev, build: { ...prev.build, heightInches } },
+      );
+      // A height change ends the clamp notice's hold (§3.3 rev 3).
+      if (changed) setClampNotice(null);
+    },
+    [applyEdit],
+  );
+
   const handleAttributeCommit = useCallback(
     (attr: Attr, value: number) => {
       const prev = workingRef.current;
@@ -1273,6 +1292,35 @@ export default function App() {
         {buildAnnouncement}
       </p>
 
+      {/* F13 — THE PHYSIQUE STRIP. Position + Height in the full-bleed
+          horizontal band directly under the banners, not as a vertical block
+          inside the setup panel: measured, the block cost 302.6px at 1280 and
+          321.8px at 390 of lead ahead of the badge grid, and it is two
+          controls.
+
+          A SIBLING OF `.app-banners`, NEVER A CHILD OF THE DRIFT BANNER. The
+          banner renders only on a dataVersion mismatch (or a deserializer
+          strip/heal report); the strip is unconditional. Nesting an
+          unconditional control surface inside a conditional disclosure would
+          tie the lifetime of the first to the second.
+
+          AFTER the banners, not before. `.app-banners` measures 0px tall when
+          empty (flex column, no children), so this position costs the strip
+          nothing in the common case, and when a warning DOES arrive the
+          warning is still the first thing under the header rather than the
+          second. A warning must not be pushed below a toolbar.
+
+          OUTSIDE `.layout`, so it is genuinely full-bleed at both widths and
+          is unaffected by the L media query that owns the pane. */}
+      <PhysiqueStrip
+        build={working.build}
+        heightRange={heightRange}
+        buildViolationReasons={buildViolationReasons}
+        clampNotice={clampNotice}
+        onHeightCommit={handleHeightCommit}
+        onPositionChange={handlePositionChange}
+      />
+
       {/* F5.4 (design-spec §16) — .layout is EXACTLY TWO grid items at L: the
           attributes pane, and everything else. That is not tidiness. A sticky
           grid item is constrained by the grid CONTAINER's content box, so with
@@ -1349,12 +1397,23 @@ export default function App() {
             </Section>
           </aside>
 
-          {/* Physique and Badge Points/Slots are SET-UP surfaces, not loop
-              surfaces: position and height are one opening gesture, and the
+          {/* Badge Points/Slots are SET-UP surfaces, not loop surfaces: the
               twelve budget fields are filled by hand from the MyPlayer
               builder and then not touched again. Above the FilterBar on
               §13.5's causality argument run in reverse — you set the pools
-              BEFORE you shop for badges (§16.5). */}
+              BEFORE you shop for badges (§16.5).
+
+              F13 — PHYSIQUE LEFT THIS PANEL for the full-bleed strip above
+              `.layout`. What stays is the budget grid (+ the 20 sliders at
+              M/S) and F5.3's Reset. The `<Section title="Build">` wrapper
+              STAYS even though the panel holds a single child Section at L,
+              and it is not decoration: it is the surface the one-shot
+              auto-collapse latch closes, and closing it turns a 595px block
+              into a 53px digest row. A collapse control that buys 542px is
+              earning its 53. The nested inner Section is a MEASURED,
+              DELIBERATELY UNSPENT lever — unwrapping it at L only would buy
+              65px and would split one behaviour across the 1280 seam, where
+              M/S genuinely has two children. */}
           <aside className="setup-panel" aria-label="Build">
             {/* [A5] `budgets` here is the BASE record, never the composed
                 one. The grid is a base-ENTRY surface and `onBudgetCommit`
@@ -1367,22 +1426,6 @@ export default function App() {
               budgets={baseBudgets}
               compact={!isLarge}
               withAttributes={!isLarge}
-              heightRange={heightRange}
-              buildViolationReasons={buildViolationReasons}
-              clampNotice={clampNotice}
-              onHeightCommit={(heightInches) => {
-                // Fields commit on EVERY blur — a no-change commit is a no-op
-                // (returning prev), so tabbing through never marks dirty.
-                const changed = workingRef.current.build.heightInches !== heightInches;
-                applyEdit((prev) =>
-                  prev.build.heightInches === heightInches
-                    ? prev
-                    : { ...prev, build: { ...prev.build, heightInches } },
-                );
-                // A height change ends the clamp notice's hold (§3.3 rev 3).
-                if (changed) setClampNotice(null);
-              }}
-              onPositionChange={handlePositionChange}
               onAttributeCommit={handleAttributeCommit}
               onResetRequest={() => {
                 setResetOpen(true);
