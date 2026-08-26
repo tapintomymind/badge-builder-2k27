@@ -606,6 +606,28 @@ export default function App() {
    * drop that retry. A pending failure IS something to add.
    */
   const lastWriteFailedRef = useRef(false);
+  /**
+   * F2.3 A5 — THE FLUSH OWNS THE WRITE FOR THE COMMIT IT CAUSED.
+   *
+   * The flush blurs the active element, and that blur commits through
+   * `applyEdit` — which is a React state change, so the state-change writer
+   * fires for it too. On a true `pagehide` the document is gone before that
+   * ever happens; on `visibilitychange → hidden` the tab is very much alive
+   * and it happens immediately, UNGUARDED, landing exactly the stale envelope
+   * the guarded flush had just declined to write. Layer 3 would then be
+   * decorative on the one trigger that leaves a tab running.
+   *
+   * So the flush records the state it settled, and the state-change writer
+   * skips that ONE run. Semantics, not a hack: a flush that WROTE has already
+   * persisted this state (the second write was pure duplication), and a flush
+   * that was REFUSED decided this state must not land — letting the effect
+   * undo that a microtask later would make the decision meaningless.
+   *
+   * ONE-SHOT, and cleared on use. The suppression covers a single subsequent
+   * run for that exact object, so a later `persistEpoch` bump against the same
+   * `working` (the Discard re-arm) still writes.
+   */
+  const flushSettledWorkingRef = useRef<WorkingState | null>(null);
   /** Bumped when the latch flips, so the autosave effect re-runs and writes
    * even when `working` itself did not change (the Discard case). */
   const [persistEpoch, setPersistEpoch] = useState(0);
@@ -778,6 +800,12 @@ export default function App() {
     // cases `working` is a derivative and writing it would destroy the
     // original.
     if (!persistableRef.current) return;
+    // F2.3 A5: the flush already made a write decision about exactly this
+    // state. Honour it — see `flushSettledWorkingRef`. One-shot.
+    if (flushSettledWorkingRef.current === working) {
+      flushSettledWorkingRef.current = null;
+      return;
+    }
     // UNGUARDED, deliberately. This writer runs behind a change the user made
     // in THIS tab, and last-write-wins on an intentional edit is the bargain
     // tech-strategy.md §9 documents. Refusing it on a concurrency mismatch
@@ -852,6 +880,10 @@ export default function App() {
         toEnvelope(after),
         lastObservedAutosaveRef.current,
       );
+      // F2.3 A5 — claim this state, whatever the outcome was. A write makes
+      // the state-change writer's copy redundant; a refusal makes it a
+      // silent undo of the refusal.
+      flushSettledWorkingRef.current = after;
       if (outcome.kind === "written") {
         lastObservedAutosaveRef.current = outcome.raw;
         lastWriteFailedRef.current = false;
