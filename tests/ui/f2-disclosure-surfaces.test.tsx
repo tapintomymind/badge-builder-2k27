@@ -8,15 +8,19 @@
  *      route (boot route pinned in boot-drift.test.tsx); removing a
  *      purchase clears its synergy role instead of stranding an
  *      engine-forbidden state.
- * D1 — the rail Ledger overview colours PER METRIC with the in-grid
- *      ledger's own "over by N ⚠" strings (PRE-FIX one over metric painted
- *      both metrics --danger with no glyph and no over-by — colour alone,
- *      on numbers that were 68 points UNDER budget).
+ * D1 — the rail readout colours PER METRIC with the in-grid ledger's own
+ *      "over by N ⚠" strings (PRE-FIX one over metric painted both metrics
+ *      --danger with no glyph and no over-by — colour alone, on numbers
+ *      that were 68 points UNDER budget). R12: the rail surface is the
+ *      TotalsStrip, the Ledger overview's successor — same engine readouts,
+ *      same string builders, so the contract moves surface, not substance.
  * D2 — the Build panel auto-collapses once, below 1280, the first time the
  *      build has non-zero values; the latch never overrides the user again.
- * F  — "0 = unset" Badge Slots capacity: NO overflow warning on any of the
- *      four surfaces while capacity is unset; ONE neutral hint instead.
- * E  — the JumpNav panel chips render at the FRONT of the row.
+ * F  — "0 = unset" Badge Slots capacity: NO overflow warning on any surface
+ *      while capacity is unset; ONE neutral hint per category instead.
+ * E  — the JumpNav panel chips render at the FRONT of the row, below the
+ *      workbench gate (R12: at L they are not rendered at all — the panels
+ *      they reach are permanently on screen in the build rail).
  */
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -43,6 +47,26 @@ afterEach(() => {
 function commitNumber(input: Element, value: string) {
   fireEvent.change(input, { target: { value } });
   fireEvent.blur(input);
+}
+
+/** Shared by D2 and E (R12): jsdom has no matchMedia, so the App renders the
+ * L workbench shape by default; stubbing which queries MATCH is how a test
+ * chooses its band. `[]` matches nothing → L; `["(max-width: 1279px)"]` → M. */
+function stubMatchMedia(matching: string[]) {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches: matching.includes(query),
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }),
+  });
 }
 
 function readoutsFor() {
@@ -172,7 +196,9 @@ describe("C — removing a purchase clears its synergy role (no stranded HardVio
     const pips = screen.getByRole("radiogroup", { name: "Float Game — purchase level" });
     const card = pips.closest(".badge-card");
     if (!(card instanceof HTMLElement)) throw new Error("Float Game card missing");
-    expect(within(card).getByText(/⚡ Fuse · SS5/)).toBeTruthy();
+    // R12 slice 2 shortened the VISIBLE role pill to the mockup's form; the
+    // accessible name still says `Fuse · Synergy Slot 5 +1` in full.
+    expect(within(card).getByText("Fuse S5")).toBeTruthy();
     // Remove the purchase via the pip control.
     fireEvent.keyDown(within(card).getByRole("radio", { name: /^Gold, current level/ }), {
       key: "Escape",
@@ -181,7 +207,8 @@ describe("C — removing a purchase clears its synergy role (no stranded HardVio
     // PRE-FIX: slot 5 still held fuseBadgeId="float-game" — the chip stayed
     // on an unpurchased card, validateLoadout errored invisibly, and a
     // re-purchase silently re-attached the boost.
-    expect(within(card).queryByText(/⚡ Fuse · SS5/)).toBeNull();
+    expect(within(card).queryByText("Fuse S5")).toBeNull();
+    expect(within(card).queryByText(/Fuse · Synergy Slot 5/)).toBeNull();
     expect(screen.queryByText(/Invalid loadout state/)).toBeNull();
     // Re-purchasing at Bronze does NOT resurrect the fuse.
     fireEvent.click(within(card).getByRole("radio", { name: /^Bronze/ }));
@@ -190,7 +217,7 @@ describe("C — removing a purchase clears its synergy role (no stranded HardVio
   });
 });
 
-describe("D1 — rail Ledger overview: per-metric strings, danger only where genuinely over", () => {
+describe("D1 — rail TotalsStrip: per-metric strings, danger only where genuinely over", () => {
   it("an over-Badge-Slots / under-points category reddens ONLY the capacity metric, with text", () => {
     // Finishing: 99-token pool (deeply under budget), 1 Badge Slot, two
     // badges bought → points fine, capacity over by 1.
@@ -204,45 +231,34 @@ describe("D1 — rail Ledger overview: per-metric strings, danger only where gen
     });
     expect(writeAutosave(rig).ok).toBe(true);
     render(<App />);
-    const row = [...document.querySelectorAll(".ledger-overview__row")].find((candidate) =>
-      candidate.textContent?.startsWith("Finishing"),
-    );
-    if (!(row instanceof HTMLElement)) throw new Error("Finishing overview row missing");
-    const points = row.querySelector(".ledger-overview__points");
-    const capacity = row.querySelector(".ledger-overview__capacity");
+    // R12: the rail Ledger overview is retired; the per-metric contract now
+    // holds on its successor, the build rail's TotalsStrip — same engine
+    // readouts, same overByBadgePoints/overByBadgeSlots builders.
+    const cell = document.querySelector('.totals-strip__cell[data-category="Finishing"]');
+    if (!(cell instanceof HTMLElement)) throw new Error("Finishing totals-strip cell missing");
+    // The strip's fixed metric order: Badge Tokens first, Badge Slots second.
+    const [points, capacity] = [...cell.querySelectorAll(".totals-strip__metric")];
     if (!(points instanceof HTMLElement) || !(capacity instanceof HTMLElement)) {
-      // PRE-FIX: one combined span, `ledger-over` on the whole thing.
+      // PRE-FIX (P0-1's shape): one combined span, `ledger-over` on the whole
+      // thing — the per-metric split is the fix under test.
       throw new Error("per-metric spans missing");
     }
     // 7/99 is UNDER budget: never danger, no over-by. (classList, not a
-    // substring check — "ledger-overview__points" contains "ledger-over"
-    // as a substring but not as a class token.)
+    // substring check — a class NAME containing "ledger-over" as a substring
+    // must not pass as the token.)
     expect(points.classList.contains("ledger-over")).toBe(false);
     expect(points.textContent).toBe("7/99");
-    // 2/1 IS over: danger + the in-grid ledger's own words — never colour alone.
+    // 2/1 IS over: danger + the ⚠ glyph, and the sr-only sentence carries the
+    // in-grid ledger's own words — never colour alone. Whole-content equality
+    // (whitespace-normalized), so no second phrasing can hide in the node.
     expect(capacity.classList.contains("ledger-over")).toBe(true);
-    expect(capacity.textContent).toBe("2/1 over by 1 ⚠");
+    expect((capacity.textContent ?? "").replace(/\s+/g, " ").trim()).toBe(
+      "2/1 ⚠ Badge Slots over by 1 ⚠",
+    );
   });
 });
 
 describe("D2 — Build panel auto-collapse below 1280 (one-shot latch)", () => {
-  function stubMatchMedia(matching: string[]) {
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      writable: true,
-      value: (query: string) => ({
-        matches: matching.includes(query),
-        media: query,
-        onchange: null,
-        addEventListener: () => undefined,
-        removeEventListener: () => undefined,
-        addListener: () => undefined,
-        removeListener: () => undefined,
-        dispatchEvent: () => false,
-      }),
-    });
-  }
-
   function buildDetails(): HTMLDetailsElement {
     const summaryHeading = screen.getByRole("heading", { name: "Build" });
     const details = summaryHeading.closest("details");
@@ -294,11 +310,16 @@ describe("F — '0 = unset' Badge Slots capacity, uniform across all four surfac
     render(<App />);
     commitNumber(screen.getByLabelText("Close"), "90");
     // A real points pool so the only candidate warning is the capacity one;
-    // Badge Slots capacity stays 0 (fresh boot uses zeroBudgets).
+    // Badge Slots capacity stays 0 (fresh boot uses zeroBudgets). R12: at
+    // the jsdom-L workbench shape the base-budget grid lives behind the
+    // rail's `Edit budgets…` (BudgetsDialog), so entry goes through it —
+    // the same BudgetGrid, the same commit seam.
+    fireEvent.click(screen.getByRole("button", { name: "Edit budgets…" }));
     commitNumber(
       screen.getByLabelText("Finishing Badge Tokens", { selector: "input" }),
       "99",
     );
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
     const pips = screen.getByRole("radiogroup", { name: "Float Game — purchase level" });
     fireEvent.click(within(pips).getByRole("radio", { name: /^Gold/ }));
 
@@ -309,12 +330,26 @@ describe("F — '0 = unset' Badge Slots capacity, uniform across all four surfac
     expect(section.querySelector(".category-ledger")?.textContent).not.toContain("over by");
     // …and the ONE neutral hint renders instead.
     expect(within(section).getByText("Badge Slots capacity not set")).toBeTruthy();
-    // (2) Rail overview: capacity shows an em-dash, never a red over-state.
-    const row = [...document.querySelectorAll(".ledger-overview__row")].find((candidate) =>
-      candidate.textContent?.startsWith("Finishing"),
-    );
-    expect(row?.querySelector(".ledger-overview__capacity")?.textContent).toBe("1/—");
-    expect(row?.querySelector(".ledger-over")).toBeNull();
+    // (2) Rail TotalsStrip (R12: the Ledger overview's successor): capacity
+    // shows an em-dash, never a red over-state — and with every capacity
+    // unset the whole strip carries NO overflow warning of any kind.
+    const cell = document.querySelector('.totals-strip__cell[data-category="Finishing"]');
+    if (!(cell instanceof HTMLElement)) throw new Error("Finishing totals-strip cell missing");
+    expect(cell.querySelectorAll(".totals-strip__metric")[1]?.textContent).toBe("1/—");
+    const strip = document.querySelector(".totals-strip");
+    expect(strip?.querySelector(".ledger-over")).toBeNull();
+    expect(strip?.textContent).not.toContain("over by");
+    expect(strip?.textContent).not.toContain("⚠");
+    // The neutral-hint census, re-derived against the R12 DOM: ONE lede hint
+    // per category (all six capacities are unset) and the strip contributes
+    // none — it renders the em-dash, never a seventh sentence. (The Loadout
+    // board's own six hints are pinned in f16-loadout-board.test.tsx.)
+    const hints = [...document.querySelectorAll(".category-ledger__hint")];
+    expect(hints).toHaveLength(6);
+    for (const hint of hints) {
+      expect(hint.textContent).toBe("Badge Slots capacity not set");
+    }
+    expect(document.querySelectorAll(".totals-strip .category-ledger__hint")).toHaveLength(0);
     // (3) Card chip: no "Would go over Badge Slots" on unpurchased cards.
     expect(screen.queryByText("Would go over Badge Slots")).toBeNull();
     // (4) Summary chip: nothing fires (validateLoadout's warning is
@@ -356,8 +391,16 @@ describe("F — '0 = unset' Badge Slots capacity, uniform across all four surfac
   });
 });
 
-describe("E — JumpNav panel chips render at the FRONT of the row", () => {
-  it("the panel chips are the FIRST links, in page order", () => {
+describe("E — JumpNav panel chips render at the FRONT of the row (below the gate)", () => {
+  it("below the gate, the panel chips are the FIRST links, in page order", () => {
+    // R12: the chips exist to REACH panels that live below the grid — the
+    // M/S document flow. At L the panels are permanently on screen in the
+    // build rail and App passes `panelAnchors={[]}` (asserted in the next
+    // case), so the front-of-row contract is exercised where the chips
+    // exist: the gate is stubbed to the M band and the REAL App wiring —
+    // anchor list, order, front-loading — is what renders, not a lookalike
+    // component mount.
+    stubMatchMedia(["(max-width: 1279px)"]);
     render(<App />);
     const nav = screen.getByRole("navigation", { name: "Categories" });
     const links = [...nav.querySelectorAll("a")].map((anchor) => anchor.textContent);
@@ -375,6 +418,21 @@ describe("E — JumpNav panel chips render at the FRONT of the row", () => {
     expect(links.slice(0, panels.length)).toEqual(panels);
     // …and the six category chips follow, none of them displaced.
     expect(links).toHaveLength(panels.length + 6);
+  });
+
+  it("at L the panel chips are NOT rendered — the six category chips stand alone (R12)", () => {
+    // The workbench keeps Synergy/Summary (and the board) permanently on
+    // screen, so a chip whose only job is to reach them would be a dead
+    // control at exactly the width where it renders. The category chips
+    // remain — the catalog column is still the one tall scroller.
+    stubMatchMedia([]); // no query matches → the L workbench shape
+    render(<App />);
+    const nav = screen.getByRole("navigation", { name: "Categories" });
+    const links = [...nav.querySelectorAll("a")].map((anchor) => anchor.textContent);
+    expect(links).toHaveLength(6);
+    for (const label of ["Board", "Synergy", "Summary"]) {
+      expect(links).not.toContain(label);
+    }
   });
 });
 

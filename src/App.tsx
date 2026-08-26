@@ -91,7 +91,13 @@ import {
 } from "./persist/local-storage";
 import type { NamedBuildSummary, PersistResult } from "./persist/local-storage";
 import { BonusDialog } from "./ui/build/BonusDialog";
-import { AttributesSection, BuildPanel, PhysiqueStrip } from "./ui/build/BuildPanel";
+import { BudgetsDialog } from "./ui/build/BudgetsDialog";
+import {
+  AttributesSection,
+  BuildPanel,
+  PhysiqueSection,
+  PhysiqueStrip,
+} from "./ui/build/BuildPanel";
 import type { HeightClampNotice } from "./ui/build/BuildPanel";
 import { ResetBuildDialog } from "./ui/build/ResetBuildDialog";
 import type { ResetBlastRadius } from "./ui/build/ResetBuildDialog";
@@ -103,8 +109,6 @@ import { BadgeGridSection } from "./ui/grid/BadgeGridSection";
 import {
   CategoryLedgerDigest,
   CategoryLedgerLede,
-  overByBadgePoints,
-  overByBadgeSlots,
   projectionDiffers,
 } from "./ui/grid/CategoryLedger";
 import { EmptyResults } from "./ui/grid/EmptyResults";
@@ -119,6 +123,10 @@ import { DriftBanner } from "./ui/shell/DriftBanner";
 import { PreviewModeStrip } from "./ui/shell/PreviewModeStrip";
 import { QuarantineBanner } from "./ui/shell/QuarantineBanner";
 import { mountColRightScrollMemory } from "./ui/shell/scroll-memory";
+import { SynergyDock } from "./ui/rail/SynergyDock";
+import { MobileTabs, mobileTabId, mobileTabPanelId } from "./ui/shell/MobileTabs";
+import type { MobileTabId } from "./ui/shell/MobileTabs";
+import { TotalsStrip } from "./ui/rail/TotalsStrip";
 import { Section } from "./ui/primitives/Section";
 import { Toggle } from "./ui/primitives/Toggle";
 import { useMediaQuery } from "./ui/useMediaQuery";
@@ -704,6 +712,10 @@ export default function App() {
    * the dialog commits through `applyEdit` exactly as the twelve base fields
    * do (design-spec §17.3, §4.2). */
   const [bonusOpen, setBonusOpen] = useState(false);
+  /** R12 — the budgets editor's open state, the SEVENTH dialog. At L the
+   * twelve base fields live behind the rail's `Edit budgets…` control;
+   * below L they stay inside BuildPanel and this state is never reachable. */
+  const [budgetsOpen, setBudgetsOpen] = useState(false);
 
   /* ------------------------------------------------------------- F8-R2 --
    * THE ROLL'S SESSION STATE. Every field here is deliberately NOT persisted:
@@ -732,14 +744,30 @@ export default function App() {
    * panel's shape all key off the same answer, so it is asked once here and
    * passed down.
    *
-   * KEEP THE QUERY STRING AND KEEP THE NEGATION IN THIS DIRECTION.
+   * R12 (the workbench re-cut; user ruling 2026-08-26) — L IS NOW COMPOUND:
+   * width AND height, matching the stylesheet's workbench gate verbatim.
+   * The workbench is a fixed-height shell whose three columns own their
+   * scrollports; where the viewport is too short for the shell (≥1280 wide
+   * but <768 tall — a 1366×768 laptop with browser chrome), the DOM must
+   * fall back to the M document flow WITH the CSS, or the two disagree
+   * about where the panels live. One owner, one compound answer.
+   *
+   * KEEP THE QUERY STRINGS AND KEEP THE NEGATIONS IN THIS DIRECTION.
    * `useMediaQuery` returns false where matchMedia is absent (jsdom), so
-   * `!useMediaQuery("(max-width: 1279px)")` yields isLarge = true and every
-   * component test keeps rendering the desktop shape it renders today. The
-   * tidier-looking `useMediaQuery("(min-width: 1280px)")` inverts that
-   * default to MOBILE and silently flips a large, hard-to-attribute set of
-   * tests. tests/layout-arithmetic.test.ts asserts this source text. */
-  const isLarge = !useMediaQuery("(max-width: 1279px)");
+   * both negated terms yield true and isLarge = true — every component test
+   * keeps rendering the desktop shape it renders today. The tidier-looking
+   * min-width/min-height forms invert that default to MOBILE and silently
+   * flip a large, hard-to-attribute set of tests.
+   *
+   * TWO STATEMENTS, NEVER ONE `&&` EXPRESSION OVER TWO HOOK CALLS. `&&`
+   * short-circuits, so a narrow viewport would skip the second useMediaQuery
+   * and the hook count would change the moment the width crossed 1280 —
+   * "calling Hooks conditionally", caught live by the F1 boot backstop the
+   * first time this was written the tidy way.
+   * tests/layout-arithmetic.test.ts asserts this source text. */
+  const belowLWidth = useMediaQuery("(max-width: 1279px)");
+  const belowLHeight = useMediaQuery("(max-height: 767px)");
+  const isLarge = !belowLWidth && !belowLHeight;
 
   /** F13 (user ruling, 2026-08-25) — THE ONE OWNER of the M breakpoint, and
    * the whole of the phone carve-out.
@@ -765,6 +793,21 @@ export default function App() {
    * to the phone shape silently. tests/layout-arithmetic.test.ts asserts
    * this source text. */
   const isWide = !useMediaQuery("(max-width: 767px)");
+
+  /** R12 slice 3 — THE PHONE, as the complement of `isWide` and never as a
+   * fourth query. `isWide` already owns the 768 seam (F13's ruling), so the
+   * tab shell keys off its negation rather than asking matchMedia a third
+   * time: two owners for one breakpoint is how a layout comes to disagree
+   * with itself. jsdom yields isWide = true, so isPhone is false and every
+   * component test keeps rendering the desktop shape. */
+  const isPhone = !isWide;
+
+  /** Which station the phone is showing. Session state, never persisted: a
+   * tab is a viewport position, not plan data, and persisting it would put a
+   * layout preference inside the reader-inventory ceremony for no gain.
+   * Defaults to the catalog — the surface the app exists for, and the one a
+   * returning user most often wants. */
+  const [mobileTab, setMobileTab] = useState<MobileTabId>("badges");
 
   /** EVERY working-state mutation flows through here (write-through ref). */
   const applyWorking = useCallback(
@@ -1112,6 +1155,27 @@ export default function App() {
             (staleAfter > 0 ? staleSentence(staleAfter) : "All purchased badges qualify."),
         );
       }
+    },
+    [applyEdit],
+  );
+
+  /** R12 — the ONE base-budget commit, shared by BuildPanel's grid (M/S) and
+   * BudgetsDialog's grid (L). Two inline copies of this closure is how the
+   * two surfaces would come to commit differently; the A5 base-record rule
+   * (write the BASE, never the composed record — test 6.6) lives here once. */
+  const handleBudgetCommit = useCallback(
+    (category: Category, field: keyof Budget, value: number) => {
+      applyEdit((prev) =>
+        prev.budgets[category][field] === value
+          ? prev
+          : {
+              ...prev,
+              budgets: {
+                ...prev.budgets,
+                [category]: { ...prev.budgets[category], [field]: value },
+              },
+            },
+      );
     },
     [applyEdit],
   );
@@ -1782,13 +1846,166 @@ export default function App() {
     setFilters(defaultFilterState());
   };
 
+  /** R12 — the Synergy and Summary panels and the footer, defined ONCE and
+   * mounted in exactly one of two homes: the build rail's scroller at L, the
+   * end of `.col-right` below the gate. Conditional parenting with a single
+   * definition, so the two widths cannot drift.
+   *
+   * The Loadout board is NOT here — it renders in the catalog column at
+   * every width (user ruling 2026-08-26: the 2K-style Kanban tile layout
+   * needs the catalog column's width; a 348px rail would stack it 1-wide).
+   *
+   * F8-R2's RollPanel placement rationale survives the move: it stays the
+   * sibling ABOVE <SummaryPanel>, outside the `.summary` subtree, so the H2
+   * overlay comparison in tests/ui/overlays.test.tsx never has to reason
+   * about roll state. §11.5 ⑤'s ban on a rail Export/Import pair also
+   * stands — the header pair remains the only one. */
+  /**
+   * R12 slice 3 — the tab-panel attributes for one station, and they exist
+   * ONLY on the phone.
+   *
+   * `.mobile-panel` is a `display: contents` wrapper at every width above the
+   * phone: it generates no box, so `.col-right`'s flex children are exactly
+   * what they were before this slice and no measurement in
+   * tests/layout-arithmetic.test.ts moves. Below 768 it becomes a real block
+   * carrying `role="tabpanel"`, its tab's id as `aria-labelledby`, and
+   * `hidden` when another tab is active.
+   *
+   * HIDDEN, NEVER UNMOUNTED — see the MobileTabs docblock. A torn-down panel
+   * takes `#badge-grid` (the skip link's target) and every `#cat-*` anchor
+   * with it, and loses the catalog's scroll position on every switch.
+   */
+  const mobilePanelProps = (id: MobileTabId) =>
+    isPhone
+      ? {
+          role: "tabpanel",
+          id: mobileTabPanelId(id),
+          "aria-labelledby": mobileTabId(id),
+          hidden: mobileTab !== id,
+        }
+      : {};
+
+  /** F16 — the Kanban board's region, hoisted so the phone can group it with
+   * the synergy station without the JSX being written twice. */
+  const boardRegion = (
+    <div id="panel-board">
+      <Section title="Loadout board" storageKey="section-board">
+        <LoadoutBoard
+          loadout={working.loadout}
+          synergySlots={working.synergy}
+          build={working.build}
+          dataset={shippedDataset}
+          readouts={readouts}
+          // The EFFECTIVE record, exactly as the grid takes it: `budgets`,
+          // never `baseBudgets`. Asking a different record is how two
+          // surfaces come to disagree about whether a discipline is over.
+          budgets={budgets}
+          onBrowseCategory={browseCategoryInGrid}
+        />
+      </Section>
+    </div>
+  );
+
+  const planPanels = (
+    <>
+      <div id="panel-synergy">
+        <Section title="Synergy Slots" storageKey="section-synergy">
+          <SynergyPanel
+            synergySlots={working.synergy}
+            loadout={working.loadout}
+            dataset={shippedDataset}
+            overlay={overlay}
+            ratifiedMagnitudeNormalized={ratifiedMagnitudeNormalized}
+            refundTriggerNormalized={refundTriggerNormalized}
+            onSynergySlotsChange={setSynergySlots}
+          />
+        </Section>
+      </div>
+
+      <div id="panel-summary">
+        <Section title="Summary" storageKey="section-summary">
+          <RollPanel
+            dataset={shippedDataset}
+            heightText={formatHeightInches(working.build.heightInches)}
+            lastRoll={lastRoll}
+            rollEpoch={rollEpoch}
+            seed={seed}
+            onSeedChange={setSeed}
+            onRegenerateSeed={() => {
+              setSeed(newSeed());
+            }}
+            onFillRemaining={() => {
+              runRoll(buildRollRequest("fill", null, seed));
+            }}
+            onRerollRequest={() => {
+              setRerollScope({ category: null });
+            }}
+            excludedCount={excludedBadgeIds.length}
+            onClearExclusions={() => {
+              setExcludedBadgeIds([]);
+            }}
+            restoreDisabledReason={restoreDisabledReason}
+            onRestore={() => {
+              if (lastRollRequest !== null) runRoll(lastRollRequest);
+            }}
+          />
+          <SummaryPanel
+            loadout={working.loadout}
+            synergySlots={working.synergy}
+            budgets={budgets}
+            readouts={readouts}
+            validation={validation}
+            dataset={shippedDataset}
+            // F8-S2 wiring: `buildSummary(ledgerState, build, dataset)`
+            // needs the committed ledger state and the build; the OUTPUT
+            // value is what crosses this seam, never an OverlayState.
+            summary={loadoutSummary}
+            synergy={synergyRows}
+            buildName={working.name}
+          />
+          {/* The storage-scope disclosure, at the END of the surface whose
+              whole job is reading the plan back out — the moment a user is
+              most likely to think "I want to keep this," and therefore the
+              last moment it is still cheap to tell them Export exists.
+
+              A SIBLING OF <SummaryPanel>, NOT A CHILD, for the same
+              mechanical reason <RollPanel> above is: `.summary` is the exact
+              subtree tests/ui/overlays.test.tsx compares across all four
+              overlay combinations, and that gate is RUN-never-edit. Static
+              copy could not break a bit-identical comparison, but staying
+              outside the subtree means the gate never has to reason about it.
+
+              MERGED FORWARD INTO `planPanels` (R12). It arrived on main
+              inside the Summary Section while that Section lived inline in
+              `.col-right`; R12 moved the Section into the one shared
+              definition that the rail and the sub-gate column both mount, so
+              the disclosure travels with it and reaches BOTH homes. Dropping
+              it here would have deleted a shipped feature silently — the
+              import above would have been the only trace. */}
+          <p className="hint">{STORAGE_SCOPE_LINE}</p>
+        </Section>
+      </div>
+
+      {/* F14 put the footer inside the scroller — a citation belongs at the
+          end of the reading order, never in the shell's permanent chrome.
+          R12 keeps that rule; the reading order now ends in the rail at L
+          and in `.col-right` below the gate, and the footer follows it. */}
+      <footer className="app-footer">
+        <span className="num">dataset {shippedDataset.dataVersion}</span> ·{" "}
+        {shippedDataset.source} · as of {shippedDataset.asOf} · confidence:{" "}
+        {shippedDataset.confidence}
+      </footer>
+    </>
+  );
+
   return (
-    /* F14 — `app-shell` rides the EXISTING root element rather than adding a
-       wrapper, so the component inventory does not move. It is presentation
-       only, exactly as `.col-right` is: no landmark, no id, no aria, no state.
-       At >=1280 x >=868 the stylesheet turns this element into a 100dvh flex
-       column whose only growing child is `.layout`; everywhere else it is
-       inert and `.app`'s shipped rules are the whole behaviour. */
+    /* F14/R12 — `app-shell` rides the EXISTING root element rather than
+       adding a wrapper, so the component inventory does not move. It is
+       presentation only, exactly as `.col-right` is: no landmark, no id, no
+       aria, no state. At >=1280 wide AND >=768 tall the stylesheet turns
+       this element into a 100dvh flex column whose only growing child is
+       `.layout`; everywhere else it is inert and `.app`'s shipped rules are
+       the whole behaviour. */
     <RollControlsContext value={rollControls}>
     <div className="app app-shell">
       <a className="skip-link" href="#badge-grid">
@@ -1884,155 +2101,115 @@ export default function App() {
           second. A warning must not be pushed below a toolbar.
 
           OUTSIDE `.layout`, so it is genuinely full-bleed at both widths and
-          is unaffected by the L media query that owns the pane. */}
-      {isWide ? <PhysiqueStrip {...physiqueProps} /> : null}
+          is unaffected by the L media query that owns the pane.
 
-      {/* F5.4 (design-spec §16) — .layout is EXACTLY TWO grid items at L: the
-          attributes pane, and everything else. That is not tidiness. A sticky
-          grid item is constrained by the grid CONTAINER's content box, so with
-          the panels as separate rows the pane's containing block ended at row
-          1 — "pinned while you are in the grid". With every non-attribute
-          region inside .col-right the container spans from the top of .layout
-          to the bottom of the Summary panel: "always on display".
+          R12 — THE STRIP IS NOW THE M BAND'S SURFACE ONLY (768–1279, or
+          wide-but-short viewports below the workbench gate). At L Physique
+          lives at the top of the body column, so the strip there would be a
+          second surface for the same two controls. The three-surface seam:
+          L → col-body's PhysiqueSection; M → this strip; S → the Section
+          inside BuildPanel. Exactly one renders at every viewport. */}
+      {isWide && !isLarge ? <PhysiqueStrip {...physiqueProps} /> : null}
 
-          Below 1280 the pane is NOT RENDERED, .col-right is the only item, and
-          the output is bit-identical to before this slice (§16.10). */}
+      {/* R12 (the workbench re-cut; user ruling 2026-08-26, approved from the
+          workbench mockup) — .layout is THREE grid items at L: the body
+          column, the catalog column, and the build rail. The planning loop —
+          nudge attributes → see what unlocks → buy → pair synergy → check
+          budget — used to cross a 9,096px document twice per lap; now each
+          station owns a column and a scrollport, and only the catalog is
+          tall. F5.4's sticky-pane machinery (attr-pane, attr-pane-column,
+          the containing-block stretch) is RETIRED: under a fixed-height
+          shell a column that owns its scrollport has nothing left for
+          sticky to do.
+
+          Below the workbench gate (width <1280 OR height <768) the columns
+          are NOT RENDERED, .col-right is the only item, and the output is
+          the shipped M/S document flow (§16.10's discipline, new gate). */}
       <div className="layout">
         {isLarge ? (
-          // .attr-pane-column is the GRID ITEM and .attr-pane is the sticky box
-          // inside it. Presentation only — no landmark, no id, no state. This
-          // is F5.2's D1 wrapper, renamed and otherwise untouched: without the
-          // stretch the sticky box slides out of the grid and paints over what
-          // follows it (measured at doc-y 4660 against a grid ending at 4644).
-          <div className="attr-pane-column">
-            <div className="attr-pane">
-              <aside aria-label="Attributes">
-                {/* [A7] The pane's mount takes the SAME two reset props the
-                    panel's mount takes below — the control rides the Section,
-                    so there is exactly one placement to keep correct. */}
-                <AttributesSection
-                  attributes={working.build.attributes}
-                  onCommit={handleAttributeCommit}
-                  onResetRequest={() => {
-                    setResetOpen(true);
-                  }}
-                  canReset={playerHasContent(working)}
-                />
-              </aside>
-            </div>
+          <div className="col-body">
+            {/* R12 — Physique heads the body column: position and height are
+                the same kind of input as the 20 attributes and sit with
+                them. PhysiqueSection is the S surface reused verbatim — same
+                Section, same storage key, same collapse. */}
+            <aside aria-label="Physique">
+              <PhysiqueSection {...physiqueProps} />
+            </aside>
+            <aside aria-label="Attributes">
+              {/* [A7] The column's mount takes the SAME two reset props the
+                  panel's mount takes below — the control rides the Section,
+                  so there is exactly one placement to keep correct. */}
+              <AttributesSection
+                attributes={working.build.attributes}
+                onCommit={handleAttributeCommit}
+                onResetRequest={() => {
+                  setResetOpen(true);
+                }}
+                canReset={playerHasContent(working)}
+              />
+            </aside>
           </div>
         ) : null}
 
         <div className="col-right" ref={colRightRef}>
-          <aside className="ledger-panel" aria-label="Ledger overview">
-            <Section title="Ledger overview" storageKey="section-ledger-overview">
-              <div className="ledger-overview">
-                {CATEGORIES.map((category) => {
-                  const readout = readouts[category];
-                  const budget = budgets[category];
-                  // PER-METRIC status via the in-grid ledger's OWN string
-                  // builders (design-review P0-1): danger + "over by N ⚠"
-                  // land ONLY on the metric that is genuinely over — never
-                  // color alone, never a red in-budget number.
-                  const pointsOverText = overByBadgePoints(readout);
-                  const equipSlotsOverText = overByBadgeSlots(readout, budget);
-                  const capacityUnset = badgeSlotsCapacityUnset(budget);
-                  return (
-                    <div key={category} className="ledger-overview__row">
-                      <span className="ledger-overview__label">{category}</span>
-                      <span className="num ledger-overview__metrics">
-                        <span
-                          className={
-                            pointsOverText !== null
-                              ? "ledger-over ledger-overview__points"
-                              : "ledger-overview__points"
-                          }
-                        >
-                          {readout.spent}/{budget.points}
-                          {pointsOverText !== null ? ` ${pointsOverText}` : ""}
-                        </span>
-                        {" · "}
-                        <span
-                          className={
-                            equipSlotsOverText !== null
-                              ? "ledger-over ledger-overview__capacity"
-                              : "ledger-overview__capacity"
-                          }
-                        >
-                          {readout.equipSlotsUsed}/{capacityUnset ? "—" : budget.equipSlots}
-                          {equipSlotsOverText !== null ? ` ${equipSlotsOverText}` : ""}
-                        </span>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </Section>
-          </aside>
+          {/* R12 — the Ledger overview panel is RETIRED. It was L-only
+              (display: none below 1280) and its successor is the build
+              rail's TotalsStrip: the same engine readouts, the same string
+              builders, permanently visible instead of first-in-a-scroller.
+              One of the five same-six-numbers surfaces R12 collapses to
+              two. */}
 
           {/* Badge Tokens/Slots are SET-UP surfaces, not loop surfaces: the
               twelve budget fields are filled by hand from the MyPlayer
-              builder and then not touched again. Above the FilterBar on
-              §13.5's causality argument run in reverse — you set the pools
-              BEFORE you shop for badges (§16.5).
+              builder and then not touched again.
 
-              F13 — PHYSIQUE LEFT THIS PANEL for the full-bleed strip above
-              `.layout` AT >=768 ONLY. Below 768 the strip is not rendered
-              and Physique comes back here as the <Section> it was pre-F13,
-              because at 390 a "horizontal strip" is not horizontal — it
-              stacks, and it cannot collapse. What stays at every width is
-              the budget grid (+ the 20 sliders at M/S) and F5.3's Reset. The `<Section title="Build">` wrapper
-              STAYS even though the panel holds a single child Section at L,
-              and it is not decoration: it is the surface the one-shot
-              auto-collapse latch closes, and closing it turns a 595px block
-              into a 53px digest row. A collapse control that buys 542px is
-              earning its 53. The nested inner Section is a MEASURED,
-              DELIBERATELY UNSPENT lever — unwrapping it at L only would buy
-              65px and would split one behaviour across the 1280 seam, where
-              M/S genuinely has two children. */}
-          <aside className="setup-panel" aria-label="Build">
-            {/* [A5] `budgets` here is the BASE record, never the composed
-                one. The grid is a base-ENTRY surface and `onBudgetCommit`
-                below writes straight back into the base; rendering the
-                effective number would compound it on every blur. Test 6.6.
-                F5.4 RELOCATED this call site out of the dissolved left rail
-                into `.setup-panel`; the prop travelled with it. */}
-            <BuildPanel
-              build={working.build}
-              budgets={baseBudgets}
-              bonus={working.bonus}
-              onOpenBonus={() => {
-                setBonusOpen(true);
-              }}
-              compact={!isLarge}
-              withAttributes={!isLarge}
-              physique={isWide ? null : physiqueProps}
-              onAttributeCommit={handleAttributeCommit}
-              onResetRequest={() => {
-                setResetOpen(true);
-              }}
-              canReset={playerHasContent(working)}
-              onBudgetCommit={(category, field, value) => {
-                applyEdit((prev) =>
-                  prev.budgets[category][field] === value
-                    ? prev
-                    : {
-                        ...prev,
-                        budgets: {
-                          ...prev.budgets,
-                          [category]: { ...prev.budgets[category], [field]: value },
-                        },
-                      },
-                );
-              }}
-            />
-          </aside>
+              R12 — THE PANEL IS AN M/S SURFACE NOW. At L the entry grid
+              lives behind the rail's `Edit budgets…` (BudgetsDialog) and
+              the always-visible readout is the TotalsStrip — entry and
+              monitoring are different surfaces, and the panel's 560px of
+              pre-grid lead was the old layout's single biggest block of
+              setup chrome. Below the gate everything here is the shipped
+              M/S behaviour: the auto-collapse latch, the digest row, the
+              F13 physique carve-out at S, F5.3's Reset — untouched. */}
+          {isLarge ? null : (
+            <div className="mobile-panel" {...mobilePanelProps("build")}>
+            <aside className="setup-panel" aria-label="Build">
+              {/* [A5] `budgets` here is the BASE record, never the composed
+                  one. The grid is a base-ENTRY surface and `onBudgetCommit`
+                  writes straight back into the base; rendering the
+                  effective number would compound it on every blur. Test 6.6. */}
+              <BuildPanel
+                build={working.build}
+                budgets={baseBudgets}
+                bonus={working.bonus}
+                onOpenBonus={() => {
+                  setBonusOpen(true);
+                }}
+                compact
+                withAttributes
+                physique={isWide ? null : physiqueProps}
+                onAttributeCommit={handleAttributeCommit}
+                onResetRequest={() => {
+                  setResetOpen(true);
+                }}
+                canReset={playerHasContent(working)}
+                onBudgetCommit={handleBudgetCommit}
+                // R12 slice 3 — on the phone this panel IS the Build tab, so
+                // the outer collapsible wrapper (and its one-shot latch) come
+                // off: see the `unwrapped` rationale in BuildPanel. At M the
+                // panel is one region in a scroll and keeps both.
+                unwrapped={isPhone}
+              />
+            </aside>
+            </div>
+          )}
 
           {/* tabIndex={-1} is not decoration under a shell. A skip link whose
               target is not focusable moves the NEXT tab stop in most engines
               but does not move FOCUS in all of them — and a focus move is what
               drives a scrollport. Without it the skip link can leave
               `.col-right` exactly where it was. */}
+          <div className="mobile-panel" {...mobilePanelProps("badges")}>
           <main id="badge-grid" tabIndex={-1}>
             <FilterBar
               filters={filters}
@@ -2040,12 +2217,27 @@ export default function App() {
               shownCount={shownCount}
               totalCount={shippedDataset.badges.length}
             />
+            {/* R12 — the panel chips exist to REACH panels that live below
+                the grid, and that is true at exactly ONE width band now.
+                At L those panels are permanently on screen in the build
+                rail. On the PHONE they are on another TAB, and an anchor
+                into a `hidden` subtree is a dead link — worse than a missing
+                one, because it looks live and does nothing. Both get `[]`;
+                only M (768–1279), where the panels really are further down
+                the same scroll, renders them.
+
+                The category chips remain at every width — they navigate the
+                catalog, which is still the one tall scroller. */}
             <JumpNav
-              panelAnchors={[
-                { id: "panel-board", label: "Board" },
-                { id: "panel-synergy", label: "Synergy" },
-                { id: "panel-summary", label: "Summary" },
-              ]}
+              panelAnchors={
+                isLarge || isPhone
+                  ? []
+                  : [
+                      { id: "panel-board", label: "Board" },
+                      { id: "panel-synergy", label: "Synergy" },
+                      { id: "panel-summary", label: "Summary" },
+                    ]
+              }
             />
             {shownCount === 0 ? (
               <EmptyResults all onClearAll={clearAllFilters} />
@@ -2128,161 +2320,98 @@ export default function App() {
               })
             )}
           </main>
-
-          {/* F16 — the Loadout board. BETWEEN the grid and the Synergy Slots
-              panel, so the whole-plan picture and the pairing board read as
-              one contiguous region without either being re-parented. It is a
-              sibling <Section>, not a tab, not a route and not a toggle: a
-              tab would HIDE the grid, and the loop this view exists for
-              (see you are over by two → press the tile → land on its card →
-              drop a level) crosses both surfaces. Two Sections in one
-              document also make "switching cannot mutate the plan" true by
-              construction rather than by test.
-
-              NOTHING HERE IS FIXED CHROME. The board is scrollable content
-              inside .col-right, so it adds nothing to the shell's permanent
-              band and cannot move MIN_SHELL_H. */}
-          <div id="panel-board">
-            <Section title="Loadout board" storageKey="section-board">
-              <LoadoutBoard
-                loadout={working.loadout}
-                synergySlots={working.synergy}
-                build={working.build}
-                dataset={shippedDataset}
-                readouts={readouts}
-                // The EFFECTIVE record, exactly as the grid and the rail
-                // overview take it: `budgets`, never `baseBudgets`. Asking a
-                // different record is how two surfaces come to disagree
-                // about whether a discipline is over.
-                budgets={budgets}
-                onBrowseCategory={browseCategoryInGrid}
-              />
-            </Section>
           </div>
 
-          <div id="panel-synergy">
-            <Section title="Synergy Slots" storageKey="section-synergy">
-              <SynergyPanel
-                synergySlots={working.synergy}
-                loadout={working.loadout}
-                dataset={shippedDataset}
-                overlay={overlay}
-                ratifiedMagnitudeNormalized={ratifiedMagnitudeNormalized}
-                refundTriggerNormalized={refundTriggerNormalized}
-                onSynergySlotsChange={setSynergySlots}
-              />
-            </Section>
+          {/* R12 slice 3 — THE THIRD PHONE STATION: the Kanban board, the
+              Synergy Slots panel, the Summary and the footer, grouped under
+              one tab. Above the phone this wrapper is `display: contents`,
+              so `.col-right`'s flex children are byte-identical to slice 1's
+              and the board keeps its place directly under the grid.
+
+              F16 — the board renders HERE at every width (user ruling
+              2026-08-26: "maintain the 2K style board layout — looked like a
+              Kanban"). Its tiles need the catalog column's width; a 348px
+              rail would stack them 1-wide and lose exactly the look the
+              ruling names.
+
+              R12 — below the gate the Synergy and Summary panels and the
+              footer render here too; at L they live in the build rail. One
+              definition (`planPanels`, above the return), two conditional
+              homes — the same JSX cannot drift between widths. */}
+          <div className="mobile-panel" {...mobilePanelProps("synergy")}>
+            {boardRegion}
+            {isLarge ? null : planPanels}
           </div>
 
-          <div id="panel-summary">
-            <Section title="Summary" storageKey="section-summary">
-              {/* F8-R2 — THE ROLL PANEL'S HOME. §14.4 puts it in the Summary
-                  region above the roster, and the roster is the roll's output
-                  device: the trigger belongs beside its own result, not in
-                  AppHeader ~2000px away and already carrying six controls.
-
-                  RENDERED HERE, AS A SIBLING ABOVE <SummaryPanel>, RATHER THAN
-                  INSIDE IT. Two reasons, and the second is mechanical:
-                  SummaryPanel is closed to this slice (it is S2's, and its H2
-                  guarantees are where S2 left them); and `.summary` is the
-                  exact subtree tests/ui/overlays.test.tsx compares across all
-                  four overlay combinations, so keeping the roll panel OUT of
-                  it means the H2 ship gate never has to reason about roll
-                  state at all.
-
-                  IT COSTS ZERO ALWAYS-VISIBLE HEIGHT. This is inside
-                  `.col-right`, which is the shell's scrollport at >=1280x868
-                  and the document scroller below it. The F14 shell has ~0.02pp
-                  of vertical margin left at its gate, so a new permanent band
-                  would have forced the gate UP. A scrollport region does
-                  not. */}
-              <RollPanel
-                dataset={shippedDataset}
-                heightText={formatHeightInches(working.build.heightInches)}
-                lastRoll={lastRoll}
-                rollEpoch={rollEpoch}
-                seed={seed}
-                onSeedChange={setSeed}
-                onRegenerateSeed={() => {
-                  setSeed(newSeed());
-                }}
-                onFillRemaining={() => {
-                  runRoll(buildRollRequest("fill", null, seed));
-                }}
-                onRerollRequest={() => {
-                  setRerollScope({ category: null });
-                }}
-                excludedCount={excludedBadgeIds.length}
-                onClearExclusions={() => {
-                  setExcludedBadgeIds([]);
-                }}
-                restoreDisabledReason={restoreDisabledReason}
-                onRestore={() => {
-                  if (lastRollRequest !== null) runRoll(lastRollRequest);
-                }}
-              />
-              <SummaryPanel
-                loadout={working.loadout}
-                synergySlots={working.synergy}
-                budgets={budgets}
-                readouts={readouts}
-                validation={validation}
-                dataset={shippedDataset}
-                // F8-S2 wiring, and it is why App.tsx is in this slice's
-                // allowlist: `buildSummary(ledgerState, build, dataset)`
-                // needs the committed ledger state and the build, and M4
-                // omitted exactly this class of wiring and had to be
-                // ratified post-hoc [state.json 2026-08-26].
-                summary={loadoutSummary}
-                synergy={synergyRows}
-                buildName={working.name}
-              />
-              {/* §11.5 ⑤ (rev 5): the right-rail Export/Import pair is GONE —
-                  a ratified rev-2 §3.6 clause that never shipped (~198px of
-                  min-content in a 142px rail box). The header pair above is
-                  the only one; tests/layout-arithmetic.test.ts pins this. */}
-              {/* The storage-scope disclosure, at the END of the surface whose
-                  whole job is reading the plan back out — the moment a user is
-                  most likely to think "I want to keep this," and therefore the
-                  last moment it is still cheap to tell them Export exists.
-
-                  A SIBLING OF <SummaryPanel>, NOT A CHILD, and for the same
-                  mechanical reason <RollPanel> above is: `.summary` is the
-                  exact subtree tests/ui/overlays.test.tsx compares across all
-                  four overlay combinations, and that gate is RUN-never-edit.
-                  Static copy could not break a bit-identical comparison, but
-                  staying outside the subtree means the gate never has to
-                  reason about this at all.
-
-                  It is text, not a control: the rail carries no second
-                  Export/Import pair and the §11.5 ruling directly above
-                  stands. Zero always-visible height — see STORAGE_SCOPE_LINE
-                  in ui/builds/BuildManager.tsx for why that is load-bearing. */}
-              <p className="hint">{STORAGE_SCOPE_LINE}</p>
-            </Section>
-          </div>
-
-          {/* F14 MOVED THE FOOTER INSIDE THE SCROLLER, unconditionally.
-              Outside `.layout` it is a direct child of `.app-shell`, which
-              under the shell means CHROME — 69px of dataset provenance pinned
-              to the bottom of every viewport forever, taken straight out of
-              the card region and added to MIN_SHELL_H. It is a citation, not a
-              control: it belongs at the end of the reading order, which is
-              where the right column ends.
-
-              UNCONDITIONAL on purpose. Below 1280 this is a one-level nesting
-              change with no visual effect (`.col-right` is `.layout`'s only
-              grid item there), and a conditionally-parented landmark is a
-              second breakpoint mirror to keep in sync. `<footer>` still maps
-              to contentinfo: `.col-right` is a plain <div>, not a sectioning
-              element. */}
-          <footer className="app-footer">
-            <span className="num">dataset {shippedDataset.dataVersion}</span> ·{" "}
-            {shippedDataset.source} · as of {shippedDataset.asOf} · confidence:{" "}
-            {shippedDataset.confidence}
-          </footer>
         </div>
+
+        {isLarge ? (
+          /* R12 — THE BUILD RAIL: what you are making, permanently visible.
+             THREE flex children, and the two outer ones are the furniture:
+             the TotalsStrip is pinned at the rail's top and the SynergyDock
+             at its foot (neither grows), with the plan panels scrolling
+             between them in the rail's own scrollport. That is the whole of
+             "pinned" — no sticky layer is opened at either end (I5). The
+             board's old "over by two → press the tile → land on its card →
+             drop a level" loop now crosses two columns that are BOTH on
+             screen, which is the whole point of the re-cut.
+
+             The dock READS `working.synergy` and resolves names against the
+             dataset. It takes no change callback: the build is structurally
+             unreachable from it, and a chip press only scrolls the rail's
+             scroller to the Synergy Slot's own row and focuses it. */
+          <div className="col-build">
+            <TotalsStrip
+              readouts={readouts}
+              budgets={budgets}
+              onEditBudgets={() => {
+                setBudgetsOpen(true);
+              }}
+            />
+            <div className="col-build__scroll">{planPanels}</div>
+            <SynergyDock synergySlots={working.synergy} dataset={shippedDataset} />
+          </div>
+        ) : null}
       </div>
+
+      {/* R12 slice 3 — THE PHONE DOCK, and it is the tab shell's whole
+          chrome: the totals bar (the rail's strip in its `bar` arrangement —
+          one component, so the six numbers cannot disagree across widths)
+          above the tab bar, both fixed to the bottom of the viewport.
+
+          ONE FIXED ELEMENT, NOT TWO. The dock is a single fixed box so the
+          space the document has to reserve for it is one number
+          (`--mobile-dock-h`) rather than a sum that two rules could drift
+          apart on.
+
+          OUTSIDE `.layout`, like the physique strip and for the same reason:
+          it is chrome, not a grid item. It renders only below 768, where the
+          app shell is NOT fixed and the document scrolls normally — so the
+          totals stay on screen while the catalog scrolls under them, which
+          is the one property the phone shares with the workbench. */}
+      {isPhone ? (
+        <div className="mobile-dock">
+          <TotalsStrip
+            variant="bar"
+            readouts={readouts}
+            budgets={budgets}
+            onEditBudgets={() => {
+              setBudgetsOpen(true);
+            }}
+          />
+          <MobileTabs
+            active={mobileTab}
+            onSelect={(next) => {
+              setMobileTab(next);
+              // A tab switch is a change of PLACE, so it lands at the top of
+              // the new station rather than at whatever offset the previous
+              // one happened to be scrolled to. The panels are hidden rather
+              // than unmounted, so nothing else about their state moves.
+              window.scrollTo({ top: 0 });
+            }}
+          />
+        </div>
+      ) : null}
 
       <BuildManagerDialog
         open={managerOpen}
@@ -2316,6 +2445,24 @@ export default function App() {
           the pre-A5-U tree except for one secondary Button (§17.10, canary
           1), and a permanently-mounted closed dialog would put six rows of
           `.bonus-*` nodes in the DOM to be "identical" with. */}
+      {/* R12 — the SEVENTH dialog: the base-budget editor, reachable only
+          from the rail's `Edit budgets…` at L. Mounted only while open,
+          like every dialog here. It is `#dialog-budgets` — select by id,
+          never by tag. */}
+      {budgetsOpen ? (
+        <BudgetsDialog
+          budgets={baseBudgets}
+          bonus={working.bonus}
+          onBudgetCommit={handleBudgetCommit}
+          onOpenBonus={() => {
+            setBonusOpen(true);
+          }}
+          onDone={() => {
+            setBudgetsOpen(false);
+          }}
+        />
+      ) : null}
+
       {bonusOpen ? (
         <BonusDialog
           baseBudgets={baseBudgets}

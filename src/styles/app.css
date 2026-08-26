@@ -126,19 +126,12 @@ ul {
   min-width: 0;
 }
 
-/* The overview dissolves below L — the per-category sticky digests carry it,
- * exactly as the old rail wrapper did (§5.2, unchanged behaviour). F5.4
- * moved the element into the right column and renamed the wrapper; the rule
- * itself is the shipped one, moved with it and not rewritten. */
-.ledger-panel {
-  display: none;
-}
-
-@media (min-width: 1280px) {
-  .ledger-panel {
-    display: block;
-  }
-}
+/* R12 — the Ledger overview panel (.ledger-panel / .ledger-overview) is
+ * RETIRED. It was L-only chrome at the head of the old single scroller; its
+ * successor is the build rail's TotalsStrip (see the R12 section at the end
+ * of this file), which renders the same engine readouts permanently instead
+ * of first-in-a-scroller. Below L the per-category sticky digests carry the
+ * numbers, exactly as they always did. */
 
 @media (min-width: 768px) {
   .layout {
@@ -146,123 +139,29 @@ ul {
   }
 }
 
-/* L (≥1280): TWO columns — one rail beside the grid, and that is the whole
- * tier list. There is no second fixed-rail tier above this one.
+/* R12 (the workbench re-cut; user ruling 2026-08-26, approved from the
+ * workbench mockup) — THE OLD L TIER IS SUPERSEDED WHOLESALE. Two blocks
+ * used to live here: the 2-col `.layout` template (pane + .col-right) and
+ * the sticky attributes pane. Both are retired, and the reasons they cited
+ * are answered rather than ignored:
  *
- * Every three-column cut this repo shipped sized its third column against a
- * box that could not hold one ledger category on one line, and each re-cut
- * bought a few more pixels back from the centre to try again. The arithmetic
- * forecloses it: with 3-up at 1280 held fixed, the width a one-line-per-
- * category column needs does not exist at any price the grid can pay
- * (§13.2). So the column was REMOVED rather than widened, and the ledger
- * moved to the top of the one remaining rail — where it gets a 266px content
- * box instead of 170, and sits above the fold instead of in a second
- * scroller.
+ *   · "No third column may reappear" rested on arithmetic about a ONE-LINE
+ *     -per-category ledger row (239px content demand). The workbench's rail
+ *     readout is the TotalsStrip's TWO-LINE cell (name above, numbers
+ *     below, ~78px floor), which that arithmetic never priced. The old
+ *     conclusion was right about the old row; it does not bind the cell.
+ *   · The sticky pane + containing-block stretch existed to keep the
+ *     attributes pinned beside a 9,000px document scroller. Under the
+ *     workbench there is no document scroller at L at all: every column
+ *     owns its scrollport, and sticky has nothing left to do.
  *
- * Removing it returns a whole rail AND a gap to the centre, which is why the
- * rail below is chosen WITH MARGIN rather than derived down to a floor:
- * 300 − 34 chrome = 266, against a binding demand of 239 for a real 3-digit
- * ledger row inside its well (I11 + I12). 3-up at 1280 now clears by 175px
- * instead of 1, and 4-up arrives at 1357 instead of 1637.
- *
- * F14 TRIED §16.6's HELD 300 -> 340 LEVER AND PUT IT BACK. The app shell makes
- * the page a zero-sum height budget and costs two attribute sliders at every
- * viewport; widening the rail past I9's arrangement threshold (287) would
- * un-stack the numeric field (SLIDER_H 81 -> 49, the stack 2016 -> 1376) and
- * buy those two back with interest. It is BLOCKED at 1280 — by arithmetic, not
- * by preference — and the window is EMPTY:
- *
- *   un-stacking the numeric              needs RAIL >  329
- *   the slider track clearing I9's 224   needs RAIL >= 330
- *   F11's board staying 8-wide (cell 89) needs RAIL <= 332   at a 17px scrollbar
- *   the synergy panel staying 2-up       needs RAIL <= 321   at a 17px scrollbar
- *
- * At 340 an F11 board cell is 88.00 against its 89px floor: the dataset's
- * longest single word stops fitting in a board cell at 1280 on every
- * classic-scrollbar OS. That is an outcome regression on a surface that sealed
- * this week, not a moved literal. The only rails that both un-stack the
- * numeric and keep the board 8-wide are 330-332, and every value in that range
- * puts the synergy panel to 1-up AND lands the slider track ON its 224 floor
- * with 0-2px of slack. Re-cutting F11's 8-wide container threshold, or the
- * board's CELL_FLOOR, is that slice's call and not this one's.
- *
- * Re-derived by tests/layout-arithmetic.test.ts (I3 · I8 · I11 · I12). */
-@media (min-width: 1280px) {
-  .layout {
-    grid-template-columns: 300px minmax(0, 1fr);
-    column-gap: var(--space-3);
-    padding: var(--space-4);
-  }
-}
-
-/* The attributes pane, and it exists only at L — below 1280 there is no pane
- * (§16.10): the Build panel is a full-width collapsible <details> in flow
- * with the 20 sliders inside it, exactly as it shipped.
- *
- * It holds the 20 attribute sliders and NOTHING ELSE (§16.5). The Ledger
- * overview and the two set-up surfaces left it because the arithmetic said
- * so: 657px of non-attribute content ahead of the stack showed ZERO of
- * twenty sliders at a 700px viewport (I15).
- *
- * Those declarations live in THIS rule and not in a new base one on purpose:
- * tests/layout-arithmetic.test.ts locates the FIRST `.attr-pane` rule in the
- * file and inspects it for the overflow guard, so a second rule above this
- * one would silently re-point that guard at a block which never had
- * overflow-y — and it would pass forever without checking anything. */
-@media (min-width: 1280px) {
-  .attr-pane {
-    position: sticky;
-    top: var(--space-3);
-    /* FALLBACK FIRST, and the order is the assertion. `vh` resolves against
-     * the LARGE viewport, so with browser chrome showing a 100vh pane
-     * extends under it and its last row is unreachable; `dvh` tracks the
-     * dynamic viewport and wins wherever it is supported.
-     *
-     * THIS IS NOT A MOBILE FIX — the pane only exists ≥1280 and §6's
-     * 200%-zoom target lands in the S layout, where there is no pane. It
-     * ships on the conservative-failure-direction argument alone: dvh ≤ vh
-     * always, so the worst case is a slightly SHORT pane (which scrolls,
-     * harmlessly) rather than a slider nobody can reach.
-     *
-     * max-height, NOT height. A pane forced to full height with 300px of
-     * content draws an empty box — invisible today because the content
-     * always exceeds it, visible the day a user collapses the Attributes
-     * Section. */
-    max-height: calc(100vh - var(--space-6));
-    max-height: calc(100dvh - var(--space-6));
-    overflow-y: auto;
-    /* --ring-focus reaches 4px OUTSIDE the box, and overflow-y: auto clips
-     * at the edges — every focused slider's ring was cut here. 4px of inline
-     * padding is exactly the ring's reach, and it is affordable only because
-     * the ledger left the pane: 300 − 8 − 34 = 258 against I9's 224px usable
-     * track leaves 34 ≥ --space-6, where the ledger's 239px demand left 19. */
-    padding-inline: var(--space-1);
-    /* Focus-scrolling a slider to the pane's edge leaves 12px rather than
-     * pressing it flush against the boundary with its ring on the cut. */
-    scroll-padding-block: var(--space-3);
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* .attr-pane-column is the grid ITEM; .attr-pane is the sticky box inside
-   * it, and this one declaration is what stops the pane escaping the grid.
-   *
-   * A sticky grid item is constrained by the grid CONTAINER's content box,
-   * NOT by its own row — so a sticky pane placed directly in .layout slides
-   * straight past the grid and paints on top of what follows. Measured: it
-   * reached doc-y 4660 against a grid that ends at 4644. Stretching this
-   * wrapper to fill row 1 gives the sticky box a containing block that ends
-   * where the grid container ends, and it then clamps exactly as intended.
-   *
-   * F5.4 makes that containing block the WHOLE document rather than row 1,
-   * by putting every other region inside .col-right — so the pane is now
-   * pinned all the way down to the foot of the Summary panel.
-   *
-   * .layout sets align-items: start, so the stretch has to be asked for. */
-  .attr-pane-column {
-    align-self: stretch;
-  }
-}
+ * The workbench template itself lives in the R12 shell block at the end of
+ * this file, under the compound gate (min-width: 1280px) AND (min-height:
+ * 768px) — width alone is NOT L any more. A wide-but-short viewport (1366×
+ * 768 laptop with browser chrome) renders the M document flow, DOM and CSS
+ * agreeing via App.tsx's compound `isLarge`. There is deliberately NO plain
+ * `(min-width: 1280px)` `.layout` rule left: the M template must be the one
+ * that applies below the height gate. */
 
 .app-footer {
   padding: var(--space-4) var(--space-6);
@@ -1074,30 +973,68 @@ main#badge-grid {
 .grid-section__cards {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--space-3);
+  /* R12 slice 2 (user ruling 2026-08-26, mockup-approved): --space-3 -> the
+   * mockup's own 8px. THIS GAP IS LOAD-BEARING, not a taste edit — at 12px the
+   * 180px compact floor below needs 3 x 180 + 2 x 12 = 564 against the 559px
+   * the catalog column offers at the 1280 gate with a classic scrollbar, and
+   * the grid falls back to 2-up. At 8px it needs 556 and 3-up holds at every
+   * scrollbar. Re-derived in tests/layout-arithmetic.test.ts (I3). */
+  gap: var(--space-2);
   margin-top: var(--space-3);
 }
 
-/* Card columns adapt to the space the centre column actually has (§5.1/§5.2
- * rev 2): auto-fill with the 240px card floor. With the rails re-cut to
- * 248/192 (rails were the free variable, not the cards) this yields 2-up at
- * 768 and 3-up at 1280 — the design-review D1 verdict. */
+/* THE CATALOG FLOOR — R12 slice 2 (user ruling 2026-08-26, mockup-approved).
+ *
+ * 240 was the COMFORTABLE card's floor and it bought 2-up at the workbench's
+ * 1280 gate, which slice 1 accepted on the record and deferred here. The
+ * compact tile re-derives it from the widest row's min-content, the fortress
+ * way, and restores the ≥3-up requirement:
+ *
+ *   ROW 2 is the binding row (row 1's name is the flexible item and
+ *   ellipsises, so row 1 can never set a floor):
+ *     4 x 24px purchase pips              96   SC 2.5.8 AA target size
+ *     3 x 2px  pip gaps                    6   calc(--space-1 / 2)
+ *     1 x 2px  gap before the Legend mark  2
+ *     1 x 16px Legend mark                16   role="img", NOT a target
+ *     1 x 4px  cost gutter (--space-1)     4
+ *     COST_MAX `from 3`                   36   measured, take-the-larger
+ *                                        ---
+ *     ROW2_MIN                            160
+ *   CHROME
+ *     3px synergy/left edge + 1px right border      4
+ *     2 x --space-2 inline padding                 16
+ *                                                 ---
+ *     FLOOR = 160 + 20 =                          180
+ *
+ * At 180 the catalog is 3-up at 1280 (556 <= 559 at the 17px scrollbar) AND
+ * 3-up at 1440 — 4-up there would need a floor <= 178, so the 20px the floor
+ * sits above ROW2_MIN is what holds the mockup's ratified density. Both are
+ * re-derived in tests/layout-arithmetic.test.ts (I3, I12+I13). */
 @media (min-width: 768px) {
   .grid-section__cards {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
 }
 
 /* --------------------------------------------------------- badge card -- */
 
+/* R12 slice 2 — the COMPACT tile. `padding: --space-4` -> `--space-2 --space-2`
+ * and a 3px left edge on every card, so the content box is the same 160px on a
+ * card with a synergy role and a card without one (the comfortable card paid
+ * that 2px only on the cards carrying the extra chip — see I12 assertion 1).
+ * The gap is --space-1: two lines 4px apart, the mockup's 6px rounded to the
+ * scale. NO `height`, NO `overflow`, NO `justify-content` — I13's four
+ * forbidden repairs still stand, and the <li> is still the equal-height
+ * carrier. */
 .badge-card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  padding: var(--space-4);
+  padding: var(--space-2);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .badge-card:hover {
@@ -1118,17 +1055,45 @@ main#badge-grid {
   opacity: 0.55;
 }
 
+/* R12 slice 2 — the mockup's `blocked` tile, in the one channel this app is
+ * allowed to dim: a card with NOTHING reachable recedes its ladder exactly as
+ * a height-blocked card does. Declared as its own rule, never joined to the
+ * selector above, so the P1-1 pin that reads that block back keeps reading it.
+ * The GATE LINE IS NOT IN IT — text stays at its declared tokens, which is the
+ * whole of P1-1: a 0.55 multiplier on the reason string measured 2.67:1. */
+.badge-card--gated .pip-row {
+  opacity: 0.55;
+}
+
+/* The gate line takes a line of its own inside row 2 (`flex-basis: 100%`), so
+ * it is never squeezed beside the marks and never truncated — I14: the
+ * eligibility reason is the one string this tool exists to show. */
+.badge-card__gate {
+  flex: 1 1 100%;
+}
+
+/* R12 slice 2 — the row's GAP is declared ONCE, in the R12 block below, with
+ * the arithmetic that spends it. Two declarations for one number is how a
+ * parsed derivation comes to read the loser of a cascade. */
 .badge-card__title-row {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
 }
 
+/* R12 slice 2 — the name is the row's ONLY flexible item, and that is what
+ * makes the title line unwrappable by construction: `min-width: 0` lets it
+ * shrink below its content and the ellipsis takes the overflow (the mockup's
+ * `.bc-name`). The full string is always in the DOM, so AT and every filter
+ * test read the whole name; the expanded card unwraps it (below). */
 .badge-card__name {
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--fg-primary);
   margin-right: auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .badge-card__meta {
@@ -1169,7 +1134,11 @@ main#badge-grid {
   padding: 0;
   margin: 0;
   display: flex;
-  gap: var(--space-1);
+  /* R12 slice 2: 4px -> 2px, DERIVED from the spacing token rather than typed
+   * (tokens.css is consume-never-define, and 2 is not a rung on the 4px
+   * ladder). It is 6px of the compact row's 160px budget and it is what lets
+   * the five marks and the cost readout share one line at the 3-up width. */
+  gap: calc(var(--space-1) / 2);
 }
 
 .pip-row legend {
@@ -1186,18 +1155,26 @@ main#badge-grid {
    * (49.6 − 22) + 4 = 31.6px of whitespace between 22px dots. Content-sizing
    * flips the inequality to (36 − 22) + 4 = 18 < 22. Fixed here rather than
    * overridden later, because layout-arithmetic assertion 7 greps THIS block
-   * for the absence of `flex: 1` and an override would leave it red forever. */
+   * for the absence of `flex: 1` and an override would leave it red forever.
+   *
+   * R12 slice 2: 36 -> 24 and the 44px floor moves to the S block where it
+   * belongs. 24 IS WCAG 2.2 SC 2.5.8 AA's target size EXACTLY — no spacing
+   * exception is being argued, and no pip may go below it. The mockup draws
+   * 15px marks; 15 with a 3px gap fails 2.5.8 on both the size test and the
+   * spacing exception, so this is the one place the tile is bigger than the
+   * sketch. The reported gap complaint improves either way: (24 − 22) + 2 = 4
+   * against a 22px dot, versus 18 before. */
   flex: 0 0 auto;
-  width: 36px;
+  width: 24px;
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
   cursor: pointer;
-  padding: var(--space-1) 0;
+  padding: 0;
   border-radius: var(--radius-sm);
-  min-height: 44px; /* mobile target size (§5.3) */
+  min-height: 24px; /* SC 2.5.8 AA; the 44px §5.3 floor is in the S block */
 }
 
 .pip input {
@@ -1267,18 +1244,24 @@ main#badge-grid {
   cursor: default;
 }
 
+/* R12 slice 2 — the Legend mark is 16px against the purchase pips' 24, and the
+ * size difference IS the signal: it is `role="img"`, not a target, so SC 2.5.8
+ * does not reach it and a mark the thumb cannot press should not look pressable.
+ * The 45° rotation goes with the compaction (a rotated 16px square measures
+ * 22.6px across its diagonal and would collide with its neighbours); the dashed
+ * rim keeps carrying "boost only", and the mark's accessible name says it in
+ * words. */
 .pip--legend .pip__dot {
+  width: 14px;
+  height: 14px;
+  border-width: 1px;
   border-style: dashed;
   border-color: var(--lvl-legend);
   color: var(--lvl-legend);
   background: transparent;
   border-radius: var(--radius-sm);
-  transform: rotate(45deg);
 }
 
-.pip--legend .pip__dot > span {
-  transform: rotate(-45deg);
-}
 
 .pip--legend-effective .pip__dot {
   background: var(--lvl-legend);
@@ -1313,12 +1296,35 @@ main#badge-grid {
   box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--info);
 }
 
-/* Cost line (§3.4): always visible at every breakpoint. */
+/* Cost line (§3.4). R12 slice 2 — IT IS NEVER REMOVED FROM THE DOM: the
+ * string is rendered on every pip in both states, exactly as F4's clamped
+ * description string always was, and `display: none` only decides whether the
+ * compact tile paints it. The compact tile cannot: `+7⚠` is 28px against a
+ * 24px pip. The row's single cost readout answers the compact question ("what
+ * does this cost?") and the expanded card restores the per-pip deltas, so
+ * §8.1 C6 (deltas without hover — hover does not exist on touch) still holds
+ * wherever the deltas are shown at all. The pip's ACCESSIBLE NAME carries the
+ * same numbers in both states and never depended on this element, which is
+ * aria-hidden. */
 .pip__cost {
+  display: none;
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   font-size: var(--text-xs);
   color: var(--fg-secondary);
+}
+
+.badge-card--expanded .pip__cost {
+  display: block;
+}
+
+/* …with ONE exception, and it has to come after the rule it excepts (equal
+ * specificity, later wins): the word `boost` does not fit a 16px mark in
+ * either state, and unlike the purchase deltas it is STATIC copy that is true
+ * of all 53 badges. The expanded card's ladder states it in a full sentence
+ * instead, and the mark's accessible name always did. */
+.badge-card--expanded .pip--legend .pip__cost {
+  display: none;
 }
 
 .pip--locked .pip__cost {
@@ -1327,63 +1333,12 @@ main#badge-grid {
 
 /* -------------------------------------------------- ledger overview rail -- */
 
-/* The six rows share ONE grid so their columns actually align — which is the
- * whole of "items laying next to each other smoothly". `display: contents`
- * promotes each row's children into the parent grid; the row div carries no
- * role, no border and no background, so nothing is lost.
- *
- * WHAT THIS REPLACES, and why it was wrong: flex + justify-content:
- * space-between + margin-left:auto + flex-wrap. On wrap that combination put
- * the label alone flush-left on line 1 and the metrics alone flush-right on
- * line 2 — six rows of zigzag with no column alignment anywhere. The §11.5 ④
- * flex-wrap was written as an OVER-BUDGET escape hatch and was in fact
- * rendering the base case (§13.1). It goes.
- *
- * The column-gap here is the label↔metrics separation, and I12 makes it
- * geometry: tests/layout-arithmetic.test.ts parses it off THIS rule. */
-.ledger-overview {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  column-gap: var(--space-3);
-  row-gap: var(--space-2);
-  align-items: baseline;
-  font-size: var(--text-sm);
-}
-
-.ledger-overview__row {
-  display: contents;
-}
-
-/* The label column must never be crushed by the metrics column — I11, on the
- * axis it is easiest to get backwards. `1fr auto` sizes the auto track from
- * its content FIRST, so a single over-budget row ("62/53 over by 2 ⚠ · …",
- * ~303px of max-content) takes the entire track box and the fr track, whose
- * automatic minimum a `min-width: 0` here would have removed, resolves to
- * ZERO. Every label then overflows a 0px column and abuts its own numbers —
- * which renders almost-plausibly, so nothing but a measurement catches it.
- *
- * Pinning the label's own max-content as its floor is what keeps "the label
- * stays on line 1" true no matter how long the annotation beside it grows. */
-.ledger-overview__label {
-  min-width: max-content;
-}
-
-/* Per-metric status (P0-1): each metric span carries its own over-state, so
- * one over metric can never redden its in-budget neighbour.
- *
- * NOT right-aligned. The metrics are a composite string ("10/16 · 2/3"), so
- * right-aligning aligns the LAST number and misaligns the first; left in an
- * `auto` column aligns the FIRST number — the one being reconciled — across
- * all six rows.
- *
- * min-width:0 lets this column fall back toward min-content and wrap INSIDE
- * ITSELF when an over-by annotation lengthens it: the label stays on line 1,
- * the annotation stacks beneath the numbers it belongs to, and P0-1 is
- * untouched because the over-by string is still inside the span of the
- * metric that is over. */
-.ledger-overview__metrics {
-  min-width: 0;
-}
+/* R12 — the `.ledger-overview` family is retired with its panel; the
+ * TotalsStrip (R12 section, end of file) is the successor readout. The
+ * per-metric over-state discipline it carried (P0-1: danger + the ledger's
+ * own over-by string land ONLY on the metric that is genuinely over)
+ * travels to the strip's `.totals-strip__metric`, via the same `.ledger-over`
+ * class and the same string builders. */
 
 /* ------------------------------------------------------ build manager -- */
 
@@ -2506,8 +2461,15 @@ main#badge-grid {
   .filter-bar,
   .skip-link,
   .preview-strip,
-  .attr-pane-column,
-  .ledger-panel,
+  /* R12 — the retired pane/overview selectors left this list with their
+     elements; the body column and the rail's totals strip take their
+     print-hide places (only the summary prints, unchanged). */
+  .col-body,
+  .totals-strip,
+  /* R12 slice 2 — the synergy dock is rail FURNITURE, exactly as the totals
+     strip is: at L it is in the print DOM (the shell's media query is a
+     screen fact, not a paper one) and "only the summary prints" holds. */
+  .synergy-dock,
   .setup-panel,
   main,
   .summary__copy,
@@ -2531,7 +2493,13 @@ main#badge-grid {
   :root,
   body,
   .section,
-  .summary-roster__group {
+  .summary-roster__group,
+  /* R12 slice 2 — the roster row is a RAISED CARD on screen, and the card is
+     painted on the cells. `*` below forces the text black but touches no
+     background, so without this line every roster row prints black-on-dark,
+     i.e. blank. The one thing that must print is the one that would have
+     disappeared. */
+  .summary-roster__row > * {
     background: #fff !important;
   }
 
@@ -3044,19 +3012,39 @@ main#badge-grid {
   position: relative;
 }
 
+/* R12 slice 2: --text-base -> --text-sm. The mockup's tile sets its name at
+ * 12.5px; --text-sm (14) is the nearest rung of the app's own scale that is
+ * still the card's primary label, and it is what the compact row-1 arithmetic
+ * is measured at. */
 .badge-card__name {
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
 }
 
 .badge-card__status {
   font-weight: 600;
 }
 
-/* Purchased lift: quiet but unmistakable. Blocked cards are excluded —
- * they keep rev 2's de-opacified recipe EXACTLY (canvas fill, subtle
- * border, declared text tokens, opacity on the pip row only). */
+/* Purchased lift: quiet but unmistakable. R12 slice 2 adds the mockup's
+ * accent-tinted wash and accent rim on top of the shipped recipe — the metal
+ * top edge below still carries the PURCHASE LEVEL, so the two encodings do not
+ * collide. The wash is mixed from --accent-quiet at 30%: at 45% and above,
+ * --fg-muted on the blend falls under AA (4.59:1 at 40%, 4.12:1 at 55%), and
+ * the muted tokens are what the card's cost readout and gate line are painted
+ * in. 30% measures 4.76:1 and the gradient bottoms out at plain --bg-raised.
+ * Blocked cards are excluded — they keep rev 2's de-opacified recipe EXACTLY
+ * (canvas fill, subtle border, declared text tokens, opacity on the pip row
+ * only). */
 .badge-card[data-purchased-level]:not(.badge-card--blocked) {
-  background: var(--bg-raised);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-quiet) 30%, var(--bg-raised)) 0%,
+    var(--bg-raised) 70%
+  );
+  /* Three sides, never four: the INLINE-START edge is the synergy role's
+   * channel (--accent solid for a Fuse, --info dashed for a Reaction) and a
+   * blanket `border-color` here would out-specify it and mute the role. */
+  border-block-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-inline-end-color: color-mix(in srgb, var(--accent) 45%, var(--border));
   box-shadow: var(--shadow-raised);
 }
 
@@ -3157,23 +3145,10 @@ main#badge-grid {
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
 
-/* The rail's ledger overview reads as an instrument well.
- *
- * ITS HORIZONTAL PADDING IS RAIL GEOMETRY, NOT PAINT. F5 shipped this well
- * with --space-3 sides, which took 24px out of a content box the geometry
- * slice had already spent — every ledger row wrapped from that commit on,
- * empty state included. The squeeze to --space-1 that followed was what a
- * 204px rail could fund, and §10.5's --bevel-inset instrument well reads
- * wrong at 4px sides. A 266px content box funds the full --space-3, so the
- * squeeze is reverted — uniformly, at every width, with no tier left to
- * restore it in. tests/layout-arithmetic.test.ts (I12) parses this value, so
- * the next paint slice cannot spend it invisibly. */
-.ledger-overview {
-  background: var(--bg-inset);
-  box-shadow: var(--bevel-inset);
-  border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
-}
+/* R12 — the F5 instrument-well paint for `.ledger-overview` left with its
+ * element (the second and last of its blocks). The --bevel-inset well
+ * treatment lives on in the TotalsStrip's cells, which use --bg-inset
+ * against the strip's surface for the same debossed instrument read. */
 
 /* ================================================ category identity (§2.8) ==
  * F7. ONE custom property, --cat, set once per category and inherited by
@@ -3437,41 +3412,17 @@ main#badge-grid {
    layer — no literal hex, no literal font stack, and no token DEFINITION.
    src/styles/tokens.css stays untouched: consume, never define. */
 
-.badge-card__desc {
-  margin-top: var(--space-1);
-}
-
-/* The COLLAPSED state IS the 3-line clamp (design-spec §10.3 rev 4). The
-   clamp is purely visual — the full string is always in the DOM, so AT reads
-   all of it, once. */
-.badge-card__desc-summary {
-  cursor: pointer;
-  list-style: none;
-}
-
-.badge-card__desc-summary::-webkit-details-marker {
-  display: none;
-}
-
-.badge-card__desc-summary:focus-visible {
-  border-radius: var(--radius-sm);
-  box-shadow: var(--ring-focus);
-  outline: none;
-}
-
+/* R12 slice 2 RETIRED `.badge-card__desc` and its `<summary>`: the description
+   is no longer a disclosure of its own. The card itself is the disclosure now,
+   and the description is the first thing inside it — WITH NO CLAMP AT ALL,
+   which is a strictly better answer to the same question §10.3 rev 4 was
+   solving. The two properties that mattered survive: the string is in the DOM
+   exactly once (so AT never double-announces it across 53 cards), and no
+   pointer path from the description can reach the card's cycle handler. */
 .badge-card__desc-text {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
   font-size: var(--text-xs);
   color: var(--fg-secondary);
   line-height: 1.5;
-}
-
-.badge-card__desc[open] .badge-card__desc-text {
-  -webkit-line-clamp: unset;
-  overflow: visible;
 }
 
 /* The 20-Badge-Slot default annotation (§3.3 C.4 rule 3): muted secondary
@@ -3529,17 +3480,20 @@ main#badge-grid {
   display: grid;
 }
 
-/* A — the title row is now provably one line (assertion 2), so the 20/22/24px
- * tier medallions stop sitting optically high against a 24px band. */
+/* A — the title row is one line, and R12 slice 2 changes WHY. F5.3 evicted
+ * every chip to make it true by subtraction; the compact tile makes it true by
+ * construction, because the name is the only flexible item on the row and
+ * ellipsises. The fixed items — medallion, NEW pill, expand control — total
+ * 24 + 34 + 24 with three gaps against a 160px box, which is what the name's
+ * remainder is measured from in assertion 2. */
 .badge-card__title-row {
   align-items: center;
+  gap: var(--space-1);
 }
 
-/* A — meta is the card's chip rail now. It WRAPS by declared intent, not by
- * omission: a card carrying both F4's NEW chip and a synergy role chip reads
- * 47 + 8 + 40 + 8 + 130 = 233 against a 204px binding box, and the
- * `Would go over Badge Slots` warning is wider still. The second line is
- * absorbed by A1 and costs the row nothing. Assertion 3b. */
+/* R12 slice 2 — meta is no longer the card's chip rail (the chips ride row 2
+ * with the marks they annotate, per the mockup). It is the height range, in
+ * the EXPANDED card, beside the requirement ladder it belongs to. */
 .badge-card__meta {
   display: flex;
   flex-wrap: wrap;
@@ -3547,37 +3501,136 @@ main#badge-grid {
   gap: var(--space-2);
 }
 
+/* ROW 2 — the lettered ladder, its chips and the cost. It WRAPS by declared
+ * intent, not by omission: five marks plus a role chip plus a cost is 208px
+ * against the 160px the tile offers at the 1280 gate, so a role-carrying card
+ * takes a second line there and one line at 1440 (which is the width the
+ * mockup was drawn at, and where its own arithmetic does the same). The wrap
+ * is also what makes a mis-measured cost string degrade to a wrap instead of
+ * an overflow. Absorbed by A1's <li>, exactly as meta's second line was. */
+.badge-card__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* The tile's chips are the mockup's pills, not the page's: --space-1 of inline
+ * padding instead of --space-2, which is 8px off each of them. The tier
+ * medallion is EXCLUDED by name — §10.2 gives it a fixed 20/22/24px well with
+ * zero padding, and adding any here would crowd the letter inside its own
+ * border box. */
+.badge-card .chip:not(.chip--tier) {
+  padding-inline: var(--space-1);
+  white-space: nowrap;
+}
+
+/* The cost readout: the row's last item, pushed to the far end the way the
+ * mockup's `.bc-cost` is. `margin-inline-start: auto` and not
+ * `justify-content: space-between`, so a wrapped role chip does not get
+ * flung to the opposite edge of its own line. */
+.badge-card__cost {
+  margin-inline-start: auto;
+  font-size: var(--text-xs);
+  color: var(--fg-secondary);
+  white-space: nowrap;
+}
+
+/* THE EXPAND CONTROL. 24px square at M/L — SC 2.5.8 AA, the same floor the
+ * purchase pips take — and the §5.3 44px floor at S, from the token, in the F9
+ * block with every other censused control. */
+.badge-card__more {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.badge-card__more:hover {
+  color: var(--fg-secondary);
+  border-color: var(--border);
+}
+
+.badge-card__more-caret {
+  display: block;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.badge-card--expanded .badge-card__more-caret {
+  transform: rotate(180deg);
+}
+
+/* The expanded region — everything the comfortable card showed at all times.
+ * A plain flex column, NOT a popover and NOT an overlay: it is in flow, so it
+ * grows its own <li> and nothing is painted over its neighbours. */
+.badge-card__expanded {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* The name unwraps when the card is open: the ellipsis is a COMPACT-state
+ * compromise the mockup ships, and the expanded card is where the full string
+ * is meant to be read. */
+.badge-card--expanded .badge-card__name {
+  white-space: normal;
+  overflow: visible;
+}
+
 /* A — the pip cluster. THE FIX IS TO STOP STRETCHING, NOT TO WRAP. Wrapping
  * reduces how many pips share a line; it does not reduce spread. Forcing
- * 3-per-line at 204px makes each pip 66px — strictly worse than the 49.6px
- * being complained about. The four purchase radios take 4x36 + 3x4 = 156 of
- * 204 and never wrap; the wrap grant is taken ONLY at the semantic seam
- * between the four purchasable radios and the one non-interactive Legend
- * indicator, which is why flex-wrap is safe here.
+ * 3-per-line makes each pip wider than the spread being complained about.
+ * R12 slice 2: the five marks are 120px of a 160px row and NEVER wrap among
+ * themselves — the floor is derived so they cannot — and the row's own wrap
+ * grant belongs to `.badge-card__line`, at the seam between the ladder and its
+ * chips. `flex: none` is what makes the fieldset an unbreakable unit there.
  * FORBIDDEN, by name: `flex: 1` on .pip; space-between / space-around /
  * justify-content: center on .pip-row; any grid-template-columns with a 1fr
  * track. Assertion 7. */
 .pip-row {
-  flex-wrap: wrap;
+  flex: none;
+  flex-wrap: nowrap;
   justify-content: flex-start;
+  align-items: flex-start;
 }
 
-/* The Legend indicator is not a 36px purchase target — it is an indicator
- * carrying the word "boost" (36px of text). width:auto with a 44px floor lets
- * the box grow with the string, so the exact 44 = 36 + 2x4 fit cannot
- * overflow. */
+/* R12 slice 2 — the Legend indicator no longer carries the word "boost", so
+ * the 44px box that existed to fit that string is retired with it: the mark is
+ * its dot. 14px is a MEASURED floor term, not a round number — it is what the
+ * row's 160px budget has left once the four 24px targets, their gaps and the
+ * 38px cost readout are paid, and the mark is the only item on the row that
+ * may give way, because it is the only one that is not a control. */
 .pip--legend {
-  width: auto;
-  min-width: 44px;
-  padding-inline: var(--space-1);
+  width: 14px;
+  min-width: 0;
+  padding-inline: 0;
 }
 
 /* §5.3 touch floor, FROZEN (invariant I6). At S the 44x44 target wins and the
- * spread reads 26 vs 22 — correct there, because a target the thumb can hit
- * outranks the optical ordering. */
+ * spread reads 20 vs 22 — correct there, because a target the thumb can hit
+ * outranks the optical ordering. R12 slice 2 adds the HEIGHT half: the base
+ * pip is 24 tall now (SC 2.5.8), so the §5.3 floor has to be declared here
+ * rather than ride the base rule, and it is declared through --tap-target so
+ * the I6 census can see it (assertion 27). The width literal stays a literal:
+ * assertion 8 matches it verbatim and S_LITERAL_SIZE_EXEMPT lists it. */
 @media (max-width: 767px) {
   .pip {
     width: 44px;
+    min-height: var(--tap-target);
   }
 }
 
@@ -3747,35 +3800,8 @@ main#badge-grid {
  * override would fight the @media cascade. This block carries the one rule
  * that is genuinely additive. */
 
-/* A1 (Architect amendment to §16.5). The overview's `1fr auto` was derived
- * for a 266px rail. In the right column's 878px grid box the `1fr` absorbs
- * ~739px and splits every row label-far-left / numbers-far-right — verbatim
- * the defect `.summary`'s cap exists to prevent (see the `.summary` comment
- * above). §16.5's "4-up on two lines" is NOT reachable and was withdrawn:
- * repeat(auto-fit, …) forbids intrinsic track sizes, so a repeating
- * `max-content auto` pattern cannot be written at all — the layout is
- * foreclosed on grammar, not on taste.
- *
- * Scoped override; the frozen base blocks are untouched. `max-content` on
- * the label track keeps all six labels column-aligned at the widest of them;
- * `minmax(0, auto)` lets the metrics track fall below its max-content and
- * wrap INSIDE ITSELF exactly as the shipped `.ledger-overview__metrics
- * { min-width: 0 }` intends when an over-by annotation lengthens a row.
- * `justify-content: start` is load-bearing: without it the default `normal`
- * behaves as `stretch` and the auto-max track eats the leftover space again.
- *
- * Derivation at 1280, s=0: 936 centre − 34 <Section> chrome = 902 content,
- * less the well's 2 × --space-3 = 878 to the grid. Normal row demand
- * LEDGER_LABEL_MAX 78 + ROW_GAP_X 12 + LEDGER_METRICS_MAX 127 = 217, clears
- * by 661; the fully annotated worst case (~303 of metrics) = 393, clears by
- * 485. One line in every case, all numbers column-aligned, and the block is
- * as wide as its content rather than as wide as the column.
- *
- * Inert below 1280: `.ledger-panel { display: none }` there. */
-.ledger-panel .ledger-overview {
-  grid-template-columns: max-content minmax(0, auto);
-  justify-content: start;
-}
+/* R12 — the A1 `.ledger-panel .ledger-overview` override left with the
+ * panel it scoped to. */
 
 /* ==== end F5.4 ==== */
 
@@ -3932,14 +3958,15 @@ main#badge-grid {
     top: calc(var(--tap-target) + 4px);
   }
 
-  /* 9 — the badge card's description disclosure (§10.3 rev 4). Every one of
-   * the 53 renders as a single 18px line at 390, which fails even SC 2.5.8's
-   * 24px AA floor. The 3-line clamp lives on the child span and is untouched;
-   * only the summary's box grows, and it centres what it holds. */
-  .badge-card__desc-summary {
+  /* 9 — the badge card's expand control (R12 slice 2, succeeding the F4
+   * description <summary> this entry used to name — that disclosure is
+   * retired). 24px square at M/L; here it takes the floor on BOTH axes, the
+   * `.filter-chip` case exactly, because a control narrower than it is tall
+   * fails 44x44 on width first. The width half is registered in the WIDTH
+   * census beside `.filter-chip`. */
+  .badge-card__more {
     min-height: var(--tap-target);
-    display: flex;
-    align-items: center;
+    min-width: var(--tap-target);
   }
 
   /* 10 — the two remaining one-off targets: the skip link (§4.5, the first
@@ -4902,68 +4929,51 @@ main#badge-grid {
 }
 /* ==== F16 Loadout board — end ==== */
 
-/* ==== F14 app shell — 100dvh, no document scroll ============================
+/* ==== R12 workbench shell — 100dvh, THREE columns, no document scroll ======
  *
- * features/app-shell/design.md. The user's ruling, verbatim: "the whole page
- * should be 100% height and width and all scrolling happens inside the
- * specific containers."
+ * (User ruling 2026-08-26, approved from the workbench mockup; supersedes
+ * F14's two-column shell and F5.4's sticky pane. F14's own user ruling —
+ * "the whole page should be 100% height and width and all scrolling happens
+ * inside the specific containers" — is PRESERVED and extended: there are
+ * now three containers, one per station of the planning loop.)
  *
- * AN OVERRIDE ON TOP OF A WORKING STICKY LAYOUT, NOT A REPLACEMENT. F5.4's
- * `@media (min-width: 1280px)` blocks above are byte-unchanged and stay the
- * behaviour at every condition this block does not match. ORDERING IS THE
- * ASSERTION: this must remain the LAST `@media (min-width: 1280px…)` block in
- * the file — reversed, the pane silently goes back to sticky with a max-height.
+ * THE GRID: body 300px · catalog minmax(0, 1fr) · build rail 348px.
+ *   300 — F5.4's rail width, kept deliberately: I9's slider-arrangement
+ *         arithmetic (stacked numeric field, 224px usable track) was
+ *         derived against exactly this box and the attribute rows are
+ *         unchanged in this slice.
+ *   348 — the build rail, the mockup's ratified width. Floor: the
+ *         TotalsStrip's 3-cell row — 3 × ~78px cell content + 2 × 6px cell
+ *         gaps + 2 × 10px padding + 2px border ≈ 268 — cleared by 80; the
+ *         Synergy panel below it stacks via its own container query, which
+ *         is width-agnostic by construction (F11 test 2).
+ *   The catalog keeps minmax(0, 1fr): at the 1280 gate it resolves to
+ *   1280 − 300 − 348 − 2×12 column gaps − 2×12 page padding = 584px —
+ *   2-up comfortable cards until the compact card family (R12 slice 2)
+ *   lowers the per-card floor.
  *
- * THE GATE IS DERIVED, NEVER CHOSEN (invariant I18). Where the page cannot
- * scroll, header + strip + page padding + the sticky stack is a ZERO-SUM tax
- * on the card region: add 92px of chrome under a document scroller and the
- * user scrolls; add it under a shell and the cards lose 92px permanently, with
- * nothing to reveal them. So the shell may only apply where the cards still
- * clear design-spec §5.3's >= 60%:
+ * THE GATE IS COMPOUND AND SHARED: (min-width: 1280px) and (min-height:
+ * 768px) — the same pair App.tsx's `isLarge` asks, so DOM and CSS cannot
+ * disagree about which layout is live. Below EITHER term the M document
+ * flow applies. F14's MIN_SHELL_H derivation protected the ≥60% card
+ * region under a 2-col shell; under the workbench the permanent chrome is
+ * the header alone (the F13 strip is an M-band surface now), and the
+ * binding vertical floor is the RAIL's stack — the totals strip plus a
+ * usable scroller. 768 keeps every column ≥ ~640px of scrollport, which
+ * holds the strip plus four Synergy slot rows. The literal predates R12
+ * and keeps its value; what changed is what it protects.
  *
- *   MIN_SHELL_H = ceil((HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H) / 0.40)
- *               = ceil((62 + 93 + 32 + 120) / 0.40)
- *               = ceil(767.5) = 768
+ * NO @supports FALLBACK ANY MORE, deliberately. F14 degraded to the sticky
+ * document layout where dvh was unsupported; R12 retired that layout. The
+ * `height: 100vh` line BEFORE the dvh line is the whole fallback now: at
+ * ≥1280 the viewport is desktop-class, where vh and dvh differ only under
+ * retracting browser chrome that desktop UAs do not retract. Conservative
+ * failure direction — a UA without dvh gets a shell measured against vh,
+ * which is exactly what every desktop user sees anyway.
  *
- * EVERY TERM IS MEASURED AT 1280, headless Chrome 151.0.7922.174
- * (docs/proof/f14-verification.txt, re-measured in f15-verification.txt) —
- * none is relayed:
- *   HEADER_H          62  (F15: ONE row at 1280. Was 102 — see below)
- *   STRIP_H           93  (F13's strip measures 92.19; ceiling, per §13.0.1)
- *   PAGE_PAD_Y        32  (.layout padding-block, unchanged by this block)
- *   STICKY_STACK_H   120  (44 + 76 at L — 107 is the S pair, see :root above)
- *
- * WHY THE GATE MOVED 868 -> 768, AND WHY IT HAD TO. F14 shipped 868 honestly:
- * the header FLEX-WRAPPED to two rows at 1280 (102; 62 at 1440), and 40 of
- * those 102px were the second row plus its row gap. But a 1440x900 display
- * leaves roughly 810 CSS px after browser chrome, so an 868 gate meant the
- * shell never activated on an ordinary laptop — it was dead code for its
- * whole audience. F15 measured the wrap instead of accepting it: at 1280 the
- * five children demanded 1303.44px of a 1232px content box, an overflow of
- * 71.44px, and 72.24px of that was the ` JSON` suffix on two action buttons
- * that design-spec §3.2 item 5 names `Export` and `Import`. The suffix WAS
- * the second row. Restoring the spec's names plus the header's column-gap
- * token (--space-4 -> --space-3, worth 16px) leaves 16.80px of clearance,
- * the header is one row, and the gate falls out of the same formula at 768.
- *
- * tests/layout-arithmetic.test.ts asserts the FORMULA and that the literal
- * below is >= its output, so any future chrome reddens the suite instead of
- * shrinking the cards in silence. It also asserts the >= 60% outcome and
- * reports the margin: 60.03% at 768, which is 0.03pp — this gate is AT THE
- * LIMIT by construction, and that is the honest place for it to sit. The F15
- * block additionally re-derives the HORIZONTAL fit, so the day someone
- * re-lengthens a header label the suite fails instead of the gate going
- * quietly optimistic by 40px.
- *
- * WIDTH >= 1280 IS SCOPING, NOT NARROWING. Below 1280 the pane is not
- * rendered, `.col-right` is `.layout`'s only item, and "the specific
- * containers" is behaviourally one container — a shell there would buy nothing
- * and forfeit the address bar's retraction on a phone permanently.
- *
- * THE PRINT PATH NEEDS NOTHING. Both gate terms are evaluated against the page
- * box when printing, and no paper size reaches 1280 x 768 in either
- * orientation, so the shell is structurally off and @media print keeps grading
- * the layout it was written for. */
+ * THE PRINT PATH NEEDS NOTHING (unchanged from F14): no paper size reaches
+ * 1280 × 768 in either orientation, so the shell is structurally off and
+ * @media print keeps grading the M flow it was written for. */
 @media (min-width: 1280px) and (min-height: 768px) {
   html,
   body {
@@ -4971,57 +4981,38 @@ main#badge-grid {
     overflow: hidden;
   }
 
-  /* .app-shell is the slice's one new class and it is `.col-right`'s exact
-   * precedent (§16.7): no landmark, no id, no state, presentation only. It
-   * rides `.app`'s existing root element, so NO element was added and the 37
-   * component inventory is unchanged — a presentational wrapper is not a
-   * component. #root is deliberately not targeted; it is Vite's mount node
-   * and the app should not own a selector it does not render. */
+  /* .app-shell rides `.app`'s existing root element: no landmark, no id, no
+   * state, presentation only (F14's rule, kept).
+   *
+   * OUT OF FLOW, NOT overflow:hidden — F14's measured lesson stands: the
+   * root's overflow propagates to the viewport, scroll-into-view walks
+   * every scrollable ancestor, and only removing the scrolling area
+   * entirely (position: fixed) stops an anchor click from scrolling the
+   * page out from under the shell. top/left/right, never `inset: 0`: the
+   * height must stay the explicit vh/dvh pair below. */
   .app-shell {
-    /* HIDING THE ROOT'S OVERFLOW IS NOT ENOUGH, and this was found in the
-     * browser rather than on paper. The root element's overflow PROPAGATES to
-     * the viewport, and the root's own used overflow then becomes `visible` —
-     * so the viewport stays a scroll container with an 8584px scrolling area
-     * even though body is 900 and clips. Hidden stops the USER
-     * scrolling it; it does not stop the browser doing so, and the
-     * scroll-an-element-into-view algorithm walks EVERY scrollable ancestor.
-     * Measured: clicking the Summary chip scrolled the viewport 365px and took
-     * the header and the F13 strip off screen — the exact frame (SH-2) this
-     * slice exists to make possible.
-     *
-     * Taking the shell out of flow removes the scrolling area entirely
-     * (measured: 8584 -> 900) and there is then nothing for any scroll to
-     * move. `overflow: clip` on the root does NOT fix it — also measured.
-     *
-     * top/left/right, never `inset: 0`: the height must stay the explicit
-     * vh/dvh pair below rather than being inferred from the inset, because
-     * which viewport a fixed inset resolves against is exactly the ambiguity
-     * the pair exists to settle. */
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     height: 100vh; /* FALLBACK FIRST — the ORDER is the assertion */
     height: 100dvh;
-    /* `.app` declares min-height: 100vh at the same specificity. Left
-     * standing it out-votes a shorter 100dvh and the shell overflows the
-     * dynamic viewport by exactly the retracted browser chrome. */
+    /* `.app` declares min-height: 100vh at the same specificity; left
+     * standing it out-votes a shorter 100dvh. */
     min-height: 0;
     display: flex;
     flex-direction: column;
   }
 
-  /* header, preview strip, banner region, the F13 Physique strip — chrome. */
+  /* header, preview strip, banner region — chrome. */
   .app-shell > * {
     flex: 0 0 auto;
   }
 
-  /* THE DECLARATION THAT GETS FORGOTTEN, and the whole layout turns on it. A
-   * flex item's AUTOMATIC MINIMUM SIZE refuses to shrink below its content, so
-   * without `min-height: 0` .layout keeps its full 8479px, the shell grows
-   * past the viewport and nothing scrolls at all. This is F5.2's D1 in a new
-   * costume and it is §7's first stop condition. DO NOT "fix" the symptom with
-   * `overflow: hidden` on .layout — see below. */
+  /* THE DECLARATION THAT GETS FORGOTTEN (F5.2's D1): a flex item's
+   * automatic minimum size refuses to shrink below its content, so without
+   * min-height: 0 the grid keeps its full content height and nothing
+   * scrolls. DO NOT "fix" the symptom with overflow on .layout. */
   .app-shell > .layout {
     flex: 1 1 auto;
     min-height: 0;
@@ -5029,111 +5020,73 @@ main#badge-grid {
 
   .layout {
     height: auto; /* the flex basis owns it */
-    /* 16 -> 12, and it is HALF OF A PAIR. It funds `.col-right`'s 4px
-     * focus-ring gutter below so the right column's content box does not move
-     * a single pixel when the scrollbar comes inside the grid track. Drop
-     * either half without the other and §14.2's five pinned constants, §16.8's
-     * +10.5 margin and the summary's resolved track count all move together.
-     *
-     * padding-block STAYS --space-4 — it is a term of MIN_SHELL_H above.
-     *
-     * NO `overflow` MAY BE DECLARED HERE, EVER. .layout is an ancestor of the
-     * two sticky layers, so an overflow re-points their containing block at
-     * the wrong box AND nests .col-right's scroller inside a second one. */
+    grid-template-columns: 300px minmax(0, 1fr) 348px;
+    column-gap: var(--space-3);
+    /* padding-inline 12: funds the columns' 4px focus-ring gutters (each
+     * scrollport carries padding-inline: --space-1 so --ring-focus survives
+     * its clip). padding-block stays --space-4.
+     * NO `overflow` MAY BE DECLARED HERE, EVER — .layout is an ancestor of
+     * the catalog's two sticky layers. */
     padding-inline: var(--space-3);
   }
 
-  .attr-pane-column {
-    min-height: 0;
-  }
-
-  /* FOUR OVERRIDES OF F5.4's BLOCK, AND NOTHING ELSE. Under the shell the pane
-   * is a flex item in a fixed-height row that already owns its scrollport, so
-   * sticky has nothing left to do — and F5.2's D1 clamp problem (a sticky grid
-   * item is constrained by the grid CONTAINER's content box, not by its own
-   * row) becomes structurally inapplicable rather than merely solved. That is
-   * a credit, not a cost.
-   *
-   * overflow-y, padding-inline and scroll-padding-block are INHERITED from
-   * F5.4's block and deliberately not repeated: the block above must stay the
-   * one place they are declared, because layout-arithmetic reads the FIRST
-   * `.attr-pane` rule in the file when it grades the overflow guard. */
-  .attr-pane {
-    position: static;
-    max-height: none;
+  /* THE THREE SCROLLPORTS. Shared discipline, declared per column:
+   *   min-height: 0        — the D1 rule, again;
+   *   overflow-y: auto     — NEVER hidden (scroll-into-view cannot scroll a
+   *                          clipped box; the #cat-* anchors depend on it);
+   *   padding-inline: 4px  — the focus-ring gutter;
+   *   scrollbar-gutter: stable — geometry independent of content length. */
+  .col-body {
     height: 100%;
     min-height: 0;
+    overflow-y: auto;
+    padding-inline: var(--space-1);
+    scrollbar-gutter: stable;
+    scroll-padding-block: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
   }
 
   .col-right {
     height: 100%;
     min-height: 0;
-    /* NEVER `hidden`. It would kill all eight #cat-* anchors at once (the
-     * scroll-an-element-into-view algorithm cannot scroll a clipped box) AND
-     * freeze the two sticky layers where they stand. */
     overflow-y: auto;
-    /* The other half of the padding pair. --ring-focus reaches 4px outside the
-     * box and `overflow-y: auto` clips at the edge — the identical defect
-     * §16.9 called "a shipped defect this slice must fix" on the pane. */
     padding-inline: var(--space-1);
-    /* Earns its place SEPARATELY from the pair: it removes the CONTENT-LENGTH
-     * half of the geometry's nondeterminism. Today a right column short enough
-     * not to overflow (every category collapsed, filters down to zero results)
-     * has no scrollbar and jumps to the overlay geometry even on Windows. With
-     * the gutter reserved the geometry depends on the OS alone. */
     scrollbar-gutter: stable;
-    /* Tab into a control just below the fold and without this it parks
-     * UNDERNEATH the two sticky layers. The WHOLE stack here, because a
-     * focused control can be anywhere inside a category and the digest is
-     * pinned over the top of it.
-     *
-     * Declared THROUGH --scroll-reserve rather than beside it: the reserve
-     * inherits into every anchor target in the column, and each one's
-     * scroll-margin subtracts it, so the two can never disagree about how much
-     * the scrollport is already holding back. Anchors keep landing where
-     * .grid-section says they land; focus scrolls get the full stack. */
+    /* Focus scrolls clear the jump-nav + digest sticky stack; anchors keep
+     * their own scroll-margin arithmetic. Declared THROUGH --scroll-reserve
+     * so the reserve and the anchors' scroll-margin can never disagree
+     * (F14's rule, unchanged). */
     --scroll-reserve: var(--sticky-stack-h);
     scroll-padding-top: var(--scroll-reserve);
     scroll-padding-bottom: var(--space-3);
   }
-}
 
-/* Where dvh is unsupported the WHOLE shell degrades to the shipped sticky
- * layout rather than to a clipped one: no unreachable UI, no forfeited pixels,
- * just today's behaviour. The gate literal is repeated VERBATIM — a drifted
- * pair would shell a viewport the gate above excluded. */
-@supports not (height: 100dvh) {
-  @media (min-width: 1280px) and (min-height: 768px) {
-    html,
-    body {
-      height: auto;
-      overflow: visible;
-    }
+  .col-build {
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
 
-    .app-shell {
-      position: static;
-      height: auto;
-      display: block;
-    }
-
-    .attr-pane {
-      position: sticky;
-      max-height: calc(100vh - var(--space-6));
-      height: auto;
-    }
-
-    .col-right {
-      height: auto;
-      overflow: visible;
-      padding-inline: 0;
-    }
-
-    .layout {
-      padding-inline: var(--space-4);
-    }
+  /* The rail's scroller. The TotalsStrip above it is the flex child that
+   * does not grow — that is the whole of "pinned", no sticky involved. */
+  .col-build__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-inline: var(--space-1);
+    scrollbar-gutter: stable;
+    scroll-padding-block: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
   }
 }
-/* ==== F14 app shell — end ================================================= */
+/* ==== R12 workbench shell — end =========================================== */
 
 /* ==== F8-R2 roll surface ===================================================
  *
@@ -5364,12 +5317,13 @@ main#badge-grid {
   padding: 0 0 var(--space-2);
 }
 
-/* The card's action line: below the cost line, above the status line, exactly
- * one control. NO opacity, NO recede treatment and NO new card state for an
- * excluded card (invariant I2) — the pressed chip IS the marker. */
+/* The card's action line, exactly one control. NO opacity, NO recede treatment
+ * and NO new card state for an excluded card (invariant I2) — the pressed chip
+ * IS the marker. R12 slice 2 moves it inside `.badge-card__expanded`, so the
+ * margin it used to need against its siblings is the expanded column's gap
+ * now. */
 .badge-card__action {
   display: flex;
-  margin-top: var(--space-2);
 }
 
 /* THE WIDTH AXIS AT S, and it is the `.filter-chip` case exactly. Both of
@@ -5622,3 +5576,571 @@ main#badge-grid {
 }
 
 /* ==== end A5-U — bonus mode ==== */
+
+/* ==== R12 — the build rail's components =====================================
+ *
+ * (User ruling 2026-08-26, approved from the workbench mockup.)
+ *
+ * THE TOTALS STRIP — the Ledger overview's successor: six two-line cells in
+ * a 3×2 grid, pinned at the rail's top by flex order (it is `.col-build`'s
+ * non-growing child; see the shell block). Two-line cells are what dodge
+ * the foreclosed-third-column arithmetic: the old one-line ledger row
+ * demanded 239px of content box, the cell's floor is the widest of its two
+ * lines (~78px).
+ *
+ * CHANNEL RULE (§2.8.1), applied verbatim: the category hue is IDENTITY and
+ * lands on the NAME text only, via six explicit rules keyed on the
+ * data-category attribute. Over-state is --danger via the existing
+ * `.ledger-over` class and lands on the NUMBERS only, beside a ⚠ glyph and
+ * an sr-only sentence — never colour alone (§6), and the two channels never
+ * touch the same node. */
+.totals-strip {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-2) var(--space-2);
+}
+
+.totals-strip__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.totals-strip__cell {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.totals-strip__name {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Identity, per category, on the name and nowhere else. Six explicit rules
+ * rather than a --cat indirection, the F5.1 legend's precedent: this surface
+ * must never inherit a context --cat by accident. */
+.totals-strip__cell[data-category="Finishing"] .totals-strip__name {
+  color: var(--cat-finishing);
+}
+.totals-strip__cell[data-category="Shooting"] .totals-strip__name {
+  color: var(--cat-shooting);
+}
+.totals-strip__cell[data-category="Playmaking"] .totals-strip__name {
+  color: var(--cat-playmaking);
+}
+.totals-strip__cell[data-category="Defense"] .totals-strip__name {
+  color: var(--cat-defense);
+}
+.totals-strip__cell[data-category="Rebounding"] .totals-strip__name {
+  color: var(--cat-rebounding);
+}
+.totals-strip__cell[data-category="Physicals"] .totals-strip__name {
+  color: var(--cat-physicals);
+}
+
+.totals-strip__nums {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--fg-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* SLICE 2 POLISH — the mockup's lead between the two lines of a cell. 2px
+   * and not --space-1: a 4px lead is a visible gap between a caps label and
+   * the number it labels, which is what the mockup's 2px avoids. It costs
+   * the strip 2 x 2px of height (one per grid row) and the R12 build-rail
+   * describe spends that against the dock's budget explicitly. */
+  margin-top: 2px;
+}
+
+/* Per-metric over-state: `.ledger-over` (the shipped danger treatment) rides
+ * the metric span alone, so one over metric can never redden its in-budget
+ * neighbour — P0-1, carried over from the retired overview. */
+.totals-strip__metric {
+  white-space: nowrap;
+}
+
+/* SLICE 2 POLISH — the cell's over-state, and it is the RIM ONLY.
+ *
+ * The mockup's `.tcell.over` reddens the rim AND fills the cell with
+ * --danger-quiet. The fill is DELIBERATELY NOT ADOPTED: it would put the
+ * category name's identity hue on a danger ground, and §2.8.1's channel rule
+ * is that identity and state never meet on one node — a Defense cell whose
+ * name sits on red is the exact "is that the category or the warning?"
+ * ambiguity the rule exists to forbid (I10, the same reason the roster
+ * caption may never take --danger). The rim never touches the name's node or
+ * its ground, so it reads as "this CELL is over" and adds a second carrier
+ * beside the ⚠ glyph and the sr-only sentence the metric already ships.
+ *
+ * Driven by :has() off the metric's own `.ledger-over` — the class the
+ * ledger's string builders put there — rather than by a new prop or a
+ * data-attribute on the cell. One over metric, one source of truth; the
+ * component is untouched. (`:has()` is already load-bearing in this
+ * stylesheet: see .build-panel .height-field:has(+ .height-field__notice).) */
+.totals-strip__cell:has(.ledger-over) {
+  border-color: var(--danger);
+}
+
+.totals-strip__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+/* ---- the budgets dialog (the SEVENTH <dialog>) ---- */
+
+.budgets-dialog {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  color: var(--fg-secondary);
+  padding: 0;
+  width: min(640px, calc(100vw - var(--space-8)));
+  box-shadow: var(--shadow-overlay);
+}
+
+.budgets-dialog::backdrop {
+  background: rgba(1, 4, 9, 0.7);
+}
+
+.budgets-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  max-height: calc(100vh - var(--space-12));
+  max-height: calc(100dvh - var(--space-12)); /* fallback-first pair */
+  overflow-y: auto;
+}
+
+.budgets-dialog__body > h2 {
+  font-size: var(--text-lg);
+  color: var(--fg-primary);
+}
+
+.budgets-dialog__done {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ---- the SYNERGY DOCK (slice 2) — the rail's pinned foot ----------------
+ *
+ * (User ruling 2026-08-26, approved "one to one" from the workbench mockup's
+ * `.dock` / `.slotgrid` / `.slot` family.)
+ *
+ * PINNED BY FLEX ORDER, LIKE THE STRIP. `flex: 0 0 auto` on `.col-build`'s
+ * THIRD child is the whole mechanism: the scroller between them is the only
+ * item that grows, so the strip sits at the rail's top and the dock at its
+ * foot with no `position: sticky` anywhere. I5 still budgets exactly two
+ * sticky layers (the jump nav and the category digest) and this spends
+ * neither — the R12 build-rail describe asserts the absence.
+ *
+ * THE HEIGHT IS A BUDGET, NOT AN OUTCOME. The dock is permanent chrome inside
+ * the rail: every pixel it takes is a pixel the Synergy and Summary panels do
+ * not get, at the 768px gate where the rail is tightest. So the chip's box is
+ * FIXED rather than content-driven — `.synergy-dock__pair` is clamped to
+ * exactly two lines AND given the matching two-line height, which is what
+ * makes the eight chips a constant 2 x 4 block instead of a grid that grows
+ * when a build gains a long badge name. Derived total: 184px, re-derived from
+ * these declarations in tests/layout-arithmetic.test.ts and spent against
+ * scrollerH(768) there. NOTHING inside the dock scrolls.
+ *
+ * NO S RULE, NO TOUCH FLOOR, NO --tap-target. `.col-build` renders only under
+ * App's compound `isLarge`, so the dock is desktop-only by construction and
+ * the S census is untouched (it would be a contradiction to censuse a control
+ * that cannot exist below 768). The chip's derived box — 79.5 x 49 at the
+ * gate — clears SC 2.5.8's 24 x 24 pointer minimum on both axes with room,
+ * and that is asserted rather than asserted-by-adjective.
+ *
+ * NO CATEGORY HUE. A Synergy Slot has no discipline (except Synergy Slot 7's
+ * optional lock, which the row below owns), so --cat never enters this block
+ * — §2.8.1's four identity surfaces are unchanged by the dock. */
+.synergy-dock {
+  flex: 0 0 auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2);
+  /* The mockup's upward shadow: the dock reads as a layer OVER the scroller
+   * it is docked beneath, which is what tells the eye the list continues
+   * behind it rather than ending there. */
+  box-shadow: 0 -8px 24px rgba(1, 4, 9, 0.45);
+}
+
+.synergy-dock__header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.synergy-dock__title {
+  font-weight: 650;
+  color: var(--fg-primary);
+}
+
+.synergy-dock__count {
+  margin-left: auto;
+  color: var(--fg-muted);
+}
+
+.synergy-dock__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+/* The band label spans the row. It is a GRID ITEM, not a wrapper: a wrapper
+ * would need `display: contents` to keep its chips as grid children, and a
+ * contents box is the one shape that has silently dropped semantics in
+ * shipped engines (the same reasoning that keeps `display: block` off the
+ * roster's rows). */
+.synergy-dock__bandlabel {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  line-height: 1.5;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.synergy-dock__chip {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--fg-secondary);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1);
+  cursor: pointer;
+}
+
+/* State is carried by the CHIP TEXT first (the two badge names, "⊕ empty",
+ * "🔒 locked") — these rims are the second carrier, never the only one (§6). */
+.synergy-dock__chip[data-state="assigned"] {
+  border-color: var(--accent-quiet);
+  background: var(--bg-raised);
+}
+
+.synergy-dock__chip[data-state="locked"] {
+  color: var(--fg-muted);
+}
+
+.synergy-dock__chip:hover {
+  border-color: var(--border-strong);
+}
+
+.synergy-dock__chip:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+.synergy-dock__id {
+  display: block;
+  color: var(--fg-muted);
+}
+
+.synergy-dock__boost {
+  color: var(--fg-secondary);
+}
+
+/* TWO LINES, ALWAYS. The clamp stops a long pair overflowing the chip; the
+ * matching `height` stops a SHORT pair shrinking it. Both halves are needed —
+ * the clamp alone leaves the grid's row height a function of the build. */
+.synergy-dock__pair {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  height: 2.6em; /* 2 lines x the 1.3 line-height declared above */
+  color: var(--fg-primary);
+}
+
+/* ---- the roster, re-cut toward the mockup's `.r-row` -------------------
+ *
+ * (Same ruling, the mockup's `.rg-h` / `.r-row` / `.lvl` family.)
+ *
+ * CSS ONLY, AND THAT IS A CONSTRAINT RATHER THAN A CONVENIENCE. §14.2's
+ * roster is a real <table> — <caption> + <th scope> + row/column association
+ * is its whole screen-reader value — and tests/ui/overlays.test.tsx compares
+ * the WHOLE `.summary` subtree's textContent across all four overlay
+ * combinations as a RUN-never-edit ship gate. So this block changes how the
+ * shipped nodes LOOK and touches neither their text nor their structure; the
+ * one component edit in the slice is a class attribute on the <tr> that
+ * already existed (`.summary-roster__row`), because "the data row, not the
+ * stale disclosure or the pin-mode sub-row" is a distinction the DOM had no
+ * hook for and a :not() chain would have encoded by accident.
+ *
+ * WHAT THE MOCKUP GETS, AND WHAT IT DOES NOT:
+ *   ✓ the row as a raised card — `--bg-raised` + a `--border-subtle` rim +
+ *     `--radius-sm` corners, separated by `border-spacing` rather than by the
+ *     margin a <tr> cannot have;
+ *   ✓ the metal level chip, as a filled swatch beside the level WORD;
+ *   ✓ the group header in the category hue, at the mockup's caps treatment.
+ *   ✗ the mockup's single-LETTER level chip. The cell renders "Silver", and
+ *     `LEVEL_LABELS[row.purchasedLevel]` is copy this slice may not touch —
+ *     the swatch carries the metal, the word carries the level, and §6 is
+ *     better served by both than by a letter.
+ *   ✗ the mockup's `.r-role` pill. The role token (`⚡1`) lives INSIDE the
+ *     effective-level cell, and isolating it needs an element this slice is
+ *     not allowed to add. It keeps the shipped treatment.
+ *   ✗ the mockup's `.rg-h` count on the header line. Ours is the <tfoot>
+ *     digest, which is where §14.2 put the per-metric --danger. Moving it is
+ *     a DOM change and stays out. */
+.summary-roster__table {
+  /* THE ONE OVERRIDE. `border-collapse: collapse` (declared with §14.2's own
+   * block above) merges adjacent cell borders and makes `border-radius` a
+   * no-op on every engine — a collapsed table cannot draw a rounded row. The
+   * separated model is what buys the card, and its `border-spacing` is the
+   * row gap the mockup spells `margin-top: 4px`. */
+  border-collapse: separate;
+  border-spacing: 0 var(--space-1);
+}
+
+/* The card, drawn on the CELLS because a <tr> paints no background or border
+ * of its own in the separated model. The two edge cells close the ends. */
+.summary-roster__row > * {
+  background: var(--bg-raised);
+  border-block: 1px solid var(--border-subtle);
+}
+
+.summary-roster__row > *:first-child {
+  border-inline-start: 1px solid var(--border-subtle);
+  border-start-start-radius: var(--radius-sm);
+  border-end-start-radius: var(--radius-sm);
+  padding-inline-start: var(--space-2);
+}
+
+.summary-roster__row > *:last-child {
+  border-inline-end: 1px solid var(--border-subtle);
+  border-start-end-radius: var(--radius-sm);
+  border-end-end-radius: var(--radius-sm);
+  padding-inline-end: var(--space-2);
+}
+
+/* The mockup's `.lvl` chip, as a swatch: a metal fill the eye reads at a
+ * glance, beside the level word the cell already renders. Pseudo-element
+ * content is empty, so nothing is added to the accessibility tree or to the
+ * textContent the H2 overlay gate compares. */
+.summary-roster__level::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: var(--space-1);
+  border-radius: 3px;
+  background: var(--roster-metal, transparent);
+}
+
+.summary-roster__level[data-purchased-level="bronze"] { --roster-metal: var(--lvl-bronze); }
+.summary-roster__level[data-purchased-level="silver"] { --roster-metal: var(--lvl-silver); }
+.summary-roster__level[data-purchased-level="gold"]   { --roster-metal: var(--lvl-gold); }
+.summary-roster__level[data-purchased-level="hof"]    { --roster-metal: var(--lvl-hof); }
+
+/* The group header at the mockup's `.rg-h .c-name` treatment. NO background,
+ * NO border, NO ::before and NO state colour — §14.3 grants this selector the
+ * app's ONE extra --cat surface on exactly those four conditions, and the
+ * caption's hue rules (six of them, further up) are untouched here. */
+.summary-roster__caption {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The stale disclosure hangs UNDER its card rather than joining it: the card
+ * is what you bought, the note is what changed about it. Indented to the
+ * card's own inline padding so the two read as one column. */
+.summary-roster__stale td {
+  padding-inline: var(--space-2);
+}
+
+/* ---- R12 slice 3 — the phone tab shell (<768) --------------------------
+ *
+ * (User ruling 2026-08-26: the phone-beside-console is a primary device, and
+ * the workbench's three stations become three tabs. Mockup: the phone column
+ * of docs/mockups/workbench-recut.html.)
+ *
+ * `.mobile-panel` is the load-bearing trick and it costs NOTHING above the
+ * phone: `display: contents` makes the wrapper generate no box at all, so
+ * `.col-right`'s flex children — and every measurement in
+ * tests/layout-arithmetic.test.ts derived from them — are exactly what they
+ * were before this slice. Below 768 it becomes a real block and carries the
+ * tabpanel. */
+.mobile-panel {
+  display: contents;
+}
+
+@media (max-width: 767px) {
+  .mobile-panel {
+    display: block;
+  }
+
+  /* MANDATORY, and it is the bug this shell is most likely to ship with.
+   * `hidden` hides things through the UA rule `[hidden] { display: none }`,
+   * and ANY author `display` declaration beats it — an author rule always
+   * outranks the UA sheet, and `.mobile-panel` and `[hidden]` are the same
+   * specificity anyway. So the rule directly above silently un-hides every
+   * inactive tab: the attribute is still in the DOM, `aria-selected` is
+   * still correct, and a DOM-level test still passes while all three
+   * stations paint on top of one another. Found by looking at the screen,
+   * which is the only way it can be found. */
+  .mobile-panel[hidden] {
+    display: none;
+  }
+
+  /* THE ONE NUMBER the document reserves for the dock, so the reserve and
+   * the dock can never drift: 44px of tab row + its padding, plus the
+   * totals bar's own row. Declared here rather than in tokens.css because
+   * it is a layout constant of this shell, not a design token — nothing
+   * outside the phone dock may consume it. */
+  :root {
+    /* MEASURED, not guessed: the dock is 93px in Chrome at 375×812 (a 40px
+     * totals bar over a 44px tab row plus the list's own padding). 96 is the
+     * next 4px step above it, so the reserve clears the box with 3px to
+     * spare and errs in the safe direction — a slightly early document end,
+     * never a card trapped under the dock. */
+    --mobile-dock-h: 96px;
+  }
+
+  /* The document has to end above the dock or the last card sits under it
+   * permanently — the shipped `.app-footer` is the usual victim. */
+  .app {
+    padding-bottom: var(--mobile-dock-h);
+  }
+
+  .mobile-dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-subtle);
+    /* Lifts the dock off a scrolling catalog rather than letting cards
+     * appear to slide into it. */
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+    /* Home-indicator territory on iOS: the tab row must not sit under it. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* ---- the totals bar: the rail's strip, laid out as ONE scrolling row ---- */
+  .totals-strip--bar {
+    background: none;
+    border: 0;
+    border-radius: 0;
+    padding: var(--space-2) var(--space-2) var(--space-1);
+  }
+
+  .totals-strip--bar .totals-strip__grid {
+    /* max-content tracks + overflow-x: the six cells keep their intrinsic
+     * width and the row scrolls, rather than six cells being crushed to
+     * 40px each on a 390px screen. */
+    grid-template-columns: repeat(6, max-content);
+    gap: var(--space-1);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .totals-strip--bar .totals-strip__grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .totals-strip--bar .totals-strip__cell {
+    /* The name and its numbers go side by side here — a two-line cell in a
+     * 116px dock would leave the tab row nothing. */
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    border-radius: var(--radius-pill);
+    padding: var(--space-1) var(--space-3);
+  }
+
+  .totals-strip--bar .totals-strip__name {
+    /* The component renders the three-letter label here (CATEGORY_SHORT) with
+     * the full word beside it in an sr-only span — so this rule only has to
+     * stop the abbreviation wrapping. NO max-width and NO ellipsis: a CSS
+     * truncation of the full name gives "Fi…", which is not shorter reading. */
+    white-space: nowrap;
+  }
+
+  .totals-strip--bar .totals-strip__nums {
+    margin-top: 0;
+  }
+
+  /* The rail's `Edit budgets…` has no room in the dock — the phone reaches
+   * the same dialog through the Build tab's own budget grid, which is the
+   * surface it was always on below the gate. */
+  .totals-strip--bar .totals-strip__actions {
+    display: none;
+  }
+
+  /* ---- the tab bar ---- */
+  .mobile-tabs__list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-1);
+    padding: 0 var(--space-2) var(--space-2);
+  }
+
+  .mobile-tab {
+    display: grid;
+    place-items: center;
+    gap: 2px;
+    /* I6: the tab is the single most-pressed control on the phone. The
+     * floor comes from the token, exactly as every other S control's does. */
+    min-height: var(--tap-target);
+    padding: var(--space-1) 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--fg-muted);
+    font-family: inherit;
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+
+  .mobile-tab__glyph {
+    font-size: var(--text-base);
+    line-height: 1;
+  }
+
+  /* State is carried by WEIGHT and a filled ground as well as colour — never
+   * colour alone (§6), and `aria-selected` carries it to assistive tech. */
+  .mobile-tab--on {
+    color: var(--accent);
+    background: var(--accent-quiet);
+    font-weight: 650;
+  }
+
+  .mobile-tab:focus-visible {
+    outline: none;
+    box-shadow: var(--ring-focus);
+  }
+}
+
+/* Above the phone the tab bar does not exist at all — it is rendered only
+ * below 768 — so no rule outside the block above may reference it. */
+
+/* ==== end R12 — the build rail's components ==== */

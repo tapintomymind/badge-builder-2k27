@@ -75,7 +75,9 @@ describe("1 (HIGH) — a pre-F2 autosave with a stranded synergy ref boots clean
     // The stranded role was cleared — no engine-forbidden state, no
     // invalid-state banner, no fuse chip on the unpurchased card.
     expect(screen.queryByText(/Invalid loadout state/)).toBeNull();
-    expect(screen.queryByText(/⚡ Fuse · SS5/)).toBeNull();
+    // R12 slice 2 renamed the VISIBLE role pill (`Fuse S5`); the assertion
+    // follows the string so it keeps meaning "no chip on that card".
+    expect(screen.queryByText("Fuse S5")).toBeNull();
     // The heal is DISCLOSED on the drift/strip surface, never silent.
     expect(
       screen.getByText(

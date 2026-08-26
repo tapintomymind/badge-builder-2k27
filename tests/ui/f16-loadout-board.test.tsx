@@ -19,9 +19,10 @@
  *    NO fence, NO empty cells and NO over-by. A fence with every cell outside
  *    it is the false alarm that ruling exists to prevent, in a new costume.
  *  - THE OVER-BY STRING IS THE SHIPPED ONE. Group 3 reads the fence label and
- *    the ledger overview's own text and asserts they are character-identical.
- *    Two surfaces rendering the same fact in two phrasings is design-review
- *    P0-1, and a new surface is exactly where it comes back.
+ *    the rail TotalsStrip's own text (R12: the Ledger overview's successor)
+ *    and asserts they are character-identical. Two surfaces rendering the
+ *    same fact in two phrasings is design-review P0-1, and a new surface is
+ *    exactly where it comes back.
  *  - PER-METRIC COLOUR. A discipline over on Badge Slots but UNDER on Badge
  *    Points must not paint the points metric red. That is P0-1's original
  *    defect and it is asserted directly.
@@ -248,13 +249,20 @@ describe("F16 2 — capacity as a SHAPE: empty cells, and the fence", () => {
 /* ------------------------------------------------------ 3: no drift -- */
 
 describe("F16 3 — one string builder, N surfaces (P0-1)", () => {
-  it("the fence label is CHARACTER-IDENTICAL to the ledger overview's", () => {
+  it("the fence label is CHARACTER-IDENTICAL to the rail TotalsStrip's", () => {
     seed(MIXED);
     render(<App />);
     const fence = panel("finishing").querySelector(".board-panel__fence-label")?.textContent;
-    const railText =
-      document.querySelector(".ledger-overview__row .ledger-overview__capacity")?.textContent ??
-      "";
+    // R12: the Ledger overview is retired; the rail readout is its successor,
+    // the TotalsStrip. Its Badge Slots metric carries an sr-only sentence
+    // built by the SAME overByBadgeSlots builder (src/ui/grid/
+    // CategoryLedger.tsx), so the fence's text must appear in it
+    // character-for-character — two phrasings of one fact is P0-1.
+    const cell = document.querySelector('.totals-strip__cell[data-category="Finishing"]');
+    const slotsMetric = [...(cell?.querySelectorAll(".totals-strip__metric") ?? [])].find(
+      (node) => node.textContent?.includes("Badge Slots"),
+    );
+    const railText = slotsMetric?.textContent ?? "";
     expect(fence).toBeTruthy();
     expect(railText).toContain(fence as string);
     // …and it is the shipped phrasing, not a lookalike.
@@ -310,7 +318,7 @@ describe("F16 4 — 0 = capacity not set, honoured exactly", () => {
     // …no over-by on the CAPACITY metric. The Badge TOKENS pool is a separate
     // number with its own (shipped, app-wide) behaviour: an un-entered pool
     // with purchases against it does read as overspend, on the board exactly
-    // as it does in the rail overview. The 0 = unset ruling is about Badge
+    // as it does in the rail TotalsStrip. The 0 = unset ruling is about Badge
     // Slots, and reading it wider here would make the board disagree with
     // every other surface.
     const capacityMetric = [...defense.querySelectorAll(".board-panel__metric")].find((node) =>
@@ -462,7 +470,16 @@ describe("F16 6 — ADDITIVE: the existing view is untouched", () => {
     const synergy = document.querySelector("#panel-synergy") as HTMLElement;
     expect(grid.compareDocumentPosition(mount) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(mount.compareDocumentPosition(synergy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(mount.parentElement?.className).toBe("col-right");
+    // R12 slice 3 — INSIDE the catalog column, not necessarily its direct
+    // child. The board now sits in a `.mobile-panel` wrapper that groups it
+    // with the synergy station for the phone's third tab; above 768 that
+    // wrapper is `display: contents`, so it generates no box and the board
+    // is laid out as `.col-right`'s own flex child exactly as before.
+    // Asserting literal parenthood tests the wrapper, not the placement —
+    // the two ordering assertions above are what the contract actually is.
+    const colRight = document.querySelector(".col-right") as HTMLElement;
+    expect(colRight.contains(mount)).toBe(true);
+    expect(mount.parentElement?.className).toContain("mobile-panel");
     // The <Section>'s own <summary> is the keyboard bypass for every board
     // tab stop — one Tab, one Enter, and they all leave the tab order.
     expect(mount.querySelector("details.section > summary")).toBeTruthy();

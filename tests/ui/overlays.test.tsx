@@ -56,20 +56,27 @@ function setSwitch(name: string, on: boolean) {
   if (control.checked !== on) fireEvent.click(control);
 }
 
-/** Every ledger surface, whole-node text (test a). */
+/** Every ledger surface, whole-node text (test a). R12: the rail Ledger
+ * overview is retired; its successor is the build rail's TotalsStrip, whose
+ * number nodes (`.totals-strip__nums`, one per category cell) join the census
+ * so the strip is held to the same bar — toggling an overlay may change card
+ * levels but NO ledger number node, bit for bit. */
 function allLedgerTexts(): string[] {
-  return [...document.querySelectorAll(".category-ledger, .ledger-overview, .summary")].map(
-    (node) => node.textContent ?? "",
-  );
+  return [
+    ...document.querySelectorAll(".category-ledger, .totals-strip__nums, .summary"),
+  ].map((node) => node.textContent ?? "");
 }
 
-/** PRIMARY rows + feasibility + overview + summary — everything that must be
- * bit-identical under every overlay combination (test b). Deliberately
- * EXCLUDES only the labelled projection row. */
+/** PRIMARY rows + feasibility + strip metrics + summary — everything that
+ * must be bit-identical under every overlay combination (test b).
+ * Deliberately EXCLUDES only the labelled projection row. R12: the
+ * `.ledger-overview__row` member became the TotalsStrip's per-metric spans —
+ * the same engine readouts at a finer grain, sr-only over-by sentences
+ * included. */
 function primaryTexts(): string[] {
   return [
     ...document.querySelectorAll(
-      ".category-ledger__row, .category-ledger__feasibility, .ledger-overview__row, .summary",
+      ".category-ledger__row, .category-ledger__feasibility, .totals-strip__metric, .summary",
     ),
   ].map((node) => node.textContent ?? "");
 }
@@ -89,7 +96,8 @@ describe("H2(a) — reactions-only regression (ship gate)", () => {
     // The committed rig is live: refund visible on the primary row.
     expect(screen.getByText("15")).toBeTruthy(); // remaining 16 − 7 + 6
     const before = allLedgerTexts();
-    expect(before.length).toBeGreaterThanOrEqual(8);
+    // 6 in-grid digests + 6 TotalsStrip cells + the summary (R12).
+    expect(before.length).toBeGreaterThanOrEqual(13);
 
     setSwitch("Reactions activated", true);
 
@@ -110,7 +118,9 @@ describe("H2(b) — primary-row invariance regression (the real control, ship ga
   it("primary rows are bit-identical under ALL 4 overlay combinations; the labelled projection row appears exactly when seasonReset is on", () => {
     render(<App />);
     const baseline = primaryTexts();
-    expect(baseline.length).toBeGreaterThanOrEqual(13); // 6×2 rows + feasibility + overview + summary
+    // 7 ledger rows (6 digests + Finishing's refund row) + 6 feasibility
+    // lines + 12 TotalsStrip metrics (R12) + the summary.
+    expect(baseline.length).toBeGreaterThanOrEqual(26);
 
     const combos: { reactions: boolean; season: boolean }[] = [
       { reactions: false, season: false },

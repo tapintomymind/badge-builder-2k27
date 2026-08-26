@@ -106,8 +106,14 @@ function levelLetter(
  * grid at >= 1280, so most rows are already on screen there and the scroll
  * is doing less work than it looks; landing the caret inside the right
  * <fieldset> is what actually moves the user.
+ *
+ * EXPORTED FOR THE R12 SYNERGY DOCK, and exported rather than copied on
+ * purpose: the dock's chips target the identical `#synergy-row-{id}` anchor,
+ * and two implementations of "go to this Synergy Slot" would drift the moment
+ * one of them learned about a new focusable control. The board still owns it
+ * because the board defined the anchor.
  */
-function goToSynergySlotRow(synergySlotId: SynergySlotId): void {
+export function goToSynergySlotRow(synergySlotId: SynergySlotId): void {
   const row = document.getElementById(`synergy-row-${synergySlotId}`);
   if (row === null) return;
   // jsdom implements no layout and therefore no scrollIntoView. Guarding
