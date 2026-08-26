@@ -87,6 +87,8 @@ import type { HeightClampNotice } from "./ui/build/BuildPanel";
 import { ResetBuildDialog } from "./ui/build/ResetBuildDialog";
 import type { ResetBlastRadius } from "./ui/build/ResetBuildDialog";
 import { BuildManagerDialog, BuildSwitcher } from "./ui/builds/BuildManager";
+import { badgeAnchorId } from "./ui/board/board-model";
+import { LoadoutBoard } from "./ui/board/LoadoutBoard";
 import { BadgeCard } from "./ui/grid/BadgeCard";
 import { BadgeGridSection } from "./ui/grid/BadgeGridSection";
 import {
@@ -1335,6 +1337,29 @@ export default function App() {
     onPositionChange: handlePositionChange,
   };
 
+  /**
+   * F16 — the Loadout board's ONE write, and it writes FILTER state, never
+   * the build. Pressing an empty Badge Slot (or an untouched discipline's
+   * browse link) narrows the grid to that discipline and moves focus into
+   * it, which is the "fill this" affordance without a second purchase
+   * surface: a badge you do not own has no tile to press, and an empty-tile
+   * picker over 53 badges is the grid with a worse interface.
+   *
+   * `legalOnly` and `purchasedOnly` are CLEARED rather than preserved. Both
+   * can hide the very badges the user just asked to see — `purchasedOnly`
+   * would show an empty grid by construction — and a navigation that lands
+   * you somewhere empty reads as a broken link, not as a filter.
+   */
+  const browseCategoryInGrid = (category: Category) => {
+    setFilters((prev) => ({
+      ...prev,
+      categories: [category],
+      legalOnly: false,
+      purchasedOnly: false,
+    }));
+    document.getElementById("badge-grid")?.focus();
+  };
+
   const clearAllFilters = () => {
     setFilters(defaultFilterState());
   };
@@ -1598,6 +1623,7 @@ export default function App() {
             />
             <JumpNav
               panelAnchors={[
+                { id: "panel-board", label: "Board" },
                 { id: "panel-synergy", label: "Synergy" },
                 { id: "panel-summary", label: "Summary" },
               ]}
@@ -1654,7 +1680,7 @@ export default function App() {
                           (entry) => entry.badgeId === badge.id,
                         );
                         return (
-                          <li key={badge.id}>
+                          <li key={badge.id} id={badgeAnchorId(badge.id)}>
                             <BadgeCard
                               badge={badge}
                               build={working.build}
@@ -1683,6 +1709,37 @@ export default function App() {
               })
             )}
           </main>
+
+          {/* F16 — the Loadout board. BETWEEN the grid and the Synergy Slots
+              panel, so the whole-plan picture and the pairing board read as
+              one contiguous region without either being re-parented. It is a
+              sibling <Section>, not a tab, not a route and not a toggle: a
+              tab would HIDE the grid, and the loop this view exists for
+              (see you are over by two → press the tile → land on its card →
+              drop a level) crosses both surfaces. Two Sections in one
+              document also make "switching cannot mutate the plan" true by
+              construction rather than by test.
+
+              NOTHING HERE IS FIXED CHROME. The board is scrollable content
+              inside .col-right, so it adds nothing to the shell's permanent
+              band and cannot move MIN_SHELL_H. */}
+          <div id="panel-board">
+            <Section title="Loadout board" storageKey="section-board">
+              <LoadoutBoard
+                loadout={working.loadout}
+                synergySlots={working.synergy}
+                build={working.build}
+                dataset={shippedDataset}
+                readouts={readouts}
+                // The EFFECTIVE record, exactly as the grid and the rail
+                // overview take it: `budgets`, never `baseBudgets`. Asking a
+                // different record is how two surfaces come to disagree
+                // about whether a discipline is over.
+                budgets={budgets}
+                onBrowseCategory={browseCategoryInGrid}
+              />
+            </Section>
+          </div>
 
           <div id="panel-synergy">
             <Section title="Synergy Slots" storageKey="section-synergy">
