@@ -2224,12 +2224,20 @@ main#badge-grid {
  *
  * NOT `top`: the cells have different font sizes (--text-sm data, --text-xs
  * chip) and top-aligning them lines up their boxes rather than their type. */
+/* ONE --space-2 PER SEAM, WHICH IS WHAT §14.2 ALREADY BUDGETS. The row
+ * arithmetic is "four --space-2 gutters" (ROSTER_ROW_MAX, re-derived in
+ * tests/layout-arithmetic.test.ts) and `.summary-roster__head th` has always
+ * padded on ONE side for exactly that reason — but the body cells padded on
+ * BOTH, so every seam was 16px against a budget of 8 and the header columns
+ * did not sit over the body columns they label. 33px of inline padding across
+ * the row instead of 66: the gutters below are all `padding-left`, and the
+ * first and last cells take none on the outside. */
 .summary-roster__name {
   text-align: left;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--fg-primary);
-  padding: var(--space-1) var(--space-2) var(--space-1) 0;
+  padding: var(--space-1) 0;
   vertical-align: baseline;
   /* §13.4's device: fall back to min-content and wrap INSIDE the column,
    * never re-order the row. */
@@ -2237,13 +2245,13 @@ main#badge-grid {
 }
 
 .summary-roster__tier {
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
   vertical-align: baseline;
   white-space: nowrap;
 }
 
 .summary-roster__level {
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
   font-size: var(--text-sm);
   text-align: right;
   vertical-align: baseline;
@@ -2260,11 +2268,22 @@ main#badge-grid {
 .summary-roster__level[data-purchased-level="hof"]    { color: var(--lvl-hof); }
 
 .summary-roster__effective {
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
   font-size: var(--text-sm);
   color: var(--fg-secondary);
   text-align: right;
   vertical-align: baseline;
+  /* §14.2's own mechanism — "a table wraps its cells natively" — switched off
+   * in this one cell. `nowrap` made "→ HOF ⚡2" a single 85.2px min-content
+   * token, which is the SECOND reason the row could not fit a 283px card
+   * content box at 375 (the first was the pin reason, above). The role marker
+   * is a separate fact from the level and may take its own line; the arrow and
+   * the level may not be parted, and `.summary-roster__effective-pair` is what
+   * holds them together. */
+  white-space: normal;
+}
+
+.summary-roster__effective-pair {
   white-space: nowrap;
 }
 
