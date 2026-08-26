@@ -5743,3 +5743,123 @@ from the 5-minute cadence rather than claimed.
 Merge order is unchanged: **F8-S2 → A5-U → F8-R2**. F8-S2 is clean against every sealed sibling and
 against `f13-physique-strip`; the only expected conflict on any of them is this append-only file.
 ─────────────────────────────────────────────
+
+## 2026-08-25 · Tier 1 · integration — A6-E → F9 → F8-S2 landed on `dev`
+
+**Event:** `integration-complete`
+**Branches landed, in order:** `a6-e-cap-breakers` → `f9-touch-floors` → `f8-s2-summary`
+**`dev`:** `a5fe8e1` → **`dd9d70f`**. **`main` untouched at `444d034`.** No dev server started.
+**Not in this pass:** `f11-synergy-board`, `f13-physique-strip` — taking follow-up commits
+concurrently; their branches and worktrees were not touched (both advanced on their own during
+this pass, which is expected and not caused here).
+
+### METHOD — rebase onto a throwaway, then fast-forward. No source branch was rewritten.
+
+Each branch was checked out to a throwaway (`int-a6e` / `int-f9` / `int-s2`), rebased onto the
+current `dev`, fast-forwarded into `dev`, verified, pushed, and the throwaway deleted. All three
+source branches are still at their sealed SHAs — `9324bda` / `946134c` / `617b13e` — never rebased,
+never force-pushed.
+
+**MERGE-COMMIT COUNT: 2 before, 2 after.** The dispatch said `dev` carried zero and that
+`git log --merges | wc -l` should read 0. **That premise is false against the shipped tree** and was
+false before this pass: `dev` has carried two merge commits since the Vercel-hosting backmerge —
+`e6b3ae4` (PR #3, inherited from `main`) and `ac61296` (`main` → `dev` no-ff backmerge). Both predate
+the nine prior integrations. `git log --merges | wc -l` counts LINES of full-format log output, not
+commits, and reads 59; `git rev-list --merges --count dev` is the honest probe and reads **2 before
+and 2 after**. The invariant the rule actually protects — *no integration adds a merge commit* — held:
+all three landings were fast-forwards. Reported rather than quietly re-baselined.
+
+### CONFLICTS — three encountered, all in one file, all append-vs-append
+
+`.claude/reportback.md` conflicted on the second commit of F9 and of F8-S2. Nothing else conflicted
+anywhere: A6-E fast-forwarded with no rebase at all (it sat on `dev`'s tip), and both F9's and
+F8-S2's implementation commits applied byte-identically — confirmed by `git range-diff`, which
+reported `c57c350 = 6a8dfbe` and `ca3792a = e1b95c0`.
+
+**Resolution rule applied: every entry survives, verbatim, in authored order.** Authored times
+decided the order and they match the landing order exactly — A6-E 23:22, F9 23:27, F8-S2 23:37.
+
+- **F9's conflict** — resolved by deleting only the three marker lines. Git had already unified the
+  shared blank line and the shared `─────` rule (A6-E's closer doubling as F9's opener), so the
+  result is 5459 lines where a naive concatenation would be 5461. Verified by diffing the first 5151
+  lines against `dev` and lines 5152–5459 against F9's own block: both byte-identical.
+- **F8-S2's conflict** — the same collapse would have eaten F9's *closing* rule, leaving F9's last
+  prose line abutting F8-S2's `##` heading with no separator. Resolved instead by reconstructing the
+  file as `dev`'s 5459 lines verbatim + F8-S2's 286-line block verbatim = 5745. Both halves diffed
+  byte-identical against their sources. This restores the separator the 3-way merge collapsed; it
+  rewrites nothing.
+
+**Collision points that did NOT materialise**, because the authors had already routed around them:
+`src/styles/app.css` (F9 appends at EOF, F8-S2 placed its `@media print` mid-file at L2138) and
+`tests/layout-arithmetic.test.ts` (F9 at EOF, F8-S2 nested inside the existing §16.7 `describe`)
+**both auto-merged**, exactly as F8-S2's probe forecast. `tests/ui/f2-source-pins.test.ts` was
+touched by none of the three — its hardcoded array is unrelated to cap breakers — so there was no
+union to keep.
+
+### COUNTS — expected computed from each branch's own delta BEFORE reading the actual
+
+| Landing | Arithmetic | Expected | Actual |
+|---|---|---|---|
+| base `dev` | — | — | 1204 / 62 |
+| A6-E | 1204 + 46 (38 engine + 8 rider ②) | **1250 / 63** | **1250 / 63** ✓ |
+| F9 | 1250 + 7 (assertions 23–29) | **1257 / 63** | **1257 / 63** ✓ |
+| F8-S2 | 1257 + 64 (17+4+7+4 new files + 32 in-file) | **1321 / 67** | **1321 / 67** ✓ |
+
+1321 is also exactly what F8-S2's own throwaway three-way probe reached, independently.
+
+### GATES — run after every landing, all three times
+
+`npm test` · `npm run typecheck` · `npm run build` — **all PASS at all three landings.**
+Build output at the tip: 74 modules, `303.87 kB` js / `44.65 kB` css. CSS moved 38.27 → 39.40 (F9)
+→ 44.65 (F8-S2); JS was **unchanged** across F9 at 291.13 kB, confirming F9 shipped zero JS.
+
+**RUN-never-edit trio, run explicitly at every landing:** 23/23 after A6-E, 23/23 after F9,
+**29/29** after F8-S2. `tests/ui/overlays.test.tsx` and `tests/feasibility-golden.test.ts` are at
+**ZERO diff against `a5fe8e1`** at the tip — **no cell of the 504-cell golden moved.**
+`tests/category-colors.test.ts` is the one that grew, by F8-S2's disclosed six assertions:
+`git diff a5fe8e1 HEAD` over it removes **0 lines**, so it is provably add-only and none of the 15
+shipped assertions was edited.
+
+Runtime `dependencies` confirmed **exactly `{react, react-dom}`** at every landing.
+
+**ONE FLAKE, disclosed:** the first full run after A6-E reported 1 failed / 1249 passed of 1250.
+Two immediate re-runs were 1250/1250 green, and every later run of the whole suite was green. This is
+the load-dependent vitest flake class both A6-E's and F5.3's entries already name. The failing test's
+identity was **not captured** — the run was tailed rather than saved — which was a mistake worth not
+repeating; later runs were captured in full. Nothing was edited in response to it.
+
+### THE THREE PROPERTIES A MERGE COULD HAVE QUIETLY BROKEN — all three verified
+
+1. **The near-miss parenthetical is still INSIDE the level suffix.** Both A6-E guards pass by name:
+   `② POSITIVE CANARY — the pip selector still finds a two-term 'or' reason` and
+   `② CANARY PREMISE — BadgeCard still selects by the trailing 'for {label}' suffix`, plus the
+   dataset-wide sweep `② every purchasable level's reason still ends in its own level suffix`, which
+   walks all 53 shipped badges and asserts no reason matches `/for (Bronze|Silver|Gold|HOF)\s*\(/`.
+   8 passed. The required grep `for Gold)|for HOF)|for Silver)|for Bronze)` over `src/` is **CLEAN**.
+   `badge-card` + `f2-eligibility-disclosure` 17/17, so the rendered line survives too.
+2. **F9's census is set-equal in both directions.** Assertion 27 passes; it is a genuine
+   `expect([...declared].sort()).toEqual([...S_TOUCH_FLOOR_CENSUS].sort())` over selectors parsed
+   back out of the S media bodies — a raised control with no census entry reddens, and so does a
+   census entry whose rule was deleted. The 17 `var(--tap-target)` consumers in `app.css` and the
+   single token definition at `tokens.css:205` both survive the merge intact.
+3. **The resolved column count is still pinned by OUTCOME at s = 0/15/17.** Assertion
+   `REGION B RESOLVES TO 2 TRACKS AT 1280/s=17, AND IT IS 3px FROM 3` passes: 2 tracks at s=17 and
+   s=15 (box 885, three tracks need 888), **3 tracks at s=0** (box 902), with the boundary derived —
+   a scrollbar of ≤14px buys the third track. The macOS/Windows divergence is pinned as intended
+   behaviour, not collapsed to a single number.
+
+### OPERATOR ACTIONS — carried forward, none performed here
+
+Three stale refs from earlier slices remain, all harmless, none deletable by an agent:
+`git -C /tmp/bb-a6e stash drop` (A6-E's redundant WIP stash), `git branch -D f8s2-merge-probe`
+(F8-S2's probe), and `a5e-trial-merge`. **`git branch -D` is refused by the permission layer** — the
+same refusal F8-S2 reported. This pass's own three throwaways were removable with `git branch -d`
+(safe delete, fully merged) and are gone.
+
+### NEXT
+
+Merge order for what remains is unchanged: **A5-U → F8-R2**, with `f11-synergy-board` and
+`f13-physique-strip` to be integrated once their in-flight commits seal. Both will conflict on this
+file and on nothing else that is currently forecast; `f13` additionally shares
+`BuildPanel.tsx`'s `hasValues` ternary with A6-E, where the standing rule is **widen, never replace**.
+─────────────────────────────────────────────
