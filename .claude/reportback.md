@@ -6532,3 +6532,190 @@ commit carrying both the code and the reportback entry, not the usual
 feat + `chore(reportback)` pair. The coordinator asked for "a follow-up
 commit"; the first delivery (4ae2521 + 8915e44) used the pair.
 ─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 1 · integration — F11 → F13 landed on `dev`
+
+**Event:** `integration-complete`
+**Branches landed, in order:** `f11-synergy-board` → `f13-physique-strip`
+**`dev`:** `c6f52f1` → **`308cfc6`** (this entry commits on top). **`main` untouched at `444d034`.**
+No dev server started; port 5173 never bound.
+**Source branches untouched at their sealed SHAs:** `3b3c0d3` (F11) and `55bf5f0` (F13). Neither was
+rebased or force-pushed; `/tmp/bb-f11` and `/tmp/bb-f13` are still valid and still on their branches.
+
+**MERGE-COMMIT COUNT: 2 before, 2 after**, via `git rev-list --merges --count dev` (the honest probe —
+`git log --merges | wc -l` counts output LINES and misleads, as the previous integration recorded).
+Both landings were fast-forwards, so the invariant holds: no integration adds a merge commit.
+
+### F13 HAD ADVANCED, AND THE FOLLOW-UP THE RULING REQUIRED IS PRESENT
+
+The dispatch flagged `f13-physique-strip` as possibly moved past `19b227b`. **It had:** one further
+commit, `55bf5f0 docs(f13): re-measure against current dev, and correct the merge forecast` —
+`.claude/reportback.md` + `docs/proof/f13-verification.txt` only, **zero code**. Landed with the rest.
+
+**THE PHONE RULING IS ON THE BRANCH — verified by content, not by commit title.** `19b227b` does all
+three things the ruling required, and the tree was NOT landed until each was read:
+- `src/App.tsx` declares `const isWide = !useMediaQuery("(max-width: 767px)")` and renders
+  `{isWide ? <PhysiqueStrip {...physiqueProps} /> : null}` — the strip is not in the DOM below 768.
+- `BuildPanel` receives `physique={isWide ? null : physiqueProps}`, so Physique returns to the setup
+  panel below 768 as the same `<Section>` it was pre-F13 — same key, same collapse, same latch.
+- The strip's `@media (max-width: 767px)` stacking block is **deleted**, not left behind, with the
+  absence documented in place ("NO `@media (max-width: 767px)` BLOCK HERE, AND THE ABSENCE IS THE
+  RULING") — a media query for an element never in the DOM at that width is dead CSS.
+
+**F9's `.physique-strip .number-field` note is therefore MOOT, confirmed.** No rule scoped inside
+`.physique-strip` is evaluated below 768, because the element does not render there. F13's own
+re-measure reached the same conclusion independently and measured it on the merged tree: the height
+inputs are 56×44 at 390 (F9's floor, landing on the restored Physique Section's controls) and 56×26
+at 1280 (the strip, untouched). No `align-items: center` was needed and none was added.
+
+### METHOD — rebase onto a throwaway, then fast-forward. No source branch was rewritten.
+
+Each branch was checked out to a throwaway (`f11-integrate` / `f13-integrate`), rebased onto the
+then-current `dev`, verified, fast-forwarded into `dev`, and the throwaway deleted with `git branch -d`
+(safe delete, fully merged). Every conflicted file was reconstructed **from the source blobs** rather
+than by editing the conflicted text, and each half was then asserted byte-identical against its
+source — a stronger check than reading the merge and a much stronger one than trusting it.
+
+### CONFLICTS — five, and one semantic collision that is a FOLD-IN, not an exception
+
+**1. `src/styles/app.css` (F11)** — append-vs-append at EOF. `dev`'s F9 block and F11's delimited
+board block, concatenated in that order with the single blank line between them. Both halves diffed
+byte-identical (108467 B + 14727 B).
+
+**2. `tests/layout-arithmetic.test.ts` (F11) — THE COLLAPSE HAZARD, AND IT WAS REAL.** Git matched the
+two blocks' shared closing `});\n});` as context, so the conflict region ran from *inside* F9's block
+to *inside* F11's and a naive resolve would have merged one describe's tail into the other's. Resolved
+by reconstruction, not by deleting markers. **All three blocks survive at their correct nesting:**
+F8-S2's stays nested inside §16.7 (line 545), F9's I6 block stays top-level (2075), and **F11's stays
+a top-level `describe`** (2393) — 11 top-level describes before, 12 after. No module-scope name
+collides: F11's 24 new top-level bindings were diffed against `dev`'s and the intersection is empty.
+
+**3. `.claude/reportback.md` (F11, twice; F13, once)** — append-vs-append, as forecast. Reconstructed
+as `dev`'s bytes + the branch's own appended tail, verbatim, with **no editing at either seam**, so
+the collapse the previous integrator warned about cannot occur by construction. Verified three ways
+each time: both halves byte-identical to their sources, and the `─────` rule count and line count
+matching the arithmetic exactly (77 + (74 − 67) = **84 rules**; 6223 + (5220 − 4909) = **6534 lines**).
+A sweep confirms no rule anywhere in the file abuts the next entry's heading. Order is physical append
+= landing order, which keeps each contributor's block contiguous and byte-checkable; every entry
+survives.
+
+**4. `src/ui/build/BuildPanel.tsx` (F13) — the `hasValues` latch. WIDENED, NEVER REPLACED.** A6-E had
+widened the `withAttributes` TRUE arm (M/S) with `hasCapBreakers(build)`; F13 narrowed the FALSE arm
+(L) by dropping `build.position !== undefined`. **Different arms of one expression** — git sees
+adjacent lines, so it conflicts; the two edits are independent and both are kept:
+
+```
+  const hasValues = withAttributes
+    ? hasBudgetValues ||
+      Object.values(build.attributes).some((value) => value > 0) ||
+      hasCapBreakers(build)      <- A6-E's widening, intact
+    : hasBudgetValues;           <- F13's narrowing, intact (position dropped)
+```
+
+This matches the resolution F13 recorded in `docs/proof/f13-verification.txt §B1` from its own trial
+merge. Both comment blocks are kept and a note records why they compose. The later ruling commit
+`19b227b` does not touch this expression, so the resolution is stable across the rest of the rebase.
+
+**5. `tests/layout-arithmetic.test.ts` (F13)** — F13 is NOT a pure append here: besides its EOF block
+it makes two in-place edits earlier in the file (the pane-eviction check moves from `PhysiqueSection`
+to the `Physique` stem so a rename cannot walk the surface back in; and assertion 20's comment gains
+the strip's measured 256.73px track). Resolved as `dev`'s file + those two edits + F13's block
+verbatim from its banner to EOF. **The reconstruction was then proved equal to F13's own delta**: the
+changed-line sets of `git diff HEAD` and `git diff a5fe8e1 4ae2521` are identical, 225 lines each.
+
+`src/App.tsx`, `src/ui/primitives/HeightField.tsx` and `tests/ui/position-height-clamp.test.tsx`
+auto-merged. `tests/ui/f2-source-pins.test.ts` (F11's one-line widening) was untouched by `dev`.
+
+### THE F9 / F11 CENSUS COLLISION — folded in, and the fold closed a hole the census could not see
+
+F11 shipped `@media (max-width: 767px) { .synergy-board__button { min-height: 44px } }` inside its own
+block: the same breakpoint and the same value as F9's pass, written as a **literal** because
+`--tap-target` did not exist on the branch F11 was cut from. F11 deliberately left this to integration
+rather than guessing at a shape it could not see, and that was the right call.
+
+**The forecast red did not fire, and the reason is the finding.** The rebased tree was green at
+68 files / 1364 tests *with the literal still in place*. Assertion 27 reads the stylesheet back by
+matching `min-height: var(--tap-target)`, so a hard-coded `44px` is **invisible to it** — the board's
+floor sat entirely outside the census, unguarded in both directions, and nothing reddened. A literal
+is therefore strictly worse than a duplicate here: it is the one shape that escapes the detector
+assertion 27 exists to be. Landing it as an exception would have left exactly the rot the assertion
+was written to make impossible.
+
+Folded in as `fix(f11): fold the board's touch floor into F9's I6 census`:
+- `.synergy-board__button` becomes **entry 12** of F9's `@media (max-width: 767px)` block, taking
+  `min-height: var(--tap-target)` like every other control.
+- **F11's standalone rule is deleted**, with a pointer comment left where it stood.
+- `.synergy-board__button` is added to `S_TOUCH_FLOOR_CENSUS`, so assertions 24 and 27 grade it.
+- F11's own assertion 12 is re-pointed from its branch-local literal to the census, keeping its
+  component-source proof that `.synergy-board__button` is the board's ONLY interactive class — which
+  is what makes one census entry total — and gaining a canary against a scoped literal returning.
+
+One button class covers every interactive element on the board. No rule was dropped and the value did
+not move: 44px before, 44px after, now from one token. Suite unchanged by the fold-in.
+
+### COUNTS — expected computed from each branch's own delta BEFORE reading the actual
+
+| Landing | Arithmetic | Expected | Actual |
+|---|---|---|---|
+| base `dev` | — | — | 1321 / 67 |
+| F11 | 1321 + 43 — the branch measured 1247 / 63 against a 1204 / 62 base, so +43 tests, +1 file | **1364 / 68** | **1364 / 68** ✓ |
+| F11 fold-in | census entry + re-pointed assertion 12; no `it` added or removed | **1364 / 68** | **1364 / 68** ✓ |
+| F13 | 1364 + 10 — the branch measured 1214 against 1204, +0 files | **1374 / 68** | **1374 / 68** ✓ |
+
+F13's own trial merge against `c6f52f1` independently reached 1331 = 1321 + 10, which is the same
+delta arrived at from the other side.
+
+### GATES — run after every landing
+
+`npm test` · `npm run typecheck` · `npm run build` — **all PASS at both landings and at the fold-in.**
+`npm run build` is the only gate that would catch a malformed CSS comment, and it was run each time.
+Build at the tip: 75 modules, **308.46 kB** js / **50.81 kB** css (after F11: 308.04 / 49.80).
+
+**RUN-never-edit trio, run explicitly at both landings: 29/29 each time.** All three are at **zero
+diff** across this pass — `git diff --stat` over `tests/ui/overlays.test.tsx`,
+`tests/category-colors.test.ts` and `tests/feasibility-golden.test.ts` is empty for both F11 and F13.
+**No cell of the 504-cell golden moved**, so there was nothing to stop and report.
+
+Runtime `dependencies` confirmed **exactly `{react, react-dom}`** at both landings; `package.json` and
+the lockfile are unchanged across the whole pass.
+
+**NO FLAKE ENCOUNTERED.** Every full run in this pass was green on the first attempt (1364, 1364,
+1374). Nothing was re-run to get green, no test was edited, and no `{ timeout: 20000 }` was touched.
+
+### THE THREE PROPERTIES A MERGE COULD HAVE QUIETLY BROKEN — all three verified
+
+1. **F9's census is still set-equal in BOTH directions, having gained an entry.** Assertion 27 passes
+   with 16 selectors on each side. Rather than trust a green, both directions were driven to red and
+   restored: removing the census entry while keeping the rule reds it in the *extra class* direction
+   (`expected […16] to deeply equal […15]`), and removing the rule while keeping the entry reds both
+   assertion 27 (`[…15]` vs `[…16]`) and assertion 24 (`no S rule for .synergy-board__button`). The
+   assertion is load-bearing over the new entry, not merely satisfied by it.
+2. **The resolved column count is still pinned by OUTCOME across scrollbar widths 0/15/17.**
+   `REGION B RESOLVES TO 2 TRACKS AT 1280/s=17, AND IT IS 3px FROM 3` passes: **2 tracks at s=17 and
+   s=15** (box 885, three need 888), **3 tracks at s=0** (box **902**), boundary derived at ≤14px.
+   The macOS/Windows divergence is intact as intended behaviour, not collapsed to one number. F13
+   moves none of the box's four terms — the strip is full-bleed *outside* `.layout`, so it moves the
+   grid's y and never its x — and F11's board spans tracks inside the Synergy section, not the
+   summary's. §14.2 describe: 11/11.
+3. **The near-miss parenthetical still sits INSIDE the level suffix, and the card line still renders
+   on all 53 badges.** `A6 ② — the near-miss parenthetical` 8/8, including the dataset-wide sweep
+   `② every purchasable level's reason still ends in its own level suffix`, which walks every shipped
+   badge and asserts no reason matches `/for (Bronze|Silver|Gold|HOF)\s*\(/`. The rendered surface is
+   covered too: `badge-card` + `f2-eligibility-disclosure` green, and
+   `renders the full instrument: all 53 cards, no welcome wall` passes with 53 `.badge-card` nodes.
+
+### DEVIATION, DISCLOSED
+
+The landed `BuildPanel.tsx` carries **+6 insertions** over F13's original delta (161 vs 155; deletions
+identical at 33). That is the integration note added to the `hasValues` comment recording that A6-E's
+and F13's edits touch different arms and were both kept. Every other file's delta is identical to the
+source branch's, per-file, by `git diff --numstat`.
+
+### NEXT
+
+Merge order for what remains: **A5-U → F8-R2**. `.claude/reportback.md` will conflict on both and is
+now 6721 lines; reconstruct rather than accept a naive merge. Two carried-forward operator actions
+still stand from earlier passes (`git -C /tmp/bb-a6e stash drop`, and `git branch -D` on the stale
+`f8s2-merge-probe` / `a5e-trial-merge` refs, which the permission layer refuses to an agent). This
+pass's own two throwaways deleted cleanly with `git branch -d`.
+─────────────────────────────────────────────
