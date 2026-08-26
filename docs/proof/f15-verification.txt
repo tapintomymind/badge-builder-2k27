@@ -215,6 +215,11 @@ tree, and every one of the 12 files is green run alone —
 
 No timeout was lowered, tightened, raised or added anywhere.
 
+SETTLED: a later run of the SAME tree, once the preview server was stopped and
+the other agents' load dropped, was **1433/1433 across 69/69 files, green** —
+no isolation, no retries, no timeout changes. The 16 failures were contention
+and nothing else.
+
   layout-arithmetic  142/142 (135 before; +7 F15 assertions)
   the three gates    29/29, byte-unmodified
   F9 I6 census       7/7

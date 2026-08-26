@@ -7234,6 +7234,9 @@ f4-slot7 17/17 · position-height-clamp 9/9 · reset-build 16/16 ·
 summary-import-export 8/8 · synergy-panel 8/8). No timeout was lowered, tightened,
 raised or added.
 
+**Settled:** a later run of the same tree, once load dropped, was **1433/1433 across
+69/69 files, fully green** — no isolation, no retries, no timeout changes.
+
 ### Contradictions and spec drift found — FOR RULING
 
 1. **`design-spec §3.2` contradicts itself on the button copy.** §3.2 item 5 says
