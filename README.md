@@ -1,93 +1,185 @@
-# Badge Builder 2K27
+# Badge Builder — NBA 2K27 MyCareer Badge Loadout Planner
 
-A local badge planner for NBA 2K27 MyCareer. You describe a build — height and
-attributes — and the tool tells you which badges you qualify for, at which
-levels, what they cost, and how your badge points and synergy slots add up.
+A local tool for planning your NBA 2K27 MyCareer badge loadout before you spend a single point
+in-game. You enter your build — height and full attribute spread — and it shows you exactly which
+of the 53 badges you qualify for and at what level, tracks your per-category Badge Point spend and
+refunds live, and lets you wire up the 8 Synergy Slots' fuse/reaction system to see what your badges
+actually look like once boosts are applied.
 
-Everything runs in the browser, and each visitor's saved builds stay in their
-own browser. The whole point is that the numbers reconcile with what the game
-actually shows you.
+**Nothing leaves your machine.** No account, no server, no network call anywhere in the running app
+— see [Posture](#posture-static-and-client-side-no-backend) below, which the test suite enforces
+rather than merely promising.
 
-> **Status: skeleton.** Toolchain only — no dataset, no engine, no UI yet.
-> Implementation begins after the plan is approved.
+## Features
 
----
+- **Build entry.** Height; a position (Any / PG / SG / SF / PF / C) that sets which heights you can
+  pick from — no badge requires a specific position, but the height range a position sets does gate
+  badges, so a position switch can matter (see [Data integrity](#data-integrity)); and the full
+  20-attribute spread as 2K-style sliders — drag to preview, release to commit, `Shift`+arrow to
+  jump by 10 — each paired with an exact-entry numeric field. Every attribute shows its full name
+  ("Standing Dunk," not "St Dunk"), and each of the six categories has its own color running through
+  its sliders, legend, and section title.
+- **Eligibility gating.** Every badge card shows which level your current build qualifies for, with
+  the failing requirement spelled out — naming both the threshold and your current value (`needs 90
+  Close (now 88) or 93 Layup (now 72) for Gold`) — and a full grey-out with reason when your height
+  blocks the badge entirely. Cards carry 2K's own one-line description (click to see the whole
+  thing) and flag the 19 badges that are new this cycle. If a build change costs you a badge you
+  already bought, the badge doesn't vanish — it's flagged "no longer meets requirements" and stays
+  exactly as spent until you decide what to do.
+- **Per-category Badge Point planning, with a feasibility readout.** Live status bars per category —
+  spent, remaining, refunded, Badge Slots used — plus a line telling you how many upgrades are still
+  affordable at your current spend (e.g. `6 pts left → nothing else fits at these prices.`), and a
+  soft check of your Badge Slots total against the game's published 20-Badge-Slot starting baseline.
+  Overspend is a warning (red, not blocked); this is a planning tool, not a gatekeeper.
+- **Bonus Badge Slots and Badge Points.** The ones you earn beyond the starting 20 — Build
+  Specialization, Seasons, Crew — recorded as a separate layer: two earned totals, then placed per
+  category, with the composed capacity shown live (`Badge Points 12 base + 4 bonus`). Versatile and
+  freely reassignable, exactly as the game has them; nothing locks, and no cap is modelled because
+  none is published.
+- **Synergy Slots (fuse + reaction).** A 2×8 board to read and navigate the whole system at a
+  glance, then all 8 Synergy Slots in detail — temporary (1–4) vs permanent (5–8), fuse/reaction
+  badge pickers, and a "Reactions activated" toggle to preview in-game ceilings. Fusing a badge
+  frees the points you spent on it back to its category pool, immediately — not only once it reaches
+  Legend. Synergy Slot 7 (the Build Specialization reward) defaults to +2 and locks to one
+  discipline you choose; one more Synergy Slot is still yours to designate as the second +2 — 2K
+  hasn't published which one.
+- **See what's actually feasible.** Five filters (tier, "Affordable at ≥", category, "Legal for my
+  build," and "Purchased"), live status bars, and per-badge pip cost deltas that are always visible
+  — not hidden behind a hover — so you can see what every level costs before you touch anything
+  in-game.
+- **Read the plan back out.** A Summary panel with a per-category loadout roster naming every badge
+  you bought, a Synergy digest, and the whole plan as copyable plain text — the artifact you read
+  beside the console while re-entering it into the game.
+- **Named builds + JSON export/import, built to not lose your work.** Autosave to your browser,
+  multiple named builds you can load, rename, duplicate, or delete (Duplicate is how you branch a
+  variation — there's no separate compare view), and file-based export/import to back up a build or
+  move it to another machine. If a saved build ever becomes unreadable, it's quarantined
+  byte-for-byte rather than silently overwritten, and the app tells you so with a way to get the raw
+  bytes back.
 
-## Posture: static and client-side, no backend
+## Quickstart
 
-The app is hosted (on Vercel) so it can be shared, but nothing about it is
-server-side. What ships is a static bundle; everything happens in the visitor's
-browser.
-
-- **No backend.** No server code, no API, no database, no accounts.
-- **No network egress at runtime.** No `fetch`, no CDN calls, no analytics.
-  Once loaded, the app works offline.
-- **No secrets.** Nothing in this repo reads an environment variable or a key.
-  An `.env` file appearing here is a defect, not a configuration step — the
-  Vercel project needs no environment variables either.
-- **Persistence is `localStorage`** — client-side, in each visitor's own
-  browser, and nowhere else. Nothing anyone saves ever leaves their machine.
-
-Runtime dependencies are exactly `react` and `react-dom`. Everything else is a
-dev dependency. That constraint is load-bearing: it makes an accidental network
-call or an accidental service integration something you have to argue for
-explicitly rather than something that arrives by drift.
-
-## Requirements
-
-The requirements document for this project is the sealed `seed.md` held in the
-planning workspace alongside the scope and tech-strategy documents. It is not
-copied into this repo — there is one authoritative copy, and it lives outside the
-codebase so it cannot drift.
-
-Two rules from it are worth restating here, because they govern day-to-day work:
-
-1. **Never invent game data.** Unknown values stay unknown. Nothing is guessed,
-   rounded, or filled in from memory.
-2. **Engine and UI stay separated.** Every rule flows from data plus config, and
-   never gets hard-coded into a component.
-
-## Getting started
+Node **22.x** (declared in `package.json` `engines`).
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm test         # Vitest, single run
-npm run build    # typecheck + production bundle
+npm run dev
 ```
+
+Open `http://localhost:5173`.
+
+**On your phone, next to the console.** The dev server already binds to your LAN, not just
+`localhost` — no setup needed. Find your computer's LAN IP (on a Mac: System Settings → Wi-Fi →
+Details…, or `ipconfig getifaddr en0` in Terminal) and open `http://<that-IP>:5173` from your
+phone's browser on the same network.
 
 | Script | Does |
 |---|---|
-| `npm run dev` | Vite dev server on a pinned port |
+| `npm run dev` | Vite dev server on a pinned port (5173, `strictPort`) |
 | `npm run build` | `tsc --noEmit` then `vite build` |
 | `npm run preview` | Serve the built bundle locally |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest, single run |
 | `npm run test:watch` | Vitest in watch mode |
+| `npm run generate:badges` | Regenerate `badges.json` from the checked-in source listing |
 
-## Deploying (Vercel)
+### A note on window size
 
-The app deploys to Vercel as a static build. `vercel.json` carries the whole
-configuration: the framework preset, an SPA fallback rewrite, immutable caching
-for hashed assets, and a small set of security headers.
+At large window sizes the app becomes a fixed shell: the page itself doesn't scroll, and the
+attribute rail and the main column scroll independently instead, so the build controls never leave
+the screen. It needs the window to be both wide enough and tall enough — and the height requirement
+is *derived* from the measured header, strip, padding and sticky-stack heights rather than chosen,
+so that the badge cards still clear their minimum share of the viewport. Below either threshold the
+app degrades gracefully to ordinary document scrolling with nothing hidden, only rearranged. The
+exact figures live in `tests/layout-arithmetic.test.ts`, which asserts the formula, so they move
+when the chrome does.
 
-One-time setup:
+## Posture: static and client-side, no backend
 
-1. In the [Vercel dashboard](https://vercel.com/new), import this GitHub repo.
-   Vite is auto-detected and the defaults are correct (`npm run build`, output
-   `dist`). No environment variables to set.
-2. Deploy. From then on, every push to `main` deploys to production and every
-   pull request gets its own preview URL.
+The app can be hosted (on Vercel) so it can be shared, but nothing about it is server-side. What
+ships is a static bundle; everything happens in the visitor's browser.
 
-Custom domain:
+- **No backend.** No server code, no API, no database, no accounts.
+- **No network egress at runtime.** No `fetch`, no CDN calls, no web fonts (the type stack is the
+  system one), no analytics, no telemetry — even the render-error handler logs to the console and
+  nowhere else. `tests/architecture.test.ts` fails if `fetch`, `XMLHttpRequest` or `WebSocket`
+  appears anywhere in the source, so this is enforced, not promised. Once loaded, the app works
+  offline.
+- **No secrets.** Nothing in this repo reads an environment variable or a key. An `.env` file
+  appearing here is a defect, not a configuration step — the Vercel project needs no environment
+  variables either.
+- **Persistence is `localStorage`** — client-side, in each visitor's own browser, and nowhere else.
+  Nothing anyone saves ever leaves their machine. Export and import are a plain file download and
+  file picker, not an upload.
 
-1. In the Vercel project, go to **Settings → Domains** and add your domain.
-2. At your registrar, add the DNS records Vercel shows you — an `A`/`ALIAS`
-   record for an apex domain, or a `CNAME` for a subdomain. Vercel provisions
-   TLS automatically once DNS resolves.
+Runtime dependencies are exactly `react` and `react-dom`. Everything else is a dev dependency. That
+constraint is load-bearing: it makes an accidental network call or service integration something you
+have to argue for explicitly rather than something that arrives by drift.
 
-`npm run build` runs `tsc --noEmit` before `vite build`, so a type error fails
-the deploy. That is intentional — Vercel's build is the only gate there is.
+## Stack
+
+- **Vite + React + TypeScript.** No backend — the entire app runs from `npm run dev`.
+- **Pure rules engine** in `src/engine/` — framework-agnostic TypeScript, no DOM, no React. Every
+  rule (costs, eligibility, synergy, refunds, budget composition) lives here and nowhere else, and a
+  dependency-direction test asserts nothing in the engine imports from the UI or from React.
+- **Data** in `src/data/badges.json`, generated from a checked-in plain-text listing at
+  `src/data/badges.source.txt` — never hand-edited directly. Regenerate with
+  `npm run generate:badges`.
+- **Vitest** for the full suite — `npm test`, engine and DOM-level UI tests together.
+
+## Data integrity
+
+The badge dataset — all 53 badges, spanning Finishing (11), Shooting (9), Playmaking (10), Defense
+(12), Rebounding (5), and Physicals (6) — is transcribed pre-release NBA 2K27 data, sourced from
+official 2K material and NBA2KLab as captured in the project's sealed spec, cross-checked and
+extended against 2K's own MyPlayer-builder feature page. It ships with provenance fields on
+`badges.json` (currently stamped `dataVersion: "2026-08-26.1"`, `confidence: "pre-release"`,
+`gameVersion: null` because the patch it reflects genuinely isn't known) — so any saved build can be
+traced back to the exact snapshot it was planned against.
+
+The position→height table is a **separate**, separately-provenanced dataset entirely — user-supplied
+from the in-game builder, dated 2026-08-26 — disclosed the same way, alongside the badge dataset's
+own provenance. If you reopen a saved build and its dataset version doesn't match the app's current
+one, a non-blocking banner tells you requirements may have moved — it never silently rewrites your
+plan. The same banner discloses two narrower cases: a badge that's left the dataset entirely, or a
+Synergy Slot assignment pointing at a badge no longer in your loadout — both healed or stripped
+automatically and always disclosed, never silently dropped.
+
+**This app never invents 2K27 data.** Anything not yet published stays `null`/TBD rather than
+guessed. What's known and what isn't, as it stands:
+
+1. **Refund trigger — RESOLVED.** 2K's own page confirms fusing a badge frees the points spent on it
+   back to its category pool, at any level and either magnitude — that's the default. The three
+   Legend/HOF-reaching triggers this app shipped with originally remain selectable alternates.
+2. **Which two Synergy Slots carry +2 — half-resolved.** Synergy Slot 7 (the Build Specialization
+   reward) is confirmed, so it defaults to +2 and can't be switched back. The second is still
+   unpublished and stays yours to designate.
+3. **The attribute → per-category (Badge Slots, Badge Points) derivation — UNPUBLISHED.** These stay
+   manual inputs per category. The page does confirm the *starting total* of 20 Badge Slots, so the
+   app annotates your entered total against it as a plain, non-blocking `/ 20 default` — a checksum
+   on what you typed, never a formula for what you should type, and never a guess at what a
+   difference means.
+4. **The cap-breaker → boost mapping — UNPUBLISHED, and deliberately never computed.** A cap breaker
+   raises an attribute above the slider ceiling and counts for badge eligibility; it grants no Badge
+   Slots and no Badge Points. One breaker does not reliably add +1 (an observed case took a
+   Three-Point of 60 to 83 across five), so the app stores the *absolute* value you read off the 2K
+   builder and honours it, rather than modelling the mapping. **The engine does this today; the
+   in-app control to declare a cap breaker has not shipped yet**, so a cap-broken value currently
+   reaches a build only through an imported or hand-edited JSON file.
+
+None of these block using the tool today; they're seams the app is built around, not missing
+features.
+
+Two rules from the sealed spec govern day-to-day work on this repo, and are worth restating:
+
+1. **Never invent game data.** Unknown values stay unknown. Nothing is guessed, rounded, or filled
+   in from memory.
+2. **Engine and UI stay separated.** Every rule flows from data plus config, and never gets
+   hard-coded into a component.
+
+The requirements document itself is the sealed `seed.md` held in the planning workspace alongside
+the scope and tech-strategy documents. It is not copied into this repo — there is one authoritative
+copy, and it lives outside the codebase so it cannot drift.
 
 ## Layout
 
@@ -96,36 +188,68 @@ src/engine/   pure TypeScript. Every rule. No DOM, no React, no I/O.
 src/data/     the dataset. Generated, read-only at runtime.
 src/config/   seams for game mechanics that are not yet published.
 src/ui/       React. Renders engine output. Zero rules.
+src/persist/  the single localStorage owner.
 tests/        the suite.
 ```
 
-Each directory carries a `README.md` describing its contract. The engine/UI
-separation is the architecture — it is what makes the arithmetic testable
-without a browser.
+Each of the four directories above under `src/` carries a `README.md` describing its contract. The
+engine/UI separation is the architecture — it is what makes the arithmetic testable without a
+browser.
+
+## Deploying (Vercel)
+
+The app deploys to Vercel as a static build. `vercel.json` carries the whole configuration: the Vite
+framework preset, an SPA fallback rewrite, immutable caching for hashed assets, and a small set of
+security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`).
+
+One-time setup:
+
+1. In the [Vercel dashboard](https://vercel.com/new), import this GitHub repo. Vite is auto-detected
+   and the defaults are correct (`npm run build`, output `dist`). No environment variables to set.
+2. Deploy. From then on, every push to `main` deploys to production and every pull request gets its
+   own preview URL.
+
+Custom domain:
+
+1. In the Vercel project, go to **Settings → Domains** and add your domain.
+2. At your registrar, add the DNS records Vercel shows you — an `A`/`ALIAS` record for an apex
+   domain, or a `CNAME` for a subdomain. Vercel provisions TLS automatically once DNS resolves.
+
+`npm run build` runs `tsc --noEmit` before `vite build`, so a type error fails the deploy. That is
+intentional — Vercel's build is the only gate there is.
 
 ## Known constraints
 
-- **Saved builds live in one browser on one device.** There are no accounts and
-  no sync: what a visitor saves on their phone is not on their laptop, and
-  nobody sees anyone else's builds. Sharing a build means sharing the app, not
-  the data.
-- **`localStorage` is keyed to origin.** In production that is the custom
-  domain — so changing the domain later orphans everything visitors have saved.
-  Pick the domain once. The same rule is why the dev port is pinned to 5173
-  with `strictPort`: a silent roll to 5174 would orphan local saves and read as
-  data loss, so a port collision fails loudly instead.
-- **Data is pre-release.** Some 2K27 mechanics are unpublished. The dataset
-  carries provenance so a value's confidence is always visible, and saved builds
-  record which dataset version they were planned against.
-- **Multi-tab is last-write-wins.** Two tabs on the same origin will clobber each
-  other's autosave. Accepted for a tool of this size.
+- **Saved builds live in one browser on one device.** There are no accounts and no sync: what you
+  save on your phone is not on your laptop, and nobody sees anyone else's builds. Sharing a build
+  means sharing the file, not the data store.
+- **`localStorage` is keyed to origin.** In production that is the custom domain — so changing the
+  domain later orphans everything saved against the old one. Pick the domain once. The same rule is
+  why the dev port is pinned to 5173 with `strictPort`: a silent roll to 5174 would orphan local
+  saves and read as data loss, so a port collision fails loudly instead.
+- **Data is pre-release.** Some 2K27 mechanics are unpublished. The dataset carries provenance so a
+  value's confidence is always visible, and saved builds record which dataset version they were
+  planned against.
+- **Multi-tab is last-write-wins.** Two tabs on the same origin will clobber each other's autosave.
+  Accepted for a tool of this size.
+- **The build switcher treats every page reload as unsaved work,** because the app doesn't yet
+  remember which saved build a reload came from. Your data is fine — autosave still has it; the
+  label is what's stale.
 
 ## Branches
 
-`main` is the trunk and reflects known-good state. Work lands on `dev` and is
-merged to `main` — no direct commits on `main`.
+`main` is the trunk and reflects known-good state. Work lands on `dev` and is merged to `main` — no
+direct commits on `main`.
+
+## More
+
+- [`EXPLANATION.md`](EXPLANATION.md) — how the game's rules work and how the app models them.
+- [`GUIDE.md`](GUIDE.md) — step-by-step usage, task by task.
+- [`docs/vocabulary.md`](docs/vocabulary.md) — the one-page Badge Slots vs. Synergy Slots glossary
+  the codebase enforces.
+- [`docs/proof/`](docs/proof/) — screenshots and verification records, regenerated with each shipped
+  slice.
 
 ## License
 
-Personal project. Not affiliated with, endorsed by, or sourced from any game
-publisher.
+Personal project. Not affiliated with, endorsed by, or sourced from any game publisher.
