@@ -4689,3 +4689,221 @@ ratification, not blocking); §16.13 assertion 1's canary literal 683 → 657;
 Branch pushed. `dev` untouched at `d186791`; `main` untouched. Merge order stands:
 **F5.4 → F8-S2 → F8-R2**, and F8-S2 must be re-briefed per §15 first.
 ─────────────────────────────────────────────
+
+INTEGRATION — F5.4 the attributes pane and the right column, 2026-08-25
+─────────────────────────────────────────────
+
+WHAT LANDED
+f5-4-attribute-pane, all three commits, replayed onto dev on top of the Vercel
+backmerge. The ledger overview moves to the right column, Physique and Budgets
+re-parent into a collapsed `.setup-panel` above the FilterBar, and `.layout`
+becomes exactly two grid items at L so the sticky attributes pane's containing
+block spans the whole document instead of grid row 1. Visible attribute sliders
+at rest go 0/0/1 → 6/7/8 at 700/800/900px viewport heights, as the branch
+measured. Behaviour below 1280 is unchanged by construction.
+
+INTEGRATION MECHANISM — rebase onto a throwaway, then a rebuild, then fast-forward
+Back to the linear convention. The Vercel backmerge above is the ONLY merge
+commit on dev and this slice did not add a second.
+
+  1. f54-integrate cut from 6d21927 and rebased onto dev. Two conflicts (below).
+  2. The suite then failed ONE test, in a way that had to be fixed inside the
+     replayed implementation commit rather than bolted on after it, so the
+     branch was REBUILT: f54-rebuild reset to the replayed feature commit, the
+     one-line fix amended in, and the two follower commits cherry-picked back.
+     `git diff f54-integrate f54-rebuild` is exactly that one line — verified,
+     not asserted.
+  3. dev fast-forwarded onto f54-rebuild. Both throwaways deleted.
+
+f5-4-attribute-pane was never rebased, amended or force-pushed and still points
+at 6d21927, so the /tmp/bb-f54 worktree stays valid and intact. main is
+UNTOUCHED at e6b3ae4.
+
+THE CONFLICT SURFACE WAS SMALLER THAN FORECAST — one file, one hunk
+The brief named BuildPanel.tsx and App.tsx. Only App.tsx conflicted.
+`git diff d186791 dev -- src/ui/build/BuildPanel.tsx` is EMPTY: A5-E never
+touched that file, so F5.4's 121 lines replayed with no other side to merge
+against. Same for app.css, tests/layout-arithmetic.test.ts and
+tests/ui/f2-disclosure-surfaces.test.tsx. Checked before starting rather than
+discovered during.
+
+  src/App.tsx — ONE conflict hunk, and it is a MOVE colliding with an EDIT.
+  dev's side was the `.rail-column` block: the ledger overview aside plus the
+  `.rail-build` aside holding BuildPanel. F5.4's side replaces that whole region
+  with the `isLarge ? .attr-pane-column : null` structure, because it EVICTED
+  both regions into `.col-right` further down the file. Git cannot align a move
+  with an in-place edit, so it presented the whole block.
+  Resolved to F5.4's side. Nothing was deleted — both evicted regions are
+  present further down, and the ledger's rendering code is byte-identical on
+  both sides (A5-E's App.tsx diff never reached it).
+
+  .claude/reportback.md — the usual tail-append collision. Resolved
+  APPEND-ONLY: dev's tail (the A5-E entries and the backmerge entry) first, then
+  F5.4's 231-line slice entry verbatim. Proved rather than eyeballed — the
+  first 4460 lines of the resolved file are BYTE-IDENTICAL to
+  `git show dev:.claude/reportback.md`, checked with cmp. One separator line was
+  added to close the backmerge entry, which had none; it sits after that entry's
+  last line, so the append-only property holds.
+
+THE A5-E PROPERTY THAT HAD TO SURVIVE, AND DID
+`<BuildPanel budgets={baseBudgets}>` — deliberately BASE, never composed.
+F5.4 branched before A5-E, so its version of that call site reads
+`budgets={budgets}`, and taking F5.4's side of the conflict carried the
+pre-A5 wiring in with it. THE CALL SITE ALSO MOVED, out of the dissolved left
+rail and into `.setup-panel`, so this is not a hunk git could have preserved —
+it had to be re-applied by hand at the new location, together with A5-E's
+hazard comment. Done, and the whole A5-E surface in App.tsx was then audited
+line by line: all nine `[A5]` markers present (9 on dev, 9 here), the budget.ts
+import, `BonusBudget`, `WorkingState.bonus`, `zeroBonus()` in
+freshWorkingState, `saved.bonus` in fromSaved, `working.bonus` in toEnvelope,
+`bonusHasContent` in workingHasContent, the baseBudgets/effectiveBudgets
+composition pair, and `bonus` in ledgerState plus its dependency array.
+SummaryPanel keeps the COMPOSED record, which is correct — it reads capacity,
+it does not enter it.
+
+BOTH A5-E MUTATION CHECKS RE-RUN AFTER THE REBASE. Both bite.
+  · Revert `budgets={baseBudgets}` → `budgets={budgets}` at the relocated call
+    site. tests/ui/a5-bonus-persistence.test.tsx: 3 failed / 5 passed. Test 6.6
+    reads "expected '4' to be '3'" — the compounding, caught on the first
+    render, exactly as A5-E predicted. Restored; App.tsx byte-clean against
+    HEAD afterwards.
+  · Neuter `effectiveBudgets` to pass the base straight through.
+    tests/randomize.test.ts 5.1 SHIP GATE fails: "expected 'noLegalStep' to be
+    'rolled'" — the applied bonus Badge Slot stops buying the extra badge.
+    Restored; both guards green again.
+  Neither guard was weakened by the move. No stop-and-report condition fired.
+
+THE ONE TEST THAT FAILED, AND WHY IT WAS THE INTEGRATOR'S BUG
+tests/layout-arithmetic.test.ts test 19 — "the renames are complete, in the
+stylesheet AND in src/**" — failed with "/src/App.tsx still names rail-build".
+The offender was the hazard comment written DURING this integration, which
+explained the relocation by naming the class it relocated out of. Test 19 scans
+raw source, comments included, on purpose ("a half-done rename leaves a dead
+rule that reads as live"). The comment was reworded to "out of the dissolved
+left rail"; the TEST WAS NOT TOUCHED. It did its job on its first exposure to
+a hand-written line, which is the argument for it. All five dead names —
+rail-left, rail-column, rail-ledger, rail-build, panel-below — now absent from
+src/ and app.css.
+
+COUNTS — predicted before measuring, and the prediction held exactly
+  dev before this slice          62 files / 1187   (post-backmerge; the
+                                                    backmerge adds 0 tests)
+  F5.4 branch tip 6d21927        60 files / 1155
+  F5.4's own base, dev@d186791   60 files / 1138   (as re-measured by the
+                                                    A5-E integration)
+  F5.4 delta                     1155 − 1138 = +17
+  EXPECTED                       1187 + 17 = 1204
+  ACTUAL                         62 files / 1204 passed.  No gap, no
+                                 correction term.
+The deltas are file-disjoint again: A5-E's +49 landed in bonus.test.ts,
+serialization.test.ts, randomize.test.ts and a5-bonus-persistence.test.tsx,
+while F5.4's +17 is entirely tests/layout-arithmetic.test.ts (52 → 69).
+
+GATES
+  npm test            62 files / 1204 passed.
+  npm run typecheck   clean.
+  npm run build       clean — run because it is the only gate that catches a
+                      malformed CSS comment, and this slice moves 215 lines of
+                      app.css.
+  The three RUN-never-edit files re-run explicitly: 3 files / 23 passed. Their
+  blobs are byte-identical to dev's, confirmed by comparing git object SHAs
+  rather than by reading the diff:
+      tests/ui/overlays.test.tsx        da7de50…
+      tests/category-colors.test.ts     a14e3c4…
+      tests/feasibility-golden.test.ts  cef359d…
+  No cell of the 504-cell golden moved.
+
+SUB-1280 — NOT RE-CAPTURED, and here is what stands in for it
+The branch's own evidence is that the PNGs at 1279x900, 768x900 and 390x800 are
+byte-identical to dev's. Those were NOT re-captured here: capturing them needs
+the dev server, the port is pinned, and every worktree shares that one
+localStorage origin — stale code on that origin can strip newer fields out of
+the user's real saved data. Not worth a screenshot.
+What was checked instead is mechanical and independent: the seam has exactly
+one owner (`!useMediaQuery("(max-width: 1279px)")` in App), `.ledger-panel` is
+`display: none` until the 1280 query, and re-deriving the layout from the
+shipped CSS at 1279/s=17 gives a `.summary` content box of 1196px — the same
+figure the pre-F5.4 tree gives at that width. Below the seam the arithmetic did
+not move.
+
+THE FIGURE FOUR QUEUED SLICES NEED — .summary at 1280, scrollbar 17
+Parsed out of the shipped CSS and re-derived, the same method
+tests/layout-arithmetic.test.ts uses. NOT measured in a browser, for the
+dev-server reason above.
+
+    1280                                          viewport
+  −   17  scrollbar                        = 1263  layout viewport
+  −  2×16 .layout padding (--space-4)      = 1231  .layout content box
+  −  300  pane track  − 12 column-gap      =  919  .col-right track
+  −   34  <Section> chrome (2×1px .section border
+          + 2×16px .section__body padding) =  885  .summary CONTENT box
+
+  ***  885px  ***   —  NOT 1197.
+
+1197 is the PRE-F5.4 figure (1231 − 34) and it is now wrong by 312px, because
+`.summary` no longer spans the full below-grid box: it is a flex item of
+`.col-right`, which is the 1fr track beside the 300px pane. Nothing between
+`.col-right` and `.summary` contributes horizontal padding — `.col-right`,
+`#panel-summary` (no rule at all) and `.summary` itself were each checked for
+one. This corroborates the figure already written into
+tests/layout-arithmetic.test.ts's own `.summary` case ("885 in the right column
+at 1280/s=17, not 1231 below the grid"), reached independently.
+
+  CONSEQUENCE THE SYNERGY-BOARD SLICE MUST NOT MISS. `.summary` is
+  `repeat(auto-fit, minmax(280px, 380px))` with a 24px column-gap, and auto-fit
+  counts repetitions against the MAX track function when it is definite (CSS
+  Grid L1 §7.2.3.2), i.e. against 380, not 280:
+      885px  → 2 tracks × 380 + 24 = 784 used, 101px slack   [now]
+     1197px  → 3 tracks × 380 + 48 = 1188 used, 9px slack    [pre-F5.4]
+  Three columns became two. A threshold derived from 1197 will over-provision
+  by a whole track. Other widths, same chain: 1045px at 1440/s=17 (still 2
+  tracks, 261px slack), 1196px at 1279/s=17 (below the seam, 3 tracks),
+  685px at 768/s=17, 332px at 390/s=0.
+
+CARRIED FORWARD — recorded, NOT resolved here
+  · README.md is currently MAIN's, taken wholesale by the backmerge. The queued
+    documentation slice replaces it and must preserve main's Vercel content —
+    the static/client-side posture section, the whole "Deploying (Vercel)"
+    section including the custom-domain and DNS steps, and the
+    localStorage-is-keyed-to-origin warning about changing the domain later.
+    main's copy also still says "Status: skeleton", which is 61 commits stale.
+  · index.html's og:title reads "Badge Builder 2K27" while <title> reads
+    "Badge Builder — 2K27". main authored the og tag, dev authored the title;
+    both were preserved verbatim rather than harmonised. A one-word decision
+    for whoever owns the documentation slice.
+  · F8-S2 MUST STILL LAND AFTER A5-E (A5-R8) — `badgeSlotsBaselineText` reads
+    the BASE Σ and appends a bonus clause, so §14.5's goldens must be authored
+    against the POST-A5 function. UNCHANGED by this slice, and now joined by a
+    second reason to re-derive: §14.2's five constants and the 1428/1429 seam
+    were derived against the old 1231/1197 box and must be re-derived against
+    919/885. The branch flagged this itself.
+  · F5.4 §12's note stands: the auto-collapse predicate derives over the
+    `Budget` record, and the queued bonus-UI slice must pass the `BonusBudget`
+    totals in explicitly, because that layer is deliberately never merged into
+    `budgets`.
+  · The A5-U / OQ-A5 position is unchanged by this slice.
+
+KNOWN, AND DELIBERATELY NOT "FIXED"
+The load-dependent vitest flake class. vite.config.ts is untouched, no
+{ timeout: 20000 } was lowered, and no flake was observed across the seven full
+or partial runs this integration made. If one appears, RE-RUN.
+
+HOUSEKEEPING
+  · f54-integrate and f54-rebuild, both throwaways, deleted after dev
+    fast-forwarded.
+  · a5e-trial-merge is STILL PRESENT and still needs the one operator command
+    the last two entries asked for: `git branch -D a5e-trial-merge`. Nothing is
+    at risk; it is an unpushed local ref to bd8c4ad, which stays reachable from
+    a5-e-bonus-engine.
+
+SCOPE / PLAN IMPACT
+None to scope.md / tech-strategy.md / the H-rulings. design-spec §16 is
+implemented as written, including §16.5's supersession of F5.3/A2's
+"do not touch the latch". schemaVersion stays 1, MIGRATIONS stays empty,
+dataVersion and ROLL_ALGORITHM_VERSION untouched.
+
+NEXT
+Merge order stands: F8-S2 → A5-U → F8-R2, and F8-S2 must read BOTH carried-
+forward items above — the post-A5 baseline function AND the 885px box — before
+it authors a single golden.
+─────────────────────────────────────────────
