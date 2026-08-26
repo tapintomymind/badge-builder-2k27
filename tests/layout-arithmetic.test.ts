@@ -2052,6 +2052,51 @@ function sRule(selector: string): string[] {
   return out;
 }
 
+/** Every selector inside `bodies` whose rule takes `property` FROM THE TOKEN.
+ *
+ *  Hoisted out of assertion 27 VERBATIM so the height census read-back, its
+ *  new width counterpart and the canaries in assertion 32 all run the SAME
+ *  scanner. A canary that re-implements the check it is meant to falsify
+ *  proves nothing about the check that ships — it only proves the copy works.
+ *  `bodies` is a parameter for exactly that reason: 32 feeds it a synthetic
+ *  stylesheet and watches this function fail. */
+function floorSelectors(bodies: string[], property: "min-height" | "min-width"): Set<string> {
+  const out = new Set<string>();
+  for (const body of bodies) {
+    for (const rule of body.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!(rule[2] as string).includes(`${property}: var(--tap-target)`)) continue;
+      for (const selector of (rule[1] as string).split(",")) {
+        out.add(selector.trim().replace(/\s+/g, " "));
+      }
+    }
+  }
+  return out;
+}
+
+/** Every `selector { <size-property>: <n>px }` inside `bodies` — a size spelled
+ *  as a NUMBER rather than taken from the token. Same parameterisation and the
+ *  same reason: 31 runs it over the shipped S blocks, 32 over a canary. */
+function literalSizes(bodies: string[]): { selector: string; property: string; value: number }[] {
+  const out: { selector: string; property: string; value: number }[] = [];
+  for (const body of bodies) {
+    for (const rule of body.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selectors = (rule[1] as string).split(",").map((s) => s.trim().replace(/\s+/g, " "));
+      for (const decl of (rule[2] as string).matchAll(
+        /(?:^|;)\s*((?:min-|max-)?(?:width|height))\s*:\s*(\d+)px/g,
+      )) {
+        for (const selector of selectors) {
+          out.push({
+            selector,
+            property: decl[1] as string,
+            value: Number.parseInt(decl[2] as string, 10),
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
 /** The one number the pass turns on, PARSED from tokens.css. */
 const TAP = px(tokens, /--tap-target:\s*(\d+)px/);
 
@@ -2207,15 +2252,9 @@ describe("I6 — the S touch floor, parsed from one token and re-derived per con
     // stylesheet. A new control raised without a census entry fails here, and
     // so does a census entry whose rule was deleted — which is the failure mode
     // an allowlist normally rots into.
-    const declared = new Set<string>();
-    for (const body of S_BODIES) {
-      for (const rule of body.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-        if (!(rule[2] as string).includes("min-height: var(--tap-target)")) continue;
-        for (const selector of (rule[1] as string).split(",")) {
-          declared.add(selector.trim().replace(/\s+/g, " "));
-        }
-      }
-    }
+    // The scan is floorSelectors() — the SAME function assertion 32's canaries
+    // are fired through, so a canary red is evidence about this line.
+    const declared = floorSelectors(S_BODIES, "min-height");
     expect([...declared].sort()).toEqual([...S_TOUCH_FLOOR_CENSUS].sort());
     // The three that already cleared it are NOT in the census and must not be
     // — each is pinned where its own slice wrote it, and duplicating them here
@@ -2299,6 +2338,171 @@ describe("I6 — the S touch floor, parsed from one token and re-derived per con
     expect(SPACE_3).toBe(12); // the single column gap
     expect(RAIL).toBe(300); // the one rail
     expect(SECTION_CHROME).toBe(34); // 1px border + --space-4, both sides
+  });
+});
+
+/* --------------------------------------------- I6, THE OTHER AXIS (§5.3) -- */
+
+/** §5.3's floor is 44 x 44. Everything above grades ONE of those numbers.
+ *
+ *  `min-height` is half an invariant, and the census was structurally blind in
+ *  two directions at once — to a control that is tall enough and TOO NARROW,
+ *  and to a floor spelled as a `44px` LITERAL, which no `var(--tap-target)`
+ *  probe can ever see. Three escapes came through those two holes:
+ *
+ *    1. `.synergy-board__button` — a literal `44px`. F11 predates the pass;
+ *       assertion 27 matches the TOKEN, so the rule was invisible to it.
+ *       Re-pointed and censused at integration.
+ *    2. `.build-panel__reset` — the same shape again, deliberately scoped and
+ *       correctly valued, and outside the census for two slices ([A7]).
+ *    3. `.pin-control` + `.roll-seed__regen` — 36px and 34px WIDE at S while
+ *       clearing the height floor for free by carrying `.btn`. Measured in
+ *       Chrome, not parseable: their width is content-driven, so no assertion
+ *       in this file could have seen it. The roll slice fixed it with a
+ *       `min-width` — and that fix was then held by NOTHING. Its own comment
+ *       says why, in as many words: "a min-width does not match its probe and
+ *       the census stays exact." Deleting the rule kept every test green.
+ *
+ *  Three escapes of one class is a guard problem, not three authoring
+ *  mistakes. So the width axis gets exactly what the height axis already has —
+ *  a NAMED census, read back OUT of the stylesheet so it can rot in neither
+ *  direction — plus a literal sweep that closes the hole shapes 1 and 2 came
+ *  through, plus canaries (assertion 32) that prove both actually go RED.
+ *
+ *  WHAT THIS STILL CANNOT SEE, stated so the next slice does not over-trust
+ *  it: a control whose width is content-driven and merely SMALL declares
+ *  nothing, so nothing can be parsed. Escape 3 was found in the browser and
+ *  the empirical census in docs/proof/f9-verification.txt is keyed on height
+ *  (`h=`) with one hand-noted width. This block locks the FIX in place and
+ *  makes the next one impossible to delete silently; it does not replace the
+ *  measurement that finds them. */
+
+/** The width-axis counterpart of S_TOUCH_FLOOR_CENSUS, on the same contract:
+ *  assertion 31 proves it is neither short nor long against the stylesheet. */
+const S_TOUCH_FLOOR_WIDTH_CENSUS = [
+  // The shipped precedent. The tier chips are narrower than they are tall — a
+  // 26px `A` fails 44x44 on the width axis first — so they take the floor
+  // twice. Assertion 24 has always spot-checked this one; it is censused here
+  // so it is covered by the read-back rather than by a single toContain.
+  ".filter-chip",
+  // Escape 3, now held. `Pin` measured 36px and the single-glyph regen `⟳`
+  // 34px at S, both already 44 tall through `.btn`.
+  ".pin-control",
+  ".roll-seed__regen",
+] as const;
+
+/** The four rules permitted to spell a size as a NUMBER inside an S block.
+ *  Each is frozen by an assertion that names the literal, which is why it may
+ *  not be re-pointed at the token here: doing so would redden the very
+ *  assertion that pins it. Anything NOT on this list must use the token. */
+const S_LITERAL_SIZE_EXEMPT = new Set([
+  ".pip", // F5.3, frozen — assertion 8 matches `width: 44px` verbatim
+  '.attr-slider__row input[type="range"]', // F3 — assertion 27 pins the height
+  '.attr-slider__row input[type="range"]::-webkit-slider-thumb', // F3, same rule
+  '.attr-slider__row input[type="range"]::-moz-range-thumb', // F3, same rule
+]);
+
+describe("I6 — the S touch floor on the WIDTH axis, and the literal blind spot", () => {
+  it("30 — every width-census control declares the floor at S, from the token", () => {
+    for (const selector of S_TOUCH_FLOOR_WIDTH_CENSUS) {
+      const rules = sRule(selector);
+      expect(rules, `no S rule for ${selector}`).toHaveLength(1);
+      const rule = rules[0] as string;
+      expect(rule, `${selector} does not take the WIDTH floor`).toContain(
+        "min-width: var(--tap-target)",
+      );
+      // The same reasoning assertion 24 applies to height: a fixed `width`
+      // clips, and a `max-width` under the floor silently defeats min-width on
+      // the used value no matter what order the rules land in.
+      expect(rule, `${selector} sets a fixed width`).not.toMatch(/(?:^|;)\s*width:/);
+      expect(rule, `${selector} caps its own width`).not.toMatch(/(?:^|;)\s*max-width:/);
+    }
+    // …and the floor they take is the one that clears the standard. TAP is
+    // graded in 23; this ties the width axis to the same number rather than
+    // letting it ride on a token that only the height axis checks.
+    expect(TAP).toBeGreaterThanOrEqual(WCAG_TARGET_SIZE);
+  });
+
+  it("31 — the width census is exactly the stylesheet: not short, and not long", () => {
+    // The direct analogue of 27, through the same scanner. A control given a
+    // min-width without a census entry fails here; so does a census entry
+    // whose rule was deleted — which is precisely how escape 3's fix was
+    // unprotected before this assertion existed.
+    const declared = floorSelectors(S_BODIES, "min-width");
+    expect([...declared].sort()).toEqual([...S_TOUCH_FLOOR_WIDTH_CENSUS].sort());
+
+    // THE LITERAL SWEEP — the hole escapes 1 and 2 came through. A floor
+    // property spelled as a number is invisible to both read-backs, so it is
+    // banned outright: there is no legitimate `min-height: 44px` or
+    // `min-width: 44px` in this stylesheet and there are zero today.
+    for (const { selector, property, value } of literalSizes(S_BODIES)) {
+      if (property === "min-height" || property === "min-width") {
+        expect.fail(
+          `${selector} spells ${property} as ${value}px — use var(--tap-target) ` +
+            `so the census can see it (this is the F11 / [A7] escape shape)`,
+        );
+      }
+      // A hard `height`/`width` number is allowed only for the frozen four,
+      // each pinned by an assertion that matches the literal itself.
+      expect(
+        S_LITERAL_SIZE_EXEMPT.has(selector),
+        `${selector} hard-codes ${property}: ${value}px at S and is not a frozen rule`,
+      ).toBe(true);
+    }
+  });
+
+  it("32 — THE CANARIES: both new checks are red against the defects they name", () => {
+    // A guard without a canary is how this became a recurring class rather
+    // than a one-off, so each check below is fired at a stylesheet that
+    // CONTAINS the defect, through the same functions the shipped assertions
+    // use. If a refactor guts floorSelectors() or literalSizes(), these fail.
+
+    // (a) DELETE ESCAPE 3'S FIX. The exact regression 31 exists to catch: the
+    //     `min-width` rule goes away, every height assertion stays green, and
+    //     the two controls are 36 / 34 wide again.
+    const withoutFix = cssPlain.replace(
+      /\.pin-control,\s*\.roll-seed__regen \{\s*min-width: var\(--tap-target\);\s*\}/,
+      ".pin-control, .roll-seed__regen { color: inherit; }",
+    );
+    expect(withoutFix, "the canary did not actually remove the rule").not.toBe(cssPlain);
+    const afterDeletion = floorSelectors(mediaBodies(withoutFix, "(max-width: 767px)"), "min-width");
+    expect([...afterDeletion].sort()).not.toEqual([...S_TOUCH_FLOOR_WIDTH_CENSUS].sort());
+    expect(afterDeletion.has(".pin-control")).toBe(false);
+    expect(afterDeletion.has(".roll-seed__regen")).toBe(false);
+
+    // (b) A NEW TOO-NARROW CONTROL. Tall enough, 34px wide, and declaring it —
+    //     the shape a future slice adds. The width read-back is LONG and fails.
+    const narrowSheet = `@media (max-width: 767px) {
+      .canary-narrow { min-height: var(--tap-target); min-width: 34px; }
+    }`;
+    const narrowBodies = mediaBodies(narrowSheet, "(max-width: 767px)");
+    // It clears the HEIGHT read-back — that is the whole point, and why the
+    // height census alone certified escape 3.
+    expect(floorSelectors(narrowBodies, "min-height").has(".canary-narrow")).toBe(true);
+    // …and the literal sweep is what catches it.
+    const narrowHits = literalSizes(narrowBodies).filter(
+      (hit) => hit.property === "min-width" && hit.value < WCAG_TARGET_SIZE,
+    );
+    expect(narrowHits).toHaveLength(1);
+    expect(narrowHits[0]?.selector).toBe(".canary-narrow");
+
+    // (c) A HARD-CODED FLOOR — escapes 1 and 2 verbatim. Correct VALUE, wrong
+    //     spelling, invisible to both token read-backs and caught by the sweep.
+    const literalSheet = `@media (max-width: 767px) {
+      .canary-literal { min-height: 44px; }
+    }`;
+    const literalBodies = mediaBodies(literalSheet, "(max-width: 767px)");
+    expect(floorSelectors(literalBodies, "min-height").size).toBe(0); // invisible, as it was
+    const literalHits = literalSizes(literalBodies);
+    expect(literalHits).toHaveLength(1);
+    expect(literalHits[0]).toEqual({ selector: ".canary-literal", property: "min-height", value: 44 });
+    expect(S_LITERAL_SIZE_EXEMPT.has(".canary-literal")).toBe(false);
+
+    // (d) …and the sweep is not vacuous on the SHIPPED sheet: it really does
+    //     parse the frozen four, rather than returning nothing and passing.
+    const shipped = literalSizes(S_BODIES).map((hit) => hit.selector);
+    expect(shipped).toContain(".pip");
+    expect(new Set(shipped)).toEqual(S_LITERAL_SIZE_EXEMPT);
   });
 });
 
