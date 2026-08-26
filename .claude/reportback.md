@@ -5457,3 +5457,289 @@ NEXT
   · The I2 `.segmented label:has(input:disabled)` opacity, for the next §6 pass.
   · Merge is Tier 1's. `dev` is untouched at a5fe8e1 and `main` at 444d034.
 ─────────────────────────────────────────────
+
+## 2026-08-26 · F8-S2 · slice-complete — the loadout roster, the Synergy digest, the copyable text block
+
+**Event:** `milestone-complete` (constrained mode, §7.1 fields below)
+**Branch:** `f8-s2-summary`, cut from local `dev` @ `a5fe8e1`. **`main` untouched. Not merged to `dev`.**
+**Commits:** `ca3792a` implementation · this entry.
+**Suite:** 1204 → **1268** (62 → 66 files). `typecheck` clean, `build` clean.
+
+### The two carried-forward obligations, both discharged BEFORE a golden was authored
+
+The previous entry's `NEXT` said F8-S2 must read both before writing anything. It did.
+
+1. **POST-A5 baseline.** `badgeSlotsBaselineText` reads the **base** Σ and appends a bonus clause.
+   No golden is transcribed at all (see below), so the text-block test asserts against
+   `formatSummaryText`'s live output; the Σ-line assertion additionally pins
+   `summary.bonus.earnedEquipSlots === 0` and the *absence* of `bonus Badge Slots applied` on a
+   zero-bonus fixture, so the post-A5 clause is exercised as a discriminating condition rather than
+   silently satisfied.
+2. **THE BOX.** Re-derived from the shipped CSS, not estimated:
+
+   ```
+   1280 − 17 (scrollbar)                        = 1263  ICB
+        − 32  (.layout padding, 2 × --space-4)  = 1231  ← the PRE-F5.4 box §14.2 used
+        − 300 (attributes pane) − 12 (col-gap)  =  919  ← .col-right
+        − 2 (.section border) − 32 (.section__body padding) = 885  ← .summary
+   ```
+
+   **`.summary` is 885px at 1280/s=17.** The brief's checklist item *"SummaryPanel inside
+   `.panel-below`"* is false — F5.4 deleted that class outright (assertion 19 forbids the string
+   anywhere in `app.css` or `src/**`); the panel is `#panel-summary` inside `.col-right`. The stale
+   `app.css` comment citing "a 1231px below-grid box" is corrected in this slice.
+
+### Everything §14.2 derived downstream of the box is void, and is re-derived
+
+| | §14.2 (against 1231) | Re-derived (against 885) |
+|---|---|---|
+| Roster columns at 1280 | 2 | **1** |
+| Roster columns at 1440 | 3 | **2** |
+| 2-up seam | — | **1307** |
+| 3-up seam | **1429** | **1775** — off every target width |
+
+The **five constants do not move** — they are properties of a roster row, not of a viewport — and
+`ROSTER_ROW_MAX 412` / `ROSTER_GROUP_FLOOR 444` / `ROSTER_TABLE_MAX 520` are now **derived in the
+test from the five**, with `ROSTER_NAME_MAX` computed off the **dataset's own longest name**
+(`"Versatile Visionary"`, 19ch) rather than transcribed. A longer name in a future dataset raises
+the floor and moves every seam, which is the point of deriving it.
+
+**A 1-up roster at 1280 is not a defect.** A group's table is capped at `ROSTER_TABLE_MAX 520`
+regardless, so 1-up is a 520px table in an 885px box, not a stretched one. The cap is what §14.2's
+76px of "slack" exists to enforce.
+
+### THREE GEOMETRY FINDINGS, none of them mine to fix, all now pinned
+
+1. **REGION B IS 3px FROM A REFLOW, AND ALREADY ON BOTH SIDES OF IT IN THE FIELD.** Three tracks
+   need `3 × 280 + 2 × 24 = 888`; the box is **885** at a 17px scrollbar and **902** at a 0px overlay
+   scrollbar. **The same build renders the two legacy tables 2-up on Windows/Linux and 3-up on
+   macOS.** Not introduced here and not harmful (the tables are capped at 380 either way), but it
+   was entirely unobserved: the shipped assertion checked the `minmax()` *shape* and never the
+   resolved count. Now pinned by outcome — the count at s = 0/15/17, the 3px margin, the 101px of
+   trailing slack, and the derived boundary (a scrollbar of **≤ 14px** buys the third track).
+2. **THE PANE MAKES 1279 WIDER THAN 1280 FOR THIS PANEL.** The 300px pane + 12px gap arrive at
+   exactly 1280, so `.summary` goes 1196 → 885 and the roster goes **2-up → 1-up as the viewport
+   grows by one pixel**. A consequence of §16's own ratified arithmetic. Pinned and named so it is
+   not rediscovered as a bug.
+3. **§14.2's S-width figures are 34px optimistic** (334/366 vs the real 332) for the same
+   `<Section>`-chrome reason T16 was caused by. Headroom is unaffected: row min-content is 246 with
+   R2's pin column and **178 without it** (this slice renders no pin column), against a 300px group
+   content box — +122 today, +86 after R2 lands. Nothing overflows, nothing scrolls.
+
+### §14.6's optional projection element is NOT BUILT, and that is a finding
+
+§14.6 permits one labelled per-row projection in the roster. **It cannot ship in this slice.**
+`tests/ui/overlays.test.tsx` compares the **whole `.summary` subtree's `textContent`** as one node —
+not a column list — so *any* overlay-dependent node anywhere inside `.summary` reddens a
+RUN-never-edit gate. The roster therefore consumes `buildSummary` only (a selector with no
+`OverlayState` parameter) and is invariant end to end, which is what §14.6 actually wanted. Admitting
+a labelled projection requires re-cutting that gate's selector list first — **a design question,
+routed, not decided here.** `tests/ui/f8-roster-h2.test.tsx` pins the absence so it stays a decision.
+
+### GOLDENS: generated, never transcribed (§14.5.1), and it paid off within the hour
+
+`tests/ui/f8-fixture.ts` is **one in-code fixture**. Both the panel and `formatSummaryText` are
+rendered from it, and every expected substring is computed by the same engine call the panel makes
+(`buildSummary`, `synergyProjections`, `validateBadge`, `costForLevel`, `overByBadgePoints` /
+`overByBadgeSlots`). Only **structural** literals are hand-written: a marker is present, the Σ line
+is absent, the tally equals the purchase count, the footnote counts 6.
+
+**PROVEN, not asserted.** A throwaway three-way merge of this branch with `a6-e-cap-breakers` and
+`f9-touch-floors` was built and run: **1321 tests green**, the only conflict this very file, and
+`app.css` + `layout-arithmetic.test.ts` **auto-merged**. The roster's stale row came out reading
+
+```
+⚠ Purchased at Gold; this build no longer qualifies — needs 90 Close (now 85) or 93 Layup (now 80) for Gold.
+```
+
+— A6-E's **post-② near-miss form**, absorbed with **zero edits to this slice**. A transcribed golden
+would have been the string that silently reverted it.
+
+### One shipped test file's ASSERTION reddened, and the redness was the right answer
+
+The roster first used the card's exact stale sentence (`Purchased at Gold — no longer meets
+requirements: …`) on the honest reasoning that reusing a shipped phrasing beats authoring a second
+one. That made `tests/ui/f2-eligibility-disclosure.test.tsx` and
+`tests/ui/attribute-slider.test.tsx` fail **multiple-match** — two nodes, one string, one screen.
+Both are RUN-never-edit paths and **neither was touched**: the roster took §14.4's own phrasing
+instead and the card kept its unique one. The shared thing is the FACTS (one predicate, one reason
+array); the sentence is per-surface, exactly as §3.4 already had it.
+
+### `tests/layout-arithmetic.test.ts`: ONE shipped assertion re-pointed, and why that is not an edit-to-pass
+
+F5.4's own `"the summary tables are capped rather than stretched"` carried the explicit relay:
+*"the relay to F8-S2, which must re-derive §14.2's five constants and the 1428/1429 seam."* §14.2
+answers it by **moving the cap's selector without moving one character of the declaration** —
+`repeat(auto-fit, minmax(280px, 380px))` is now on `.summary__tables`, because §13.5 measured it
+against those two tables' 196px max-content and that derivation is still correct. The assertion is
+the same assertion, re-pointed, plus its complement (`.summary` must now carry **no** cap).
+
+### MERGE-CONFLICT FORECAST — measured with `git merge-tree`, not guessed
+
+| Branch | Result |
+|---|---|
+| `a6-e-cap-breakers` (sealed) | **clean** — plus this file. Verified by a real three-way merge + full suite. |
+| `f9-touch-floors` (sealed) | **clean** — plus this file. Same verification. |
+| `f13-physique-strip` | **clean** — plus this file. |
+| `a5-u-bonus-mode` | **clean** |
+| `f8-r2-roll-ui` | **does not exist yet.** Forecast below. |
+| `f10-feedback-loop` | **does not exist yet.** Forecast below. |
+
+**Two collisions were avoided by relocation rather than discovered at merge time**, both on the
+coordinator's warning:
+
+- **`tests/layout-arithmetic.test.ts`** — F9 appended 278 lines to the foot of the file and F13
+  appends 209 more. This slice's block is **nested inside the existing §16.7 `describe`**, which is
+  where it belongs semantically (§16.7 is what made the box 885) and is clear of both hunks.
+- **`src/styles/app.css`** — F9 appends 221 lines to the foot. This slice's `@media print` block was
+  moved **out of the foot** to sit immediately after the surfaces it overrides. That is also the
+  cascade-correct home: its non-`!important` declarations (the caption's 700 weight, the group's
+  black border, `break-inside`) must follow the rules they beat.
+
+**`f8-r2-roll-ui` — the slice this one most affects.** R2 inherits a roster built to host it:
+`PIN_CHIP_MAX 60` is **in the derived floor and not in the DOM**, so R2 can add the pin column
+without moving a constant or re-deriving a seam. R2 will touch `LoadoutRoster.tsx` (the pin `<td>`,
+the `<tfoot>` re-roll control), `SummaryPanel.tsx` (region 3, `RollPanel` — no space is reserved for
+it), `app.css` and this slice's four test files. **Two live hazards for R2:** (a) `RollPanel` output
+inside `.summary` joins `overlays.test.tsx`'s whole-subtree comparison — a roll report that varies
+with an overlay reddens the gate; (b) `tests/vocabulary.test.ts` CLASS 2 gains
+`src/ui/summary/RollPanel.tsx`, and `LoadoutRoster.tsx` is **not** in that scope today.
+
+**`f10-feedback-loop`** — no forecast is possible without a brief. The surfaces this slice claims are
+`src/ui/summary/{LoadoutRoster,SynergyDigest,SummaryTextBlock}.tsx`, `.summary*` /
+`.summary-roster*` / `.synergy-digest*` / `@media print` in `app.css`, `FilterState.purchasedOnly`,
+and `SummaryPanel`'s new `summary` / `synergy` / `buildName` props.
+
+### CONSTRAINED-MODE FIELDS
+
+**`changed_files`** — all inside the allowlist bar one, disclosed below:
+```
+src/ui/summary/LoadoutRoster.tsx      NEW   components #29 + RosterGroup + RosterRow
+src/ui/summary/SynergyDigest.tsx      NEW   component #30, read-only
+src/ui/summary/SummaryTextBlock.tsx   NEW   component #31, renders formatSummaryText()
+src/ui/summary/SummaryPanel.tsx       EXTENDED
+src/ui/grid/FilterBar.tsx             the Purchased chip only
+src/App.tsx                           three edits, named below
+src/styles/app.css                    §14.2 two-region + roster + digest + copy + @media print
+tests/ui/f8-roster.test.tsx           NEW  (17)
+tests/ui/f8-roster-h2.test.tsx        NEW  (4)
+tests/ui/f8-summary-text.test.tsx     NEW  (7)
+tests/ui/f8-filter-purchased.test.tsx NEW  (4)
+tests/ui/f8-fixture.ts                NEW  ← NOT in the allowlist. Disclosed, see below.
+tests/layout-arithmetic.test.ts       §14.2 block nested in §16.7 + one assertion re-pointed
+tests/category-colors.test.ts         ADD ONLY — six new assertions, none edited
+.claude/reportback.md                 this entry
+```
+
+**`tests/ui/f8-fixture.ts` — the one path outside the allowlist, and why.** §14.5.1 requires **one**
+fixture rendered by **both** the panel and the text; four test files consume it. Exporting it from a
+`.test.tsx` would re-run that file's `describe`s in three others. It follows the shipped convention
+for non-test support modules in this directory (`tests/ui/m4-rig.ts`, `tests/ui/storage-stub.ts`) and
+builds on `makeRig` rather than authoring a second envelope shape.
+
+**`denied_paths_checked` — I did not touch these:** `src/engine/**` (every selector was already
+there; nothing was added and no rule was re-implemented in a `.tsx`) · `src/styles/tokens.css`
+(**zero new tokens**) · `src/ui/grid/BadgeCard.tsx` · `src/ui/build/BudgetGrid.tsx` ·
+`src/ui/grid/CategoryLedger.tsx` (**imported from**, never edited — that is the "one builder, four
+consumers" mechanism) · `src/ui/synergy/**` · `src/ui/shell/**` · `src/ui/builds/**` ·
+`tests/ui/overlays.test.tsx` · `tests/vocabulary.test.ts` · `tests/architecture.test.ts` ·
+`tests/feasibility-golden.test.ts` · `tests/ui/f2-*` · `tests/ui/summary-import-export.test.tsx` ·
+`tests/ui/category-ledger.test.tsx` · `package.json` / `package-lock.json` / `vite.config.ts` /
+`tsconfig.json` / `.env*` · `src/data/**` / `src/config/**` / `src/persist/**` / `src/main.tsx` /
+`scripts/**` · `main`. **No test helper signature changed** (`px`, `blocksFor`, `spaceIn`,
+`spaceToken`, `stripComments`, `cssBlock` are all untouched) — F9's assertions depend on that.
+
+**`first_proof_result`** — **the browser proof was NOT run: the dispatch forbade starting a dev
+server.** Stated plainly rather than implied. What replaced it, and what it does and does not cover:
+
+- (a) **rows carry badge names** — asserted on the rendered tree in jsdom: one `<table>` per
+  non-empty category, `<th scope="row">` per purchased badge, in dataset order, and each of the 49
+  unpurchased badges asserted **absent**.
+- (b) **every row on one line at 1280** — **NOT verified visually.** jsdom does no layout. It is
+  discharged **arithmetically** against the re-derived 885px box: group content box 512 (1-up,
+  capped by `ROSTER_TABLE_MAX`) against `ROSTER_ROW_MAX` 412 — and 352 of that 412 is what actually
+  renders, since the pin column does not. **This is the one claim in the slice that wants an eye on
+  it**, and it is why the constants are derived in-test rather than pinned.
+- (c) **the stale row reads the engine's own reason sentence** — asserted against
+  `validateBadge(...).reasons`, and reproduced verbatim above from the post-merge probe.
+- **State 32(a), the LAN clipboard path** — the LAN origin was unreachable (no server), so it is
+  covered by `navigator.clipboard` **stubbed to `undefined`**, which the brief names as the
+  permitted substitute. It is the DEFAULT for every test in that file, not an afterthought.
+- **Print preview** — not run. The print block is asserted structurally (black-on-white present, no
+  `@page`, no `grid-template-columns`, no font change) by brace-counted extraction rather than a
+  slice-to-EOF, so a later append cannot silently empty the assertion.
+- **No `docs/proof/f8s2-*.png`** exists, for the same reason. `docs/proof/**` is untouched.
+
+**`verification_evidence`**
+```
+npm test          62 files / 1204 tests  →  66 files / 1268 tests   ALL PASS
+npm run typecheck clean
+npm run build     clean (tsc --noEmit && vite build; 73 modules, 303.25 kB js / 43.52 kB css)
+EXPLICIT, unedited:
+  tests/ui/overlays.test.tsx        PASS   ← .summary IS in its selector list. THE gate.
+  tests/category-colors.test.ts     PASS   (15 shipped + 6 added)
+  tests/feasibility-golden.test.ts  PASS   — no golden cell moved
+  tests/vocabulary.test.ts          PASS   — H1 clean across the three new files
+  tests/architecture.test.ts        PASS   — deps still exactly {react, react-dom}
+  tests/layout-arithmetic.test.ts   PASS   (80)
+  tests/ui/summary-import-export.test.tsx · f2-disclosure-surfaces · f2-eligibility-disclosure ·
+  category-ledger                   PASS
+NEW: f8-roster 17 · f8-roster-h2 4 · f8-summary-text 7 · f8-filter-purchased 4
+THREE-WAY MERGE PROBE (throwaway): f8-s2 + a6-e-cap-breakers + f9-touch-floors
+                  1321 tests PASS, typecheck clean, only .claude/reportback.md conflicted
+git status --porcelain: only allowlisted paths (+ tests/ui/f8-fixture.ts, disclosed)
+No flake observed in any run; no { timeout: 20000 } was lowered; vite.config.ts untouched.
+```
+
+**`heartbeats_emitted`** — 0 as discrete messages. The dispatch was a single-turn agent task with two
+mid-task course corrections from the coordinator (the 885 measurement + the column-count ask; then
+the A6-E and F9 collision warnings), each acknowledged and acted on inline. Recorded as a deviation
+from the 5-minute cadence rather than claimed.
+
+**`stop_conditions_triggered`** — none. Four were approached and none crossed:
+1. **A `--cat-*` selector beyond the caption** — not needed. The caption is wired through six
+   explicit `var(--cat-{key})` rules rather than `--cat` inheritance, so the inherited property never
+   enters `.summary` and §2.8.1's shipped channel lint stays exactly as true as before.
+2. **Engine code** — none written. The one function that could have been engine-side,
+   `capacityFootnote`, is UI copy over an engine count and is pinned equal to `formatSummaryText`'s
+   own footnote in-test.
+3. **A denied path** — `SummaryPanel`'s new props are **optional** for one reason only: making them
+   required broke `tests/ui/f2-disclosure-surfaces.test.tsx`, which mounts the component directly
+   and is RUN-never-edit. **The App always supplies them, and `f8-roster` asserts it does** so the
+   degradation cannot arrive silently. If a later slice is permitted to touch that file, the props
+   should become required and the fallback deleted — **flagged, not buried.**
+4. **A literal hex in `app.css`** — five, all inside `@media print`, all reproduced verbatim from
+   §14.5's own block. Print is the legibility override, not identity styling; `#fff`/`#000` are the
+   only correct values and a token would be wrong. Disclosed because the allowlist line says
+   "a literal hex … is a stop-and-report".
+
+### AJ-5 / AJ-10 / H2 / H4 / H8 — the named rulings, confirmed
+
+- **AJ-5** — **no Σ-vs-20 row in the panel**, asserted on a fixture where every capacity is entered
+  so the line *would* be comparable. It lives in the text block only, because the text leaves the app
+  and `BudgetTotalRow` cannot travel with it.
+- **AJ-10** — no badge description, no `<details>`, no NEW chip inside `.summary-roster`, asserted by
+  scanning all 53 dataset descriptions against the roster's `textContent`.
+- **H2** — purchased level, cost, effective level, both `<tfoot>`s, the Synergy digest, both legacy
+  tables and the text block are byte-identical across all four overlay combinations, and the test
+  proves the toggles genuinely moved something first, so the invariance is not vacuous.
+- **H4** — `over by N ⚠` is **per-metric**: the two flagged nodes are asserted to be exactly the two
+  builder outputs, and the `<caption>` carries no state class (I10).
+- **H8** — the stale entry is disclosed and left exactly where it is, at the level it was bought at.
+
+### CROSS-SLICE OBLIGATIONS
+
+1. **Designer** — §14.2's constants table, its 1428/1429 seam and its S-width figures are void
+   against the shipped tree; the re-derived values are above and in-test. §14.6's projection element
+   is unbuildable while `overlays.test.tsx` compares `.summary` whole. Both want a rev-9 note.
+2. **F8-R2** — read the pin-column and CLASS-2 hazards above before starting.
+3. **Operator** — a throwaway local branch `f8s2-merge-probe` remains (the merge-probe commit); its
+   worktree is removed and `git branch -D f8s2-merge-probe` was **denied by the permission layer**,
+   so it needs one operator command. Nothing is at risk. `a5e-trial-merge` from two entries ago is
+   still outstanding on the same footing.
+
+### NEXT
+
+Merge order is unchanged: **F8-S2 → A5-U → F8-R2**. F8-S2 is clean against every sealed sibling and
+against `f13-physique-strip`; the only expected conflict on any of them is this append-only file.
+─────────────────────────────────────────────
