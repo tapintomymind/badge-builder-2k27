@@ -107,8 +107,11 @@ describe("C — HardViolations render in the validation surface", () => {
     // move is the difference between a disclosure and a riddle.
     expect(
       screen.getByText(
+        // The count and the ids come from the HAND-BUILT violation above, not
+        // from the ratified set — this fixture never touches the engine. Only
+        // the trailing ratified-set sentence moves with [A7].
         "3 Synergy Slots are designated +2 (Synergy Slots 1, 2, 3) — at most 2 allowed. " +
-          "Synergy Slot 7 is 2K's ratified +2 (Build Specialization), so it is not the one to clear.",
+          "Synergy Slots 7 and 8 are 2K's ratified +2, so they are not the ones to clear.",
       ),
     ).toBeTruthy();
   });

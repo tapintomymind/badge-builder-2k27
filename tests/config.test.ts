@@ -12,6 +12,7 @@ import {
   plusTwoSlotIds,
 } from "../src/config";
 import {
+  MAX_PLUS_TWO_SYNERGY_SLOTS,
   RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS,
   createDefaultSynergySlots,
 } from "../src/engine/synergy";
@@ -31,8 +32,15 @@ describe("config seams for the three unpublished 2K facts", () => {
     expect(defaultAppConfig.plusTwoSlotIds).toBeNull();
   });
 
-  it("F4 7.3 — RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS is [7] (Build Specialization Level 10)", () => {
-    expect([...RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS]).toEqual([7]);
+  it("F4 7.3 / A7 — RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS is [7, 8] and FILLS the sealed cap", () => {
+    // 7 = Build Specialization Level 10. 8 = the second +2, user-ratified
+    // 2026-08-26 (the confirmation F11 recorded while this set held one id).
+    expect([...RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS]).toEqual([7, 8]);
+    // THE CAP IS NOW EXACTLY FULL, which is what retires the designator
+    // banner. Asserted as a RELATION, not a second literal: if a future id is
+    // added without raising the cap, this reddens instead of shipping a
+    // ratified set the validator will immediately call a violation.
+    expect(RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS.length).toBe(MAX_PLUS_TWO_SYNERGY_SLOTS);
   });
 
   /**
@@ -49,13 +57,13 @@ describe("config seams for the three unpublished 2K facts", () => {
     expect(defaultAppConfig.plusTwoSlotIds).toBeNull();
   });
 
-  it("F4 7.6(b) — createDefaultSynergySlots(null) yields EXACTLY ONE +2, and it is Synergy Slot 7", () => {
+  it("F4 7.6(b) / A7 — createDefaultSynergySlots(null) yields EXACTLY TWO +2: Synergy Slots 7 and 8", () => {
     const plusTwo = createDefaultSynergySlots(null).filter((slot) => slot.magnitude === 2);
-    expect(plusTwo).toHaveLength(1);
-    expect(plusTwo[0]?.id).toBe(7);
+    expect(plusTwo).toHaveLength(2);
+    expect(plusTwo.map((slot) => slot.id)).toEqual([7, 8]);
   });
 
-  it("F4 7.6(c) — createDefaultSynergySlots([3,6]) yields THREE +2: documented, UNREACHABLE-IN-APP behaviour", () => {
+  it("F4 7.6(c) — createDefaultSynergySlots([3,6]) yields FOUR +2: documented, UNREACHABLE-IN-APP behaviour", () => {
     // The derivation deliberately does NOT enforce the cap. The cap belongs
     // to validateLoadout's tooManyPlusTwoSynergySlots, once, and this
     // function's job is to derive faithfully. The state is unreachable in the
@@ -63,8 +71,10 @@ describe("config seams for the three unpublished 2K facts", () => {
     // site (App.tsx freshWorkingState), it passes
     // defaultAppConfig.plusTwoSlotIds, that constant is null, and NOTHING
     // ever writes it (the designator writes magnitudes onto the slots).
+    // [A7] FOUR now, not three — the ratified set grew by one and the
+    // derivation still refuses to drop a designated id.
     const plusTwo = createDefaultSynergySlots([3, 6]).filter((slot) => slot.magnitude === 2);
-    expect(plusTwo.map((slot) => slot.id)).toEqual([3, 6, 7]);
+    expect(plusTwo.map((slot) => slot.id)).toEqual([3, 6, 7, 8]);
   });
 
   it("budget strategy defaults to manual (Open item #3)", () => {

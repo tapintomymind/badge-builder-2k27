@@ -27,8 +27,11 @@ import { newBuildId, saveNamedBuild, writeAutosave } from "../../src/persist/loc
 import { makeRig } from "./m4-rig";
 import { installMemoryLocalStorage } from "./storage-stub";
 
+// [A7] Two ratified ids now, so the subject is plural and the verb agrees —
+// and the provenance clause dropped "Build Specialization", which is Synergy
+// Slot 7's alone and was never published for Synergy Slot 8.
 const DISCLOSURE =
-  /Synergy Slot 7 is now \+2 — 2K's Build Specialization reward, confirmed 2026-08-26\./;
+  /Synergy Slots 7 and 8 are now \+2 — 2K's ratified Badge Synergy rewards, confirmed 2026-08-26\./;
 
 beforeEach(() => {
   installMemoryLocalStorage();
@@ -71,12 +74,15 @@ function staleRig(extra?: Partial<Record<number, Partial<SynergySlot>>>): SavedB
 }
 
 describe("F4 7.1 — Synergy Slot 7 ships +2 for a FRESH build", () => {
-  it("the fresh path gives Synergy Slot 7 magnitude 2 and every other synergy slot 1", () => {
+  it("the fresh path gives Synergy Slots 7 AND 8 magnitude 2 and every other synergy slot 1", () => {
     render(<App />);
-    expect((within(row(7)).getByRole("radio", { name: "+2" }) as HTMLInputElement).checked).toBe(
-      true,
-    );
-    for (const id of [1, 2, 3, 4, 5, 6, 8]) {
+    for (const id of [7, 8]) {
+      expect(
+        (within(row(id)).getByRole("radio", { name: "+2" }) as HTMLInputElement).checked,
+        `Synergy Slot ${id}`,
+      ).toBe(true);
+    }
+    for (const id of [1, 2, 3, 4, 5, 6]) {
       expect(
         (within(row(id)).getByRole("radio", { name: "+1" }) as HTMLInputElement).checked,
         `Synergy Slot ${id}`,
@@ -126,16 +132,28 @@ describe("F4 7.2/7.7 — the ratified +2 is engine-enforced, not attribute-enfor
     expect(latest.find((slot) => slot.id === 7)?.magnitude).toBe(2);
   });
 
-  it("7.2 — a user-designated Synergy Slot CAN be returned to +1", () => {
+  it("7.2 / A7 — RE-CUT: the ratified pair FILLS the cap, so no user designation is offered at all", () => {
+    // WHAT THIS TEST USED TO PROVE — that a user-designated +2 could be
+    // returned to +1 — is now UNREACHABLE from the shipped app, because the
+    // designation it depended on cannot be made in the first place. Asserting
+    // the old flow would have meant fabricating a state the UI refuses.
+    //
+    // The invariant that replaces it is the one that still has teeth: the
+    // +2 affordance is DISABLED on every non-ratified Synergy Slot, with the
+    // cap named, and the ratified pair holds.
     render(<App />);
-    fireEvent.click(within(row(5)).getByRole("radio", { name: "+2" }));
-    expect((within(row(5)).getByRole("radio", { name: "+2" }) as HTMLInputElement).checked).toBe(
-      true,
-    );
-    fireEvent.click(within(row(5)).getByRole("radio", { name: "+1" }));
-    expect((within(row(5)).getByRole("radio", { name: "+1" }) as HTMLInputElement).checked).toBe(
-      true,
-    );
+    for (const id of [1, 2, 3, 4, 5, 6]) {
+      const plusTwo = within(row(id)).getByRole("radio", { name: "+2" }) as HTMLInputElement;
+      expect(plusTwo.disabled, `Synergy Slot ${id} +2 must be blocked`).toBe(true);
+      expect(plusTwo.checked, `Synergy Slot ${id}`).toBe(false);
+    }
+    // …and the ratified pair is disabled the OTHER way: +1 is what they refuse.
+    for (const id of [7, 8]) {
+      expect(
+        (within(row(id)).getByRole("radio", { name: "+1" }) as HTMLInputElement).disabled,
+        `Synergy Slot ${id} +1 must be refused`,
+      ).toBe(true);
+    }
   });
 });
 
@@ -231,21 +249,27 @@ describe("F4 7.4 [A2] — load normalization + the disclosure, at ALL THREE rout
     expect(screen.queryByText(DISCLOSURE)).toBeNull();
   });
 
-  it("OVER-CAP: a pre-F4 build designating two OTHER +2 loads at THREE, discloses, and UN-DESIGNATES NOTHING", () => {
+  it("OVER-CAP: a pre-F4 build designating two OTHER +2 loads at FOUR, discloses, and UN-DESIGNATES NOTHING", () => {
+    // [A7] The same fixture is now FOUR over-cap rather than three, because
+    // load normalization re-derives BOTH ratified ids onto it. THE RULING IS
+    // UNCHANGED AND IS THE POINT OF THE TEST: the app discloses the state and
+    // un-designates nothing. A silent drop of the user's 3 and 6 to get back
+    // under the cap is precisely the auto-migration H8 forbids, and it would
+    // now be twice as tempting.
     const overCap = staleRig({ 3: { magnitude: 2 }, 6: { magnitude: 2 } });
     expect(writeAutosave(overCap).ok).toBe(true);
     render(<App />);
 
-    for (const id of [3, 6, 7]) {
+    for (const id of [3, 6, 7, 8]) {
       expect(
         (within(row(id)).getByRole("radio", { name: "+2" }) as HTMLInputElement).checked,
         `Synergy Slot ${id}`,
       ).toBe(true);
     }
-    // The HARD violation surfaces, with copy naming slot 7 as the ratified one.
+    // The HARD violation surfaces, naming the ratified PAIR as not-yours-to-clear.
     expect(
       screen.getByText(
-        /3 Synergy Slots are designated \+2 \(Synergy Slots 3, 6, 7\) — at most 2 allowed\. Synergy Slot 7 is 2K's ratified \+2 \(Build Specialization\), so it is not the one to clear\./,
+        /4 Synergy Slots are designated \+2 \(Synergy Slots 3, 6, 7, 8\) — at most 2 allowed\. Synergy Slots 7 and 8 are 2K's ratified \+2, so they are not the ones to clear\./,
       ),
     ).toBeTruthy();
   });

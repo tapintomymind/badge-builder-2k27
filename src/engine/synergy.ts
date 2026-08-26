@@ -46,14 +46,59 @@ export function permanenceForSynergySlot(synergySlotId: SynergySlotId): "tempora
 /** Build Specialization Level 10 → a permanent +2 Badge Synergy. Synergy
  * Slot 7 IS that unlock (seed: Synergy system). RATIFIED DATA, not a
  * preference: official 2K MyPlayer Builder page + user ratification
- * 2026-08-26. The SECOND +2 is still unpublished — user-designated, never
- * guessed.
+ * 2026-08-26.
+ *
+ * [A7] Synergy Slot 8 IS THE SECOND +2, user-ratified 2026-08-26 — the
+ * confirmation F11 recorded in SynergyBoard.tsx while the constant still
+ * carried one id. The set is now FULL at MAX_PLUS_TWO_SYNERGY_SLOTS, which
+ * resolves seed Open item #2 / OQ-A1: nothing is left for the user to
+ * designate, and the standing PlusTwoDesignator banner retires with it.
+ * Still never GUESSED — this landed on a direct ratification, exactly as
+ * Synergy Slot 7 did.
  *
  * Placement: this is KNOWN slot data, so it sits beside
  * permanenceForSynergySlot (the identical class — sealed, known, per-slot).
  * src/config/ is the UNPUBLISHED seam; filing confirmed data there would
  * make both meanings unreadable. */
-export const RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS = [7] as const satisfies readonly SynergySlotId[];
+export const RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS = [7, 8] as const satisfies readonly SynergySlotId[];
+
+/** [A7] The Build Specialization Level 10 Synergy Slot — the ONE that carries
+ * a user-selected discipline lock.
+ *
+ * SEPARATED FROM THE +2 SET, and the separation is the point. Until Synergy
+ * Slot 8 was ratified the two coincided, so the UI gated its discipline
+ * control on `isRatifiedPlusTwo` and the coupling was invisible. It is a
+ * COINCIDENCE, not a rule: the lock exists because Build Specialization asks
+ * the player to pick a track, and only Synergy Slot 7 is that reward. Synergy
+ * Slot 8's +2 has no published Build Specialization provenance, so extending
+ * the lock to it would INVENT a 2K27 mechanic — the one thing this codebase
+ * never does with unpublished data. Widen this only on a ratification that
+ * actually says so. */
+export const BUILD_SPECIALIZATION_SYNERGY_SLOT_ID = 7 satisfies SynergySlotId;
+
+/** Does this Synergy Slot offer the Build Specialization discipline lock?
+ * THE engine predicate, for the same reason isRatifiedPlusTwo is one: the UI
+ * reads membership, it never recomputes it. */
+export function offersDisciplineLock(synergySlotId: SynergySlotId): boolean {
+  return synergySlotId === BUILD_SPECIALIZATION_SYNERGY_SLOT_ID;
+}
+
+/** The ratified +2 Synergy Slots as USER-FACING copy, with the verb that
+ * agrees with the count. [A7] Two sentences interpolate this set (the
+ * SynergyPanel ratification note and the SummaryPanel over-cap violation),
+ * and both read "Synergy Slot 7 is …" while the set held ONE id. A `.join()`
+ * into a singular frame renders "Synergy Slot 7, 8 is" the moment a second
+ * id lands, so the agreement is DERIVED here, once, rather than re-typed at
+ * each site — the same reason magnitudes are derived rather than hardcoded.
+ *
+ * Reads the constant rather than taking a parameter: there is exactly one
+ * ratified set and both call sites want that one. */
+export function ratifiedPlusTwoSubject(): { readonly phrase: string; readonly verb: "is" | "are" } {
+  const ids = RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS as readonly SynergySlotId[];
+  if (ids.length === 1) return { phrase: `Synergy Slot ${ids[0]}`, verb: "is" };
+  const list = `${ids.slice(0, -1).join(", ")} and ${ids[ids.length - 1]}`;
+  return { phrase: `Synergy Slots ${list}`, verb: "are" };
+}
 
 /** Is this Synergy Slot's +2 RATIFIED data (rather than a user preference)?
  * THE engine predicate for "not user-removable". `src/ui/**` READS this; it
@@ -64,8 +109,8 @@ export function isRatifiedPlusTwo(synergySlotId: SynergySlotId): boolean {
 }
 
 /**
- * Per-slot magnitude: 2 iff the Synergy Slot is in the RATIFIED set (slot 7)
- * or in the user's `plusTwoSlotIds` designation seam (OQ-A1), else 1.
+ * Per-slot magnitude: 2 iff the Synergy Slot is in the RATIFIED set (Synergy
+ * Slots 7 and 8) or in the user's `plusTwoSlotIds` designation seam, else 1.
  *
  * DERIVES FAITHFULLY — it never silently drops a designated id, even when
  * ratified ∪ designated exceeds MAX_PLUS_TWO_SYNERGY_SLOTS. A silent drop

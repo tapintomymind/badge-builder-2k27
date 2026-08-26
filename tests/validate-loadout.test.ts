@@ -215,19 +215,22 @@ describe("F1 — tooManyPlusTwoSynergySlots (H4 invariant class, the sealed +2 c
   const budgets = makeBudgets(16, 3);
 
   it("THREE magnitude-2 synergy slots is a HardViolation naming the designated ids and the cap", () => {
+    // [A7] ONE user designation is now enough to reach three: the ratified
+    // pair (7, 8) already fills the cap. The test's INTENT is unchanged — a
+    // three-+2 state is a HardViolation naming the ids — only the number of
+    // patches needed to construct it moved, because the floor rose.
     const state: SynergyLedgerState = {
       loadout: [{ badgeId: "float-game", purchasedLevel: "gold" }],
       budgets,
       synergySlots: synergySlotsWith({
         2: { magnitude: 2 },
-        5: { magnitude: 2 },
       }),
       refundTrigger: "legendByAnyMeans",
     };
     expect(validateLoadout(state).errors).toEqual([
       {
         kind: "tooManyPlusTwoSynergySlots",
-        plusTwoSynergySlotIds: [2, 5, 7],
+        plusTwoSynergySlotIds: [2, 7, 8],
         maxAllowed: 2,
       },
     ]);
@@ -235,13 +238,15 @@ describe("F1 — tooManyPlusTwoSynergySlots (H4 invariant class, the sealed +2 c
 
   it("EXACTLY two magnitude-2 synergy slots stays legal — zero errors", () => {
     // [F4] Synergy Slot 7 is a RATIFIED +2, so the defaults already carry one.
-    // "Exactly two" is now slot 7 plus ONE user designation.
+    // [A7] Synergy Slot 8 is the second, so the defaults now carry BOTH and
+    // "exactly two" is the UNPATCHED state — there is no user designation
+    // left to add. This is the assertion that proves the ratified set is
+    // itself legal: a ratified pair that tripped its own cap would red-banner
+    // every fresh build in the app.
     const state: SynergyLedgerState = {
       loadout: [{ badgeId: "float-game", purchasedLevel: "gold" }],
       budgets,
-      synergySlots: synergySlotsWith({
-        2: { magnitude: 2 },
-      }),
+      synergySlots: synergySlotsWith({}),
       refundTrigger: "legendByAnyMeans",
     };
     expect(validateLoadout(state).errors).toEqual([]);

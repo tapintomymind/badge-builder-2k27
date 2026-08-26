@@ -48,22 +48,19 @@ beforeEach(() => {
 });
 
 describe("panel shape and the PlusTwoDesignator (first control)", () => {
-  it("renders the banner FIRST with exact copy, a live counter, and 8 rows", () => {
+  it("A7 — the designator banner has RETIRED, and the 8 rows are unchanged", () => {
     seedPurchasedRig();
     render(<App />);
     const panel = document.querySelector(".synergy-panel");
     expect(panel).not.toBeNull();
-    // The designator banner is the panel's FIRST child — impossible to miss.
-    expect(panel?.firstElementChild?.className).toContain("banner--warning");
-    // [F4] Re-cut to the REMAINING budget: Synergy Slot 7's +2 is ratified
-    // data (Build Specialization Level 10), so exactly ONE designation is
-    // left to the user.
-    expect(
-      screen.getByText(
-        /1 more Synergy Slot can be \+2 — 2K hasn't published which\. Designate it here\./,
-      ),
-    ).toBeTruthy();
-    expect(screen.getByText("+2 designated: 0 of 1")).toBeTruthy();
+    // [A7] THE DESIGNATOR BANNER IS GONE, and its own F4 ruling is why: it
+    // "retires only when the second +2 is published". Synergy Slot 8 was
+    // ratified, the cap is full, and there is nothing left to designate — so
+    // the banner renders null rather than standing there asking for an
+    // action the app now refuses.
+    expect(panel?.querySelector(".banner--warning")).toBeNull();
+    expect(screen.queryByText(/more Synergy Slot/)).toBeNull();
+    expect(screen.queryByText(/\+2 designated:/)).toBeNull();
     expect(synergyRows()).toHaveLength(8);
     // Permanence chips: 1–4 Temporary, 5–8 Permanent (seed table).
     expect(within(row(1)).getByText("Temporary")).toBeTruthy();
@@ -72,30 +69,33 @@ describe("panel shape and the PlusTwoDesignator (first control)", () => {
     expect(within(row(8)).getByText("Permanent")).toBeTruthy();
   });
 
-  it("caps designation at 2: with the RATIFIED Synergy Slot 7 counted, ONE user designation fills the cap", () => {
+  it("A7 — the cap is filled by the RATIFIED pair alone: ZERO user designations are offered", () => {
     seedPurchasedRig();
     render(<App />);
-    // [F4] Synergy Slot 7's +2 is ratified and already counted, so a single
-    // user designation reaches MAX_PLUS_TWO_SYNERGY_SLOTS.
+    // [A7] Synergy Slots 7 and 8 are both ratified, so the cap is reached
+    // before the user touches anything. Every other row's +2 is disabled on
+    // arrival — with the reason wired via aria-describedby, exactly as it was
+    // when the block happened one designation later.
+    for (const id of [1, 2, 3, 4, 5, 6]) {
+      const blocked = within(row(id)).getByRole("radio", { name: "+2" }) as HTMLInputElement;
+      expect(blocked.disabled, `Synergy Slot ${id}`).toBe(true);
+      const reasonId = blocked.getAttribute("aria-describedby");
+      expect(reasonId, `Synergy Slot ${id} reason`).not.toBeNull();
+      expect(document.getElementById(reasonId as string)?.textContent).toBe(
+        "Only 2 Synergy Slots can be +2. Clear another first.",
+      );
+    }
+    // The ratified pair is blocked the OTHER way — +1 is what they refuse,
+    // and the reason names the ratification rather than the cap.
+    for (const id of [7, 8]) {
+      const refused = within(row(id)).getByRole("radio", { name: "+1" }) as HTMLInputElement;
+      expect(refused.disabled, `Synergy Slot ${id}`).toBe(true);
+    }
+    // A blocked control is an AFFORDANCE, never the invariant: clicking it
+    // still changes nothing, which is handleMagnitudeChange's job.
     fireEvent.click(within(row(5)).getByRole("radio", { name: "+2" }));
-    expect(screen.getByText("+2 designated: 1 of 1")).toBeTruthy();
-
-    // Row 6's +2 is now disabled — with the reason wired via aria-describedby.
-    const blocked = within(row(6)).getByRole("radio", { name: "+2" }) as HTMLInputElement;
-    expect(blocked.disabled).toBe(true);
-    const reasonId = blocked.getAttribute("aria-describedby");
-    expect(reasonId).not.toBeNull();
-    expect(document.getElementById(reasonId as string)?.textContent).toBe(
-      "Only 2 Synergy Slots can be +2. Clear another first.",
-    );
-    // A designated row's own +2 stays enabled (so it can be cleared).
-    const designated = within(row(5)).getByRole("radio", { name: "+2" }) as HTMLInputElement;
-    expect(designated.disabled).toBe(false);
-    // Clearing it re-opens the cap.
-    fireEvent.click(within(row(5)).getByRole("radio", { name: "+1" }));
-    expect(screen.getByText("+2 designated: 0 of 1")).toBeTruthy();
-    expect((within(row(6)).getByRole("radio", { name: "+2" }) as HTMLInputElement).disabled).toBe(
-      false,
+    expect((within(row(5)).getByRole("radio", { name: "+1" }) as HTMLInputElement).checked).toBe(
+      true,
     );
   });
 });

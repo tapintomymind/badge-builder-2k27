@@ -40,8 +40,12 @@ const loadout: LoadoutEntry[] = shippedDataset.badges.map((badge) => ({
   purchasedLevel: "gold",
 }));
 
-/** 8 unlocked synergy slots; hypothetical +2 pair [2, 7] — one temporary, one
- * permanent, so both magnitude × permanence combinations are exercised. */
+/** 8 unlocked synergy slots; hypothetical designation [2, 7] — one temporary,
+ * one permanent, so both magnitude × permanence combinations are exercised.
+ * [A7] The RATIFIED pair (7, 8) rides on top, so the magnitude-2 set is
+ * {2, 7, 8}: still one temporary and now two permanent. Over the sealed cap,
+ * which is deliberate and inert here — this file exercises `boost` alone, and
+ * the cap is validateLoadout's to disclose, not the derivation's to enforce. */
 const unlockedSynergySlots: SynergySlot[] = createDefaultSynergySlots([2, 7]).map(
   (synergySlot) => ({ ...synergySlot, unlocked: true }),
 );
@@ -88,7 +92,14 @@ function buildAssignedState(): SynergyState {
 function expectedBoost(badgeId: string, overlay: OverlayState): 0 | 1 | 2 {
   const row = assignmentTable.find((candidate) => candidate.badgeId === badgeId);
   if (row === undefined) return 0;
-  const magnitude = row.synergySlotId === 2 || row.synergySlotId === 7 ? 2 : 1;
+  // [A7] STAYS AN INDEPENDENT ORACLE: the magnitude-2 set is written out by
+  // hand rather than read from the engine, because a test that derives its
+  // expectation from the code under test proves nothing. Synergy Slot 8 was
+  // added here because it is RATIFIED now — the same reason 7 was already in
+  // this list — and this line is the one place the old bound was spelled as
+  // a comparison rather than an array literal.
+  const plusTwoSynergySlotIds: readonly SynergySlotId[] = [2, 7, 8];
+  const magnitude = plusTwoSynergySlotIds.includes(row.synergySlotId) ? 2 : 1;
   const temporary = row.synergySlotId <= 4;
   if (overlay.seasonReset && temporary) return 0;
   if (row.kind === "reaction" && !overlay.reactionsActive) return 0;

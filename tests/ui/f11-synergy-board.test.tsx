@@ -166,22 +166,29 @@ describe("F11 3 — the headers render the LIVE magnitude", () => {
     const boosts = columnHeads().map(
       (head) => head.querySelector(".synergy-board__colhead-boost")?.textContent,
     );
-    // Synergy Slot 7 is the RATIFIED +2 (Build Specialization Level 10).
-    expect(boosts).toEqual(["(+1)", "(+1)", "(+1)", "(+1)", "(+1)", "(+1)", "(+2)", "(+1)"]);
+    // [A7] Synergy Slots 7 (Build Specialization Level 10) and 8 are BOTH
+    // ratified +2 now, so the shipped distribution is the seed's declared 6/2
+    // and scope.md deviation #5 is closed.
+    expect(boosts).toEqual(["(+1)", "(+1)", "(+1)", "(+1)", "(+1)", "(+1)", "(+2)", "(+2)"]);
   });
 
-  it("FOLLOWS a second designation rather than a hardcoded shape", () => {
-    // Synergy Slot 8 = Legend 2 REP is user-confirmed; when the ratification
-    // lands the shape becomes the seed's 6/2 and this component needs no
-    // edit. CANARY: a board that hardcoded (+2) on 7 and 8 passes the case
-    // above and fails this one, and vice versa.
-    seed({ 8: { magnitude: 2 } });
+  it("FOLLOWS a designation rather than a hardcoded shape", () => {
+    // [A7] RE-POINTED, and it had to be. This canary used to designate
+    // Synergy Slot 8 — which is now RATIFIED, so seeding it proves nothing:
+    // a board that hardcoded (+2) on columns 7 and 8 would pass both this
+    // case and the one above, and the canary would have gone silently
+    // vacuous at the exact moment the ratification landed.
+    //
+    // Designating Synergy Slot 3 restores the property under test: the shape
+    // must come from `synergySlot.magnitude`, so a hardcoded 7/8 pair fails
+    // here on column 3 while still passing above.
+    seed({ 3: { magnitude: 2 } });
     render(<App />);
     const boosts = columnHeads().map(
       (head) => head.querySelector(".synergy-board__colhead-boost")?.textContent,
     );
-    expect(boosts).toEqual(["(+1)", "(+1)", "(+1)", "(+1)", "(+1)", "(+1)", "(+2)", "(+2)"]);
-    expect(boosts.filter((text) => text === "(+2)")).toHaveLength(2);
+    expect(boosts).toEqual(["(+1)", "(+1)", "(+2)", "(+1)", "(+1)", "(+1)", "(+2)", "(+2)"]);
+    expect(boosts.filter((text) => text === "(+2)")).toHaveLength(3);
   });
 
   it("carries the full state in the header's accessible name", () => {
@@ -345,9 +352,12 @@ describe("F11 7 — the board's zero-list, asserted in the DOM", () => {
     seed({ 5: { unlocked: true, fuseBadgeId: "float-game" } });
     render(<App />);
     const panel = document.querySelector(".synergy-panel") as HTMLElement;
-    // The shipped two: the sr-only announcement region and the
-    // PlusTwoDesignator's Banner (Banner defaults to role="status").
-    expect(panel.querySelectorAll('[role="status"],[role="alert"],[aria-live]')).toHaveLength(2);
+    // [A7] ONE now, not two: the sr-only announcement region alone. The
+    // PlusTwoDesignator's Banner (Banner defaults to role="status") RETIRED
+    // when the ratified pair filled the cap — there is no designation left to
+    // ask for. The budget went DOWN, which is the safe direction; what this
+    // test guards is the board adding one, asserted separately below.
+    expect(panel.querySelectorAll('[role="status"],[role="alert"],[aria-live]')).toHaveLength(1);
     // The board contributes ZERO of them. Selection rides on aria-pressed.
     expect(board().querySelectorAll('[role="status"],[role="alert"],[aria-live]')).toHaveLength(0);
   });
