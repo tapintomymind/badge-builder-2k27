@@ -2733,25 +2733,40 @@ const TILE_PAD = spaceIn(loadoutCssRaw, ".board-tile", "padding", 0);
 const TILE_BORDER = px(cssBlockIn(loadoutCssRaw, ".board-tile"), /border:\s*(\d+)px solid/);
 const TILE_GAP = spaceIn(loadoutCssRaw, ".board-panel__tiles", "gap", 0);
 
-/** THE SAME COMPOSITION F11'S CELL_FLOOR USES, over the same measurement. */
-const TILE_FLOOR = NAME_MIN_CONTENT + 2 * TILE_PAD + 2 * TILE_BORDER; // 89
-
-/** The tile's meta line: a 20px level disc, an optional role glyph and the
- *  cost. The dataset's dearest badge is a single digit, so the whole row is
- *  far under the name — which is why the NAME is the panel's binding driver
- *  and the meta row is not a second floor. */
+/** The tile's meta line, which the design never costed and which turns out to
+ *  be the BINDING driver rather than the name: a 20px level disc, an optional
+ *  synergy glyph and the cost with its unit, gap-separated.
+ *
+ *  `UI_XS_ADVANCE` 6.5 is the same per-character figure the summary roster's
+ *  own derivation uses at --text-xs. The synergy glyph is priced at TWO
+ *  advances rather than one — emoji-class glyphs render wider than a Latin
+ *  character in every system stack, and §13.0.1's take-the-larger rule says a
+ *  floor derived from a constant known to be low is not a floor. */
+const XS_ADVANCE = 6.5;
 const LEVEL_DISC = px(cssBlockIn(loadoutCssRaw, ".board-tile__level"), /width:\s*(\d+)px/);
-const TILE_META_MAX = LEVEL_DISC + SPACE_1 + Math.ceil(1 * 6.5) + SPACE_1 + Math.ceil(1 * 6.5);
+const ROLE_GLYPH_MAX = Math.ceil(2 * XS_ADVANCE); // 13
+/** The dearest badge in the shipped table is one digit, so "7 pts" is the
+ *  widest cost string the dataset can produce. Asserted against the DATA in
+ *  case 2 rather than assumed here. */
+const TILE_COST_MAX = Math.ceil("7 pts".length * XS_ADVANCE); // 33
+const TILE_META_MAX =
+  LEVEL_DISC + SPACE_1 + ROLE_GLYPH_MAX + SPACE_1 + TILE_COST_MAX; // 74
+
+/** F11'S COMPOSITION, over the WIDER of the two drivers. F11's cell carries a
+ *  name and nothing else, so its floor is the name's; a board tile carries a
+ *  name AND a meta row, and the meta row is 3px wider. Same formula, one more
+ *  term inside the max — not a second, independent measurement. */
+const TILE_FLOOR = Math.max(NAME_MIN_CONTENT, TILE_META_MAX) + 2 * TILE_PAD + 2 * TILE_BORDER; // 92
 
 /** Two cells with NO slack — the OVERFLOW floor, i.e. the width below which a
  *  panel cannot hold two cells at all. */
 const PANEL_OVERFLOW_FLOOR =
-  2 * TILE_FLOOR + TILE_GAP + 2 * PANEL_PAD + 2 * PANEL_BORDER; // 212
+  2 * TILE_FLOOR + TILE_GAP + 2 * PANEL_PAD + 2 * PANEL_BORDER; // 218
 /** …and the DESIGN floor: the same two cells with a full --space-6 of comfort
  *  each. The gap between the two is the slack a panel derived to its floor
  *  would not have. */
 const PANEL_TRACK_DERIVED =
-  2 * (TILE_FLOOR + SPACE_6) + TILE_GAP + 2 * PANEL_PAD + 2 * PANEL_BORDER; // 260
+  2 * (TILE_FLOOR + SPACE_6) + TILE_GAP + 2 * PANEL_PAD + 2 * PANEL_BORDER; // 266
 
 /** auto-fill's own arithmetic, written once: the most tracks of at least
  *  `floor` that fit `box`, and the width each of them then gets. */
@@ -2782,32 +2797,44 @@ describe("F16 — the Loadout board's geometry, re-derived", () => {
   it("1 — TILE_FLOOR is F11's measurement, composed from PARSED tokens", () => {
     expect(TILE_PAD).toBe(SPACE_2);
     expect(TILE_BORDER).toBe(1);
-    expect(TILE_FLOOR).toBe(NAME_MIN_CONTENT + 2 * SPACE_2 + 2);
-    expect(TILE_FLOOR).toBe(89);
+    expect(TILE_FLOOR).toBe(Math.max(NAME_MIN_CONTENT, TILE_META_MAX) + 2 * SPACE_2 + 2);
+    expect(TILE_FLOOR).toBe(92);
     // ONE measurement, TWO consumers. A board tile and a Synergy board cell
-    // are the same typographic box; taking a second measurement is how two
-    // floors that must agree come to disagree.
-    expect(TILE_FLOOR).toBe(CELL_FLOOR);
+    // are the same typographic box for the NAME; taking a second measurement
+    // of the same word is how two floors that must agree come to disagree.
+    // The board's floor is 3px above F11's for a named reason and no other:
+    // the tile carries a meta row that a Synergy cell does not.
+    expect(NAME_MIN_CONTENT).toBe(CELL_FLOOR - 2 * SPACE_2 - 2);
+    expect(TILE_FLOOR - CELL_FLOOR).toBe(TILE_META_MAX - NAME_MIN_CONTENT);
     // …and it is the CEILING of a real measurement, not a paper figure.
     expect(NAME_MIN_CONTENT).toBe(Math.ceil(NAME_MIN_MEASURED));
     // CANARY. The design's paper 86 must NOT be the answer — at 86 the cell
     // offers 68px of content against the 70.156 the longest badge name wants,
-    // i.e. a floor its own binding word does not fit inside.
+    // i.e. a floor its own binding word does not fit inside, before the meta
+    // row is priced at all.
     const paperFloor = 68 + 2 * SPACE_2 + 2;
     expect(paperFloor).toBe(86);
     expect(paperFloor).toBeLessThan(TILE_FLOOR);
     expect(paperFloor - 2 * SPACE_2 - 2).toBeLessThan(NAME_MIN_MEASURED);
   });
 
-  it("2 — the NAME is the binding driver; the meta row is not a second floor", () => {
+  it("2 — the META ROW is the binding driver, which the design never costed", () => {
     expect(LEVEL_DISC).toBe(20);
-    // The dearest badge in the dataset is a single digit, so the cost cannot
-    // widen this row into contention. Asserted off the DATA, not assumed.
+    // The dearest badge in the shipped table is a single digit, so "7 pts" is
+    // the widest cost string the DATA can produce. Read off the dataset, not
+    // assumed — a future tier table with a two-digit cost widens this row and
+    // must move the floor with it.
     const dearest = Math.max(
       ...Object.values(shippedDataset.tierCosts).flatMap((costs) => Object.values(costs)),
     );
     expect(String(dearest)).toHaveLength(1);
-    expect(TILE_META_MAX).toBeLessThan(NAME_MIN_CONTENT);
+    expect(TILE_COST_MAX).toBe(Math.ceil(`${String(dearest)} pts`.length * XS_ADVANCE));
+    // AND IT IS WIDER THAN THE NAME. design.md §3.6 derived its cell floor
+    // from the longest badge name alone and never priced the meta row; on a
+    // tile that also carries a level disc, a synergy glyph and a cost, the
+    // meta row wins by 3px. Recorded as the reason the two floors differ.
+    expect(TILE_META_MAX).toBeGreaterThan(NAME_MIN_CONTENT);
+    expect(TILE_META_MAX - NAME_MIN_CONTENT).toBe(3);
   });
 
   it("3 — PANEL_TRACK is DERIVED as the two-cell floor plus --space-6 per cell", () => {
@@ -2815,8 +2842,8 @@ describe("F16 — the Loadout board's geometry, re-derived", () => {
     expect(PANEL_BORDER).toBe(1);
     expect(TILE_GAP).toBe(SPACE_2);
     expect(PANEL_GAP).toBe(SPACE_3);
-    expect(PANEL_OVERFLOW_FLOOR).toBe(212);
-    expect(PANEL_TRACK_DERIVED).toBe(260);
+    expect(PANEL_OVERFLOW_FLOOR).toBe(218);
+    expect(PANEL_TRACK_DERIVED).toBe(266);
     expect(PANEL_TRACK).toBe(PANEL_TRACK_DERIVED);
     expect(PANEL_TRACK - PANEL_OVERFLOW_FLOOR).toBe(2 * SPACE_6);
     // …and the tile grid's own floor IS the tile floor, not a rounder number.
@@ -2833,16 +2860,19 @@ describe("F16 — the Loadout board's geometry, re-derived", () => {
     );
   });
 
-  it("3b — 260 AND NOT the design's 258: the number moved because the word did", () => {
-    // design.md §3.6 derived 258 from a CELL_FLOOR of 86. F11 re-pinned that
-    // floor to 89 when it measured "Unpluckable" in headless Chrome, and the
-    // same composition over the corrected floor is 260. Recorded as an
-    // arithmetic consequence so nobody "restores" the design's figure.
+  it("3b — 266 AND NOT the design's 258, for TWO named corrections", () => {
+    // design.md §3.6 derived 258 from a cell floor of 86, and 86 from a paper
+    // NAME_MIN_CONTENT of 68. Two things moved it, both upward, and neither
+    // is a preference:
+    //   (i)  F11 MEASURED the word in headless Chrome: 68 -> 71.
+    //   (ii) the meta row, never costed by the design, is wider still: 71 -> 74.
+    // Recorded as arithmetic so nobody "restores" the design's figure.
     const designFloor = 68 + 2 * SPACE_2 + 2; // 86
     const designTrack =
       2 * (designFloor + SPACE_6) + TILE_GAP + 2 * PANEL_PAD + 2 * PANEL_BORDER;
     expect(designTrack).toBe(254);
-    expect(PANEL_TRACK - designTrack).toBe(2 * (NAME_MIN_CONTENT - 68));
+    expect(PANEL_TRACK - designTrack).toBe(2 * (TILE_META_MAX - 68));
+    expect(TILE_META_MAX - 68).toBe(6); // 3 measured + 3 never costed
   });
 
   it("4 — the coverage table: no tile is ever narrower than its floor", () => {

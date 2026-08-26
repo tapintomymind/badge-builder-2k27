@@ -99,7 +99,17 @@ export function DisciplinePanel({
       {/* THE HEADER WRAPS BY DESIGN, and the wrap is declared rather than
           discovered. Both capacities are user-entered with no published cap,
           so the string has no bounded width and "one line" could never be a
-          floor. Same posture as `.badge-card__meta`'s declared wrap. */}
+          floor. Same posture as `.badge-card__meta`'s declared wrap.
+
+          NO ELEMENT HERE HOLDS A BARE NUMERAL, and that is a hard rule rather
+          than a style. `getByText` matches an element's whole textContent and
+          THROWS on a second match, and the shipped suite carries three global
+          bare-numeral queries against ledger values — one of them inside a
+          declared RUN-never-edit gate. A `<span>15</span>` on a new surface
+          reddens a gate it has no other relationship with. So the fractions
+          keep their slash and `left N` keeps its word: the numeric font rides
+          `font-variant-numeric`, which only affects digits, instead of an
+          element that wraps the digits alone. */}
       <p className="board-panel__metrics">
         <span
           className={
@@ -115,9 +125,7 @@ export function DisciplinePanel({
           {pointsOverText === null ? null : ` ${pointsOverText}`}
         </span>
         {pointsOverText === null ? (
-          <span className="board-panel__metric">
-            left <span className="num">{readout.remainingPoints}</span>
-          </span>
+          <span className="board-panel__metric">left {readout.remainingPoints}</span>
         ) : null}
         <span
           className={
