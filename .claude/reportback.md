@@ -7358,6 +7358,141 @@ is a RUN-never-edit gate.
 **OPERATOR ACTION:** branch pushed as `header-compaction`, not merged. Worktree
 `/tmp/bb-header` left in place. Proof: `docs/proof/f15-verification.txt` + four
 screenshots (`f15-1280x768`, `f15-1280x767`, `f15-1440x810`, `f15-1280x900`).
+
+---
+
+## reset-and-slot8 — Reset placement + the eighth ratified Synergy Slot (2026-08-26)
+
+Branch `reset-and-slot8` off `origin/dev` @ `bc2002f`, two commits, worktree `/tmp/bb-small`.
+Verified after each commit separately: **1426/1426 across 69 files** (the baseline count,
+unchanged — neither commit adds or removes a test), `tsc --noEmit` clean, `vite build` clean,
+and all three RUN-never-edit gates green and untouched.
+
+### Commit 1 — `Reset build` moved beside the Attributes heading
+
+**design-spec §15.18 is stale in two independent ways and was NOT followed literally.**
+
+1. **"The foot of the left rail"** — there is no left rail. F5.4 (§16.7) cut `.layout` into
+   exactly two grid items at L (the attributes pane and `.col-right`) and the Build panel went
+   into the RIGHT column with everything else. §15.18's companion claim that "§13.0.1 puts the
+   Ledger overview first and the Build panel second" describes one rail that has since been
+   split in two.
+2. **"…the far end of a long scroll, where a mis-click is not available"** — this was §15.18's
+   ENTIRE safety argument and F14 dissolved it. The rail's `max-height: calc(100vh − --space-6)`
+   is gone; `.col-right` is a fixed-height flex row inside a `position: fixed; height: 100dvh`
+   shell, and `.attr-pane` is `position: static; height: 100%` — a bounded scrollport whose foot
+   is one flick away. **The placement lock had already failed open before this slice.**
+   BuildPanel's own comment had re-based the argument once onto F5.4's collapsible; F14 moved it
+   again and nothing re-based it a second time.
+
+Safety therefore rests on the confirm, which is where it actually always lived: `ResetBuildDialog`
+is untouched and still mandatory. **No confirmation affordance was added or removed.**
+
+**Geometry is bit-identical, and that was the load-bearing constraint.** `.btn--sm` ships
+`height: 28px`; the summary's content box is one `--text-base` line box (24px). Dropping the
+control in as-is would have grown every Attributes summary by 4px — while
+`layout-arithmetic.test.ts` models that box as `SECTION_LEAD_Y = 1 + (2 × --space-3-5 +
+lineBox(--text-base)) = 53`, **derived from tokens, not measured**. The suite would have stayed
+green while `slidersVisible()` silently over-reported the pane. The control releases its height
+instead. Measured in the browser: summary **52px** at 1280×900 (shell on), 1280×800 (shell off)
+and 390 — unchanged in all three. `MIN_SHELL_H` untouched.
+
+**Browser proof at 1280 (narrowest shelled width, 300px pane):** heading ends at x=125.4, button
+starts at x=200.4 — **75px clear**, button right edge 291 inside a 307 summary, `overlaps: false`.
+`margin-left: auto` in the flex summary means the heading keeps its intrinsic width, so crowding
+is structurally unreachable rather than checked at one breakpoint. Shell-off at 1280×800 (pane
+reverts to `sticky`) and 390 (pane not rendered, control inside BuildPanel) both verified;
+**exactly one** `.build-panel__reset` in the DOM at every width.
+
+**Touch floor — the second escape of one shape.** F5.3 shipped
+`@media (max-width: 767px) { .build-panel__reset { min-height: 44px } }` as a **bare literal**,
+which F9's assertion 27 cannot see (it reads the stylesheet back by matching
+`min-height: var(--tap-target)`). F11's `.synergy-board__button` was the first escape of exactly
+this shape and was folded in at integration; this is the second, and it sat outside the census
+for two slices. Re-pointed at the token and **registered in `S_TOUCH_FLOOR_CENSUS`**; measured
+44px at 390. No bare `44px` was introduced.
+
+**Cost paid knowingly:** a `<button>` inside a `<summary>` is nested interactive content. It is
+conforming (summary takes phrasing content — the same reading `CategoryLedger` relies on), but a
+click there toggles the `<details>` unless propagation is stopped. Handled with BadgeCard's
+shipped `stopPropagation` idiom and **verified in-browser**: pressing Reset opens the confirm and
+leaves the Section open. The disabled reason moves to `sr-only` — a full sentence does not fit
+beside a heading, and the visible carrier is the disabled control itself. **This is the one
+deliberate reduction in visible information and it is flagged for review.**
+
+### Commit 2 — Synergy Slot 8 ratified as the second +2 [A7]
+
+`RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS` `[7]` → `[7, 8]`. The set now fills
+`MAX_PLUS_TWO_SYNERGY_SLOTS` exactly, which resolves seed Open item #2 / OQ-A1 and closes
+scope.md deviation #5 — the board's distribution is the seed's declared 6/2 at last. F11 predicted
+this landing in `SynergyBoard.tsx` and was right: every magnitude is derived, so no component
+hardcoded a shape that had to move.
+
+**Every site the bound was hard-coded** (grepped for the literal, then for the comparison form):
+
+| Site | Form |
+|---|---|
+| `src/engine/synergy.ts` | `RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS = [7]` — the constant |
+| `src/ui/synergy/SynergyPanel.tsx` | `designatedCount >= 2` → `MAX_PLUS_TWO_SYNERGY_SLOTS` |
+| `src/ui/synergy/SynergyPanel.tsx` | `"Only 2 Synergy Slots can be +2"` → interpolated |
+| `tests/synergy-overlays.test.ts:91` | `row.synergySlotId === 2 \|\| === 7` — the INDEPENDENT oracle, spelled as a comparison rather than an array literal. **The `[7]` grep missed it; it is the one that actually broke** (8 tests, `boost(post-powerhouse) expected 2 to be 1`). |
+| `tests/config.test.ts`, `tests/synergy.test.ts`, `tests/serialization.test.ts`, `tests/validate-loadout.test.ts`, `tests/ui/f4-slot7.test.tsx`, `tests/ui/f4-plus-two-roundtrip.test.tsx`, `tests/ui/f11-synergy-board.test.tsx`, `tests/ui/f2-disclosure-surfaces.test.tsx`, `tests/ui/synergy-panel.test.tsx` | expectation updates |
+
+**Two latent couplings surfaced, both of which would have INVENTED a 2K27 mechanic:**
+
+- **The Build Specialization discipline lock rode `isRatifiedPlusTwo`.** A coincidence while the
+  ratified set was Synergy Slot 7 alone. Slot 8 would have inherited a Build Specialization track
+  picker it has no published claim to. Split out as `offersDisciplineLock` /
+  `BUILD_SPECIALIZATION_SYNERGY_SLOT_ID`.
+- **The ratified chip, the disabled-`+1` reason and the SummaryPanel over-cap violation all
+  glossed the +2 as "(Build Specialization)".** True of 7, unpublished for 8 — now
+  provenance-neutral. (`f11-synergy-board.test.tsx:174` records slot 8's provenance as
+  "Legend 2 REP"; that is a test comment, not a ratified source, so it was NOT put into shipped
+  copy.)
+
+**Copy.** Plural agreement is derived once in `ratifiedPlusTwoSubject()` rather than re-typed — a
+`.join()` into a singular frame renders "Synergy Slot 7, 8 is" the moment a second id lands. The
+standing `PlusTwoDesignator` banner **retires**, per its own F4 ruling ("retires only when the
+second +2 is published"); rendering it at zero would have read *"0 more Synergy Slot can be +2 —
+2K hasn't published which. Designate it here."*
+
+**Participation checks:** base capacity and bonus-mode applied capacity are `equipSlots`
+arithmetic and take no input from Synergy Slot magnitude — untouched, `tests/bonus.test.ts` and
+`tests/budget`/`ledger` green. **The 504-cell feasibility golden does NOT move** (feasibility is
+computed from purchased level and cost, not synergy boost) — the gate passes untouched.
+
+**PERSISTED SHAPE — NOTHING MIGRATED.** No persisted encoding assumes a maximum of seven:
+`magnitude` is a per-slot persisted field and `SYNERGY_SLOT_IDS` was already 1–8. A saved build
+that designated a second +2 now loads OVER the cap and is **DISCLOSED** by `validateLoadout`'s
+`tooManyPlusTwoSynergySlots` — the path F4 built for exactly this case. H8 holds: drift is
+disclosed, never auto-repaired. `applyRatifiedMagnitudes` still refuses to synthesise a missing
+slot and still reports rather than silently drops.
+
+### Conflict forecast against the sibling branches
+
+- **Header compaction** — LOW. Nothing here touches `AppHeader.tsx` or the header block in
+  `app.css`. Indirect risk only: `HEADER_H = 102` is a term of `permanentBand()` /
+  `MIN_SHELL_H`, and commit 1 deliberately leaves both untouched, so a header slice moving that
+  literal will not collide.
+- **The shell height-gate slice** — LOW by construction. Commit 1 was written specifically to
+  keep the Attributes summary at 52px so `SECTION_LEAD_Y = 53`, `slidersVisible()` and
+  `MIN_SHELL_H` are all bit-identical. The gate literal was not raised.
+- **Roll UI** — MEDIUM if it touches `SynergyPanel.tsx`. Commit 2 rewrites `PlusTwoDesignator`,
+  the magnitude `SegmentedControl`'s `disabledOptions`, and the ratified chip in that file. Textual
+  overlap is likely; semantic conflict is not — a roll slice wants different lines.
+- **Docs** — MEDIUM. `docs/vocabulary.md` and `src/config/README.md` both describe the +2 seam;
+  commit 2 edits the README row (`HALF-RESOLVED` → `RESOLVED [A7]`). A docs branch rewriting the
+  same table will conflict on that row.
+- **`tests/layout-arithmetic.test.ts`** — HIGHEST-RISK SHARED FILE. Commit 1 edits
+  `S_TOUCH_FLOOR_CENSUS`, assertion 20, assertion 27 and F13's assertion 4. Any sibling adding a
+  census entry or touching the F5.3 block will conflict there.
+
+### Flake note
+
+`tests/ui/f4-slot7.test.tsx` reported one `Test timed out in 5000ms` on a run whose wall clock
+was **199s** with three other agents loading the machine. Re-run alone: **passes in 2.24s**.
+Classified as the documented contention flake — a duration, not a value. **No timeout was
+lowered or tightened.**
 ─────────────────────────────────────────────
 
 ## 2026-08-26 · Tier 2 · integration — F15 header compaction + user-facing docs, onto `dev`
