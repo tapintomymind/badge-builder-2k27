@@ -684,14 +684,18 @@ describe("F4 group 8 — a pre-F4 SavedBuild still loads", () => {
   it("8.6 deserialize → normalize → serialize → DESERIALIZE AGAIN survives, and the cap is owned exactly once", () => {
     const first = deserializeSavedBuild(PRE_F4_SAVED_BUILD_JSON);
     const normalized = applyRatifiedMagnitudes(first.synergy);
-    expect(normalized.normalizedSynergySlotIds).toEqual([7]);
+    // [A7] TWO ids are re-derived on a pre-F4 file now, not one.
+    expect(normalized.normalizedSynergySlotIds).toEqual([7, 8]);
 
     const envelope: SavedBuild = { ...first, synergy: normalized.synergySlots };
     const text = serializeSavedBuild(envelope);
 
     expect(() => deserializeSavedBuild(text)).not.toThrow();
     const second = deserializeSavedBuild(text);
-    expect(plusTwoSynergySlotIds(second.synergy)).toEqual([3, 6, 7]);
+    // [A7] The pre-F4 file's own 3 and 6 survive the round trip, and BOTH
+    // ratified ids ride along — the over-cap state is still carried, not
+    // silently repaired, which is the leg this test exists to prove.
+    expect(plusTwoSynergySlotIds(second.synergy)).toEqual([3, 6, 7, 8]);
 
     const validation = validateLoadout({
       loadout: second.loadout,

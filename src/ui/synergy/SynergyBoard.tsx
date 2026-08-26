@@ -26,15 +26,14 @@
  * transient view state that is never persisted.
  *
  * THE MAGNITUDE IS READ OFF STATE, NEVER HARDCODED. Each column header
- * renders (+1) / (+2) from `synergySlot.magnitude`. The app currently ships
- * seven (+1) and one (+2) against the seed's declared 6/2 default
- * (scope.md deviation #5), and until now that gap was legible only as a
- * banner counter — the board makes it visible as a SHAPE. Synergy Slot 8 has
- * since been user-confirmed as the second +2; when that ratification lands
- * this file needs no edit, because magnitudeForSynergySlot already derives
- * from ratified union user-designated and `magnitude` is a persisted field.
- * A hardcoded (+2) on columns 7 and 8 would silently disagree with a loaded
- * build.
+ * renders (+1) / (+2) from `synergySlot.magnitude`. [A7] The app now ships
+ * six (+1) and two (+2), which CLOSES scope.md deviation #5 — the shape the
+ * board was built to make visible is the seed's declared 6/2 default at last.
+ * This file needed NO EDIT to get there beyond this sentence, exactly as
+ * predicted when Synergy Slot 8's ratification was pending: magnitudeFor-
+ * SynergySlot derives from ratified union user-designated and `magnitude` is
+ * a persisted field. A hardcoded (+2) on columns 7 and 8 would silently
+ * disagree with a loaded build, and still would.
  *
  * ACCESSIBILITY. A real <table>: <th scope="col"> for the columns,
  * <th scope="row"> for Fuse / Reaction, an <h3> heading inside the

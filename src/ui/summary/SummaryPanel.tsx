@@ -58,7 +58,7 @@ import { badgeSlotsCapacityUnset } from "../../engine/ledger";
 import type { ClearedSynergyRef } from "../../engine/serialization";
 import type { BuildSummary, SynergySummaryRow } from "../../engine/summary";
 import { formatSummaryText } from "../../engine/summary-text";
-import { RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS, synergyRoleFor } from "../../engine/synergy";
+import { ratifiedPlusTwoSubject, synergyRoleFor } from "../../engine/synergy";
 import type { CategoryLedgerReadout } from "../../engine/synergy-ledger";
 import type { HardViolation, LoadoutValidation } from "../../engine/validate-loadout";
 import type {
@@ -105,8 +105,13 @@ export function hardViolationText(error: HardViolation, dataset: BadgeDataset): 
       return (
         `${error.plusTwoSynergySlotIds.length} Synergy Slots are designated +2 ` +
         `(Synergy Slots ${error.plusTwoSynergySlotIds.join(", ")}) — at most ${error.maxAllowed} allowed. ` +
-        `Synergy Slot ${RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS.join(", ")} is 2K's ratified +2 ` +
-        `(Build Specialization), so it is not the one to clear.`
+        // [A7] The "(Build Specialization)" gloss is GONE. It was accurate
+        // while the ratified set was Synergy Slot 7 alone; Synergy Slot 8's
+        // +2 has no published Build Specialization provenance, so naming one
+        // for both would put a guess inside a violation message — the copy a
+        // confused user reads most carefully.
+        `${ratifiedPlusTwoSubject().phrase} ${ratifiedPlusTwoSubject().verb} 2K's ratified +2, ` +
+        `so ${ratifiedPlusTwoSubject().verb === "is" ? "it is not the one" : "they are not the ones"} to clear.`
       );
     case "badgeCategoryViolatesDisciplineLock":
       return (

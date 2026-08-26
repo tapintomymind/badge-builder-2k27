@@ -38,7 +38,7 @@ export const DEFAULT_REFUND_TRIGGER: RefundTrigger = "onFuse";
 
 /**
  * Dead seam, retyped for shape only. Designates Synergy Slots the user picked
- * as +2 BEYOND the ratified set (Synergy Slot 7 — see
+ * as +2 BEYOND the ratified set (Synergy Slots 7 and 8 — see
  * `RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS` in src/engine/synergy.ts).
  *
  * NOTHING WRITES THIS TODAY — the designator continues to write magnitudes
@@ -46,8 +46,11 @@ export const DEFAULT_REFUND_TRIGGER: RefundTrigger = "onFuse";
  * Retained because a deserialized `AppConfig` may legally carry it (pre-F4
  * files carry `[3,6]`) and the superset validator must keep accepting it.
  *
- * Seed Open item #2 is HALF-resolved: Synergy Slot 7 IS a +2; WHICH further
- * Synergy Slot carries the second is still unpublished and is never guessed.
+ * [A7] Seed Open item #2 is now FULLY resolved: Synergy Slots 7 and 8 are
+ * BOTH ratified +2, which fills MAX_PLUS_TWO_SYNERGY_SLOTS. The seam stays
+ * anyway — a deserialized AppConfig may legally carry it, and any value it
+ * carries now lands OVER the cap and is DISCLOSED by validateLoadout rather
+ * than dropped. That is the H8 ruling, not an oversight.
  */
 export const plusTwoSlotIds: readonly SynergySlotId[] | null = null;
 

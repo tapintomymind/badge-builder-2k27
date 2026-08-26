@@ -66,7 +66,8 @@ const PRE_F4_SAVED_BUILD_JSON = JSON.stringify({
 function normalizedEnvelope(): SavedBuild {
   const first = deserializeSavedBuild(PRE_F4_SAVED_BUILD_JSON);
   const report = applyRatifiedMagnitudes(first.synergy);
-  expect(report.normalizedSynergySlotIds).toEqual([7]);
+  // [A7] BOTH ratified ids are re-derived at load now.
+  expect(report.normalizedSynergySlotIds).toEqual([7, 8]);
   return { ...first, synergy: report.synergySlots };
 }
 
@@ -87,12 +88,12 @@ beforeEach(() => {
 });
 
 describe("F4 8.6 — the AUTOSAVE shape survives the normalize → write → read round trip", () => {
-  it("writeAutosave → readAutosaveWithReport does not throw, keeps [3,6,7], and the cap is owned once", () => {
+  it("writeAutosave → readAutosaveWithReport does not throw, keeps [3,6,7,8], and the cap is owned once", () => {
     expect(writeAutosave(normalizedEnvelope()).ok).toBe(true);
 
     const reread = readAutosaveWithReport();
     expect(reread, "the autosave came back unreadable — A1 has regressed").not.toBeNull();
-    expect(plusTwoSynergySlotIds(reread!.saved.synergy)).toEqual([3, 6, 7]);
+    expect(plusTwoSynergySlotIds(reread!.saved.synergy)).toEqual([3, 6, 7, 8]);
     expectExactlyOneCapError(reread!.saved);
   });
 });
@@ -109,7 +110,7 @@ describe("F4 8.6 — the NAMED-BUILD shape survives, and does NOT vanish from th
 
     const reread = readNamedBuildWithReport("bld-f4");
     expect(reread, "the named build came back unreadable — A1 has regressed").not.toBeNull();
-    expect(plusTwoSynergySlotIds(reread!.saved.synergy)).toEqual([3, 6, 7]);
+    expect(plusTwoSynergySlotIds(reread!.saved.synergy)).toEqual([3, 6, 7, 8]);
     expectExactlyOneCapError(reread!.saved);
   });
 });

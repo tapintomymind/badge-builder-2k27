@@ -23,11 +23,14 @@
 import { useState } from "react";
 import { badgeById } from "../../engine/dataset";
 import {
+  MAX_PLUS_TWO_SYNERGY_SLOTS,
   RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS,
   assignSynergy,
   clearSynergy,
   effectiveLevel,
   isRatifiedPlusTwo,
+  offersDisciplineLock,
+  ratifiedPlusTwoSubject,
   synergyRoleFor,
   synergySlotDisabledByPreview,
 } from "../../engine/synergy";
@@ -58,26 +61,42 @@ export function plusTwoDesignatedCount(synergySlots: readonly SynergySlot[]): nu
 }
 
 /** F4: how many +2 designations remain for the USER, once the ratified set is
- * accounted for. Synergy Slot 7 is 2K's; one is left to designate. */
-const USER_DESIGNATABLE_PLUS_TWO = 2 - RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS.length;
+ * accounted for. [A7] Synergy Slots 7 and 8 are both 2K's, so this is now
+ * ZERO — DERIVED, never re-typed, which is the whole point of computing it
+ * from the constant instead of writing "1" here in the first place. */
+const USER_DESIGNATABLE_PLUS_TWO =
+  MAX_PLUS_TWO_SYNERGY_SLOTS - RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS.length;
 
 export interface PlusTwoDesignatorProps {
   designatedCount: number;
 }
 
-/** The standing banner — persistent while OQ-A1 is unresolved. F4 re-cut the
- * copy and the counter to the REMAINING budget: Synergy Slot 7's +2 is
- * ratified data, so only one designation is left to the user. The banner
- * itself retires only when the second +2 is published (scope.md §6 OQ-A1). */
+/** The standing banner — persistent while OQ-A1 was unresolved, and F4's own
+ * ruling was that it "retires only when the second +2 is published". [A7]
+ * IT IS NOW PUBLISHED, so this renders NOTHING.
+ *
+ * THE RETIREMENT IS A GUARD, NOT A DELETION. The component stays, and stays
+ * mounted, because the retirement is DERIVED from the ratified set: were an
+ * id ever removed from it, the banner and its counter come back correct
+ * rather than having to be rewritten from the git history. Deleting it would
+ * be re-typing the "1" the constant exists to compute.
+ *
+ * The dead alternative was to keep rendering it at zero, which reads
+ * "0 more Synergy Slot can be +2 — 2K hasn't published which. Designate it
+ * here." — a standing instruction to perform an action the app now refuses,
+ * with a broken plural on top. A banner with nothing to say is not a
+ * disclosure. */
 export function PlusTwoDesignator({ designatedCount }: PlusTwoDesignatorProps) {
+  if (USER_DESIGNATABLE_PLUS_TWO <= 0) return null;
   const userDesignated = Math.max(
     0,
     designatedCount - RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS.length,
   );
   return (
     <Banner variant="warning">
-      {USER_DESIGNATABLE_PLUS_TWO} more Synergy Slot can be +2 — 2K hasn&apos;t published which.
-      Designate it here.{" "}
+      {USER_DESIGNATABLE_PLUS_TWO} more Synergy Slot{USER_DESIGNATABLE_PLUS_TWO === 1 ? "" : "s"} can
+      be +2 — 2K hasn&apos;t published which. Designate{" "}
+      {USER_DESIGNATABLE_PLUS_TWO === 1 ? "it" : "them"} here.{" "}
       <span className="num plus-two-counter">
         +2 designated: {userDesignated} of {USER_DESIGNATABLE_PLUS_TWO}
       </span>
@@ -161,7 +180,10 @@ export function SynergySlotRow({
 }: SynergySlotRowProps) {
   // THE canonical predicate (engine): never hand-negate synergySlotActive.
   const previewDisabled = synergySlotDisabledByPreview(synergySlot, overlay);
-  const plusTwoBlocked = designatedCount >= 2 && synergySlot.magnitude !== 2;
+  // [A7] THE CAP, from the constant. It read `>= 2` while the cap happened to
+  // be 2 — the same class of coincidence as the discipline lock above.
+  const plusTwoBlocked =
+    designatedCount >= MAX_PLUS_TWO_SYNERGY_SLOTS && synergySlot.magnitude !== 2;
   /** F4: is this Synergy Slot's +2 RATIFIED data rather than a user
    * preference? The UI READS the engine predicate; it never recomputes the
    * membership (seed: Working agreements — every rule lives in the engine).
@@ -169,9 +191,22 @@ export function SynergySlotRow({
    * handleMagnitudeChange, which reads the same predicate. */
   const ratifiedPlusTwo = isRatifiedPlusTwo(synergySlot.id);
   const ratifiedReasonId = `synergy-ratified-${synergySlot.id}`;
-  /** Only the ratified Build Specialization Synergy Slot offers a discipline
-   * control; every other Synergy Slot is permanently interchangeable. */
-  const offersDisciplineLock = ratifiedPlusTwo;
+  /** Only the Build Specialization Synergy Slot offers a discipline control;
+   * every other Synergy Slot is permanently interchangeable.
+   *
+   * [A7] READ OFF ITS OWN PREDICATE, not off `ratifiedPlusTwo`. The two were
+   * the same slot until Synergy Slot 8 was ratified, and this line said
+   * `= ratifiedPlusTwo` — which would have handed Synergy Slot 8 a Build
+   * Specialization track picker it has no published claim to. */
+  const slotOffersDisciplineLock = offersDisciplineLock(synergySlot.id);
+  /** [A7] WHY the +2 is ratified, per slot. Build Specialization is Synergy
+   * Slot 7's provenance and ONLY its own — Synergy Slot 8's +2 was ratified
+   * without a published source, so naming one here would put an invented
+   * mechanic in user-visible copy and in a disabled-control reason, which is
+   * the worst place for a guess to live. */
+  const ratifiedReason = slotOffersDisciplineLock
+    ? "Build Specialization, confirmed 2026-08-26"
+    : "2K's ratified +2, confirmed 2026-08-26";
 
   const state = { loadout, synergySlots: allSynergySlots };
   const committed: OverlayState = { reactionsActive: false, seasonReset: false };
@@ -252,21 +287,21 @@ export function SynergySlotRow({
           disabledOptions={
             ratifiedPlusTwo
               ? {
-                  "+1": `Synergy Slot ${synergySlot.id} is +2 — Build Specialization, confirmed 2026-08-26.`,
+                  "+1": `Synergy Slot ${synergySlot.id} is +2 — ${ratifiedReason}.`,
                 }
               : plusTwoBlocked
-                ? { "+2": "Only 2 Synergy Slots can be +2. Clear another first." }
+                ? {
+                    "+2": `Only ${MAX_PLUS_TWO_SYNERGY_SLOTS} Synergy Slots can be +2. Clear another first.`,
+                  }
                 : undefined
           }
         />
         {ratifiedPlusTwo ? (
           <Chip variant="muted">
-            <span id={ratifiedReasonId}>
-              +2 — Build Specialization, confirmed 2026-08-26
-            </span>
+            <span id={ratifiedReasonId}>+2 — {ratifiedReason}</span>
           </Chip>
         ) : null}
-        {offersDisciplineLock ? (
+        {slotOffersDisciplineLock ? (
           <Select
             label="Build Specialization discipline"
             value={synergySlot.disciplineLock ?? ""}
@@ -419,8 +454,8 @@ export function SynergyPanel({
           events. */}
       {ratifiedMagnitudeNormalized ? (
         <p className="synergy-panel__ratified-note">
-          Synergy Slot {RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS.join(", ")} is now +2 — 2K&apos;s Build
-          Specialization reward, confirmed 2026-08-26.
+          {ratifiedPlusTwoSubject().phrase} {ratifiedPlusTwoSubject().verb} now +2 — 2K&apos;s
+          ratified Badge Synergy rewards, confirmed 2026-08-26.
         </p>
       ) : null}
       <PlusTwoDesignator designatedCount={designatedCount} />

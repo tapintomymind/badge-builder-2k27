@@ -231,10 +231,11 @@ export interface SynergySlot {
   unlocked: boolean;
   /** Synergy slots 1–4 are temporary (season reset); 5–8 permanent. */
   permanence: "temporary" | "permanent";
-  /** +1 or +2. Synergy Slot 7 is a RATIFIED +2 (Build Specialization Level
-   * 10 — see RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS). WHICH further Synergy Slot
-   * carries the second +2 is still unpublished: the user designates it via
-   * the config `plusTwoSlotIds` seam. NEVER guessed. */
+  /** +1 or +2. [A7] Synergy Slots 7 AND 8 are RATIFIED +2 (7 = Build
+   * Specialization Level 10; 8 ratified 2026-08-26 — see
+   * RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS). The pair fills the sealed cap, so
+   * the config `plusTwoSlotIds` designation seam has nothing left to add.
+   * Still NEVER guessed — both landed on ratifications. */
   magnitude: 1 | 2;
   /**
    * F4 (RATIFIED, official 2K MyPlayer Builder page + user ratification
@@ -242,7 +243,10 @@ export interface SynergySlot {
    * their own discipline; every other Synergy Slot is interchangeable.
    * null = interchangeable — the correct and PERMANENT value for Synergy
    * Slots 1-6 and 8, and the pre-selection value for Synergy Slot 7 (whose
-   * discipline the planner cannot know, so the user picks it).
+   * discipline the planner cannot know, so the user picks it). [A7] Synergy
+   * Slot 8 stays in the null set even though it is now a ratified +2: the
+   * lock rides Build Specialization, which is Synergy Slot 7's reward alone
+   * (see offersDisciplineLock, deliberately NOT isRatifiedPlusTwo).
    * Enforced HARD in assignSynergy + validateLoadout; never auto-cleared.
    */
   disciplineLock: Category | null;
@@ -306,10 +310,11 @@ export type BudgetStrategy = "manual" | "derived";
 export interface AppConfig {
   refundTrigger: RefundTrigger;
   /**
-   * Seed Open item #2, half-resolved (F4): Synergy Slot 7 IS a +2 (Build
-   * Specialization Level 10 — RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS in
-   * src/engine/synergy.ts). This seam designates Synergy Slots the user
-   * picked as +2 BEYOND the ratified set. Retyped from the old 2-tuple to a
+   * Seed Open item #2, RESOLVED as of [A7]: Synergy Slots 7 and 8 are both
+   * +2 (7 = Build Specialization Level 10 — RATIFIED_PLUS_TWO_SYNERGY_SLOT_IDS
+   * in src/engine/synergy.ts). This seam designates Synergy Slots the user
+   * picked as +2 BEYOND the ratified set, and the ratified set now fills the
+   * cap on its own. Retyped from the old 2-tuple to a
    * plain readonly array for shape only — see src/config/index.ts for why
    * NOTHING writes it today.
    */

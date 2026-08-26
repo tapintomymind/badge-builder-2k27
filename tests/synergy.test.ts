@@ -85,15 +85,22 @@ describe("synergy slot model (seed: Synergy system)", () => {
    * is still never guessed. That is what the six magnitude-1 slots and the
    * null designation seam now assert.
    */
-  it("F4 7.1 — with userDesignated null (the SHIPPED default) Synergy Slot 7 is +2 (RATIFIED) and every other synergy slot is 1", () => {
+  it("F4 7.1 / A7 — with userDesignated null (the SHIPPED default) Synergy Slots 7 and 8 are +2 (RATIFIED) and every other synergy slot is 1", () => {
+    // The membership test reads the CONSTANT rather than re-typing the ids:
+    // this assertion is about the derivation honouring the ratified set, and
+    // a second hand-written copy of the set would pass while disagreeing.
     for (const synergySlot of createDefaultSynergySlots(null)) {
       expect(synergySlot.magnitude, `Synergy Slot ${synergySlot.id}`).toBe(
-        synergySlot.id === 7 ? 2 : 1,
+        isRatifiedPlusTwo(synergySlot.id) ? 2 : 1,
       );
     }
     for (const id of SYNERGY_SLOT_IDS) {
-      expect(magnitudeForSynergySlot(id, null), `Synergy Slot ${id}`).toBe(id === 7 ? 2 : 1);
+      expect(magnitudeForSynergySlot(id, null), `Synergy Slot ${id}`).toBe(
+        isRatifiedPlusTwo(id) ? 2 : 1,
+      );
     }
+    // …and the set really is the two, so the line above cannot go vacuous.
+    expect(SYNERGY_SLOT_IDS.filter((id) => isRatifiedPlusTwo(id))).toEqual([7, 8]);
   });
 
   it("F4 7.1 — createDefaultSynergySlots sets disciplineLock null on all eight (Synergy Slot 7's lock is USER-selected)", () => {
@@ -104,15 +111,18 @@ describe("synergy slot model (seed: Synergy system)", () => {
 
   it("the user designation seam adds a +2 ON TOP of the ratified set (the unpublished second +2 SUPPLIED, never guessed)", () => {
     // Hypothetical designation — exercises the seam, asserts nothing about 2K27.
+    // [A7] Three +2 now: the designated 3 plus the ratified 7 and 8. The seam
+    // still ADDS rather than replacing, and still refuses to drop the id.
     const synergySlots = createDefaultSynergySlots([3]);
-    expect(synergySlots.filter((s) => s.magnitude === 2).map((s) => s.id)).toEqual([3, 7]);
-    expect(synergySlots.filter((s) => s.magnitude === 1)).toHaveLength(6);
+    expect(synergySlots.filter((s) => s.magnitude === 2).map((s) => s.id)).toEqual([3, 7, 8]);
+    expect(synergySlots.filter((s) => s.magnitude === 1)).toHaveLength(5);
   });
 
-  it("F4 7.2/7.7 — the ratified +2 is an ENGINE predicate: isRatifiedPlusTwo(7) true, isRatifiedPlusTwo(3) false", () => {
+  it("F4 7.2/7.7 / A7 — the ratified +2 is an ENGINE predicate: isRatifiedPlusTwo(7) and (8) true, isRatifiedPlusTwo(3) false", () => {
     expect(isRatifiedPlusTwo(7)).toBe(true);
+    expect(isRatifiedPlusTwo(8)).toBe(true);
     for (const id of SYNERGY_SLOT_IDS) {
-      if (id === 7) continue;
+      if (id === 7 || id === 8) continue;
       expect(isRatifiedPlusTwo(id), `Synergy Slot ${id}`).toBe(false);
     }
   });
@@ -454,13 +464,18 @@ describe("F1 — plusTwoSynergySlotIds + MAX_PLUS_TWO_SYNERGY_SLOTS (the sealed 
    * +2. Synergy Slot 7's +2 is now RATIFIED data, so the defaults legitimately
    * contain one. The function's CONTRACT — "list the magnitude-2 ids in array
    * order" — is unchanged and is what is still under test; only the fixture's
-   * truth changed.
+   * truth changed. [A7] It changed once more when Synergy Slot 8 was
+   * ratified: the defaults now contain TWO, and the second case four.
    */
-  it("lists the magnitude-2 synergy slot ids in array order (the defaults now contain the RATIFIED Synergy Slot 7)", () => {
-    expect(plusTwoSynergySlotIds(createDefaultSynergySlots())).toEqual([7]);
+  it("lists the magnitude-2 synergy slot ids in array order (the defaults now contain the RATIFIED Synergy Slots 7 and 8)", () => {
+    expect(plusTwoSynergySlotIds(createDefaultSynergySlots())).toEqual([7, 8]);
+    // ARRAY ORDER, not designation order — 3 and 6 are user-designated on top
+    // of the ratified pair and still sort into slot-id position. This case is
+    // over the sealed cap by two, which is validateLoadout's to DISCLOSE and
+    // deliberately not this function's to drop.
     expect(
       plusTwoSynergySlotIds(synergySlotsWith({ 3: { magnitude: 2 }, 6: { magnitude: 2 } })),
-    ).toEqual([3, 6, 7]);
+    ).toEqual([3, 6, 7, 8]);
   });
 });
 
