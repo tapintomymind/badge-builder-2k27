@@ -494,6 +494,116 @@ describe("1.10–1.13 — nothing shipped was removed, and nothing banned was ad
     expect(panel.textContent).not.toContain(`of the ${summary.equipSlotsBaseline}`);
   });
 
+  it(
+    "1.14 — an implicit pin's sentence is a SPANNING ROW, and the pin cell holds only the control",
+    SLOW,
+    () => {
+      // THE USER-REPORTED DEFECT, held structurally. The sentence used to sit
+      // in the pin <td> beside the button, and a table column is sized by what
+      // is in it: measured in Chrome, that made the column's min-content
+      // 286.7px against the 60px PIN_CHIP_MAX the row arithmetic budgets, and
+      // the table left its card by up to 179.1px. jsdom cannot see a pixel of
+      // that — what it CAN see is which box the sentence is in, which is the
+      // thing that changed.
+      const summary = mount(f8Rig());
+      const implicitRows = summary.categories
+        .flatMap((category) => category.rows)
+        .filter((row) => row.synergyRole !== null || row.stale);
+      // The fixture's whole point: three of four purchases are implicitly
+      // pinned. An empty list would make every assertion below vacuous.
+      expect(implicitRows.length).toBeGreaterThanOrEqual(2);
+
+      for (const row of implicitRows) {
+        const rowHeader = within(roster()).getByRole("rowheader", { name: row.name });
+        const tr = rowHeader.closest("tr") as HTMLElement;
+        const pinCell = tr.querySelector(".summary-roster__pin") as HTMLElement;
+        const pin = pinCell.querySelector("button") as HTMLButtonElement;
+        expect(pin.disabled, `${row.name} is implicitly pinned`).toBe(true);
+
+        // (a) THE PIN CELL HOLDS THE CONTROL AND NOTHING ELSE.
+        expect(
+          pinCell.querySelectorAll(".pin-control__reason"),
+          `${row.name} still carries its sentence in the pin column`,
+        ).toHaveLength(0);
+        expect(pinCell.children).toHaveLength(1);
+
+        // (b) THE SENTENCE IS THE NEXT ROW, spanning every column, and it is
+        //     still what aria-describedby points at.
+        const reasonRow = tr.nextElementSibling as HTMLElement;
+        expect(reasonRow.className).toBe("summary-roster__reason");
+        const cell = reasonRow.firstElementChild as HTMLTableCellElement;
+        expect(cell.colSpan).toBe(6);
+        const reason = document.getElementById(
+          pin.getAttribute("aria-describedby") as string,
+        ) as HTMLElement;
+        expect(cell.contains(reason)).toBe(true);
+
+        // (c) THE SENTENCE IS WHOLE. It is the only place this surface says
+        //     which Synergy Slot a badge holds, so a clipped one is a lost
+        //     fact — and "ends mid-sentence" is exactly what the user saw.
+        //     Computed from the engine's own row, never transcribed.
+        expect(reason.textContent?.endsWith(".")).toBe(true);
+        if (row.synergyRole !== null) {
+          expect(reason.textContent).toContain(
+            `Synergy Slot ${row.synergyRole.synergySlotId}.`,
+          );
+        }
+        // …and no truncation device is reachable from it in the DOM either.
+        for (
+          let node: HTMLElement | null = reason;
+          node !== null && node !== document.body;
+          node = node.parentElement
+        ) {
+          expect(node.style.textOverflow, `${node.className} truncates`).toBe("");
+          expect(node.style.whiteSpace, `${node.className} forces one line`).not.toBe("nowrap");
+        }
+      }
+
+      // (d) IT COSTS NOTHING ON THE ROWS THAT DO NOT HAVE ONE — the same
+      //     contract `.summary-roster__pin-mode` and `.summary-roster__stale`
+      //     already keep.
+      expect(roster().querySelectorAll(".summary-roster__reason")).toHaveLength(
+        implicitRows.length,
+      );
+      for (const cell of roster().querySelectorAll(".summary-roster__pin")) {
+        const button = cell.querySelector("button") as HTMLButtonElement;
+        if (button.disabled) continue;
+        expect(
+          (cell.closest("tr")?.nextElementSibling as HTMLElement | null)?.className,
+        ).not.toBe("summary-roster__reason");
+      }
+    },
+  );
+
+  it("1.15 — the effective cell's wrapping boundary carries NO text of its own", SLOW, () => {
+    // The pair span exists so the cell can wrap without stranding "→" on a
+    // line of its own. It is a wrapping boundary and MUST stay one: if it ever
+    // gains text, every textContent assertion over this column — including
+    // tests/ui/overlays.test.tsx, which is RUN-never-edit and compares the
+    // whole .summary subtree across four overlay combinations — starts reading
+    // something the engine did not produce.
+    const summary = mount(f8Rig());
+    const boosted = summary.categories
+      .flatMap((category) => category.rows)
+      .filter((row) => row.committedEffectiveLevel !== row.purchasedLevel);
+    expect(boosted.length).toBeGreaterThan(0);
+
+    for (const row of boosted) {
+      const tr = within(roster()).getByRole("rowheader", { name: row.name }).closest("tr");
+      const cell = tr?.querySelector(".summary-roster__effective") as HTMLElement;
+      const pair = cell.querySelector(".summary-roster__effective-pair") as HTMLElement;
+      expect(pair).not.toBeNull();
+      // The arrow and the level, together, and nothing else.
+      expect(pair.textContent).toBe(`→ ${LEVEL_LABELS[row.committedEffectiveLevel]}`);
+      // The role marker stayed OUTSIDE the boundary — it is the part allowed
+      // to take its own line.
+      if (row.synergyRole !== null) {
+        expect(pair.textContent).not.toContain(String(row.synergyRole.synergySlotId));
+        expect(cell.textContent).toContain(String(row.synergyRole.synergySlotId));
+      }
+    }
+  });
+
   it("the App always supplies the summary — the optional props are never left off", SLOW, () => {
     mount(f8Rig());
     // If App.tsx ever drops `summary`/`synergy`, these three regions vanish

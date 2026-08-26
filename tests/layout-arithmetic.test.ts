@@ -4646,3 +4646,215 @@ describe("A5-U — the bonus dialog's geometry, derived from what it protects", 
     expect(app.trimEnd().endsWith("/* ==== end A5-U — bonus mode ==== */")).toBe(true);
   });
 });
+
+/* ============================================================ ROSTER-OVERFLOW
+ *
+ * THE DEFECT THIS SECTION EXISTS FOR, and it is a user report, not a
+ * hypothetical. At a wide viewport the roster goes 3-up on 498px tracks, which
+ * gives each group a 464px content box. Measured in Chrome against that box,
+ * BEFORE the fix:
+ *
+ *   .summary-roster__pin min-content        286.7px   (PIN_CHIP_MAX budgets 60)
+ *   .summary-roster__table width            571.2 / 643.1 / 557.2px
+ *   past the group's content box            107.2 / 179.1 /  93.2px
+ *
+ * and at 375 the same row needed 342.2px against a 283px box with 20px of
+ * DOCUMENT horizontal scroll behind it.
+ *
+ * THE OBVIOUS CULPRITS WERE ALL WRONG, which is why this block asserts the
+ * mechanism rather than the symptom:
+ *   - not a fixed-column grid. The row is an auto-layout <table> and every
+ *     other column sat at its natural width (77 / 43 / 61 / 85 / 16).
+ *   - not a positioned annotation. `.pin-control__reason` is `display: block`,
+ *     `position: static`, fully in flow — which is exactly WHY it could size a
+ *     column.
+ *   - not a negative offset and not an `overflow` that should have clipped.
+ *     `.summary-roster__group` is `overflow: visible` by design, and the
+ *     "truncated mid-sentence" symptom was the NEXT group's opaque
+ *     --bg-surface painting over the overflow, not a clip and not an ellipsis.
+ *   - `.summary-roster__table { max-width: 520px }` LOOKED like the guard and
+ *     was inoperative: a table is never laid out narrower than its
+ *     min-content.
+ *
+ * jsdom cannot see any of that, so every assertion below grades the STYLESHEET
+ * RULES that produce it, each with a canary fired at a sheet that still
+ * carries the defect. The measurements themselves live in the browser proof.
+ * ========================================================================= */
+
+describe("§14.2 — the roster row cannot leave its card", () => {
+  const ROSTER_BODY_CELLS = [
+    ".summary-roster__name",
+    ".summary-roster__tier",
+    ".summary-roster__level",
+    ".summary-roster__effective",
+    ".summary-roster__cost",
+  ] as const;
+
+  /** The left+right padding a rule declares, in px, resolving space tokens.
+   *  `0` is legal here and a bare number anywhere else is not — the row
+   *  arithmetic is denominated in tokens. */
+  function inlinePadding(block: string): number {
+    const decl = /(?:^|;)\s*padding:\s*([^;]+)/.exec(block);
+    if (decl === null) throw new Error("no padding shorthand");
+    const parts = (decl[1] as string).trim().split(/\s+/);
+    const [top, right = top, , left = right] = parts as string[];
+    return [right, left].reduce((total, part) => {
+      if (part === "0") return total;
+      const token = /var\(--([a-z0-9-]+)\)/.exec(part as string);
+      if (token === null) throw new Error(`padding part is a literal: ${String(part)}`);
+      return total + spaceToken(token[1] as string);
+    }, 0);
+  }
+
+  it("R0 — no comment inside a roster rule carries a brace", () => {
+    // blocksFor() — which every assertion below and several shipped ones use —
+    // scans to the next `}`. A brace inside a comment INSIDE a block therefore
+    // truncates the block silently and the declarations after it stop being
+    // graded. This cost a green run during the fix and is cheap to hold.
+    for (const selector of [
+      ".summary-roster",
+      ".summary-roster__group",
+      ".summary-roster__reason td",
+      ".pin-control__reason",
+      ...ROSTER_BODY_CELLS,
+    ]) {
+      for (const block of blocksFor(app, selector)) {
+        for (const comment of block.matchAll(/\/\*[\s\S]*?\*\//g)) {
+          expect(comment[0], `${selector} has a brace inside a comment`).not.toMatch(/[{}]/);
+        }
+        // …and the block really did reach its closing brace: every rule here
+        // ends in a declaration, so a truncated read shows up as a dangling
+        // comment opener.
+        expect(block.split("/*").length, `${selector} block looks truncated`).toBe(
+          block.split("*/").length,
+        );
+      }
+    }
+  });
+
+  it("R1 — the row spends FOUR --space-2 gutters, which is what ROSTER_ROW_MAX prices", () => {
+    // §14.2 derives the 412px row over "four --space-2 gutters". The header
+    // row has always padded on ONE side; the BODY cells padded on both, so
+    // every seam was 16px against a budget of 8 — 66px across the row rather
+    // than 33, and the header columns did not sit over the body columns they
+    // label. Summed off the shipped rules so the CSS and the derivation cannot
+    // drift again.
+    const spent = ROSTER_BODY_CELLS.reduce(
+      (total, selector) => total + inlinePadding(blocksFor(app, selector)[0] as string),
+      0,
+    );
+    expect(spent).toBe(4 * SPACE_2);
+    // The header is the precedent this now matches, not a second convention.
+    expect(inlinePadding(blocksFor(app, ".summary-roster__head th")[0] as string)).toBe(SPACE_2);
+
+    // CANARY — the pre-fix shape. Padding on BOTH inline sides doubles the
+    // spend, and R1 must go red against it.
+    expect(inlinePadding("padding: var(--space-1) var(--space-2);")).toBe(2 * SPACE_2);
+    expect(2 * SPACE_2).not.toBe(SPACE_2);
+  });
+
+  it("R2 — the pin column is sized by the CONTROL; the sentence gets its own row", () => {
+    // The <td> keeps `nowrap` — it is right for a button label and was never
+    // the mistake. The mistake was that the sentence lived in the same box and
+    // inherited it, making the column's min-content 286.7px.
+    expect(blocksFor(app, ".summary-roster__pin")[0]).toContain("white-space: nowrap");
+    // The reason DECLARES its own wrapping, so no host's box can turn it back
+    // into one long line.
+    const reason = blocksFor(app, ".pin-control__reason")[0] as string;
+    expect(reason).toContain("white-space: normal");
+    expect(reason).toContain("overflow-wrap: break-word");
+    // …and the row it now lives in exists, spanning, with a measure cap that
+    // matches the stale disclosure directly above it.
+    const reasonRow = blocksFor(app, ".summary-roster__reason td")[0] as string;
+    expect(reasonRow).toMatch(/max-width:\s*\d+ch/);
+    expect(reasonRow).toContain("padding: 0 0 var(--space-2)");
+    // It is SESSION control, like the pin cell and the pin-mode row, so it
+    // leaves the printed page with them rather than ruling an empty band
+    // across the table.
+    const printStart = app.indexOf("@media print {");
+    expect(printStart).toBeGreaterThan(-1);
+    expect(app.slice(printStart)).toContain(".summary-roster__reason");
+  });
+
+  it("R3 — NOTHING in the roster truncates: the sentence wraps or it is lost", () => {
+    // "Which Synergy Slot does this badge hold" appears NOWHERE else on this
+    // surface. A one-line treatment of it is a lost fact, so the three shapes
+    // that would produce one are banned by name across every roster rule and
+    // over the reason itself.
+    const rosterRules = [
+      ...stripComments(app).matchAll(/([^{}]*\.(?:summary-roster|pin-control)[^{}]*)\{([^{}]*)\}/g),
+    ];
+    expect(rosterRules.length).toBeGreaterThan(10);
+    for (const rule of rosterRules) {
+      const selector = (rule[1] as string).trim();
+      const body = rule[2] as string;
+      expect(body, `${selector} truncates`).not.toContain("text-overflow");
+      expect(body, `${selector} clamps`).not.toContain("line-clamp");
+      // A group that clips is a group that hides an overflow instead of not
+      // having one — assertion 26's rule, applied to this surface.
+      expect(body, `${selector} clips`).not.toMatch(/overflow(-x)?:\s*(hidden|clip)/);
+    }
+  });
+
+  it("R4 — the effective cell wraps, and the arrow is never parted from its level", () => {
+    // `white-space: nowrap` made "→ HOF ⚡2" one 85.2px token and is the second
+    // half of the S overflow. §14.2's own stated mechanism is that a table
+    // wraps its cells natively; this cell had it switched off.
+    const cell = blocksFor(app, ".summary-roster__effective")[0] as string;
+    expect(cell).toContain("white-space: normal");
+    expect(cell).not.toContain("white-space: nowrap");
+    // …but letting it wrap unheld strands "→" on a 12.5px line of its own
+    // (measured). The pair span is the wrapping boundary, and it is the ONLY
+    // thing in the cell allowed to be nowrap.
+    expect(blocksFor(app, ".summary-roster__effective-pair")[0]).toContain(
+      "white-space: nowrap",
+    );
+  });
+
+  it("R5 — I13: a group fills its cell, and the columns hold when a name wraps", () => {
+    // Ragged heights measured before the fix, one 3-up row:
+    // 346.1 / 256.1 / 248.9 against 316.3 / 214.1 / 214.1. `align-items: start`
+    // was the cause; `stretch` is the ruling `.badge-card` already took.
+    const roster = blocksFor(app, ".summary-roster")[0] as string;
+    expect(roster).toContain("align-items: stretch");
+    expect(roster).not.toContain("align-items: start");
+    // REJECTED, and asserted so it stays rejected: a percentage height makes
+    // the group depend on its cell having a definite one.
+    expect(blocksFor(app, ".summary-roster__group")[0]).not.toMatch(/height:\s*100%/);
+
+    // A <td>'s used vertical-align is `middle`, which is invisible until a
+    // name wraps — then the single-line cells re-centre in the taller row and
+    // the cost digit floats between the name's two lines (measured 10.3px
+    // below the first, 10.4px above the second). Every data cell takes the
+    // first baseline instead.
+    for (const selector of [...ROSTER_BODY_CELLS, ".summary-roster__pin"]) {
+      expect(
+        blocksFor(app, selector)[0],
+        `${selector} does not take the row's first baseline`,
+      ).toContain("vertical-align: baseline");
+    }
+  });
+
+  it("R6 — the fix adds NO touch-floor rule, NO literal, and NO roster breakpoint", () => {
+    // The census is exact in both axes (assertions 24 / 31) and this slice
+    // must not have moved it. `44` may appear nowhere as a size in any of the
+    // rules touched here — the F11 / [A7] escape shape.
+    for (const selector of [
+      ".summary-roster",
+      ".summary-roster__reason td",
+      ".summary-roster__effective-pair",
+      ".pin-control__reason",
+      ...ROSTER_BODY_CELLS,
+    ]) {
+      for (const block of blocksFor(app, selector)) {
+        expect(block, `${selector} spells a size as a literal`).not.toMatch(/:\s*\d+px/);
+      }
+    }
+    // …and §13.3's rule holds: auto-fill is continuous, so nothing here needed
+    // a breakpoint of its own.
+    const queries = [...stripComments(app).matchAll(/@media \(min-width:\s*(\d+)px\)/g)].map(
+      (match) => Number.parseInt(match[1] as string, 10),
+    );
+    expect([...new Set(queries)].sort((a, b) => a - b)).toEqual([768, 1280]);
+  });
+});

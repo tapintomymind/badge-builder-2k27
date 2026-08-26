@@ -2168,9 +2168,15 @@ main#badge-grid {
    * behaviour for a grid item, so this is a REMOVAL of an override, and the
    * group needs to know nothing about its cell.
    *
-   * REJECTED, for the reason I13 rejected it on the card: `.summary-roster__group
-   * { height: 100% }`, which works today and makes the group depend on its
-   * parent having a definite height.
+   * REJECTED, for the reason I13 rejected it on the card: a `height: 100%` on
+   * `.summary-roster__group`, which works today and makes the group depend on
+   * its parent having a definite height.
+   *
+   * NO BRACE APPEARS IN THIS COMMENT, and that is not fussiness: the
+   * stylesheet lints parse a rule by scanning forward to its closing brace, so
+   * one written inside a comment silently truncates the block they read and
+   * every declaration after it stops being asserted at all. Held by R0 in
+   * tests/layout-arithmetic.test.ts.
    *
    * The TABLE does not stretch with it (it is a block in a taller box, top
    * aligned) and must not: ROSTER_TABLE_MAX caps eye travel horizontally, and
@@ -2324,8 +2330,9 @@ main#badge-grid {
  * and the column's min-content became the whole unwrapped sentence — 286.7px
  * measured, against the 60px PIN_CHIP_MAX the row arithmetic budgets. A table
  * is never laid out narrower than its min-content, so `max-width: 520px` on
- * `.summary-roster__table` was silently inoperative and the table left its
- * card by 93.2 / 107.2 / 179.1px at a 498px track — appearing as a half-sliced
+ * `.summary-roster__table` was silently inoperative (its rule reads
+ * `max-width: 520px`) and the table left its card by 93.2 / 107.2 / 179.1px at
+ * a 498px track — appearing as a half-sliced
  * Pin button, a chip sitting outside the card, and a sentence "truncated" that
  * was in fact painted over by the NEXT group's opaque --bg-surface.
  *
@@ -5330,6 +5337,14 @@ main#badge-grid {
 
 .summary-roster__pin {
   text-align: right;
+  /* The SIXTH cell on the row's first baseline. Without it the control centres
+   * itself against a wrapped name — measured at 375, the Pin chip sat level
+   * with line 2 of "High-Flying Denier" while that row's Bronze / — / 1 sat on
+   * line 1. `.btn` is inline-flex, so its baseline is its label's. */
+  vertical-align: baseline;
+  /* KEPT, and it was never the defect. A button label must not break; what
+   * broke the column was the SENTENCE that used to share this cell and
+   * inherited this declaration. It lives in `.summary-roster__reason` now. */
   white-space: nowrap;
 }
 
