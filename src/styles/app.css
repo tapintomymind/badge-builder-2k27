@@ -1414,6 +1414,15 @@ main#badge-grid {
   color: var(--fg-primary);
 }
 
+/* The storage-scope disclosure (STORAGE_SCOPE_LINE). Row padding and rule
+ * match .build-manager__list li exactly, so it reads as the first row of the
+ * dialog rather than as a banner bolted above it. `.hint` already carries the
+ * muted colour, the xs size and the 65ch measure; only the box is set here. */
+.build-manager__note {
+  padding: var(--space-3-5) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .build-manager__list li {
   display: flex;
   align-items: flex-start;

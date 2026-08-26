@@ -95,7 +95,7 @@ import { AttributesSection, BuildPanel, PhysiqueStrip } from "./ui/build/BuildPa
 import type { HeightClampNotice } from "./ui/build/BuildPanel";
 import { ResetBuildDialog } from "./ui/build/ResetBuildDialog";
 import type { ResetBlastRadius } from "./ui/build/ResetBuildDialog";
-import { BuildManagerDialog, BuildSwitcher } from "./ui/builds/BuildManager";
+import { BuildManagerDialog, BuildSwitcher, STORAGE_SCOPE_LINE } from "./ui/builds/BuildManager";
 import { badgeAnchorId } from "./ui/board/board-model";
 import { LoadoutBoard } from "./ui/board/LoadoutBoard";
 import { BadgeCard } from "./ui/grid/BadgeCard";
@@ -2241,6 +2241,24 @@ export default function App() {
                   a ratified rev-2 §3.6 clause that never shipped (~198px of
                   min-content in a 142px rail box). The header pair above is
                   the only one; tests/layout-arithmetic.test.ts pins this. */}
+              {/* The storage-scope disclosure, at the END of the surface whose
+                  whole job is reading the plan back out — the moment a user is
+                  most likely to think "I want to keep this," and therefore the
+                  last moment it is still cheap to tell them Export exists.
+
+                  A SIBLING OF <SummaryPanel>, NOT A CHILD, and for the same
+                  mechanical reason <RollPanel> above is: `.summary` is the
+                  exact subtree tests/ui/overlays.test.tsx compares across all
+                  four overlay combinations, and that gate is RUN-never-edit.
+                  Static copy could not break a bit-identical comparison, but
+                  staying outside the subtree means the gate never has to
+                  reason about this at all.
+
+                  It is text, not a control: the rail carries no second
+                  Export/Import pair and the §11.5 ruling directly above
+                  stands. Zero always-visible height — see STORAGE_SCOPE_LINE
+                  in ui/builds/BuildManager.tsx for why that is load-bearing. */}
+              <p className="hint">{STORAGE_SCOPE_LINE}</p>
             </Section>
           </div>
 
