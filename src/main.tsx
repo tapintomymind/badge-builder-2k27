@@ -84,6 +84,10 @@ export class RecoveryBoundary extends Component<{ children: ReactNode }, Recover
       `${radius.namedBuildCount} named build${radius.namedBuildCount === 1 ? "" : "s"}`,
     );
     if (radius.hasQuarantine) parts.push("the preserved unreadable autosave");
+    // F2.3: a preserved pre-transform original is the ONLY remaining copy of
+    // whatever a lossy boot read stripped. "Clear everything" takes it, so the
+    // confirm has to say so — F2.2's rule, applied to the second key.
+    if (radius.hasPreservedOriginal) parts.push("the preserved original autosave");
     const proceed = window.confirm(
       `Delete ALL saved data? This removes ${parts.filter((part) => part !== null).join(", ")}. ` +
         "This cannot be undone.",

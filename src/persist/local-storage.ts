@@ -36,6 +36,34 @@ const UI_STATE_KEY = "badge-builder-2k27:ui-state:v1";
  * EXACTLY ONE quarantine key, never a growing list: localStorage is ~5MB and
  * QuotaExceededError is a live concern here (tech-strategy.md §9). */
 const AUTOSAVE_QUARANTINE_KEY = "badge-builder-2k27:autosave-quarantine:v1";
+/**
+ * F2.3 A2 — the verbatim raw text of an autosave the deserializer READ, but
+ * read LOSSILY: entries stripped by dataset drift, synergy references healed,
+ * a magnitude overridden by ratified data, or a top-level field dropped by
+ * the fixed-list reassembly. The in-memory build is a strictly poorer
+ * derivative of these bytes, and the user's first edit persists it over them.
+ *
+ * A SECOND KEY, deliberately, rather than sharing `AUTOSAVE_QUARANTINE_KEY`.
+ * Three reasons, in order of weight:
+ *
+ *  1. Sharing INVERTS the never-overwrite rule into data loss. Neither
+ *     preserve path may clobber a standing one (rule 6 — an automatic write
+ *     must never destroy bytes the user did not agree to destroy), so a
+ *     drift preservation sitting in a shared key would silently block the
+ *     strictly MORE severe unreadable case from ever being preserved. The
+ *     fix would have manufactured the bug it exists to remove.
+ *  2. The two conditions carry different disclosure. `QuarantineBanner` says
+ *     "A saved build couldn't be read" and is keyed on the quarantine key's
+ *     EXISTENCE — a drifted-but-readable autosave written there would raise
+ *     that banner and tell the user something untrue.
+ *  3. The drift case already has its own disclosure (`DriftBanner`) and its
+ *     own acceptance gesture (the first edit). It is a different event.
+ *
+ * ONE ENTRY, NEVER A GROWING LIST — the same ~5MB budget rule the quarantine
+ * key states, applied per key: at most two preserved envelopes exist at once,
+ * and neither is ever appended to.
+ */
+const AUTOSAVE_PRESERVED_KEY = "badge-builder-2k27:autosave-preserved:v1";
 
 export type PersistResult = { ok: true } | { ok: false; error: unknown };
 
@@ -64,10 +92,101 @@ function safeRemoveItem(key: string): void {
   }
 }
 
+/**
+ * F2.3 R6 — "there is nothing stored" and "I could not ask" TOLD APART.
+ *
+ * `safeGetItem` returns null for both, and that ambiguity is load-bearing the
+ * moment a read is used to decide whether to WRITE: reading a transient
+ * failure as "someone else changed it" and suppressing the write turns a
+ * hiccup into total autosave loss. Every read that gates a write goes through
+ * this, and every such caller must FAIL OPEN on `failed`.
+ */
+export type RawReadOutcome =
+  | { kind: "absent" }
+  | { kind: "present"; raw: string }
+  | { kind: "failed"; error: unknown };
+
+function rawGetItem(key: string): RawReadOutcome {
+  try {
+    const text = window.localStorage.getItem(key);
+    return text === null ? { kind: "absent" } : { kind: "present", raw: text };
+  } catch (error) {
+    return { kind: "failed", error };
+  }
+}
+
 // ---------------------------------------------------------------- autosave --
 
 export function writeAutosave(saved: SavedBuild): PersistResult {
   return safeSetItem(AUTOSAVE_KEY, serializeSavedBuild(saved));
+}
+
+/**
+ * F2.3 A4 — what an autosave write DID, in enough detail for the caller to
+ * keep an accurate "what is in storage right now" reference.
+ *
+ * `written.raw` is the EXACT string that reached storage. A caller that
+ * re-derives it (`serializeSavedBuild(toEnvelope(...))` a second time) gets a
+ * different `savedAt` and a permanently wrong reference, so the bytes are
+ * returned rather than recomputed.
+ */
+export type AutosaveWriteOutcome =
+  | { kind: "written"; raw: string }
+  | { kind: "failed"; error: unknown }
+  /** A foreign writer (another tab) has moved the key since this instance
+   * last observed or wrote it, and the caller asked to refuse in that case.
+   * NOTHING was written; `foreign` is what is in storage, untouched. */
+  | { kind: "refused"; foreign: string };
+
+/**
+ * The UNGUARDED write — last-write-wins, and the caller means it.
+ *
+ * Used by the state-change writer, which runs behind a user gesture in THIS
+ * tab. That is the bargain tech-strategy.md §9 documents and it is deliberately
+ * left standing: refusing an intentional edit's write would silently disable
+ * autosave for someone who is actively working, which converts another tab's
+ * loss into this tab's total loss.
+ */
+export function writeAutosaveTracked(saved: SavedBuild): AutosaveWriteOutcome {
+  const text = serializeSavedBuild(saved);
+  const result = safeSetItem(AUTOSAVE_KEY, text);
+  return result.ok ? { kind: "written", raw: text } : { kind: "failed", error: result.error };
+}
+
+/**
+ * F2.3 A4 — the GUARDED write: optimistic concurrency for the unload flush.
+ *
+ * The flush fires with no user intent at all — a stale tab merely being
+ * closed or backgrounded. Pre-fix it serialized an hour-old in-memory copy
+ * and `setItem` over the key without ever reading what was there, so closing
+ * yesterday's tab reverted today's work irrecoverably.
+ *
+ * `expected` is the exact string this instance last OBSERVED (its boot read)
+ * or last WROTE. If storage holds something else, a foreign writer has moved
+ * it and this envelope is not derived from what is there: preserve the
+ * foreign bytes by writing nothing, and tell the caller.
+ *
+ * THREE DELIBERATE FAIL-OPEN CASES, each of which would otherwise convert a
+ * benign condition into lost autosaves:
+ *  - `failed` (R6): the read THREW. Unknowable is not "moved" — write.
+ *  - `absent`: nothing is stored. A removal is not a foreign WRITE, and
+ *    there are no bytes to preserve; refusing would leave the key empty
+ *    forever after any "Clear just the autosave".
+ *  - `present` and equal: the ordinary single-tab case, every time.
+ *
+ * Never adopts the foreign bytes and never reads them into memory — that is
+ * the caller's own state's job, and adopting would destroy the other tab's
+ * work to save this one's.
+ */
+export function writeAutosaveIfUnmoved(
+  saved: SavedBuild,
+  expected: string | null,
+): AutosaveWriteOutcome {
+  const current = rawGetItem(AUTOSAVE_KEY);
+  if (current.kind === "present" && current.raw !== expected) {
+    return { kind: "refused", foreign: current.raw };
+  }
+  return writeAutosaveTracked(saved);
 }
 
 /**
@@ -85,7 +204,12 @@ export function writeAutosave(saved: SavedBuild): PersistResult {
  */
 export type AutosaveReadResult =
   | { kind: "absent" }
-  | { kind: "ok"; value: DeserializedSavedBuild }
+  /** F2.3: `raw` is carried on the SUCCESS path too. The deserializer's result
+   * can be a strictly poorer derivative of these bytes (drift strip, heal,
+   * ratified override, dropped top-level field), so the caller needs the
+   * original both to PRESERVE it and to hold it as its "what is in storage"
+   * reference for the guarded write. */
+  | { kind: "ok"; value: DeserializedSavedBuild; raw: string }
   /** The bytes exist and the deserializer refused them. `raw` is the VERBATIM
    * stored string — the user's data, intact. Never discard it. */
   | { kind: "unreadable"; raw: string; error: unknown };
@@ -94,7 +218,7 @@ export function readAutosaveResult(): AutosaveReadResult {
   const text = safeGetItem(AUTOSAVE_KEY);
   if (text === null) return { kind: "absent" };
   try {
-    return { kind: "ok", value: deserializeSavedBuildWithReport(text) };
+    return { kind: "ok", value: deserializeSavedBuildWithReport(text), raw: text };
   } catch (error) {
     return { kind: "unreadable", raw: text, error };
   }
@@ -139,6 +263,36 @@ export function readAutosaveQuarantine(): string | null {
  * 6: never auto-clear). */
 export function clearAutosaveQuarantine(): void {
   safeRemoveItem(AUTOSAVE_QUARANTINE_KEY);
+}
+
+/**
+ * F2.3 A2 — preserve the verbatim bytes of an autosave that was READ, but read
+ * LOSSILY. Called from the boot path, during the boot render, before any write
+ * derived from the poorer in-memory build can occur.
+ *
+ * NEVER overwrites a standing preservation, for the same reason
+ * `quarantineAutosave` does not: an automatic boot-time write must never
+ * destroy bytes the user never clicked anything to destroy (§0.1 rule 6), and
+ * a later boot's bytes are already the degraded ones. That rule has a KNOWN
+ * cost, recorded rather than hidden — a SECOND, later drift while an earlier
+ * preservation stands is not preserved, and "Clear ALL saved data" on the
+ * recovery screen is the only way to free the entry. Choosing the other way
+ * round would put an automatic write on top of the user's older data, which is
+ * the defect class this whole path exists to close.
+ *
+ * An already-present value is a SUCCESS, not a conflict — which also makes
+ * this idempotent under a StrictMode double render.
+ */
+export function preserveAutosaveOriginal(raw: string): PersistResult {
+  if (safeGetItem(AUTOSAVE_PRESERVED_KEY) !== null) return { ok: true };
+  return safeSetItem(AUTOSAVE_PRESERVED_KEY, raw);
+}
+
+/** The preserved pre-transform autosave text, or null. Read-only. The raw
+ * export ships the bytes themselves; this is how a test or a caller asks
+ * whether a preservation stands. */
+export function readPreservedAutosaveOriginal(): string | null {
+  return safeGetItem(AUTOSAVE_PRESERVED_KEY);
 }
 
 /** The report-free form for callers that only need the build. */
@@ -404,6 +558,10 @@ export function exportRawPersistedData(): string {
       // F2.2 A2: without this the quarantined bytes are unreachable by the
       // only export we have — which would make the quarantine pointless.
       [AUTOSAVE_QUARANTINE_KEY]: safeGetItem(AUTOSAVE_QUARANTINE_KEY),
+      // F2.3 A2: same argument, and it is the WHOLE recovery route for a
+      // lossily-read autosave — there is no banner action for this one, so
+      // the raw export is how the preserved original gets back out.
+      [AUTOSAVE_PRESERVED_KEY]: safeGetItem(AUTOSAVE_PRESERVED_KEY),
     },
     null,
     2,
@@ -416,6 +574,9 @@ export interface PersistedDataBlastRadius {
   namedBuildCount: number;
   hasAutosave: boolean;
   hasQuarantine: boolean;
+  /** F2.3: a standing preserved original is data the nuclear action destroys,
+   * so the confirm has to be able to name it. */
+  hasPreservedOriginal: boolean;
 }
 
 export function persistedDataBlastRadius(): PersistedDataBlastRadius {
@@ -424,6 +585,7 @@ export function persistedDataBlastRadius(): PersistedDataBlastRadius {
     namedBuildCount: listing.summaries.length + listing.unreadableCount,
     hasAutosave: safeGetItem(AUTOSAVE_KEY) !== null,
     hasQuarantine: safeGetItem(AUTOSAVE_QUARANTINE_KEY) !== null,
+    hasPreservedOriginal: safeGetItem(AUTOSAVE_PRESERVED_KEY) !== null,
   };
 }
 
@@ -439,6 +601,8 @@ export function clearAllPersistedData(): void {
   // F2.2 A2: "clear everything" must not silently leave data behind — and
   // the confirm copy names the quarantine when one exists.
   safeRemoveItem(AUTOSAVE_QUARANTINE_KEY);
+  // F2.3 A2: same rule, same reason. The confirm names this one too.
+  safeRemoveItem(AUTOSAVE_PRESERVED_KEY);
 }
 
 /**

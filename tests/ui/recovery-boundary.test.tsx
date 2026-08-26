@@ -20,6 +20,9 @@ const AUTOSAVE_KEY = "badge-builder-2k27:autosave:v1";
 const NAMED_BUILDS_KEY = "badge-builder-2k27:named-builds:v1";
 const UI_STATE_KEY = "badge-builder-2k27:ui-state:v1";
 const QUARANTINE_KEY = "badge-builder-2k27:autosave-quarantine:v1";
+/** F2.3: the second preserved-bytes key — the ORIGINAL of an autosave that
+ * was readable but read LOSSILY. Additive; the quarantine key is unchanged. */
+const PRESERVED_KEY = "badge-builder-2k27:autosave-preserved:v1";
 
 /** F2.2 slice D re-cut the nuclear button's copy to state its blast radius. */
 const CLEAR_ALL =
@@ -205,17 +208,60 @@ describe("RecoveryBoundary — minimal recovery screen instead of a white screen
 describe("persist recovery surface (consumed only by the boundary)", () => {
   /** F2.2 test 4.4 — the key set is RE-PINNED: the quarantine key must ride
    * along, or the preserved bytes are unreachable by the only export we
-   * have, which would make the quarantine pointless. */
+   * have, which would make the quarantine pointless.
+   *
+   * F2.3 re-pins it a second time for the preserved-original key, and the
+   * argument is STRONGER there: the quarantine at least has a banner with an
+   * export action of its own, while a lossily-read autosave's original has NO
+   * banner action — this export is its entire recovery route. An exhaustive
+   * key-set assertion is the point of the test, so a new key is expected to
+   * fail it once, deliberately, rather than ride in unnoticed. */
   it("exportRawPersistedData returns every app key's raw string verbatim, null when absent", () => {
     installed.store.set(AUTOSAVE_KEY, "{not-even-json");
     installed.store.set(QUARANTINE_KEY, "{quarantined-verbatim");
+    installed.store.set(PRESERVED_KEY, "{the-pre-drift-original");
     const parsed = JSON.parse(exportRawPersistedData()) as Record<string, unknown>;
     expect(parsed[AUTOSAVE_KEY]).toBe("{not-even-json");
     expect(parsed[NAMED_BUILDS_KEY]).toBeNull();
     expect(parsed[UI_STATE_KEY]).toBeNull();
     expect(parsed[QUARANTINE_KEY]).toBe("{quarantined-verbatim");
+    expect(parsed[PRESERVED_KEY]).toBe("{the-pre-drift-original");
     expect(Object.keys(parsed).sort()).toEqual(
-      [AUTOSAVE_KEY, NAMED_BUILDS_KEY, UI_STATE_KEY, QUARANTINE_KEY].sort(),
+      [AUTOSAVE_KEY, NAMED_BUILDS_KEY, UI_STATE_KEY, QUARANTINE_KEY, PRESERVED_KEY].sort(),
     );
+  });
+
+  /** F2.3 — "clear everything" must not silently leave data behind, and the
+   * confirm must NAME what it takes. Both properties, for the second key. */
+  it("the nuclear clear takes the preserved original too, and the confirm names it", async () => {
+    const RecoveryBoundary = await loadRecoveryBoundary();
+    installed.store.set(AUTOSAVE_KEY, "a");
+    installed.store.set(PRESERVED_KEY, "{the-pre-drift-original");
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(
+      <RecoveryBoundary>
+        <Bomb />
+      </RecoveryBoundary>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: CLEAR_ALL }));
+    expect(confirmSpy.mock.calls[0]?.[0] as string).toContain(
+      "the preserved original autosave",
+    );
+    expect(installed.store.has(PRESERVED_KEY)).toBe(false);
+  });
+
+  /** ...and it is NOT named when none stands, so the copy never claims to be
+   * destroying something that is not there. */
+  it("the confirm stays silent about the preserved original when there is none", async () => {
+    const RecoveryBoundary = await loadRecoveryBoundary();
+    installed.store.set(AUTOSAVE_KEY, "a");
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(
+      <RecoveryBoundary>
+        <Bomb />
+      </RecoveryBoundary>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: CLEAR_ALL }));
+    expect(confirmSpy.mock.calls[0]?.[0] as string).not.toContain("preserved original");
   });
 });
