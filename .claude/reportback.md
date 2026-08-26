@@ -4907,3 +4907,313 @@ Merge order stands: F8-S2 → A5-U → F8-R2, and F8-S2 must read BOTH carried-
 forward items above — the post-A5 baseline function AND the 885px box — before
 it authors a single golden.
 ─────────────────────────────────────────────
+
+─────────────────────────────────────────────
+═════════════════════════════════════════════
+F9 — the app-wide I6 touch-floor pass
+SLICE COMPLETE · 2026-08-26 · constrained mode
+Branch: `f9-touch-floors`, pushed, NOT merged. `dev` and `main` untouched.
+Base: `dev` @ a5fe8e1 (the local tip, 8 ahead of origin at cut time; F5.4 in).
+Commits: c57c350 (implementation + proof) · this entry.
+─────────────────────────────────────────────
+
+BASELINE / DENOMINATOR
+62 files / 1204 tests, re-run green in the worktree before the first edit.
+Final: 62 files / 1211 tests. Delta +7, all in tests/layout-arithmetic.test.ts
+(assertions 23–29). No new test file; no test file deleted.
+
+WHAT WAS WRONG, MEASURED BEFORE ANYTHING WAS EDITED
+§3.1 rev 2 ratified an S-breakpoint override for `Button`, `Toggle` and
+`NumberField` and NOT ONE DECLARATION OF IT SHIPPED. `.btn--sm` was 28px and
+`.btn--md` 36px at every width, and no `@media (max-width: 767px)` block
+touched a control height anywhere in app.css. A headless-Chrome census at 390
+against the unmodified base tree found SEVENTEEN control classes under §5.3's
+44px floor — 80 individual hit targets — from 14px (`Clear all`) to 42px (the
+overlay toggles). Exactly three classes cleared it: `.pip` (F5.3, frozen),
+`input[type="range"]` (F3) and `.build-panel__reset` (F5.3, scoped to its own
+new control). Full table in docs/proof/f9-verification.txt §1.
+
+AFTER: ZERO hit targets under 44 anywhere on the page, in any of the four
+states the census visits.
+
+CHANGED FILES — three, and none of them a .tsx
+  src/styles/tokens.css        (+13, one token)
+  src/styles/app.css           (+218 appended, +9 across two comment rewrites)
+  tests/layout-arithmetic.test.ts (+278, appended)
+  docs/proof/f9-verification.txt (new) + 10 PNGs (new)
+  .claude/reportback.md
+
+NO COMPONENT CHANGED. The whole pass is CSS: `min-height`, four `flex-wrap`s,
+one padding, one sticky offset. `git diff --stat dev -- 'src/**/*.tsx'` is
+EMPTY, so the shipped JS bundle is byte-identical at 290.52 kB. Built CSS
+38.27 -> 39.40 kB (gzip 7.32 -> 7.50).
+
+DENIED / UNTOUCHED — verified EMPTY by `git diff --name-only dev -- <paths>`:
+src/engine/** · src/data/** · src/config/** · src/persist/** · src/main.tsx ·
+every src/ui/** file · package.json · package-lock.json · tsconfig.json ·
+vite.config.ts · tests/category-colors.test.ts · tests/ui/overlays.test.tsx ·
+tests/feasibility-golden.test.ts · tests/helpers/**.
+
+Runtime `dependencies` are still exactly `{react, react-dom}`. Zero network:
+the measurement rig is a local static server over two throwaway ports and
+nothing was added to the app. H1 vocabulary is untouched — this pass changes
+no string.
+
+THE ONE SUBSTANTIVE DIVERGENCE FROM THE SPEC, DECLARED
+§3.1 rev 2 says `sm` -> 36 and `md` -> 44 at S, and rests the whole thing on
+one sentence: "the `md` variant is the one used for every header and dialog
+action, so raising it to 44 at S clears the rule for the whole set."
+
+THE PREMISE IS FALSE AGAINST THE SHIPPED TREE. `grep -rn 'size="md"' src`
+returns ZERO. Every header action, every dialog action, every banner action,
+every BuildManager row action and both Export/Import controls pass
+`size="sm"`; `md` is only the prop default and no call site takes it. Shipping
+§3.1's letter would have left the ENTIRE named set at 36px, still under §5.3's
+own "every interactive target >= 44x44px" — the invariant the §3.1 bullet
+cites in its own title.
+
+RULING TAKEN: the invariant wins, both sizes clear 44 at S, and §3.1's size
+bullet needs a rev. That is a spec decision, not a cleanup, so it is reported
+rather than performed. Assertion 25 pins the divergence from both ends — the
+base heights are still 28/36 (so the S block stays load-bearing) AND no file
+under src/ui/ ships `size="md"` (so if the premise ever becomes true, the test
+goes red and someone re-reads this).
+
+THE SIX SURFACES AT 390, BEFORE -> AFTER
+  1  AppHeader control row      225.00 -> 276.00 (5 lines both)
+       .app-header__actions      28 -> 44 · overlays 42 -> 44 · switcher 37 -> 44
+  2  BuildManager footer         67.00 ->  76.00 (1 line both)
+       header 63 -> 77 · row-actions 30 -> 46 · the <li> 126 OVERFLOWING -> 152 wrapped
+  3  Banner                     143.95 -> 138.78  — it got SHORTER
+       .banner__actions          30 -> 46, on its own line
+  4  FilterBar                  148.00 -> 194.00 (3 control lines both)
+  5  ExportImportControls        28.00 ->  44.00 (1 line both)
+  6  dialog action rows          reset 28 -> 96 (wrapped) · import 28 -> 44 ·
+                                 build-manager Close 63 -> 77
+       dialog boxes: bm 258 -> 307 · reset 365.56 -> 435.19 · import 195 -> 211
+
+  Document horizontal scrollbar: ABSENT before, ABSENT after, in every scene.
+
+FOUR ROWS NEEDED A REFLOW FIX. Each got `flex-wrap: wrap`; none got an
+overflow. The three worth naming:
+  · `.banner` got SHORTER because its actions rail is `flex: none` at 232px
+    inside a 368px box, which left 120px for the body — the quarantine
+    sentence broke over FIVE lines beside a two-button rail. Wrapping drops
+    the rail to its own line and gives the body the width.
+  · `.reset-dialog__actions` measured 321.99px inside a 322px box. ONE
+    HUNDREDTH OF A PIXEL of slack, in a <dialog> that cannot scroll sideways.
+    It now wraps and `Reset build` — the destructive one — ends up alone on
+    the second line.
+  · `.build-manager__list li` ALREADY OVERFLOWED ITS OWN BOX ON THE BASE TREE
+    (294.8px of actions plus a name and a timestamp inside 320px of content).
+    Fixed in passing: it is two selectors from the BuildManager footer, which
+    is one of the six.
+  · `.filter-bar` needed NOTHING. Three wrapped control lines before and
+    three after — no padding and no font-size moved in this pass, so every
+    control's WIDTH is bit-identical and the same items land on the same
+    lines, 44px tall instead of 26.8 / 31 / 37.
+
+A SEVENTH SURFACE THE CENSUS FOUND, AND IT HAD A BUDGET
+The jump nav's chips were 28px — the most-tapped row on a phone. §5.3's
+sticky-budget table already says what layer 1 is made of ("44px chips + 2px
+padding each side"), so the chips take the floor and the nav's padding drops
+from --space-2 to the 2px the budget funds. Measured at scrollY 4200:
+
+    jump nav      44 -> 48   (cap <= 48)
+    stuck digest  59 -> 59   (cap <= 88), top 44 -> 48
+    gap           0.00 -> 0.00
+    two layers   103 -> 107  (cap <= 136)
+
+The digest's S offset is `calc(var(--tap-target) + 4px)` — DERIVED, and
+assertion 28 checks it equals 2 x the parsed S nav padding + the parsed token.
+The base `top: 44px` is untouched and still equals the nav's height at M and L.
+
+THE PASS IS S-ONLY, AND IT IS PROVED RATHER THAN ASSERTED
+Both trees rendered at five widths in headless Chrome; every element under
+<body> digested as TAG.class|x,y,w,h and compared element by element:
+
+    390   2678 elements, 2616 differing  — changed, by intent
+    640   2678 elements, 2617 differing  — changed, by intent (640 IS the S
+                                            layout: §6, 1280 at 200% zoom)
+    768   2678 elements,    0 differing  — BIT-IDENTICAL
+   1280   2681 elements,    0 differing  — BIT-IDENTICAL
+   1440   2681 elements,    0 differing  — BIT-IDENTICAL
+
+THE SUMMARY PANEL'S RESOLVED COLUMN COUNT — checked explicitly on the
+coordinator's note that a 3px move in page padding / rail width / column gap /
+<Section> chrome flips it between two tracks and three:
+
+    1280   2 cols, "380px 380px", content 902   BEFORE and AFTER
+    1440   2 cols, "380px 380px", content 1062  BEFORE and AFTER
+     768   1 col,  content 702                  BEFORE and AFTER
+
+UNCHANGED, and it could not have been otherwise: NONE of the four knobs was
+touched. --space-4 is 16, --space-3 is 12, the rail is 300 and <Section>
+chrome is 34 — all four re-asserted by value in assertion 29, alongside a
+count-based proof that every `var(--tap-target)` in the stylesheet sits inside
+a max-width block and that no min-width block mentions the token. (The 902 is
+a headless overlay-scrollbar measurement against the note's 885 classic-
+scrollbar figure; the claim is that the two numbers are the SAME number before
+and after, which they are.)
+
+TOP OF PAGE TO THE FIRST BADGE CARD
+Two states, because the honest number depends on which one the user is in:
+
+    390  zero state      3396.86 -> 3638.86  (+242)
+    390  after 1st commit  656.00 ->  757.00  (+101)   <- the steady state
+    768  either              same  ->  same   (   0)
+   1280  either              same  ->  same   (   0)
+
+The +101 in the state the user is actually in is the header (+51), the filter
+bar (+46) and the jump nav (+4), less the banner's -5. Paid once, above the
+fold, never per card.
+
+THE MECHANICAL CHECK — assertions 23–29, parse-and-re-derive
+A NEW TOKEN, and it is the only thing tokens.css gained: `--tap-target: 44px`,
+in its own §5.3 block with the reason it is NOT a `--space-*` rung written
+next to it. Seventeen rules consume it and the test parses it, so a future
+density pass that shrinks the floor fails in ONE place, loudly.
+
+  23  the floor is a token, defined ONCE (tokens.css), never redefined in
+      app.css, and it clears WCAG 2.2 SC 2.5.5's 44 — the standard is the only
+      literal, because a floor may not be graded against the thing under test
+  24  every census entry declares `min-height: var(--tap-target)` at S, and
+      NONE declares a fixed `height` (which would clip); the tier chips take
+      the floor on BOTH axes, being the only targets narrower than they are tall
+  25  THE CANARY: `.btn--sm` is still 28 and `.btn--md` still 36 in the base
+      rules, so the S block stays load-bearing — plus the `size="md"` pin above
+  26  no `overflow-x: hidden`, `overflow-x: clip` or `overflow: hidden` in ANY
+      max-width:767px block, and the four wrapped rows are named; carries its
+      own positive canary so it cannot pass by grepping for an absent string
+  27  the census IS the stylesheet, set-equal in BOTH directions — a rule with
+      no entry fails, and an entry whose rule was deleted fails. This is the
+      assertion that stops the allowlist rotting.
+  28  §5.3's sticky budget re-derived from the parsed nav padding + the token,
+      at S and at M/L, with the digest's offset checked against the nav's height
+  29  the pass is S-only, by counting token occurrences inside vs outside the
+      S bodies, plus the four horizontal knobs pinned by value
+
+THREE cssBlock TRAPS THIS HAD TO WALK AROUND, all live in this repo:
+cssBlock() returns the FIRST matching block, stops at the FIRST `}`, and
+CANNOT SEE INSIDE A MEDIA QUERY AT ALL — and every rule this slice adds is
+inside one. Hence `mediaBodies()` (brace-matched) + `sRule()` (searches every
+S block, matching grouped selector lists exactly). A fourth trap was live too:
+`spaceIn(app, ".jump-nav", "padding", 0)` now throws, because `.jump-nav`
+declares `padding` in two blocks — resolved by naming the base block through
+`position: sticky` rather than by ordinal. `.category-ledger` now has FIVE
+blocks; assertion 12's `cssBlock` still reads the first (the sticky one) and
+stays green, which was checked, not assumed.
+
+RED CANARIES — every new assertion seen failing, then reverted
+  --tap-target 44 -> 40                       fails 23, 28   (74 passed)
+  delete `.btn { min-height: … }`             fails 24, 27   (74 passed)
+  `.banner { flex-wrap }` -> `overflow-x: hidden`  fails 26   (75 passed)
+  restored                                    76 passed
+
+GATES
+  full suite            62 files / 1211 tests    PASS
+  npm run typecheck     tsc --noEmit             PASS
+  npm run build         tsc + vite build         PASS
+  tests/ui/overlays.test.tsx      }  RUN, never edited
+  tests/category-colors.test.ts   }  3 files / 23 tests   PASS
+  tests/feasibility-golden.test.ts}
+
+No flake from the load-dependent class fired on any run. No `{ timeout: 20000 }`
+was touched; vite.config.ts is untouched.
+
+BROWSER PROOF, AND TEN REAL PNGs
+docs/proof/f9-verification.txt carries every number above with its method.
+Screenshots WERE captured this time (F5.3 could not): five before/after pairs
+at 390x844, dpr 2, 120–172 kB each, all genuinely painted. Measured against
+PRODUCTION BUILDS of both trees on two throwaway ports — NO DEV SERVER was
+started, because vite.config.ts pins 5173 with strictPort, every worktree
+shares that origin, and localStorage is keyed to origin including port.
+
+Every state was reached by a REAL event, never by poking React state: the
+quarantine banner by seeding an autosave the deserializer must refuse (before
+boot, via Page.addScriptToEvaluateOnNewDocument); the saved build by typing in
+the footer and clicking `Save as new`; the reset dialog by committing a slider;
+the import dialog by capturing the app's OWN export Blob through a patched
+URL.createObjectURL and handing the bytes back to the file input as a File.
+
+TWO ITEMS REMAIN VISUALLY UNVERIFIED, both named in the proof file:
+  · the :focus-visible ring on the four newly-flexed controls. It needs a
+    TRUSTED interaction and CDP can only dispatch untrusted events, so
+    programmatic focus correctly refuses to match. Structurally unchanged — no
+    rule in this pass touches box-shadow, outline or any :focus-visible
+    selector, and a `display` change does not move a ring on a box that grew.
+  · real-finger ergonomics. 44 is the standard's number, not a measurement of
+    the operator's thumb.
+
+KNOWN, NOT OURS, AND DELIBERATELY NOT FIXED
+  · `.segmented label:has(input:disabled) { opacity: 0.45 }` violates
+    invariant I2 — §6's disabled floor is 0.6, which F5.3 already applied to
+    `.btn:disabled`. It is a CONTRAST defect, not a target-size one, and
+    putting a §6 edit inside a §5.3 slice is how a stylesheet stops being
+    reviewable. FLAGGED for whoever owns the next §6 pass.
+  · src/main.tsx's RecoveryBoundary renders three UNSTYLED native <button>s
+    with inline styles, deliberately: that screen must render when the
+    stylesheet itself is the casualty. They carry no class, no rule here can
+    reach them, and none should.
+  · The tier filter chips now render as 44x44 CIRCLES rather than 26x27 pills,
+    because `.chip` uses --radius-pill and the box became square. Consequence,
+    not defect; visible in f9-after-filters-390.png.
+
+SCOPE / PLAN IMPACT
+None to scope.md / tech-strategy.md / the H-rulings. ONE design-spec item is
+opened and it is a decision, not a cleanup: §3.1's `sm -> 36` at S rests on a
+false premise and both sizes now clear 44. §5.3, §6 and the sticky budget are
+implemented exactly as written — including the "44px chips + 2px padding each
+side" composition of layer 1, which had never been built.
+
+MERGE-CONFLICT FORECAST
+This slice touches THREE tracked files. Two of the three hunks in app.css are
+comment rewrites; everything else is APPENDED at the foot of its file.
+
+  src/styles/app.css
+     @@ 878   +5   .category-ledger's `top: 44px` comment (the base sticky
+                   block) expanded to say the S override exists
+     @@ 935   +11  the S sticky-budget comment, which still quoted the
+                   withdrawn "<=104px total / jump nav is 44px" figures
+     @@ 2955  +218 the whole F9 block, appended after `/* ==== end F5.4 ==== */`
+  src/styles/tokens.css
+     @@ 194   +13  `--tap-target`, after --space-12, before the Radius block
+  tests/layout-arithmetic.test.ts
+     @@ 1588  +278 appended after the final `});` of the I15+I16 describe
+
+  · `a6-e-cap-breakers` (tip 9324bda) — NO STYLESHEET CONFLICT AND NO TEST
+    CONFLICT. It touches src/engine/**, src/config/**, src/App.tsx,
+    src/ui/build/BuildPanel.tsx, tests/helpers/test-utils.ts and eight other
+    test files; the intersection with this slice is `.claude/reportback.md`
+    ALONE, and both append. Trivial. NOTE FOR ITS INTEGRATOR: it extends
+    tests/helpers/test-utils.ts, which this slice does NOT touch — assertions
+    23–29 use `px`, `blocksFor`, `spaceIn`, `spaceToken`, `stripComments` and
+    `cssBlock`, all of which must keep their current signatures.
+  · `f8-s2-summary` (no commits yet) — TWO LIKELY CONFLICTS. (a) It will add a
+    resolved-column-count assertion to tests/layout-arithmetic.test.ts; if it
+    appends at the end of the file it collides head-on with the +278 block
+    here. Ask it to insert INSIDE the §16.7 describe (which already owns
+    `.summary`) instead of appending, and the conflict disappears. (b) If it
+    edits `.summary`'s grid in app.css it will be in the head-of-file region,
+    nowhere near hunk 3, so that half is clean. Its assertion will PASS against
+    this slice: the resolved count is 2 at 1280 and 1440 before and after,
+    measured.
+  · `f13-physique-strip` (no commits yet) — ONE LIKELY CONFLICT AND ONE TRAP.
+    A full-bleed strip will touch app.css's head-of-file `.layout` block, which
+    is clean against all three hunks here. THE TRAP: if it raises any control
+    of its own at S, assertion 27 (`the census IS the stylesheet`) fails until
+    the new selector is added to `S_TOUCH_FLOOR_CENSUS` — by design, and the
+    failure message names the selector. And if it moves page padding, the rail,
+    the column gap or <Section> chrome, assertion 29's four pinned values fail
+    — also by design, and that is precisely the summary-column flip the
+    coordinator flagged, now caught in the test suite instead of by eye.
+
+  ORDER PREFERENCE: none required. If f8-s2-summary lands first, re-run this
+  slice's assertions 23–29 unchanged; they read the stylesheet, not the summary.
+
+NEXT
+  · A design-spec rev for §3.1's size bullet (the `sm -> 36` premise). Decision,
+    not cleanup — named above.
+  · The I2 `.segmented label:has(input:disabled)` opacity, for the next §6 pass.
+  · Merge is Tier 1's. `dev` is untouched at a5fe8e1 and `main` at 444d034.
+─────────────────────────────────────────────
