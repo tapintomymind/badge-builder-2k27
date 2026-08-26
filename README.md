@@ -2,7 +2,7 @@
 
 A local tool for planning your NBA 2K27 MyCareer badge loadout before you spend a single point
 in-game. You enter your build — height and full attribute spread — and it shows you exactly which
-of the 53 badges you qualify for and at what level, tracks your per-category Badge Point spend and
+of the 53 badges you qualify for and at what level, tracks your per-category Badge Token spend and
 refunds live, and lets you wire up the 8 Synergy Slots' fuse/reaction system to see what your badges
 actually look like once boosts are applied.
 
@@ -26,14 +26,14 @@ rather than merely promising.
   thing) and flag the 19 badges that are new this cycle. If a build change costs you a badge you
   already bought, the badge doesn't vanish — it's flagged "no longer meets requirements" and stays
   exactly as spent until you decide what to do.
-- **Per-category Badge Point planning, with a feasibility readout.** Live status bars per category —
+- **Per-category Badge Token planning, with a feasibility readout.** Live status bars per category —
   spent, remaining, refunded, Badge Slots used — plus a line telling you how many upgrades are still
   affordable at your current spend (e.g. `6 pts left → nothing else fits at these prices.`), and a
   soft check of your Badge Slots total against the game's published 20-Badge-Slot starting baseline.
   Overspend is a warning (red, not blocked); this is a planning tool, not a gatekeeper.
-- **Bonus Badge Slots and Badge Points.** The ones you earn beyond the starting 20 — Build
+- **Bonus Badge Slots and Badge Tokens.** The ones you earn beyond the starting 20 — Build
   Specialization, Seasons, Crew — recorded as a separate layer: two earned totals, then placed per
-  category, with the composed capacity shown live (`Badge Points 12 base + 4 bonus`). Versatile and
+  category, with the composed capacity shown live (`Badge Tokens 12 base + 4 bonus`). Versatile and
   freely reassignable, exactly as the game has them; nothing locks, and no cap is modelled because
   none is published.
 - **Synergy Slots (fuse + reaction).** A 2×8 board to read and navigate the whole system at a
@@ -154,14 +154,14 @@ guessed. What's known and what isn't, as it stands:
 2. **Which two Synergy Slots carry +2 — half-resolved.** Synergy Slot 7 (the Build Specialization
    reward) is confirmed, so it defaults to +2 and can't be switched back. The second is still
    unpublished and stays yours to designate.
-3. **The attribute → per-category (Badge Slots, Badge Points) derivation — UNPUBLISHED.** These stay
+3. **The attribute → per-category (Badge Slots, Badge Tokens) derivation — UNPUBLISHED.** These stay
    manual inputs per category. The page does confirm the *starting total* of 20 Badge Slots, so the
    app annotates your entered total against it as a plain, non-blocking `/ 20 default` — a checksum
    on what you typed, never a formula for what you should type, and never a guess at what a
    difference means.
 4. **The cap-breaker → boost mapping — UNPUBLISHED, and deliberately never computed.** A cap breaker
    raises an attribute above the slider ceiling and counts for badge eligibility; it grants no Badge
-   Slots and no Badge Points. One breaker does not reliably add +1 (an observed case took a
+   Slots and no Badge Tokens. One breaker does not reliably add +1 (an observed case took a
    Three-Point of 60 to 83 across five), so the app stores the *absolute* value you read off the 2K
    builder and honours it, rather than modelling the mapping. **The engine does this today; the
    in-app control to declare a cap breaker has not shipped yet**, so a cap-broken value currently

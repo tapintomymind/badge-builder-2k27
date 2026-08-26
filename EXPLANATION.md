@@ -44,21 +44,22 @@ occupies a Badge Slot at any level it's equipped, including Legend.
 
 2K's own page confirms one fact about the starting spread: every build starts with **20 Badge Slots
 total**, split across the six categories. It does not say how those 20 split across categories for a
-given build, and it doesn't publish the badge-point amounts either.
+given build, and it doesn't publish the badge-token amounts either.
 
 **The attribute → (Badge Slots, points) derivation is unpublished.** See Part 2 for how the app
 treats that gap: it asks you, rather than guessing.
 
-### Bonus Badge Slots and Badge Points
+### Bonus Badge Slots and Badge Tokens
 
-Beyond the starting 20, a build earns **bonus Badge Slots and bonus Badge Points** through Build
+Beyond the starting 20, a build earns **bonus Badge Slots and bonus Badge Tokens** through Build
 Specialization, Seasons and Crew rewards. Three properties are 2K's, not this app's invention: the
 bonus is **versatile** (it can go into any discipline), it is **reassignable at any time** (apply it
 to Finishing, change your mind, move it to Defense), and **nothing about it locks**.
 
-2K's own page calls the point currency **"Badge Tokens."** This app has said **"Badge Points"** since
-its first milestone and still does, so the two words describe the same resource; where you read
-"Badge Points" here, that is the number 2K's screen labels differently.
+**"Badge Tokens" is 2K's own term for this currency** — it is the label printed on the official 2K
+MyPlayer Builder page. The app said "Badge Points" through its early milestones and adopted 2K's
+word app-wide in the 2026-08-26 vocabulary sweep, so the name you read here is the name the game
+shows you.
 
 **No published cap on either total exists, and the app models none.** A constant would be invented
 2K27 data.
@@ -70,7 +71,7 @@ here, and the app relies on both:
 
 - A cap-broken attribute **counts for badge eligibility** — raising it can unlock a level you could
   not otherwise reach.
-- It grants **no extra Badge Slots and no extra Badge Points.** Cap breakers buy badge potential,
+- It grants **no extra Badge Slots and no extra Badge Tokens.** Cap breakers buy badge potential,
   never economy.
 
 **The cap breaker → boost mapping is not published, and a single cap breaker does not reliably add
@@ -145,7 +146,7 @@ discipline — whichever Build Specialization track you actually completed in-ga
 Synergy Slot works across disciplines.
 
 - **Fuse:** a badge assigned as a Synergy Slot's Fuse plays at its purchased level **plus the
-  Synergy Slot's magnitude**, at no extra badge-point cost. A Gold badge fused +1 plays at HOF;
+  Synergy Slot's magnitude**, at no extra badge-token cost. A Gold badge fused +1 plays at HOF;
   fused +2, at Legend. Effective level always caps at Legend.
 - **Reaction:** the Synergy Slot's reaction badge is paired to its fuse badge. When the fuse badge
   triggers enough times in a game, the reaction badge activates and gains the same magnitude boost.
@@ -252,7 +253,7 @@ reddens, never gates: it's a checksum on what you typed, not an authority.
 
 ### The bonus layer
 
-Bonus Badge Slots and Badge Points are modelled as a **separate layer**, never merged into those
+Bonus Badge Slots and Badge Tokens are modelled as a **separate layer**, never merged into those
 twelve base fields. You record two build-level totals — what you've *earned* — and then place them
 per category. Effective capacity is composed on read (base + placed bonus) in one engine function
 and stored nowhere, so the base numbers you typed off your MyPlayer builder stay exactly as you
@@ -272,7 +273,7 @@ Four consequences follow, and each is deliberate:
   dialog and a keystroke — so that category starts counting, and its ledger says where its capacity
   came from rather than pretending a base exists.
 
-Where a category has both, its ledger lede spells the composition out (`Badge Points 12 base + 4
+Where a category has both, its ledger lede spells the composition out (`Badge Tokens 12 base + 4
 bonus`) — once, on arrival, rather than in the digest you read forty cards deep.
 
 ### Cap breakers: honoured, never computed
@@ -285,7 +286,7 @@ actually did; the app honours the number you declare.
 
 Two structural guarantees back the "no economy" rule:
 
-- **Cap breakers cannot grant Badge Slots or Badge Points, mechanically rather than by policy.** The
+- **Cap breakers cannot grant Badge Slots or Badge Tokens, mechanically rather than by policy.** The
   whole economy — cost, ledger, synergy, validation, budget — reads no attribute at all, so it
   cannot see a cap breaker whatever a future edit does.
 - **A cap breaker can never lower an attribute.** Declare 83 against an entered 60, then drag the
@@ -310,7 +311,7 @@ strip banner tells you, in exact words, when you're looking at a preview:
   touches the ledger.
 - **"Season-reset preview"** — *"Preview: season reset. Synergy Slots 1–4 disabled. Primary points
   are unchanged; N of 6 categories show a projection."* Categories affected get a second, clearly
-  labelled row under a dashed rule: `⟳ After season reset · Badge Points 10 / 16 · left 6 ·
+  labelled row under a dashed rule: `⟳ After season reset · Badge Tokens 10 / 16 · left 6 ·
   refunded 0`, sitting beneath the untouched primary row. A number never changes what it means
   without changing its label.
 

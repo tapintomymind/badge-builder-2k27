@@ -5,7 +5,7 @@ this instead of just the steps.
 
 Some steps below are illustrated with one example build, carried through the app (a 6'6"
 Finishing-focused build: Close 88, Layup 72, Driving Dunk 65, Standing Dunk 40, Post Control 55,
-Mid 78, Three-Point 83; Finishing budget 16 Badge Points / 3 Badge Slots). It's marked **Example**
+Mid 78, Three-Point 83; Finishing budget 16 Badge Tokens / 3 Badge Slots). It's marked **Example**
 each time — it's illustration, not a required action.
 
 **One note on the layout before you start.** Where the controls sit depends on how big your window
@@ -56,8 +56,8 @@ numbers that move.
      state: the card reads *"Purchased at `<level>` — no longer meets requirements,"* with the
      specific reason. Your points stay spent and its Badge Slot stays occupied until you decide what
      to do about it — see "Read the badge grid," step 3.
-4. Open **Badge Points & Badge Slots** and, for each of the six categories, enter your Badge Slots
-   count and Badge Points by hand — read them off your in-game builder. A banner across the top of
+4. Open **Badge Tokens & Badge Slots** and, for each of the six categories, enter your Badge Slots
+   count and Badge Tokens by hand — read them off your in-game builder. A banner across the top of
    this section says why: *"Not published by 2K yet — enter these from your MyPlayer builder. Values
    are unverified."* A **Total** row at the bottom sums both columns, so you can sanity-check the
    grand total against what the game shows you. Once all six Badge Slots counts are filled in, that
@@ -74,15 +74,15 @@ numbers that move.
 **Example.** Height 6'6" (position Any), the seven attributes above, Finishing budget 16 Badge
 Points / 3 Badge Slots.
 
-## 2. Record bonus Badge Slots and Badge Points
+## 2. Record bonus Badge Slots and Badge Tokens
 
-Bonus Badge Slots and Badge Points are the ones you earn beyond the starting 20 — Build
+Bonus Badge Slots and Badge Tokens are the ones you earn beyond the starting 20 — Build
 Specialization, Seasons, Crew. They're tracked as a **separate layer** from the twelve base fields,
 because the bonus can go in any discipline and can be moved at any time.
 
-1. Click **Bonus Badge Points & Badge Slots…** at the foot of the Badge Points & Badge Slots
+1. Click **Bonus Badge Tokens & Badge Slots…** at the foot of the Badge Tokens & Badge Slots
    section. It opens a dialog.
-2. At the top, enter **what you've earned in total** — one figure for Badge Points, one for Badge
+2. At the top, enter **what you've earned in total** — one figure for Badge Tokens, one for Badge
    Slots. Enter the total *including anything you've already placed*; as the dialog notes, 2K's own
    header may show a smaller figure, because that one is counting what you have left to place.
 3. Then place them: a six-row table with a **bonus** and an **effective** column for each pool. Type
@@ -98,7 +98,7 @@ because the bonus can go in any discipline and can be moved at any time.
    `Escape` and clicking the backdrop all just close the dialog.
 
 Back in the grid, a category that has bonus applied says where its capacity came from in its ledger
-lede — `Badge Points 12 base + 4 bonus`. A category with no base capacity but a placed bonus is a
+lede — `Badge Tokens 12 base + 4 bonus`. A category with no base capacity but a placed bonus is a
 real, live category and says so rather than pretending a base exists.
 
 ## 3. Read the badge grid
@@ -134,7 +134,7 @@ real, live category and says so rather than pretending a base exists.
 
 ## 4. Plan a loadout
 
-1. Watch each category's status bar: `Badge Points spent / pool`, then either `left N` or, in red
+1. Watch each category's status bar: `Badge Tokens spent / pool`, then either `left N` or, in red
    with a warning glyph, `over by N ⚠`; a meter bar underneath; `Badge Slots used / capacity` on its
    own row, same red-warning treatment if you've gone over; and, when there's anything left to buy,
    a feasibility line.
@@ -155,7 +155,7 @@ real, live category and says so rather than pretending a base exists.
    even at zero active filters.
 
 **Example.** Bought Aerial Wizard (Bronze), Float Game (Silver), and Ghost Stepper (Gold): Finishing
-reads `Badge Points 10 / 16`, `left 6`, `Badge Slots 3 / 3`.
+reads `Badge Tokens 10 / 16`, `left 6`, `Badge Slots 3 / 3`.
 
 ## 5. Assign Synergy Slots
 
@@ -211,18 +211,18 @@ reads `Badge Points 10 / 16`, `left 6`, `Badge Slots 3 / 3`.
     row dims with `⟳ Disabled by season-reset preview` (its controls stay operable — the preview
     never changes what's actually assigned). Any category whose Fuse badge sits in a Temporary
     Synergy Slot gets a second, labelled row under its primary one — its refund disappears in the
-    projection along with the fuse role that earned it: `⟳ After season reset · Badge Points 10 / 16
+    projection along with the fuse role that earned it: `⟳ After season reset · Badge Tokens 10 / 16
     · left 6 · refunded 0`. The primary row above it never moves. A badge fused in a Permanent
     Synergy Slot (5–8) shows no projection at all.
 
 **Example, continuing from step 4.** Unlocked Synergy Slot 1, assigned Float Game (Silver) as Fuse —
-the card read "Now Silver · Fused to Gold," and the ledger updated immediately: `Badge Points
+the card read "Now Silver · Fused to Gold," and the ledger updated immediately: `Badge Tokens
 10 / 16`, `left 11`, `refunded 5` — Float Game's own Silver cost, freed the moment it was fused,
 nowhere near Legend. Then designated Synergy Slot 1 as +2 and re-assigned its Fuse to Ghost Stepper
 (Gold) instead — Float Game's fuse role (and its refund) ended the instant it was replaced, and
-Ghost Stepper's took over: the card gained a **LEGEND** chip, and the ledger read `Badge Points
+Ghost Stepper's took over: the card gained a **LEGEND** chip, and the ledger read `Badge Tokens
 10 / 16`, `left 10`, `refunded 4` (Ghost Stepper's own Gold cost). Turning on Season-reset preview
-left that primary row untouched and added `⟳ After season reset · Badge Points 10 / 16 · left 6 ·
+left that primary row untouched and added `⟳ After season reset · Badge Tokens 10 / 16 · left 6 ·
 refunded 0` underneath — Synergy Slot 1 is Temporary, so the projection shows Ghost Stepper's fuse
 role, and the refund that comes with it, disappearing along with the Synergy Slot.
 
@@ -317,12 +317,12 @@ against a game screen line by line:
 Stated plainly, because a planning tool's credibility rests on not implying more than it knows:
 
 - **It never invents 2K27 data.** Anything 2K hasn't published stays unknown rather than guessed —
-  most visibly the attribute → (Badge Slots, Badge Points) derivation, which is why step 1 asks you
+  most visibly the attribute → (Badge Slots, Badge Tokens) derivation, which is why step 1 asks you
   to type those twelve numbers in.
 - **It doesn't model the cap-breaker → boost mapping.** The engine honours a cap-broken attribute
   value for eligibility, but the in-app control to declare one hasn't shipped yet — today a
   cap-broken value can only arrive via an imported JSON file. Cap breakers never grant Badge Slots
-  or Badge Points.
+  or Badge Tokens.
 - **It doesn't know which second Synergy Slot carries +2.** Synergy Slot 7 is confirmed; the other
   is yours to designate.
 - **There's no compare view.** Duplicate a build instead.
