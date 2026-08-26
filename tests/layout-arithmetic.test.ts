@@ -2239,10 +2239,18 @@ describe("I6 — the S touch floor, parsed from one token and re-derived per con
  * against the arrangement it replaces. Nothing here pastes a threshold.
  *
  * The design's own §4.6 table (119.3 / 99.3 / 106.5 / 74.5 / 30.1) is wrong
- * by a uniform +6.25px per cell. No verdict flips, but the binding margin at
- * 1280 is +7.00px and not +13.3 — within ~3px of the +10.5 margin F5.4
- * flagged as binding on the adjacent synergy-row question, which is a very
- * different thing to be told about the next addition to a column header.
+ * by a uniform +6.25px per cell, and the binding margin at 1280 is +4.00px
+ * rather than the +13.3 the design quoted. Two corrections compose to get
+ * there and both ran optimistic: the cell arithmetic was 6.25px generous,
+ * and NAME_MIN_CONTENT was pinned 3px light until it was measured. +4.00 is
+ * now the number the next addition to a Synergy Slot column is checked
+ * against — less than half of the +10.5 F5.4 flagged as binding on the
+ * adjacent synergy-row question.
+ *
+ * RE-PINNED 2026-08-25 on ratification: NAME_MIN_CONTENT 68 -> 71 (the
+ * ceiling of the measurement), CELL_FLOOR 86 -> 89, and the two container
+ * thresholds 829 -> 853 and 440 -> 452. See NAME_MIN_CONTENT below and case
+ * 1b for what the move buys.
  */
 
 const BOARD_START = "/* ==== F11 board — start ==== */";
@@ -2302,18 +2310,12 @@ const BAND_DIVIDER = SEAM_TRACK + CELL_GAP; // 13 = a 1px rule + --space-3
 const CELL_PAD = spaceIn(boardCssRaw, ".synergy-board__button", "padding", 0);
 const CELL_BORDER = px(boardButtonBase, /border:\s*(\d+)px solid/);
 
-/** MEASURED ON PAPER and RE-MEASURED IN HEADLESS CHROME AT THE CUT
- *  (docs/proof/f11-verification.txt): the min-content width of the dataset's
- *  longest single word at --text-xs. The word is verified — "Unpluckable",
- *  11 characters, tied with "Interceptor"; "High-Flying" is 11 but carries a
+/** RE-MEASURED IN HEADLESS CHROME AT THE CUT and RE-PINNED 68 -> 71 on the
+ *  ratification of 2026-08-25: the min-content width of the dataset's longest
+ *  single word at --text-xs. The word is verified — "Unpluckable", 11
+ *  characters, tied with "Interceptor"; "High-Flying" is 11 but carries a
  *  hyphen break, so it breaks earlier and is not the binding case.
  *
- *  The failure direction is benign and that is why a paper figure is
- *  tolerable here at all: every cell is an auto-fill outcome, so an error
- *  produces a three-line name and the row equalises (I13). It cannot produce
- *  a horizontal scrollbar. */
-const NAME_MIN_CONTENT = 68;
-/** WHAT THE BROWSER ACTUALLY SAID, and it is 2.156px MORE than the pin above.
  *  Chrome/151.0.7922.174 --headless=new over CDP, a width:min-content probe
  *  inside a real .synergy-board__button at viewport 1280
  *  (docs/proof/f11-verification.txt):
@@ -2322,20 +2324,20 @@ const NAME_MIN_CONTENT = 68;
  *    "Interceptor"        62.563
  *    "High-Flying Denier" 36.969   (the hyphen breaks it early)
  *
- *  THE PIN IS LEFT AT 68 DELIBERATELY, and the gap is recorded here rather
- *  than quietly absorbed. §13.0.1's take-the-larger rule would re-pin to 71
- *  and move the 8-wide floor from 829 to 853 — a threshold this slice was
- *  briefed to land on 829 and to PROVE at the 828/830 seam. Moving it is a
- *  spec change, not an implementation detail, so it is surfaced for
- *  ratification instead of taken unilaterally.
+ *  PINNED AT THE CEILING OF THE MEASUREMENT, 71, per §13.0.1's
+ *  take-the-larger rule — the same rule that kept F5.4's NUMERIC_H at 27
+ *  over a measured 26. A floor derived from a constant known to be LOW is
+ *  optimistic, and an optimistic floor is not a floor.
  *
- *  WHAT IT COSTS, quantified so the next reader does not have to re-derive
- *  it: between board box 829 and 853 the dataset's longest single word has
- *  ~2.2px less room than it wants and bleeds that far past its cell's inner
- *  edge. It cannot scroll and it cannot overflow the document (asserted
- *  below and measured at every coverage width). NONE of the coverage widths
- *  is in that band — 1280 gives the cell 75.13px of content against 70.16
- *  needed, and 830 (the tightest legal 8-wide box) gives 68.13. */
+ *  WHAT THE RE-PIN BOUGHT, because "no visible change at any coverage width"
+ *  invites someone to revert it. The paper 68 put the eight-column floor at
+ *  829, and at box 829 a cell offers 68px of content against the 70.156 the
+ *  longest badge name wants: the board went eight-wide into a band where its
+ *  own longest name did not fit. At 853 the cell offers exactly 71 and the
+ *  word fits AT the floor by construction. */
+const NAME_MIN_CONTENT = 71;
+/** The raw measurement the pin above is the ceiling of. Kept as its own
+ *  constant so a future re-measure has something to disagree WITH. */
 const NAME_MIN_MEASURED = 70.156;
 const CELL_FLOOR = NAME_MIN_CONTENT + 2 * CELL_PAD + 2 * CELL_BORDER; // 86
 
@@ -2380,41 +2382,55 @@ describe("F11 — the Synergy board's geometry, re-derived", () => {
     expect(CELL_PAD).toBe(SPACE_2);
     expect(CELL_BORDER).toBe(1);
     expect(CELL_FLOOR).toBe(NAME_MIN_CONTENT + 2 * SPACE_2 + 2);
-    expect(CELL_FLOOR).toBe(86);
-    // CANARY: the floor is a COMPOSITION. A hardcoded 86px in the block
+    expect(CELL_FLOOR).toBe(89);
+    // CANARY: the floor is a COMPOSITION. A hardcoded 89px in the block
     // would satisfy the arrangement while decoupling it from --space-2, so
-    // re-tuning the token would silently stop moving the floor.
+    // re-tuning the token would silently stop moving the floor. The old 86
+    // is checked too — a stale literal left behind by the re-pin is the
+    // likeliest way this decouples in practice.
+    expect(boardCss).not.toContain("89px");
     expect(boardCss).not.toContain("86px");
     expect(boardButtonBase).toContain("padding: var(--space-2)");
   });
 
-  it("1b — the paper NAME_MIN_CONTENT is 2.156px LIGHT, and the cost is bounded", () => {
-    // Recorded as an assertion rather than only as prose: re-pinning to the
-    // measured width is a THRESHOLD change (829 -> 853) and has to be a
-    // ratified decision, so this fails the day someone moves either number
-    // without moving the other.
-    expect(NAME_MIN_MEASURED).toBeGreaterThan(NAME_MIN_CONTENT);
-    expect(+(NAME_MIN_MEASURED - NAME_MIN_CONTENT).toFixed(3)).toBe(2.156);
-    const measuredFloor = Math.ceil(NAME_MIN_MEASURED) + 2 * CELL_PAD + 2 * CELL_BORDER; // 89
-    const measuredSplit = 8 * measuredFloor + ROW_LABEL_W + 7 * CELL_GAP + BAND_DIVIDER;
-    expect(measuredSplit).toBe(853);
-    // The affected band, named. No coverage width falls inside it.
-    for (const [viewport, scrollbar] of [
-      [1440, 17],
-      [1280, 17],
-      [768, 15],
-      [390, 0],
-    ] as const) {
-      const box = boardBox(viewport, scrollbar);
-      expect(box < SPLIT_THRESHOLD || box >= measuredSplit, `box ${box}`).toBe(true);
-    }
+  it("1b — the pin IS the ceiling of the measurement, and the word fits AT the floor", () => {
+    // RATIFIED 2026-08-25: take-the-larger, 68 -> 71, floor 829 -> 853. This
+    // case exists so a future re-measure REDS rather than annotates. If the
+    // font stack, --text-xs or the dataset's longest word moves, the equality
+    // below breaks and someone has to come here and re-derive the threshold
+    // — which is the whole point of a pinned measurement.
+    expect(NAME_MIN_CONTENT).toBe(Math.ceil(NAME_MIN_MEASURED));
+    expect(NAME_MIN_CONTENT).toBeGreaterThanOrEqual(NAME_MIN_MEASURED);
+    expect(CELL_FLOOR).toBe(89);
+
+    // THE PROPERTY THE RE-PIN BUYS: at the eight-column floor the cell's own
+    // CONTENT box is at least as wide as the longest single word. That was
+    // FALSE at the old pin, and it is the defect, not the bookkeeping.
+    const contentAtFloor = (box: number) => cellW(box) - 2 * CELL_PAD - 2 * CELL_BORDER;
+    expect(contentAtFloor(SPLIT_THRESHOLD)).toBe(NAME_MIN_CONTENT);
+    expect(contentAtFloor(SPLIT_THRESHOLD)).toBeGreaterThanOrEqual(NAME_MIN_MEASURED);
+
+    // CANARY — the arrangement this replaced. The paper 68 put the floor at
+    // 829, where the cell offered 68 against the 70.156 the word wants: the
+    // board went eight-wide into a band its own longest name did not fit.
+    const paperFloor = 68 + 2 * CELL_PAD + 2 * CELL_BORDER; // 86
+    const paperSplit = 8 * paperFloor + ROW_LABEL_W + 7 * CELL_GAP + BAND_DIVIDER;
+    expect(paperSplit).toBe(829);
+    expect(contentAtFloor(paperSplit)).toBeLessThan(NAME_MIN_MEASURED);
+    expect(SPLIT_THRESHOLD - paperSplit).toBe(24);
+
+    // …and the same property holds at the four-wide and two-wide floors, so
+    // the re-pin is not eight-wide-only.
+    expect(splitCellW(PAIRS_THRESHOLD, 4) - 2 * CELL_PAD - 2 * CELL_BORDER).toBe(
+      NAME_MIN_CONTENT,
+    );
   });
 
   it("2 — the split threshold IS the derived demand, on the box the query evaluates", () => {
     expect(SPLIT_THRESHOLD).toBe(
       8 * CELL_FLOOR + ROW_LABEL_W + 7 * CELL_GAP + BAND_DIVIDER,
     );
-    expect(SPLIT_THRESHOLD).toBe(829);
+    expect(SPLIT_THRESHOLD).toBe(853);
     // Self-consistent by construction: at the threshold the cell IS the floor.
     expect(cellW(SPLIT_THRESHOLD)).toBe(CELL_FLOOR);
 
@@ -2431,7 +2447,7 @@ describe("F11 — the Synergy board's geometry, re-derived", () => {
 
     // The second step is DERIVED too, not the design's undecided "~560".
     expect(PAIRS_THRESHOLD).toBe(4 * CELL_FLOOR + ROW_LABEL_W + 3 * CELL_GAP);
-    expect(PAIRS_THRESHOLD).toBe(440);
+    expect(PAIRS_THRESHOLD).toBe(452);
     expect(splitCellW(PAIRS_THRESHOLD, 4)).toBe(CELL_FLOOR);
   });
 
@@ -2442,10 +2458,15 @@ describe("F11 — the Synergy board's geometry, re-derived", () => {
       );
       expect(boardBox(1280, scrollbar)).toBeGreaterThanOrEqual(SPLIT_THRESHOLD);
     }
-    // THE BINDING MARGIN, named at its true size. The design said +13.3.
+    // THE BINDING MARGIN, named at its true size, and it has been named wrong
+    // twice. The design said +13.3 against a cell it computed 6.25px too
+    // wide; the first cut of this file said +7.00 against a CELL_FLOOR built
+    // on a NAME_MIN_CONTENT 3px light. Both errors ran the same direction —
+    // optimistic — which is how a margin gets quoted to the next slice as
+    // roomier than it is. It is +4.00.
     expect(boardBox(1280, 17)).toBe(885);
     expect(cellW(boardBox(1280, 17))).toBe(93);
-    expect(cellW(boardBox(1280, 17)) - CELL_FLOOR).toBe(7);
+    expect(cellW(boardBox(1280, 17)) - CELL_FLOOR).toBe(4);
 
     // 1440 is comfortable; the other two coverage widths are foreclosed and
     // that is what FORCES the split. Asserting the failure is the point.
