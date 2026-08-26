@@ -7,12 +7,17 @@
  * withdrawn: a live control styled to look inert is a worse lie than a plain
  * one.
  *
- * F13 — PHYSIQUE IS NO LONGER ONE OF THIS PANEL'S SECTIONS. It is exported
- * as `PhysiqueStrip` and App mounts it in the full-bleed horizontal band
- * beneath `.app-banners`, so the two controls are permanently on screen and
- * the badge grid moves up by what the block used to cost. What is left in
- * the panel is Badge Points & Badge Slots (+ Attributes at M/S, where there
- * is no pane) and F5.3's Reset.
+ * F13 — PHYSIQUE IS NOT ONE OF THIS PANEL'S SECTIONS AT >=768. It is
+ * exported as `PhysiqueStrip` and App mounts it in the full-bleed horizontal
+ * band beneath `.app-banners`, so the two controls are permanently on screen
+ * and the badge grid moves up by what the block used to cost.
+ *
+ * BELOW 768 IT COMES BACK HERE, as `PhysiqueSection` — the same Section, the
+ * same storage key, the same collapse, the same latch. The strip only earns
+ * its height where it lays out as ONE row; at 390 it stacks, and 199.56px of
+ * un-collapsible chrome on every visit is a bad trade against a first-load
+ * gain seen once. App owns that seam (`physique`), the same way it owns the
+ * L seam, and this file never asks a media query.
  *
  * The height range itself comes from the ENGINE (positionHeightRange, via
  * App.tsx) — this file never reads src/data/position-heights and holds no
@@ -125,6 +130,12 @@ export interface BuildPanelProps {
    * F13: at L the panel's only Section is the budget grid, so this now
    * scopes the latch to the budget record alone. */
   withAttributes: boolean;
+  /** F13 — the M seam, and App owns it exactly as it owns the L seam. NULL
+   * at >=768, where the physique strip renders it; the props bundle below
+   * 768, where the strip is not rendered and Physique comes back into this
+   * panel as `PhysiqueSection`. There is no width at which both surfaces
+   * render it, and this file never asks the query itself. */
+  physique: PhysiqueStripProps | null;
 }
 
 /** F5.4 (§16.5) — the Attributes Section, lifted VERBATIM out of BuildPanel
@@ -168,7 +179,14 @@ export function AttributesSection({ attributes, onCommit }: AttributeGridProps) 
  * structurally unreachable: nothing in the strip's CSS hands them a
  * percentage or an `auto` track. The prose Hint is the ONLY item permitted
  * to absorb leftover width, and `.hint`'s own 65ch cap bounds even that. */
-export function PhysiqueStrip({
+/** F13 — THE BODY, authored ONCE and worn by both surfaces below. The DOM
+ * order here is the PRE-F13 order (Position, its hint, Height, the engine
+ * violation Banner) and that is deliberate: in `PhysiqueSection` the order
+ * IS the layout, and in `PhysiqueStrip` every one of these four is placed by
+ * an explicit `grid-column` / `grid-row`, so the strip does not care. One
+ * body means the two surfaces cannot drift in copy, wiring or a11y — which
+ * they would, because they are one control group rendered at two widths. */
+function PhysiqueControls({
   build,
   heightRange,
   buildViolationReasons,
@@ -193,55 +211,82 @@ export function PhysiqueStrip({
                 : "badges no longer qualify"
             }.`);
   return (
-    <aside className="physique-strip" aria-label="Physique">
-      <div className="physique-strip__row">
-        <SegmentedControl
-          legend="Position"
-          options={POSITION_OPTIONS}
-          value={positionLabel}
-          onChange={(option) => {
-            onPositionChange(option === "Any" ? undefined : option);
-          }}
-          describedBy={positionHintId}
-        />
-        {/* HeightField returns a FRAGMENT — the fieldset plus, when a clamp
-            is live, the notice as its sibling. Both are grid items of this
-            row and both are placed explicitly by the stylesheet, so the
-            notice's arrival adds a row instead of widening a column. */}
-        <HeightField
-          heightInches={build.heightInches}
-          minInches={heightRange.minInches}
-          maxInches={heightRange.maxInches}
-          rangeHint={
-            build.position !== undefined
-              ? `${build.position}: ${rangeText}`
-              : `${rangeText}, the range this dataset covers.`
-          }
-          notice={noticeText}
-          onCommit={onHeightCommit}
-        />
-        {/* F13, orchestrator-ratified amendment to scope.md §0.1 A2's copy
-            consequence: the recitation `(${positionLabel}: ${rangeText})` is
-            GONE from this sentence. The range was rendering THREE times at
-            once — here, in the HeightField hint, and in the clamp notice —
-            and in the strip the HeightField hint sits inches away in the
-            same visual row, so this copy was reciting a number the eye can
-            already see.
-            WHAT DID NOT CHANGE, and must not: both facts the hint exists to
-            carry. "No badge has a position requirement" is still stated
-            outright, and "Sets the available height range" still makes it
-            discoverable that changing position can move your height — and
-            height DOES gate. Position gates nothing; that stays true and
-            stays said. */}
-        <Hint id={positionHintId}>
-          {"Sets the available height range. No badge has a position " +
-            "requirement; badges gate on height and attributes only."}
-        </Hint>
-      </div>
+    <>
+      <SegmentedControl
+        legend="Position"
+        options={POSITION_OPTIONS}
+        value={positionLabel}
+        onChange={(option) => {
+          onPositionChange(option === "Any" ? undefined : option);
+        }}
+        describedBy={positionHintId}
+      />
+      {/* F13, orchestrator-ratified amendment to scope.md §0.1 A2's copy
+          consequence, and it holds at EVERY width: the recitation
+          `(${positionLabel}: ${rangeText})` is GONE from this sentence. The
+          range was rendering THREE times at once — here, in the HeightField
+          hint, and in the clamp notice.
+          WHAT DID NOT CHANGE, and must not: both facts the hint exists to
+          carry. "No badge has a position requirement" is still stated
+          outright, and "Sets the available height range" still makes it
+          discoverable that changing position can move your height — and
+          height DOES gate. Position gates nothing; that stays true and
+          stays said. */}
+      <Hint id={positionHintId}>
+        {"Sets the available height range. No badge has a position " +
+          "requirement; badges gate on height and attributes only."}
+      </Hint>
+      {/* HeightField returns a FRAGMENT — the fieldset plus, when a clamp is
+          live, the notice as its sibling. In the Section that simply stacks;
+          in the strip both are grid items placed explicitly by the
+          stylesheet, so the notice's arrival adds a row instead of widening
+          a column. */}
+      <HeightField
+        heightInches={build.heightInches}
+        minInches={heightRange.minInches}
+        maxInches={heightRange.maxInches}
+        rangeHint={
+          build.position !== undefined
+            ? `${build.position}: ${rangeText}`
+            : `${rangeText}, the range this dataset covers.`
+        }
+        notice={noticeText}
+        onCommit={onHeightCommit}
+      />
       {buildViolationReasons.length > 0 ? (
         <Banner variant="warning">{buildViolationReasons.join(" ")}</Banner>
       ) : null}
+    </>
+  );
+}
+
+/** The >=768 surface: the full-bleed horizontal bar. */
+export function PhysiqueStrip(props: PhysiqueStripProps) {
+  return (
+    <aside className="physique-strip" aria-label="Physique">
+      <div className="physique-strip__row">
+        <PhysiqueControls {...props} />
+      </div>
     </aside>
+  );
+}
+
+/** The <768 surface: exactly the <Section> this was before F13 — same title,
+ * same storage key, same place inside the setup panel, same collapse, same
+ * latch. RESTORED, not re-invented: at 390 the strip does not lay out
+ * horizontally (its max-content tracks need 494.75px against a 358px content
+ * box, so it stacks), which makes it the same vertical block the ask was
+ * about, minus the ability to collapse it. Measured, the phone pays 199.56px
+ * of permanent lead for that — every visit, on the device this app is
+ * actually used on. The user ruled against it.
+ *
+ * The COPY consolidation and the latch fix are NOT part of the carve-out and
+ * hold at every width; only the arrangement reverts. */
+export function PhysiqueSection(props: PhysiqueStripProps) {
+  return (
+    <Section title="Physique" storageKey="section-physique">
+      <PhysiqueControls {...props} />
+    </Section>
   );
 }
 
@@ -250,6 +295,7 @@ export function BuildPanel(props: BuildPanelProps) {
     build,
     budgets,
     withAttributes,
+    physique,
     onAttributeCommit,
     onBudgetCommit,
     onResetRequest,
@@ -361,10 +407,11 @@ export function BuildPanel(props: BuildPanelProps) {
         }
       }}
     >
-      {/* F13: Physique is NOT here any more — App mounts the PhysiqueStrip
-          in the full-bleed band under the banners. What remains in this panel
-          is the twelve-field budget grid (+ the 20 sliders at M/S, where
-          there is no attributes pane) and F5.3's Reset. */}
+      {/* F13: at >=768 Physique is NOT here — App mounts the PhysiqueStrip in
+          the full-bleed band under the banners and passes `physique={null}`.
+          Below 768 the strip is not rendered and this is where Physique
+          lives, as the Section it was pre-F13. */}
+      {physique !== null ? <PhysiqueSection {...physique} /> : null}
       {withAttributes ? (
         <AttributesSection attributes={build.attributes} onCommit={onAttributeCommit} />
       ) : null}
@@ -414,12 +461,22 @@ export function BuildPanel(props: BuildPanelProps) {
   // F5.4: no early return. The panel is the collapsible <Section title="Build">
   // at EVERY width — at L it is the setup panel above the FilterBar, at M/S
   // it is the unified panel it has always been (§16.5, §16.10).
-  // F13: height and position LEFT the digest with the controls. The digest
-  // exists to say what a COLLAPSED panel is hiding; height and position are
-  // now permanently on screen in the strip above, so reciting them here was
-  // a fourth copy of a number the user can already read. What the collapsed
-  // panel actually hides is the budget totals, and that is what it says.
-  const digest = `${totalPoints} pts · ${totalEquipSlots} Badge Slots`;
+  // F13: THE DIGEST FOLLOWS THE SURFACE, because that is what a digest is
+  // for — it says what the COLLAPSED panel is hiding. At >=768 height and
+  // position are permanently on screen in the strip, so reciting them here
+  // would be a fourth copy of a number the user can already read. Below 768
+  // Physique is inside this panel again and a collapsed panel really does
+  // hide it, so the pre-F13 digest comes back verbatim with it.
+  const digest = [
+    ...(physique !== null
+      ? [
+          formatHeightInches(build.heightInches),
+          ...(build.position !== undefined ? [build.position] : []),
+        ]
+      : []),
+    `${totalPoints} pts`,
+    `${totalEquipSlots} Badge Slots`,
+  ].join(" · ");
 
   return (
     <Section

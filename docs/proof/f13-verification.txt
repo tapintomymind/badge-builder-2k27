@@ -420,3 +420,228 @@ src/ui/README.md line 14 still reads "BuildPanel (+ PhysiqueSection)". The
 symbol is `PhysiqueStrip` now and it is not a Section. `src/ui/README.md` is
 not in this slice's allowlist (`src/ui/build/**` is; the README is one level
 up), so it is left stale and reported rather than edited. One-line fix.
+
+
+================================================================================
+AMENDMENT — THE PHONE CARVE-OUT (user ruling, same day)
+================================================================================
+The trade §2 priced was taken to the user and the user ruled: HIDE THE STRIP
+BELOW 768. Sections 1, 2, 8 and 11 above are the pre-ruling measurement and
+are kept verbatim rather than erased — they are the evidence the ruling was
+made on. Where they disagree with what follows, THIS SECTION IS THE TREE.
+
+The ruling in the user's terms: the app's whole point is planning with a phone
+next to the console, so a permanent ~200px tax on the surface they actually
+use loses to a first-load gain they see once.
+
+
+A1. WHAT CHANGED
+--------------------------------------------------------------------------------
+App gained ONE more media query and owns it the same way it owns the L one:
+
+  const isWide = !useMediaQuery("(max-width: 767px)");
+
+Same negation direction and the same reason as `isLarge` — jsdom has no
+matchMedia, so both default to the desktop shape and no component test
+silently flips to mobile.
+
+  >= 768   <PhysiqueStrip> renders; BuildPanel gets `physique={null}`
+  <  768   no strip; BuildPanel gets the props bundle and renders
+           `PhysiqueSection` — the SAME <Section title="Physique"
+           storageKey="section-physique">, in the same place in the setup
+           panel, with the same collapse and the same latch as pre-F13
+
+There is no width at which both render it, and no component below App asks
+the question. ONE body, `PhysiqueControls`, is authored once and worn by both
+surfaces, so the two cannot drift in copy, wiring or a11y. Its DOM order is
+the pre-F13 order; the strip does not care, because every child is placed by
+an explicit grid-column / grid-row.
+
+
+A2. THE FOUR NUMBERS AT 390 — RE-MEASURED, PRE-F13 TREE vs THIS ONE
+--------------------------------------------------------------------------------
+Same driver, same session, same production-build-over-file:// method.
+
+  state                              BEFORE      AFTER      verdict
+  zero state (panel open)           3396.86    3396.86    IDENTICAL
+  latched (steady state)             656.00     656.00    IDENTICAL
+
+…and because "unchanged" should not be checked only where it was asked:
+
+  clamp standing (Any -> C)         3384.86    3384.86    IDENTICAL
+  767, the last width below the seam 2405.70   2405.70    IDENTICAL
+
+390 IS BYTE-IDENTICAL TO PRE-F13 IN EVERY STATE MEASURED. Not approximately.
+
+Also identical at 390: the collapsed digest (`6'6" · 0 pts · 0 Badge Slots`,
+and `6'7" · C · 20 pts · 0 Badge Slots` once a position is set — the digest
+follows the surface, so with Physique back inside the panel it recites height
+and position again, exactly as it did pre-F13); the Physique <Section>'s own
+collapse state and its `section-physique` preference key; and the landmark
+arrangement — there is no `aria-label="Physique"` below 768 and the two
+controls sit inside `aria-label="Build"`, which is where they were.
+
+>= 768 IS UNCHANGED FROM WHAT §1 MEASURED:
+  1280 zero state   1596.70 -> 1386.33   −210.37
+  1280 latched       753.00 ->  845.19    +92.19
+   768 zero state   2212.70 -> 2011.89   −200.81
+
+
+A3. THE LATCH AT 390, WITH PHYSIQUE BACK IN THE PANEL
+--------------------------------------------------------------------------------
+Driven in the browser at 390, on both trees:
+
+  zero state, panel open                              true    true
+  after picking SF in the Physique Section            true    true
+  after committing 20 into the first budget field     false   false
+
+IDENTICAL, and it was always going to be: the `build.position` term F13
+removed lived in the L branch of `hasValues` only. At M/S `withAttributes` is
+true and the predicate is `hasBudgetValues || attributes` — pre-F13 and now.
+The latch fix is kept at every width and is a no-op at 390 by construction,
+which is the right kind of no-op: nothing at 390 depends on it, and nothing
+at 390 was disturbed to keep it.
+
+
+A4. THE COPY CONSOLIDATION HOLDS AT BOTH WIDTHS — it is not part of the carve-out
+--------------------------------------------------------------------------------
+Counted in the browser at 390, leaf nodes reciting a range:
+
+                        BEFORE                      AFTER
+  at rest      Position hint + range hint  (2)   range hint            (1)
+  with clamp   + the ⚠ notice              (3)   range hint + notice   (2)
+
+Structurally guaranteed rather than promised: the sentence is authored ONCE,
+in `PhysiqueControls`, and both surfaces render that one body. F13 assertion
+9 pins that there is exactly one occurrence of the string in the file and two
+call sites of the shared body.
+
+(The panel DIGEST also contains a feet-and-inches figure at 390. It is the
+current HEIGHT, not the range, it always was, and it is the collapsed-state
+readout — a different thing from the three recitations this slice
+consolidated.)
+
+
+A5. THE 768–1279 BAND, AND THE DEAD CSS
+--------------------------------------------------------------------------------
+The band is NOT moot — it is where the strip's narrowest real layout lives.
+Measured at 768: one 3-track row, 101.75px tall, no overflow, −200.81px of
+lead. The binding item there is column 3, the prose Hint, at 217px (4 lines).
+
+WHAT DID COLLAPSE INTO THE PHONE PATH IS THE STACKING CSS, and it is DELETED
+rather than left behind:
+
+  removed   @media (max-width: 767px) { .physique-strip__row { … } } and the
+            four grid-placement resets inside it — five declarations whose
+            surface no longer renders at that width. A media query for an
+            element that is never in the DOM there is dead CSS a later reader
+            will trust.
+
+The narrowest width the bar ever lays out at is now exactly 768: a 736px
+content box against a 494.75px track demand (256.73 Position + 24 + 214.02
+Height), clearing by 241px — and still clearing with a 17px classic
+scrollbar. F13 assertion 6 re-derives that and asserts the media query's
+ABSENCE, plus that exactly one `.physique-strip__row` block survives.
+
+
+A6. ONE THING THAT HAD TO BE PUT BACK BY HAND — AND THE FIRST DIAGNOSIS WAS WRONG
+--------------------------------------------------------------------------------
+HeightField's notice is a SIBLING of the fieldset now (the strip needs that).
+Below 768 that makes it a FOURTH CHILD of `.section__body` — which is
+`display: flex; flex-direction: column; gap: var(--space-3)`. So the notice's
+arrival buys an extra FLEX GAP it never used to cost, and the clamp state at
+390 measured 3396.86 against pre-F13's 3384.86: EXACTLY +12.
+
+THE FIRST FIX WAS AIMED AT THE WRONG 12PX. `.attr-group`'s bottom margin is
+also --space-3 and also sits between those two elements, so it looked like
+the cause. Zeroing it and re-declaring it below the notice changed the number
+by ZERO — because it was never the cause. Recorded because it is the third
+time on this project a plausible diagnosis has been overturned by
+measurement, and because the two 12s are genuinely easy to confuse.
+
+  pre-F13   fieldset 131.56 (notice inside) + 12 margin        = 143.56
+  naive     fieldset  93.19 + 12 GAP + notice 38.38 + 12       = 155.57
+  shipped   fieldset  93.19 + 12 gap - 12 + notice 38.38 + 12  = 143.57
+
+Three rules, all scoped to `.build-panel` so the strip (which lays the notice
+out as a grid row and never had a flex gap) is untouched: zero the fieldset's
+margin while the notice follows it, cancel the introduced gap with a negative
+top margin, re-declare --space-3 below the notice where pre-F13 it was.
+
+
+A7. GATES, RE-RUN AFTER THE CARVE-OUT
+--------------------------------------------------------------------------------
+  npx tsc --noEmit                                    clean
+  npm run build                                       clean
+  npx vitest run                    62 files, 1214 passed  (was 1212, 1204
+                                                      pre-slice)
+  RUN-never-edit, all UNMODIFIED and green: overlays 4 · category-colors 15 ·
+  feasibility-golden 4 (no cell moved) · architecture 185 · f2-source-pins 14
+  · f2-disclosure-surfaces 11 · primitives 12 · reset-build 16
+  position-height-clamp 9 · layout-arithmetic 78 (was 76: assertion 7 split,
+  and two new — 8 for the carve-out numbers, 9 for the two things that do NOT
+  revert)
+  Casualties from the carve-out: THREE, all of them F13's own assertions from
+  the first commit. Nothing else in 1212 moved.
+
+
+A8. CONFLICT FORECAST — UPDATED
+--------------------------------------------------------------------------------
+FIRST, A CORRECTION TO THE FRAMING. `f9-touch-floors` (c57c350) and
+`f8-s2-summary` (ca3792a/617b13e) are sealed on their own branches and are
+NOT reachable from `dev` — checked with `git merge-base --is-ancestor`; `dev`
+is still a5fe8e1, which is this branch's base. So every number above is
+measured against the correct tree, and none of it is stale. What follows is a
+forecast against branches that have not landed, not a measurement against a
+tree that has.
+
+f9-touch-floors — ITS NOTE ABOUT THIS SLICE IS NOW CLOSED, NOT DANGLING.
+  F9's forecast named two hazards in `.physique-strip`: that it must switch
+  `.physique-strip .number-field` to `align-items: center` at S, and that a
+  44px floor on both controls would grow the 390 strip by ~33px (199.56 ->
+  ~233, latched lead -> ~889). BOTH ARE MOOT. The strip is not rendered below
+  768, so no rule inside `.physique-strip` is ever evaluated at S, and there
+  is no strip at 390 to grow. F9's S floors land on the Physique <Section>'s
+  controls instead — the same `.segmented label` and `.number-field input`
+  they would have hit pre-F13, in the same place, inside the setup panel.
+  F9 may delete its `.physique-strip` note.
+  RESIDUAL, and it is small: F9 raises those controls at S only. At >= 768
+  the strip keeps 29px labels and 26px inputs, which is what they measure
+  today and what they measured pre-slice.
+
+f8-s2-summary — NO CONTACT, and now guarded from two directions.
+  F8-S2 pinned the summary region at 885px (s=17) / 902px (overlay
+  scrollbars) and the resolved column count at s=0/15/17. This slice moves
+  NONE of its inputs: page padding, the rail, the column gap and Section
+  chrome are all untouched. The strip is full-bleed OUTSIDE `.layout`, so it
+  cannot enter that derivation at all — it changes the y of the grid, never
+  its x. Verified as an absence: the diff touches no `.layout`, `.col-right`,
+  `.summary` or `.section` geometry rule.
+
+a6-e-cap-breakers — LOW, unchanged. No shared source file. A textual conflict
+  is likely at the TAIL of tests/layout-arithmetic.test.ts, where both append.
+
+a5-u-bonus-mode — MEDIUM, and the carve-out SHARPENS IT FURTHER at one width
+  and softens it at the other. F5.4 §12 flagged that a bonus-only user never
+  latches because `BonusBudget` is not in `budgets`. At >= 768
+  `hasBudgetValues` is now the ENTIRE latch predicate (Physique left, so the
+  position term went with it), so the gap is total there. Below 768
+  `withAttributes` is true and the attribute term is still in the predicate,
+  exactly as pre-F13. a5-u must add the bonus totals either way.
+
+f10-feedback-loop — STILL CANNOT FORECAST. Not a local branch, not on the
+  remote. Noting only that the strip adds one landmark at >= 768 and none
+  below, and that `.app > p.sr-only[role="status"]` — the live region every
+  position clamp announces through — is unchanged in position, selector and
+  copy at every width.
+
+
+A9. FRAMES REFRESHED FOR THE CARVE-OUT
+--------------------------------------------------------------------------------
+  f13-after-390.png            REPLACED — the pre-F13 shape, restored
+  f13-clamp-390.png            REPLACED — notice inside the Section
+  f13-latched-after-390.png    REPLACED — collapsed panel, digest with height
+  f13-768.png                  REPLACED — the narrowest width the bar renders
+  f13-before-390.png           unchanged, and now byte-equivalent in layout
+                               to f13-after-390.png by design
+  every 1280 frame             unchanged — >= 768 is untouched by the ruling
