@@ -7702,3 +7702,108 @@ taken only after `index-CrSicJCu.css` / `index-BHNWQR75.js` were confirmed in th
 worktree were deleted; the source branch `reset-and-slot8` and worktree `/tmp/bb-small` are left
 in place for the operator to remove. The two design-spec contradictions the F15 entry raised are
 still UNRESOLVED — this landing did not touch them.
+
+---
+
+## 2026-08-26 · Tier 2 · fix — SynergyBoard duplicate React key (constrained mode)
+
+─────────────────────────────────────────────
+2026-08-26 — SynergyBoard keyed all eight cells in a row by `roleKind`; now keyed by `synergySlot.id`
+Type: fyi
+Actor: Tier 2 implementer (Claude Opus 5) — constrained implementation mode, file-boxed + proof-boxed
+Slice: n/a (defect fix against `dev`, reported out of the F8-R2 `roll-ui` slice where the path was denied)
+
+WHAT
+`cell(synergySlot, roleKind)` in `src/ui/synergy/SynergyBoard.tsx` returned `<td key={roleKind}>` at
+BOTH return sites — the `!synergySlot.unlocked` locked branch and the normal branch. The helper is
+invoked as `synergySlots.map((synergySlot) => cell(synergySlot, roleKind))`, and `roleKind` is
+constant for a whole row while `synergySlot.id` is what varies. All eight `<td>` siblings in one
+`<tr>` therefore carried the same key, "fuse" or "reaction".
+
+Both sites now key on `synergySlot.id`. Nothing else changed — no refactor, no behavioural change,
+no comment rewrite. The three already-correct keys were left exactly as they were: `columnHeader`'s
+`key={synergySlot.id}`, `rowLabel`'s `key={`${roleKind}-${block}`}`, and — importantly — the row key
+`<tr key={roleKind}>`, which is correct because `roleKind` is precisely what distinguishes the two
+rows.
+
+WHY IT WAS LATENT, AND WHAT THE INVESTIGATION ADDED
+A plain re-render does NOT surface this. `tests/ui/f11-synergy-board.test.tsx` clicks the board four
+times (each `select()` → `setSelected()` → re-render) and emits ZERO warnings, because React matches
+the eight cells positionally — `updateSlot` succeeds trivially when every old and new key is the
+same string. The warning only fires when React is forced down the `mapRemainingChildren` path, which
+happens when the child-list SHAPE changes. In this app that means an IMPORT: replacing the
+synergySlots array. There the eight identical keys collapse into a single map entry, which is the
+documented "children may be duplicated and/or omitted" hazard.
+
+That is confirmed by attribution — every warning in a full-suite run came from an import-route test,
+and from no other kind:
+
+    28  stderr | tests/ui/f2-disclosure-surfaces.test.tsx
+    42  stderr | tests/ui/f22-import-guard.test.tsx
+    28  stderr | tests/ui/f4-slot7.test.tsx
+    49  same key, `fuse`   /   49  same key, `reaction`   (perfectly symmetric: one per row per re-render)
+
+EVIDENCE
+Branch `dev`. Commit `e2a1fbb8f416360749720692b9980c55d2fe44a2`.
+Diff is two lines, both `key={roleKind}` → `key={synergySlot.id}`, at the two `<td>` return sites.
+
+1. `npx vitest run tests/ui/f11-synergy-board.test.tsx`
+       Test Files  1 passed (1)
+            Tests  23 passed (23)
+
+2. `npx vitest run` (full suite, normal conditions)
+       Test Files  69 passed (69)
+            Tests  1433 passed (1433)
+   Pre-fix baseline under the same normal conditions was also 69/69 and 1433/1433 — no new failures,
+   and none fixed. Duplicate keys were a correctness hazard the suite never asserted on.
+
+3. DUPLICATE-KEY REGRESSION PROOF — a controlled before/after, not a bare grep.
+   The naive grep is NOT self-validating here: on a warm cache the pre-fix suite emits zero warnings,
+   so "nothing found" would have proved nothing. The condition had to be made reproducible first.
+   The trigger is the RTL `findByRole` async wait in the import tests losing its 1000 ms race, which
+   is why the very first (cold, contended) run showed it and three later runs did not. Forcing it
+   needs BOTH a cold Vite transform cache AND sustained CPU contention (32 spinners); slowness alone
+   was insufficient — a 40.68s/225.61s loaded run still came back clean.
+
+   Reproduction command, identical in all four runs:
+       rm -rf node_modules/.vite && <32 CPU spinners> && npx vitest run 2>&1 | grep -ci "same key"
+
+       PRE-FIX  run 1 → 98      (wall 77.33s, tests 403.68s)
+       PRE-FIX  run 2 → 98
+       POST-FIX run 1 →  0      (wall 76.41s, tests 403.06s)  → ">>> NO DUPLICATE KEY WARNING <<<"
+       POST-FIX run 2 →  0
+
+   The load profiles match to within ~1% and the same three load-induced timeout flakes
+   (`f2-disclosure-surfaces`, `f22-import-guard`, `f4-slot7` — all import-route, all green at
+   1433/1433 under normal conditions) fail in BOTH the pre-fix and post-fix heavy runs. The only
+   variable that moved is the warning count: 98 → 0.
+
+4. `npx tsc --noEmit` → exit 0, clean.
+   No `lint` script exists in this project (scripts are: dev, build, preview, typecheck,
+   generate:badges, test, test:watch), so the lint proof is N/A rather than skipped.
+
+CONSTRAINED-MODE REPORTBACK
+changed_files: src/ui/synergy/SynergyBoard.tsx (2 lines); .claude/reportback.md (this entry)
+denied_paths_checked: no test file was added or edited — the regression proof was obtained by
+  controlling cache+load on the EXISTING suite rather than by writing a new test, which was outside
+  the box. No other component, no config, no `.claude/state.json` (this project has none — `.claude/`
+  holds only agents/, db-register.md, reportback.md, worktrees/).
+first_proof_result: PASS — f11-synergy-board 23/23
+verification_evidence: see EVIDENCE 1-4 above; full logs in the session scratchpad
+heartbeats_emitted: n/a (single-slice fix)
+stop_conditions_triggered: none — scope never needed widening
+
+SCOPE / PLAN IMPACT
+None. No scope.md, tech-strategy.md, design-spec.md or H-ruling is touched. The board's stated
+contract in the file header — it reads props and moves focus, dispatches no state change — is
+unchanged; this only corrects the reconciliation identity of its cells.
+
+NEXT
+Nothing blocking. Committed to `dev` and deliberately NOT pushed, NOT merged, no branch created.
+Two observations handed back to Tier 1, neither actioned here because both are outside this box:
+  (a) The three import-route tests are genuinely timing-fragile — they lean on a 1000 ms
+      `findByRole` wait and fail under CPU contention. They pass reliably unloaded, but they are
+      the suite's most likely CI flakes.
+  (b) No test asserts the absence of React key/console warnings anywhere in the suite, which is why
+      a duplicate key across eight cells stayed invisible through the whole F11 slice.
+─────────────────────────────────────────────
