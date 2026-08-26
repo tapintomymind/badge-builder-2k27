@@ -44,6 +44,8 @@ import {
   levelIndex,
 } from "../../engine/vocabulary";
 import { Chip } from "../primitives/Chip";
+import { PinControl } from "../primitives/PinControl";
+import { useRollControls } from "../roll/roll-controls";
 
 const LEVEL_COLOR_TOKENS: Record<PurchasableLevel, string> = {
   bronze: "var(--lvl-bronze)",
@@ -338,6 +340,16 @@ export function BadgeCard(props: BadgeCardProps) {
     purchased !== null && !heightBlocked && !levelPasses(badge.requirements, props.build, purchased);
   const staleReasons = stalePurchase ? reasonsFor(purchased, eligibility.reasons) : [];
 
+  /** F8-R2 session-only roll state. Read from CONTEXT rather than props: this
+   *  component's prop list is already the widest in the app, it is instantiated
+   *  53 times, and the grid's parents have no other reason to carry roll
+   *  state. Nothing here is persisted. */
+  const roll = useRollControls();
+  /** The two pins the user may not clear come from the engine, and this
+   *  component does not decide who is in the map -- it renders what App put
+   *  there. */
+  const implicitPinReason = roll.implicitPinReasons[badge.id];
+
   return (
     <div
       className={`badge-card${heightBlocked ? " badge-card--blocked" : ""}${roleClass}`}
@@ -431,6 +443,46 @@ export function BadgeCard(props: BadgeCardProps) {
         </summary>
       </details>
       <LevelPipRow {...props} />
+      {/* F8-R2 THE ACTION LINE — below the cost line (the pip row carries the
+          costs), above the status line. EXACTLY ONE control: Pin when the
+          badge is purchased, Exclude when it is not. Never both, never
+          neither.
+
+          NO NEW CARD STATE, no recede treatment and NO opacity for an excluded
+          card (invariant I2). The pressed chip IS the marker, and the roll
+          panel carries the roll-up. That keeps ~42 of 53 cards visually
+          unchanged at zero state.
+
+          stopPropagation for the same MANDATORY reason the description
+          <details> above has it: the card root carries the pointer-cycle
+          handler, so without it pinning a badge would also BUY A LEVEL. */}
+      <div
+        className="badge-card__action"
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        {purchased !== null ? (
+          <PinControl
+            kind="pin"
+            pressed={implicitPinReason !== undefined || roll.pinnedBadgeIds.has(badge.id)}
+            badgeName={badge.name}
+            onToggle={() => {
+              roll.onTogglePin(badge.id);
+            }}
+            {...(implicitPinReason === undefined ? {} : { disabledReason: implicitPinReason })}
+          />
+        ) : (
+          <PinControl
+            kind="exclude"
+            pressed={roll.excludedBadgeIds.has(badge.id)}
+            badgeName={badge.name}
+            onToggle={() => {
+              roll.onToggleExclude(badge.id);
+            }}
+          />
+        )}
+      </div>
       <div className="badge-card__status">
         {statusText(badge, synergyState, overlay, role, purchased, effective)}
       </div>

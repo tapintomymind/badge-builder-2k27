@@ -18,6 +18,7 @@
 import { describe, expect, it } from "vitest";
 import { srcSources, stripComments } from "./helpers/test-utils";
 import { ATTRS, ATTR_LABELS, ATTR_SOURCE_LABELS } from "../src/engine/vocabulary";
+import { ROLL_REPORT_CLOSING_LINE } from "../src/ui/summary/RollPanel";
 
 /** Bare slot-word identifiers and copy. Word boundaries mean equipSlots /
  * synergySlots / SynergySlotId / plusTwoSlotIds (interior, prefixed
@@ -136,14 +137,45 @@ const CLASS_2_SCOPE = [
   "/src/engine/randomize.ts",
   "/src/engine/random.ts",
   "/src/engine/steps.ts",
+  // F8-R2, as the class-2 header above always said it would: the roll's own
+  // user-facing surface is where "sorted by most points added" or "highlight
+  // the best pickup" would actually get written.
+  "/src/ui/summary/RollPanel.tsx",
 ];
+
+/**
+ * THE ONE DOCUMENTED CLASS-2 EXEMPTION, and it is a genuine head-on collision
+ * rather than a convenience.
+ *
+ * §14.7 makes the report's closing line MANDATORY and FIXED:
+ *
+ *     "Chosen at random from what fits. There is no ranking here."
+ *
+ * That sentence contains the substring `rank`, which class 2 bans. The two
+ * requirements are both ratified and they contradict each other literally.
+ *
+ * THE RESOLUTION IS NOT TO WEAKEN THE PATTERN. The sentence DENIES ranking —
+ * it is containment rule 5 said out loud, and it is the single most important
+ * string in the feature. A substring lint cannot tell a denial from an
+ * endorsement, so the exact literal is excised before matching and everything
+ * else in the file is held to the unmodified pattern. Same posture as AJ-4's
+ * `import.meta` / `prefers-reduced-motion` collisions: documented here, not
+ * discovered later.
+ *
+ * The canaries below prove the pattern is intact: the sentence itself STILL
+ * fails the raw regex, and a second `rank` anywhere in the file would still be
+ * caught.
+ */
+const CLASS_2_EXEMPT_LITERAL = ROLL_REPORT_CLOSING_LINE;
 
 describe("F8-E2 containment lint, class 2: no ranking vocabulary in the roll engine", () => {
   for (const file of CLASS_2_SCOPE) {
     it(`${file} contains no ranking, scoring or quality token`, () => {
       const source = srcSources[file];
       expect(source, `${file} is missing — the class-2 scope drifted`).toBeDefined();
-      const code = stripComments(source as string);
+      // The ONE exemption, excised by EXACT LITERAL — never by relaxing the
+      // regex. Everything else in the file faces the unmodified pattern.
+      const code = stripComments(source as string).split(CLASS_2_EXEMPT_LITERAL).join(" ");
       const match = CLASS_2.exec(code);
       expect(
         match,
@@ -172,6 +204,25 @@ describe("F8-E2 containment lint, class 2: no ranking vocabulary in the roll eng
     expect(CLASS_2.test("candidates.sort(byHeadroomScore)")).toBe(true);
     expect(CLASS_2.test("const preferHigherCeiling = true;")).toBe(true);
     expect(CLASS_2.test("const deltaWeights = trades.map(t => t.netCost);")).toBe(true);
+  });
+
+  it("THE EXEMPTION'S CANARY: the ratified sentence still fails the RAW pattern", () => {
+    // An exemption without a canary is how a guard goes structurally blind.
+    // These three assertions are what keep the class-2 carve-out honest:
+    //
+    // 1. The exempt sentence genuinely WOULD fail the unmodified pattern — so
+    //    the pattern was not quietly relaxed to let it through.
+    expect(CLASS_2.test(CLASS_2_EXEMPT_LITERAL)).toBe(true);
+    expect(CLASS_2.exec(CLASS_2_EXEMPT_LITERAL)?.[0]?.toLowerCase()).toBe("rank");
+    // 2. The exemption is an EXACT LITERAL, not a pattern. A near-miss is not
+    //    covered by it, so nobody can widen the hole by paraphrasing.
+    const paraphrase = "Chosen at random. There is no ranking of any kind here.";
+    expect(paraphrase).not.toBe(CLASS_2_EXEMPT_LITERAL);
+    expect(CLASS_2.test(paraphrase.split(CLASS_2_EXEMPT_LITERAL).join(" "))).toBe(true);
+    // 3. A SECOND ranking token in the exempted file is still caught — excising
+    //    the sentence removes that sentence, not the whole file's coverage.
+    const withExtra = `const x = "${CLASS_2_EXEMPT_LITERAL}"; const bestStep = y;`;
+    expect(CLASS_2.test(withExtra.split(CLASS_2_EXEMPT_LITERAL).join(" "))).toBe(true);
   });
 
   it("the substring form closes a miss the boundary form would have shipped", () => {
@@ -241,5 +292,135 @@ describe("F8-E2 containment lint, class 2: no ranking vocabulary in the roll eng
     expect(code.match(/Math\.(?:max|min)\s*\([^)]*\)/g) ?? []).toEqual([
       "Math.min(pointsPool, ceiling)",
     ]);
+  });
+});
+
+/* --------------------------------------------- F8-R2: vocabulary class 3 -- */
+
+/**
+ * CLASS 3 — the Pin/Lock collision lint (design-spec §14.1, AJ-3).
+ *
+ * §14.1's vocabulary ruling is a BUG FIX, not a preference, and without this
+ * lint it is unenforceable. `lock` is already taken TWICE in this app:
+ * §10.1's `Locked by attributes` pip state, carried by a 🔒 glyph on up to 53
+ * cards, and §3.5's `Locked — unlock to assign badges` Synergy Slot state with
+ * its `unlock` Toggle. A `Pin` control labelled `Lock`, sitting on a card that
+ * renders 🔒-locked pips six pixels away, is the H1 failure mode exactly — one
+ * word for two things — one level up from the bare-`slot` case H1 was written
+ * for.
+ *
+ * THE FAILURE MODE IS QUIET: an implementer writes `Lock`, every other test
+ * stays green, and H1's doctrine is broken by a synonym. Hence a lint.
+ *
+ * Canonical instead: Pin · Pinned · Unpin · Exclude · Excluded.
+ */
+const CLASS_3 = /\b(?:locks?|locked|freeze|frozen)\b/i;
+
+const CLASS_3_SCOPE = [
+  "/src/engine/steps.ts",
+  "/src/engine/randomize.ts",
+  "/src/engine/random.ts",
+  "/src/engine/summary.ts",
+  "/src/engine/summary-text.ts",
+  "/src/ui/summary/LoadoutRoster.tsx",
+  "/src/ui/summary/SynergyDigest.tsx",
+  "/src/ui/summary/SummaryTextBlock.tsx",
+  "/src/ui/summary/RollPanel.tsx",
+  "/src/ui/primitives/PinControl.tsx",
+];
+
+/**
+ * DELIBERATELY OUT OF SCOPE, and naming them here is the point — an allowlist
+ * whose exclusions are undocumented rots into "whatever was passing that day".
+ *
+ *   src/ui/grid/BadgeCard.tsx       §10.1's "Locked by attributes" pip state
+ *                                   is CORRECT and must keep saying `Locked`.
+ *   src/ui/synergy/SynergyPanel.tsx §3.5's "Locked — unlock to assign badges"
+ *                                   is CORRECT for the same reason.
+ *
+ * Both are the ORIGINAL meanings of the word. The rename moved the NEW concept
+ * off the collision; it did not evict the incumbents.
+ */
+const CLASS_3_OUT_OF_SCOPE = ["/src/ui/grid/BadgeCard.tsx", "/src/ui/synergy/SynergyPanel.tsx"];
+
+describe("F8-R2 vocabulary lint, class 3: the pin is never called a lock", () => {
+  for (const file of CLASS_3_SCOPE) {
+    it(`${file} carries no lock/freeze vocabulary`, () => {
+      const source = srcSources[file];
+      expect(source, `${file} is missing — the class-3 scope drifted`).toBeDefined();
+      const code = stripComments(source as string);
+      const match = CLASS_3.exec(code);
+      expect(
+        match,
+        `"${match?.[0]}" found in ${file} — §14.1 renamed this concept to Pin ` +
+          "precisely because `lock` already means two other things in this app",
+      ).toBeNull();
+    });
+  }
+
+  it("POSITIVE CANARY: strings that SHOULD fail class 3 do fail it", () => {
+    // A lint that cannot fail on its own canary is worse than no lint. Do NOT
+    // weaken the pattern to make these pass.
+    expect(CLASS_3.test("<button>Lock</button>")).toBe(true);
+    expect(CLASS_3.test('label = "Locked"')).toBe(true);
+    expect(CLASS_3.test("const locked = true;")).toBe(true);
+    expect(CLASS_3.test("function freeze() {}")).toBe(true);
+    expect(CLASS_3.test("const frozen = new Set();")).toBe(true);
+    expect(CLASS_3.test('copy = "Lock this badge"')).toBe(true);
+    expect(CLASS_3.test('<PinControl label="Lock" />')).toBe(true);
+  });
+
+  it("the boundary form is REQUIRED by AJ-4, and its blind spot is the price", () => {
+    // Class 3 is WORD-BOUNDED, unlike class 2 which is substring-matched. That
+    // is forced, not chosen: `unlock` and `unlocked` CONTAIN `lock`, and both
+    // are ratified shipped vocabulary (SynergySlot.unlocked, "N of 8 Synergy
+    // Slots unlocked"). A substring class 3 would fire on correct code on day
+    // one, and a lint that fires on correct code gets weakened — which is the
+    // failure this whole family of tests exists to prevent.
+    //
+    // THE COST, stated so it is a known hole rather than a surprise: compound
+    // identifiers escape. `freezeEntry` and `lockedBy` do NOT match.
+    expect(CLASS_3.test("function freezeEntry() {}")).toBe(false);
+    expect(CLASS_3.test("const lockedBy = user;")).toBe(false);
+    // This is acceptable HERE and would not be in class 2, because the target
+    // is USER-VISIBLE COPY on a control — `Lock`, `Locked` — which is a
+    // standalone word by construction. Class 2's targets (`bestStep`,
+    // `rankedSteps`) are compounds by construction, which is exactly why that
+    // class is substring-matched and this one is not.
+  });
+
+  it("AJ-4: `unlock` is deliberately ABSENT from the pattern", () => {
+    // SynergySlot.unlocked is a SHIPPED FIELD and "N of 8 Synergy Slots
+    // unlocked" is ratified copy (§3.5, §14.4). Adding `unlock` to the pattern
+    // would fire on correct, ratified vocabulary — and a lint that fires on
+    // correct code gets weakened, which is worse than no lint.
+    //
+    // The failure this class targets is A PIN LABELLED `Lock`, and `lock` +
+    // `locked` catch it. That is the whole job.
+    expect(CLASS_3.test("synergySlot.unlocked")).toBe(false);
+    expect(CLASS_3.test('aria-label="Unlock badge"')).toBe(false);
+    expect(CLASS_3.test('copy = "3 of 8 Synergy Slots unlocked"')).toBe(false);
+    expect(CLASS_3.test("unlock to assign badges")).toBe(false);
+  });
+
+  it("negative canary: the canonical pin vocabulary passes", () => {
+    for (const word of ["Pin", "Pinned", "Unpin", "Exclude", "Excluded"]) {
+      expect(CLASS_3.test(`<button>${word}</button>`), word).toBe(false);
+    }
+    expect(CLASS_3.test('"Pinned — holds the Fuse role in Synergy Slot 5."')).toBe(false);
+  });
+
+  it("the two out-of-scope files still use `Locked` — the exclusion is LIVE, not vestigial", () => {
+    // If §10.1's pip state or §3.5's Synergy Slot state ever stops saying
+    // `Locked`, this exclusion is dead weight and should be deleted rather than
+    // left as a permanent hole in the lint.
+    for (const file of CLASS_3_OUT_OF_SCOPE) {
+      const source = srcSources[file];
+      expect(source, `${file} is missing`).toBeDefined();
+      expect(
+        CLASS_3.test(stripComments(source as string)),
+        `${file} no longer uses Locked — retire its class-3 exclusion`,
+      ).toBe(true);
+    }
   });
 });

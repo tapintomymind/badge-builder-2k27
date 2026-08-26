@@ -43,6 +43,13 @@ import type { SynergyState } from "./engine/synergy";
 import { categoryLedgerAt } from "./engine/synergy-ledger";
 import { badgeSlotsCapacityUnset } from "./engine/ledger";
 import type { CategoryLedgerReadout, SynergyLedgerState } from "./engine/synergy-ledger";
+import type { PinMode, RollMode, RollRequest, RollResult } from "./engine/randomize";
+import { rollBuild } from "./engine/randomize";
+import { stableDigest } from "./engine/random";
+import { RollPanel, RerollConfirmDialog } from "./ui/summary/RollPanel";
+import type { RollControls } from "./ui/roll/roll-controls";
+import { RollControlsContext } from "./ui/roll/roll-controls";
+import { newSeed } from "./ui/roll/newSeed";
 import { positionHeightRange, validateBuild } from "./engine/validate-build";
 import { validateLoadout } from "./engine/validate-loadout";
 import type {
@@ -571,6 +578,28 @@ export default function App() {
    * the dialog commits through `applyEdit` exactly as the twelve base fields
    * do (design-spec §17.3, §4.2). */
   const [bonusOpen, setBonusOpen] = useState(false);
+
+  /* ------------------------------------------------------------- F8-R2 --
+   * THE ROLL'S SESSION STATE. Every field here is deliberately NOT persisted:
+   * persisting a pin, an exclusion or a seed would be a SavedBuild shape
+   * change -> a schemaVersion migration -> the reader-inventory ceremony ->
+   * a collision with the deferred sourceId envelope. Nothing in this block
+   * reaches src/persist/, toEnvelope() or SAVED_BUILD_SCHEMA_VERSION.
+   */
+  /** badgeId -> PinMode. Presence in this record IS the pin. */
+  const [pins, setPins] = useState<Readonly<Record<string, PinMode>>>({});
+  const [excludedBadgeIds, setExcludedBadgeIds] = useState<readonly string[]>([]);
+  const [seed, setSeed] = useState(() => newSeed());
+  /** The last APPLIED roll and the exact request that produced it. The request
+   *  is what Restore re-runs -- one step, scope-local, exact only under the
+   *  stated preconditions, and NEVER an undo stack. */
+  const [lastRoll, setLastRoll] = useState<RollResult | null>(null);
+  const [lastRollRequest, setLastRollRequest] = useState<RollRequest | null>(null);
+  /** Bumped on every applied roll. Drives the report's focus move, and starting
+   *  at 0 is what stops boot from stealing focus. */
+  const [rollEpoch, setRollEpoch] = useState(0);
+  /** null = closed. category null = every category in scope. */
+  const [rerollScope, setRerollScope] = useState<{ category: Category | null } | null>(null);
 
   /** F5.4 (design-spec §16.10) — THE ONE OWNER of the L breakpoint. It used
    * to live inside BuildPanel; the pane, the two-grid-item layout and the
@@ -1311,6 +1340,196 @@ export default function App() {
   const loadoutSummary = buildSummary(ledgerState, working.build, shippedDataset);
   const synergyRows = synergyProjections(ledgerState, shippedDataset);
 
+  /* ================================================================ F8-R2 ==
+   * THE ROLL SURFACE'S WIRING. Read this block as: derive what the controls
+   * need, hand the ENGINE a request, apply its proposal in ONE write.
+   * Nothing below enumerates a step, tests affordability, computes a cost or
+   * decides a decline. Those are all rollBuild's, and re-deriving any of them
+   * here is the breach [seed: Working agreements #1].
+   * ======================================================================= */
+
+  /**
+   * THE TWO IMPLICIT PINS, as reason strings. The engine pins these whether or
+   * not the user did, so the UI must render them PRESSED and DISABLED or it is
+   * lying about what the roll will do.
+   *
+   * Both facts are READ OFF the summary the app already computes -- 
+   * `row.synergyRole` and `row.stale` are engine fields, not predicates
+   * re-implemented here. A synergy-role holder is unconditional (clearing it
+   * could strand a fuseBadgeId -- the F2.1 defect class that cost real
+   * unrecoverable autosaves); a stale purchase is H8 (the roll never repairs a
+   * disclosure).
+   */
+  const implicitPinReasons = useMemo(() => {
+    const reasons: Record<string, string> = {};
+    for (const category of loadoutSummary.categories) {
+      for (const row of category.rows) {
+        if (row.synergyRole !== null) {
+          const roleName = row.synergyRole.kind === "fuse" ? "Fuse" : "Reaction";
+          reasons[row.badgeId] =
+            `Pinned — holds the ${roleName} role in Synergy Slot ${row.synergyRole.synergySlotId}.`;
+        } else if (row.stale) {
+          reasons[row.badgeId] =
+            "Pinned — this purchase no longer qualifies and the roll will not change it.";
+        }
+      }
+    }
+    return reasons;
+  }, [loadoutSummary]);
+
+  const pinnedBadgeIds = useMemo(() => new Set(Object.keys(pins)), [pins]);
+  const excludedSet = useMemo(() => new Set(excludedBadgeIds), [excludedBadgeIds]);
+
+  const buildRollRequest = useCallback(
+    (
+      mode: RollMode,
+      category: Category | null,
+      requestSeed: string,
+    ): RollRequest => ({
+      state: ledgerState,
+      build: working.build,
+      pins,
+      excludedBadgeIds,
+      ...(category === null ? {} : { categories: [category] }),
+      seed: requestSeed,
+      mode,
+    }),
+    [ledgerState, working.build, pins, excludedBadgeIds],
+  );
+
+  /**
+   * THE APPLY, AND IT IS EXACTLY ONE STATE WRITE. `proposedLoadout` is the
+   * COMPLETE loadout for all six categories -- out-of-scope and declined
+   * categories carried through byte-identical -- so one `applyEdit` commits
+   * the whole thing. Eleven sequential writes would be eleven eligibility
+   * recomputes across 53 badges, eleven feasibility passes and eleven
+   * autosaves.
+   *
+   * `changed === false` writes NOTHING: the report still renders and still
+   * says, per category, what the roll could not do. Silence is never an
+   * outcome, but neither is a no-op autosave.
+   */
+  const runRoll = useCallback(
+    (request: RollRequest) => {
+      const result = rollBuild(request, shippedDataset);
+      setLastRoll(result);
+      setLastRollRequest(request);
+      setRollEpoch((epoch) => epoch + 1);
+      if (!result.changed) return;
+      applyEdit((prev) => ({ ...prev, loadout: [...result.proposedLoadout] }));
+    },
+    [applyEdit],
+  );
+
+  /**
+   * Restore's precondition. THE GATE IS THE ENGINE'S OWN `inputDigest` -- a
+   * candidate request is composed from the CURRENT build, budgets, pins and
+   * exclusions but the STORED pre-roll loadout, and its engine-computed digest
+   * is compared to the stored one. That keeps the digest's composition in
+   * exactly one place (randomize.ts) instead of hand-rolling a second change
+   * detector here.
+   *
+   * The per-field comparisons below the gate choose the WORDING ONLY. They
+   * never decide enabled-vs-disabled, so they cannot disagree with the gate
+   * about whether the roll is reproducible -- only about which sentence
+   * explains it.
+   */
+  const restoreDisabledReason = useMemo((): string | null => {
+    if (lastRoll === null || lastRollRequest === null) {
+      return "Restore unavailable — nothing has been rolled yet.";
+    }
+    if (lastRoll.token.dataVersion !== shippedDataset.dataVersion) {
+      return "Restore unavailable — the dataset changed.";
+    }
+    if (lastRoll.token.refundTrigger !== working.config.refundTrigger) {
+      return "Restore unavailable — the refund setting changed.";
+    }
+    const candidate: RollRequest = {
+      ...lastRollRequest,
+      state: { ...ledgerState, loadout: lastRollRequest.state.loadout },
+      build: working.build,
+      pins,
+      excludedBadgeIds,
+    };
+    if (rollBuild(candidate, shippedDataset).token.inputDigest === lastRoll.token.inputDigest) {
+      return null;
+    }
+    if (stableDigest(pins) !== stableDigest(lastRollRequest.pins)) {
+      return "Restore unavailable — pins changed since that roll.";
+    }
+    if (stableDigest(budgets) !== stableDigest(lastRollRequest.state.budgets)) {
+      return "Restore unavailable — budgets changed.";
+    }
+    if (stableDigest(working.build) !== stableDigest(lastRollRequest.build)) {
+      return "Restore unavailable — the build changed.";
+    }
+    return "Restore unavailable — the inputs to that roll changed.";
+  }, [
+    lastRoll,
+    lastRollRequest,
+    ledgerState,
+    working.build,
+    working.config.refundTrigger,
+    budgets,
+    pins,
+    excludedBadgeIds,
+  ]);
+
+  /** The re-roll dialog's blast radius. A roll-up of ENGINE values (row.cost),
+   *  in the same spirit as the roster digest -- no cost is derived here. */
+  const rerollCounts = useMemo(() => {
+    let unpinnedCount = 0;
+    let unpinnedPoints = 0;
+    let pinnedCount = 0;
+    for (const category of loadoutSummary.categories) {
+      if (rerollScope !== null && rerollScope.category !== null) {
+        if (category.category !== rerollScope.category) continue;
+      }
+      for (const row of category.rows) {
+        const isPinned =
+          implicitPinReasons[row.badgeId] !== undefined || pinnedBadgeIds.has(row.badgeId);
+        if (isPinned) pinnedCount += 1;
+        else {
+          unpinnedCount += 1;
+          unpinnedPoints += row.cost;
+        }
+      }
+    }
+    return { unpinnedCount, unpinnedPoints, pinnedCount };
+  }, [loadoutSummary, rerollScope, implicitPinReasons, pinnedBadgeIds]);
+
+  const rollControls: RollControls = useMemo(
+    () => ({
+      pinnedBadgeIds,
+      pinModes: pins,
+      implicitPinReasons,
+      excludedBadgeIds: excludedSet,
+      onTogglePin: (badgeId: string) => {
+        setPins((prev) => {
+          if (prev[badgeId] !== undefined) {
+            const { [badgeId]: _dropped, ...rest } = prev;
+            return rest;
+          }
+          // Defaults to `exact` -- the user's own example is "I select gold
+          // posterizer", which means THIS level, not this badge at any level.
+          return { ...prev, [badgeId]: "exact" };
+        });
+      },
+      onPinModeChange: (badgeId: string, mode: PinMode) => {
+        setPins((prev) => (prev[badgeId] === mode ? prev : { ...prev, [badgeId]: mode }));
+      },
+      onToggleExclude: (badgeId: string) => {
+        setExcludedBadgeIds((prev) =>
+          prev.includes(badgeId) ? prev.filter((id) => id !== badgeId) : [...prev, badgeId],
+        );
+      },
+      onRerollCategory: (category: Category) => {
+        setRerollScope({ category });
+      },
+    }),
+    [pinnedBadgeIds, pins, implicitPinReasons, excludedSet],
+  );
+
   // F3: the position-derived height range (engine accessor — the only route
   // to the table) and the HARD-DISCLOSED build validation. Position unset ⇒
   // the dataset's own range ⇒ pre-F3 behavior, unchanged.
@@ -1346,6 +1565,7 @@ export default function App() {
        At >=1280 x >=868 the stylesheet turns this element into a 100dvh flex
        column whose only growing child is `.layout`; everywhere else it is
        inert and `.app`'s shipped rules are the whole behaviour. */
+    <RollControlsContext value={rollControls}>
     <div className="app app-shell">
       <a className="skip-link" href="#badge-grid">
         Skip to badge grid
@@ -1699,6 +1919,51 @@ export default function App() {
 
           <div id="panel-summary">
             <Section title="Summary" storageKey="section-summary">
+              {/* F8-R2 — THE ROLL PANEL'S HOME. §14.4 puts it in the Summary
+                  region above the roster, and the roster is the roll's output
+                  device: the trigger belongs beside its own result, not in
+                  AppHeader ~2000px away and already carrying six controls.
+
+                  RENDERED HERE, AS A SIBLING ABOVE <SummaryPanel>, RATHER THAN
+                  INSIDE IT. Two reasons, and the second is mechanical:
+                  SummaryPanel is closed to this slice (it is S2's, and its H2
+                  guarantees are where S2 left them); and `.summary` is the
+                  exact subtree tests/ui/overlays.test.tsx compares across all
+                  four overlay combinations, so keeping the roll panel OUT of
+                  it means the H2 ship gate never has to reason about roll
+                  state at all.
+
+                  IT COSTS ZERO ALWAYS-VISIBLE HEIGHT. This is inside
+                  `.col-right`, which is the shell's scrollport at >=1280x868
+                  and the document scroller below it. The F14 shell has ~0.02pp
+                  of vertical margin left at its gate, so a new permanent band
+                  would have forced the gate UP. A scrollport region does
+                  not. */}
+              <RollPanel
+                dataset={shippedDataset}
+                heightText={formatHeightInches(working.build.heightInches)}
+                lastRoll={lastRoll}
+                rollEpoch={rollEpoch}
+                seed={seed}
+                onSeedChange={setSeed}
+                onRegenerateSeed={() => {
+                  setSeed(newSeed());
+                }}
+                onFillRemaining={() => {
+                  runRoll(buildRollRequest("fill", null, seed));
+                }}
+                onRerollRequest={() => {
+                  setRerollScope({ category: null });
+                }}
+                excludedCount={excludedBadgeIds.length}
+                onClearExclusions={() => {
+                  setExcludedBadgeIds([]);
+                }}
+                restoreDisabledReason={restoreDisabledReason}
+                onRestore={() => {
+                  if (lastRollRequest !== null) runRoll(lastRollRequest);
+                }}
+              />
               <SummaryPanel
                 loadout={working.loadout}
                 synergySlots={working.synergy}
@@ -1803,6 +2068,45 @@ export default function App() {
         />
       ) : null}
 
+      {/* F8-R2 — THE FOURTH <dialog> (§4.6 as amended by §14.11). Mounted only
+          while open, like the reset and bonus confirms. It is `#dialog-reroll`
+          and everything that reaches for it MUST select by that id:
+          `document.querySelector("dialog")` returns the builds dialog, which
+          is how a review once reported "import does nothing". */}
+      {rerollScope !== null ? (
+        <RerollConfirmDialog
+          category={rerollScope.category}
+          unpinnedCount={rerollCounts.unpinnedCount}
+          unpinnedPoints={rerollCounts.unpinnedPoints}
+          pinnedCount={rerollCounts.pinnedCount}
+          onCancel={() => {
+            setRerollScope(null);
+          }}
+          onPinEverything={() => {
+            // The `Save as new` analogue: it converts the scary action into the
+            // safe one at the moment of hesitation, and it closes WITHOUT
+            // rolling.
+            const scope = rerollScope.category;
+            setPins((prev) => {
+              const next = { ...prev };
+              for (const category of loadoutSummary.categories) {
+                if (scope !== null && category.category !== scope) continue;
+                for (const row of category.rows) {
+                  if (next[row.badgeId] === undefined) next[row.badgeId] = "exact";
+                }
+              }
+              return next;
+            });
+            setRerollScope(null);
+          }}
+          onConfirm={() => {
+            const scope = rerollScope.category;
+            setRerollScope(null);
+            runRoll(buildRollRequest("reroll", scope, seed));
+          }}
+        />
+      ) : null}
+
       {importState !== null ? (
         <ImportDialog
           state={importState}
@@ -1814,5 +2118,6 @@ export default function App() {
         />
       ) : null}
     </div>
+    </RollControlsContext>
   );
 }
