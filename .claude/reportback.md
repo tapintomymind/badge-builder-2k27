@@ -7702,3 +7702,151 @@ taken only after `index-CrSicJCu.css` / `index-BHNWQR75.js` were confirmed in th
 worktree were deleted; the source branch `reset-and-slot8` and worktree `/tmp/bb-small` are left
 in place for the operator to remove. The two design-spec contradictions the F15 entry raised are
 still UNRESOLVED — this landing did not touch them.
+
+---
+
+## F16 — the Loadout board: the 2K-native-shaped view (2026-08-26)
+
+**Branch** `loadout-board` · base `origin/dev` @`4d1ba88` (1433 tests / 69 files) ·
+worktree `/tmp/bb-board` · **pushed, not merged.**
+**Proof** `docs/proof/f16-verification.txt` + six screenshots.
+
+### What landed
+
+Six discipline panels — what you hold, and how full each discipline is — as a new
+`<Section title="Loadout board">` at `#panel-board`, between the badge grid and the
+Synergy Slots panel inside `.col-right`. Three components plus a projection module:
+
+| file | what |
+|---|---|
+| `src/ui/board/LoadoutBoard.tsx` | the container; six panels, always all six |
+| `src/ui/board/DisciplinePanel.tsx` | one panel: header metrics, tiles, empty cells, the fence |
+| `src/ui/board/BadgeTile.tsx` | the name cell, and its `empty` variant |
+| `src/ui/board/board-model.ts` | the projection — purchased badges bucketed by discipline, dataset order |
+
+Capacity is rendered as a **shape** rather than a fraction: filled cells, dashed empty
+wells for unused Badge Slots, and — when you are over — a `--danger` rule labelled with
+the shipped `over by N ⚠` string, with the badges beyond capacity sitting outside it.
+That is the one thing the board borrows from the in-game screen that no other surface
+in this app can do.
+
+**It dispatches nothing.** No `onSetLevel`, no `assignSynergy`, no `clearSynergy`, no
+write to the build envelope — asserted by absence over all four files. A project with
+four shipped data-destruction defects gains **zero** new write paths from this view. Its
+one callback writes `FilterState`.
+
+### What was CUT from §7, and why
+
+§7.3's recommended cut 1 — `SynergyBoard` — **had already shipped** (F11). What remained
+of §7 was cut 2. I built §7.3's own **named alternative** (`DisciplinePanel` + `BadgeTile`,
+read-plus-navigate) and cut `BoardDetail`, which §7.2 itself names as the trim of last
+resort. Cut with it, deliberately and as a set:
+
+- **`BoardDetail`** — §7.2: *"its badge half substantially duplicates the badge card."*
+- **`Remove` on the board** — §2.5 puts Remove in the detail region and **only** there
+  (*"a destructive control on a 94px cell you also press to select is a mis-click
+  generator"*). No detail region ⇒ no Remove ⇒ no new write path. Not an oversight; the
+  design's own placement rule, followed to its conclusion.
+- **§5.3's `required (current)` requirement table** — lives in the detail region.
+- **The selection model** (§2.3) — selection existed only to drive the detail region.
+- **Synergy controls on the board** — the pairing board already ships inside the Synergy
+  Slots section (§4.1) and was not moved.
+
+The result is a complete surface, not a partial one: nothing half-wired is mounted.
+
+### Where the design and the verification were STALE against the tree
+
+1. **§7.3's cut 1 is already shipped.** `src/ui/synergy/SynergyBoard.tsx` and
+   `tests/ui/f11-synergy-board.test.tsx` are on `dev`. Both documents predate it.
+2. **§9.5/1 and §7.4 check 10 are BACKWARDS now.** They require the board to call
+   `badgeSlotsCapacityUnset(**BASE**)`. A5 has since ruled the opposite and shipped it:
+   `equipSlots === 0` iff base 0 **and** no bonus placed, so the predicate takes the
+   **COMPOSITE** and a discipline with base 0 + a placed Bonus Badge Slot is *entered*
+   (`src/engine/ledger.ts:213`, docstring). The board uses the composite, like every
+   other surface. **A board built to the design's letter would have been wrong.**
+3. **§5.2's `#badge-{id}` anchor does not exist.** *"the anchor §3.2 already requires on
+   every card `<li>`"* — there is none in the tree. F16 adds it, plus the landing rule.
+4. **§3.3's consumer count** — verification already corrected 5 → 3; confirmed 3.
+5. **§9.2's plan to add `.board-panel__title` to the `--cat` placement lint would have
+   required editing `tests/category-colors.test.ts`, a RUN-never-edit gate.** Its
+   `var(--cat)` consumer list is an exact four-way match. Took F8-S2's roster-caption
+   route instead — six explicit `[data-category]` rules naming `--cat-{key}` — which the
+   lint does not see, and re-asserted all four of its conditions in F16's own block.
+6. **§3.6's cell floor moved twice, both upward.** F11 measured the word (68 → 71); and
+   the design **never costed the tile's meta row**, which at 74px is 3px wider than the
+   longest badge name. `TILE_FLOOR` = max(name, meta) + chrome = **92**, not 89;
+   `PANEL_TRACK` **266**, not 258.
+7. **§5.5's "2 panel columns at 1280" assumed a 312px detail track beside them.** Without
+   it the panels take the whole 885 and fit **three**. Asserted, so a later slice that
+   adds the detail region knows it takes the third column back.
+
+### The trap the verification found, and the one it did not
+
+§15 warned about global exact-match `getByText` in `overlays.test.tsx`. It listed
+`getByText("15")` and said *"clear, but do not add bare 2-digit numerals."*
+**F16 added one** — `left <span class="num">15</span>` — and reddened
+`overlays.test.tsx:90`, a RUN-never-edit gate, from across the document.
+
+Fixed as a **class, not an instance**: no element on the board has a bare numeral as its
+entire textContent. Fractions keep their slash, `left N` keeps its word (the numeric read
+rides `font-variant-numeric`, which only affects digits), and the tile cost carries the
+app's own shipped `pts`. A new case walks every board element with a canary, so the next
+addition learns this here rather than from that gate.
+
+### What it REFUSES to render
+
+There is no *"Your Build Has No <Discipline> Badge Slots"* state. 2K's screen has that
+sentence; ours cannot honestly say it, because nothing distinguishes a genuine zero from
+a field never filled in. Both render identically — the shipped hint, an em dash for the
+capacity, no fence, no empty cells, no over-by. **No 2K27 number is modelled here at
+all**: every figure is one the engine already computes for another surface, and both
+over-by strings are imported from the one builder.
+
+### Gates
+
+`typecheck` clean · `build` clean · **1505 / 1505 across 70 / 70 files** ·
+the three RUN-never-edit gates **not one byte changed** and green (29/29) ·
+F9's touch census green, with `.board-tile` and `.board-panel__browse` registered.
+
+**Delta computed before the run and confirmed by it:** +72 = 32 (new file) + 20
+(layout-arithmetic 142 → 162) + 20 (five suites parameterised over `src/**` × 4 new
+files). No flake seen on this tree; no timeout was lowered, tightened, raised or added.
+
+### The additive guarantee, MEASURED
+
+Both builds served, the identical autosave seeded into each, every element in every
+shipped region censused by tag, class and region-relative box, compared as a multiset.
+At 1280×768, 1280×700, 768 and 390 the **only** difference anywhere is the jump nav's
+new `Board` chip. `#panel-synergy`, `#panel-summary`, `.ledger-panel`, `.setup-panel`,
+`header` and the physique strip are element-for-element, pixel-for-pixel and
+character-for-character identical; the grid's own box is unchanged to the pixel.
+
+### Conflict forecast
+
+- **`reset-and-slot8` / Synergy Slot 8 — DISCHARGED.** Already in `dev` @`4d1ba88`;
+  rebased through it. One conflict, in `tests/layout-arithmetic.test.ts`: both sides
+  append to `S_TOUCH_FLOOR_CENSUS`. Purely additive, resolved by keeping both. The board
+  reads `slot.magnitude` off state and hardcodes no capacity, so the eighth ratified
+  Synergy Slot needed no board change — it renders `(+2)` on 7 and 8 with zero edits.
+- **`roll-ui` (`f8-r2`) — ONE conflict, and it is the log.** `git merge-tree` against
+  `684f8a9`: `src/App.tsx`, `src/styles/app.css` and `tests/ui/f8-roster.test.tsx` all
+  **auto-merge**; only `.claude/reportback.md` conflicts, as every pair of branches does.
+  The two App.tsx mounts are at different anchors (`#panel-board` above `#panel-synergy`;
+  the roll panel above `#panel-summary`) and the two CSS blocks are in different regions
+  (F16 between F11-end and F14-start, roll between F14-end and A5-U). Roll-ui does not
+  touch `panelAnchors`, `clearAllFilters`, the card `<li>` or `tests/layout-arithmetic.test.ts`.
+
+### For ruling
+
+1. **`design.md` §9.5/1 + §7.4 check 10 are inverted by A5's shipped ruling** and will
+   mislead the next implementer. Needs a rev.
+2. **§9.2's `--cat` route is foreclosed** by a never-edit gate. The F8-S2 pattern is the
+   only available one; §9.2 should say so.
+3. **The design's cut-1 recommendation is spent.** Whoever writes §18 should record that
+   cut 1 shipped as F11 and that F16 is the named alternative, minus `BoardDetail`.
+4. **`BoardDetail` remains unbuilt**, and with it Remove-on-the-board and the
+   `required (current)` table. Both are real deliverables and neither is started.
+
+**OPERATOR ACTION:** branch pushed as `loadout-board`, **not merged**. Worktree
+`/tmp/bb-board` left in place. A second worktree `/tmp/bb-devbase` (detached at
+`4d1ba88`) was created purely for the before/after census and can be removed.
