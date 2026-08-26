@@ -3547,6 +3547,22 @@ ul {
     min-height: var(--tap-target);
   }
 
+  /* 12 — the F11 Synergy board's cells, FOLDED IN AT INTEGRATION. F11 was cut
+   * from `a5fe8e1`, before this pass existed, so it shipped its own scoped
+   * `@media (max-width: 767px) { .synergy-board__button { min-height: 44px } }`
+   * inside its delimited block — the same rule at the same value, expressed as
+   * a literal because `--tap-target` was not visible from that branch. Two
+   * rules meaning one thing is the state assertion 27 exists to prevent, and a
+   * LITERAL is worse than a duplicate: 27 reads the stylesheet back by
+   * matching `min-height: var(--tap-target)`, so a hard-coded 44 is invisible
+   * to the census and rots silently. Re-pointed at the token and registered,
+   * and F11's standalone rule is deleted. One entry covers the whole board —
+   * `.synergy-board__button` is the only interactive class on it, which
+   * F11's own assertion 12 proves from the component source. */
+  .synergy-board__button {
+    min-height: var(--tap-target);
+  }
+
   /* ---- the reflow the rise causes, fixed by wrapping rather than clipping --
    *
    * THREE rows could not hold their contents at 390 once the controls grew.
@@ -4019,12 +4035,11 @@ ul {
   }
 }
 
-/* I6 touch floor, on the shipped 767 breakpoint — no new one is added. */
-@media (max-width: 767px) {
-  .synergy-board__button {
-    min-height: 44px;
-  }
-}
+/* I6 touch floor: FOLDED INTO F9's census at integration — see entry 12 of
+ * the `@media (max-width: 767px)` block in the F9 section above. The rule
+ * this block used to hold said `min-height: 44px` as a literal; it now says
+ * `min-height: var(--tap-target)` and is graded by assertions 24 and 27. No
+ * rule was dropped and the value did not move. */
 
 /* §10.6 forced-colors companion: every board state already survives on
  * glyph, border weight and words. The two custom-property rules become

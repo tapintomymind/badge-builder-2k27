@@ -2057,6 +2057,13 @@ const S_TOUCH_FLOOR_CENSUS = [
   ".jump-nav a",
   ".badge-card__desc-summary",
   ".skip-link",
+  // …and the one FOLDED IN AT INTEGRATION. F11 was cut before this pass
+  // existed and shipped the identical floor as a literal `44px` in its own
+  // block, which assertion 27 could not see — 27 reads the stylesheet back by
+  // matching the TOKEN, so a hard-coded value is exactly the rot it is meant
+  // to catch and is the one shape that escapes it. Re-pointed at
+  // `--tap-target`, F11's standalone rule deleted, and registered here.
+  ".synergy-board__button",
 ] as const;
 
 describe("I6 — the S touch floor, parsed from one token and re-derived per control", () => {
@@ -2553,8 +2560,26 @@ describe("F11 — the Synergy board's geometry, re-derived", () => {
   });
 
   it("12 — every board button clears the 44px touch floor at S (I6)", () => {
-    const touch = /@media \(max-width: 767px\) \{\s*\.synergy-board__button \{\s*min-height: 44px;/;
-    expect(touch.test(boardCss)).toBe(true);
+    // RE-POINTED AT INTEGRATION, same property, one source. As sealed, this
+    // asserted F11's own block carried
+    // `@media (max-width: 767px) { .synergy-board__button { min-height: 44px } }`
+    // — correct on the branch, which was cut from `a5fe8e1` before F9's pass
+    // existed. F9 landed `--tap-target` plus a census that reads the
+    // stylesheet back, so the board's floor is now entry 12 of F9's S block
+    // and is graded there by assertions 24 (declares the floor, from the
+    // token, exactly once, and not as a fixed `height`) and 27 (the census is
+    // the stylesheet, in both directions). Keeping the literal here would have
+    // held a SECOND rule at the same value that assertion 27 is structurally
+    // blind to, since it matches on the token.
+    expect(S_TOUCH_FLOOR_CENSUS).toContain(".synergy-board__button");
+    const boardTouch = sRule(".synergy-board__button");
+    expect(boardTouch).toHaveLength(1);
+    expect(boardTouch[0]).toContain("min-height: var(--tap-target)");
+    expect(TAP).toBeGreaterThanOrEqual(44);
+    // …and the board's own block no longer carries a floor of its own, so
+    // there is exactly ONE place the number comes from. CANARY for the fold-in
+    // itself: if a later slice re-adds a scoped literal here, this reds.
+    expect(boardCss).not.toContain("min-height: 44px");
     // …and there is exactly ONE button class, so the rule above is total.
     // A second one would be a control the rule silently does not reach.
     const classNames = [...boardCode.matchAll(/className=\{?[`"]([^`"]*)[`"]/g)].map(
