@@ -6720,6 +6720,152 @@ still stand from earlier passes (`git -C /tmp/bb-a6e stash drop`, and `git branc
 pass's own two throwaways deleted cleanly with `git branch -d`.
 ─────────────────────────────────────────────
 
+## 2026-08-26 · Tier 2 · slice-complete — A5-U bonus mode (design-spec §17)
+
+**Event:** `slice-complete`
+**Branch:** `a5-u-bonus-mode-v2` off `origin/dev` @ `0e96632`. Worktree `/tmp/bb-a5u`.
+**Commits:** `9b4573b` (implementation) + this entry.
+**No dev server started; port 5173 never bound** — A5-R5's shared-localStorage hazard is procedural
+and this pass honours it.
+
+### BRANCH NAME DEVIATION, DISCLOSED
+
+The dispatch asked for `a5-u-bonus-mode`, cut fresh after deleting the stale pre-F5.4 branch of that
+name. **`git worktree remove --force /tmp/bb-a5u` succeeded; `git branch -D a5-u-bonus-mode` was
+REFUSED by the permission layer** — the same refusal class already carried forward from two earlier
+passes. Per the dispatch's own fallback the branch is **`a5-u-bonus-mode-v2`**, cut from
+`origin/dev` with zero inheritance from the stale ref. **The stale `a5-u-bonus-mode` branch still
+exists and still points at a pre-F5.4 tree; an operator `git branch -D` is required.**
+
+### THE ONE RULING THAT CHANGED SHIPPED ENGINE BEHAVIOUR
+
+`effectiveBudgets` is **plain addition** now. A5-E shipped `base === 0 ? 0 : base + applied`
+(scope.md A5-R4's carve-out); design-spec §17.9 Ruling ② supersedes it, and the dispatch made the
+spec authoritative. The carve-out made a bonus Badge Slot in a genuinely-zero discipline
+**permanently inert** — and its escape hatch ("it counts the moment a base is entered") was
+unreachable, because the base *is* entered, at zero.
+
+The seam was well chosen: with plain addition and both contributors non-negative,
+`effective.equipSlots === 0 ⟺ base === 0 && applied === 0`, which is **exactly** §17.9's ruled
+predicate — so `badgeSlotsCapacityUnset` is correct with no code change and every downstream reader
+(ledger, validateLoadout, feasibility, steps, randomize, summary) follows for free. `baseEquipSlotsOf`
+lost its now-dead zero guard rather than keeping a branch for a rule that no longer exists.
+
+**One consequence needed its own edit.** `equipSlotsBaselineComparable` was derived from the capacity
+predicate; the two questions are now genuinely different (§17.9 consequence 6), so `summary.ts`
+derives the base Σ per category and gates the Σ-vs-20 comparison on **that**. A placed bonus is an
+entry act for the capacity predicate and is **not** a base value.
+
+**Test fallout was six assertions, all in the ruled direction, none silenced:**
+
+| Test | Was | Is |
+|---|---|---|
+| `bonus.test.ts` 1.5 | the carve-out: base 0 + applied 3 ⇒ effective 0 | base 0 + applied 3 ⇒ **3 and ENTERED**; base 0 + applied 0 still UNSET |
+| `bonus.test.ts` 1.10 | inverse "carve-out included" | inverse exact at every value, expected figure **derived through `effectiveBudgets`** rather than retyped |
+| `bonus.test.ts` 2.4 | Σ 20/20, comparison suppressed | Σ **21** effective / **20** base, comparison **still suppressed** — base-keyed |
+| `randomize.test.ts` 5.3 | a bonus in a base-0 category still **declines** | it **rolls**; the same base with nothing placed still declines |
+| `f4-budget-total-baseline` 11.2 | `23 / 20 default — 3 bonus Badge Slots?` | `23 / 20 default`, and it now asserts the over case reads **identically to the under case** |
+| `layout-arithmetic` 17 | `alsoBudgets ? { budgets: zeroBudgets() } : {}` | `… , bonus: zeroBonus() } : {}` |
+
+### THE FIVE STATES (§17.7 / §17.12 states 58–63), each with a live assertion
+
+| State | Renders |
+|---|---|
+| **zero earned** | one `secondary` Button. No readout, no dialog in the DOM, **zero `.bonus-*` nodes** |
+| **earned, unallocated** | `3 bonus Badge Slots earned · 3 Badge Slots not yet placed.` — neutral, no `⚠`, no `--danger`. Digest unchanged: unplaced bonus grants nothing. Mode total `0 / 3` |
+| **allocated** | `4 bonus Badge Points and 1 bonus Badge Slot placed.` — the `all placed` token is suppressed. Effective cells `16 → 20` / `3 → 4`, bare `12` where there is no bonus, `—` where base 0 and no bonus |
+| **over-allocated** | `4 bonus Badge Slots placed against 3 earned ⚠`, `4 / 3` + `over by 1 ⚠` in the mode, **per-metric** (the level points pool stays neutral in the same readout), all three placements byte-unchanged and editable, and the disabled-control count is unchanged app-wide |
+| **zero base with bonus** | digest `Badge Slots 0 / 1` — a real fraction; `Meter` renders at the bonus max; lede reads `Badge Slots capacity here is 1 bonus. No base capacity is recorded for this discipline.` and **never** `capacity not set`; mode cell `0 → 1` |
+
+### THE ZERO-STATE CANARY
+
+`tests/ui/f9-bonus-mode.test.tsx` canary 1 boots App with both totals and all twelve placements at
+zero and asserts **`bonusNodes()` is empty** — every element carrying a class *token* beginning
+`bonus-`, so `.budget-grid__actions` (the always-present entry row) is correctly not one — plus the
+base table's **three** `thead th` and three first-row `td`. It carries a **positive canary**: the
+same query re-run against a fixture with one earned Badge Slot returns a non-empty set, so a green
+result cannot be a broken selector. `PASS`.
+
+### GATES
+
+| Gate | Result |
+|---|---|
+| Full suite | **1401 / 1401 across 69 files** (baseline 1374 / 68; +27 in the new file, net of the six rewrites) |
+| `npm run typecheck` | clean |
+| `npm run build` | clean — 76 modules, 315.01 kB js / 53.36 kB css |
+| `tests/ui/overlays.test.tsx` | green |
+| `tests/category-colors.test.ts` | green |
+| `tests/feasibility-golden.test.ts` | green — **no golden cell moved** (RUN-never-edit honoured; the file is untouched in the diff) |
+| **F9 touch-floor census** | **assertions 23–29 all green, census unchanged and still EXACT.** Every control in the mode is a `.number-field input` or a `.btn`, both already census members, so the floor arrives through `var(--tap-target)` with no new rule. New assertion **33** proves the A5-U CSS block declares no `min-height`, contains no literal `44px` and never names the token — the literal is the one shape assertion 27 is blind to, which is how the synergy board's floor escaped it |
+
+Four new layout assertions (**30–34**) derive the dialog geometry rather than pinning it: width
+`min(680, v − 2 × --space-8)`, content box 648 / 648 / 294 at 1280 / 768 / 390, four-column
+min-content **365** (clears by 283 at L and M, short by 71 at S), stacked min-content **226** (clears
+by 68), and the shipped `@container bonus (max-width: 364px)` asserted to equal *demand − 1*.
+**Canary 5** re-derives `LEDGER_METRICS_MAX` from the shipped field maxima parsed out of
+`BudgetGrid.tsx`: the widest effective-only string is 15 chars = 126.44px against 127, **0.56px of
+margin and no slack left** — the composition form would be 22 chars and is asserted not to fit.
+
+### RULINGS HONOURED, NAMED
+
+- **Reducing the earned total below what is placed is ALLOWED**, discards nothing, and is disclosed
+  per-metric. The render predicate keys on `bonusHasContent`, whose third clause is *any placement*,
+  so zeroing both totals leaves the surface and every placement intact.
+- **`—` only when base 0 AND bonus 0.** Place a bonus and it becomes `0 → 1`.
+- **The digest shows effective only.** No `+N`, no `base`. Composition lives in the mode's effective
+  column and one conditional lede line.
+- **The app never claims "this build has no X"** — canary 4c sweeps all of `src/` for
+  `This build has no` and for `has no {Category}`. The shipped copy says *"No base capacity is
+  **recorded**"*, which describes the app's state and is true under both readings of a zero base.
+- **Neither `3` nor `12` is frozen in.** Canary 6 asserts no bare `3` or `12` anywhere in
+  `BonusDialog.tsx`; the per-category maxima are imported **by reference** as `BUDGET_POINTS_MAX` /
+  `BUDGET_EQUIP_SLOTS_MAX` from `BudgetGrid.tsx` (§17.4's "its base twin's shipped max", made literal
+  rather than commented), and the earned maxima are `CATEGORIES.length ×` those.
+- **Canary 3 is a TWO-ENTRY ALLOWLIST, not a single site**, and the second entry is a ruling:
+  `badgeSlotsCapacityUnset` asks the capacity question on the composed record; `BudgetTotalRow`'s
+  `anyUnset` asks the Σ-vs-20 question on the base record. Written in the shape this repo already
+  uses for `Math.random`, so a third site must be added on purpose, and both entries are asserted to
+  still carry the expression so the list cannot rot.
+
+### DEVIATIONS FROM §17'S LETTER, DISCLOSED
+
+1. **`size="sm"`, not the `md` §17.10 costed.** Not one `md` Button renders in this app and
+   `layout-arithmetic` assertion 25 forbids introducing the first one. Both sizes clear the I6 floor.
+2. **No `[✕]` in the dialog header**, despite §17.3's sketch. `Done`, `Escape` and backdrop already
+   cover the exit; a fourth route would be a redundant tab stop, and `ResetBuildDialog` sets the
+   precedent of no close glyph.
+3. **`.bonus-dialog` uses `2 × --space-8` of gutter**, not the 480px dialogs' `1 ×`. §17.13's own
+   geometry table requires it — `1 ×` gives 358px at 390 and the stacking derivation expects 326.
+4. **Setup-panel `<summary>` digest re-pointed to EFFECTIVE** (§17.11's F5.4 ruling, recorded there
+   with "no text change"). It needed one: `BuildPanel` receives the BASE record, so it now composes
+   locally for the digest only. Byte-identical at zero bonus.
+5. **`summary.ts` edited** — not on §17.13's file list, required by §17.9 consequence 6 (above).
+6. **`overByText` extracted** in `CategoryLedger.tsx` as the shared atom, so the mode's `over by N ⚠`
+   cannot drift from the ledger's (§3.4, P0-1). `overByBadgePoints` / `overByBadgeSlots` now delegate.
+
+### CONFLICT FORECAST
+
+| Against | Risk | Why |
+|---|---|---|
+| **`f14-app-shell`** | **LOW on CSS, MEDIUM on `App.tsx`** | `app.css` is **append-only** (`226 insertions, 0 deletions`, one hunk at EOF) and assertion 34 pins the block as the last thing in the file and forbids it naming `.layout` / `.col-right` / `.attr-pane` / `.rail-column` / `.setup-panel`. If the shell slice also appends at EOF, the merge is two adjacent hunks. **`App.tsx` is the real seam**: A5-U adds `bonusOpen` state near `resetOpen`, five props at the `BuildPanel` call site inside `.setup-panel`, two props at the `CategoryLedgerLede` call site, and a `<BonusDialog>` mount beside `<ImportDialog>`. A shell rewrite that moves the `.setup-panel` / `<main>` JSX will conflict on the first two — resolve by **keeping both prop sets**, never by taking one side. |
+| **Queued roll-UI slice** | **MEDIUM, and it is behavioural, not textual** | The roll now **fills a base-0 category that carries a placed bonus** (`randomize.test.ts` 5.3, inverted). Any roll-UI copy that says a category is skipped "because its capacity is not set" must read the composed record, and any fixture asserting the old decline will redden. No file overlap otherwise. |
+| **Feedback-loop slice** | **LOW** | No overlap unless it touches `CategoryLedgerLede`, which gained two conditional `<p>`s and two optional props. Both are additive and default-absent. |
+| **Reset-placement slice** | **MEDIUM on `App.tsx`, LOW on `ResetBuildDialog.tsx`** | A5-U changed `resetBlastRadius.budgetFieldsSet` (now `+ bonusFieldsSet`) and `handleReset`'s `alsoBudgets` branch (now also `bonus: zeroBonus()`), and `layout-arithmetic` assertion 17 pins the second **as a source string** — a slice that reformats that line reddens it. `ResetBuildDialog.tsx` itself is **untouched**. |
+| **The Badge Points → Badge Tokens rename sweep** | **EXPECTED, and this slice is authored for it** | Every A5-U string ships in the current vocabulary per §17.0's gate. Strings the sweep must pick up: the entry Button `Bonus Badge Points & Badge Slots…`; the dialog title `Bonus Badge Points & Badge Slots`; both `hint` paragraphs; the two `Earned in total` field labels; the twelve per-category field labels `{Category} bonus Badge {Points,Slots}`; the `Badge Points` / `Badge Slots` column heads; the readout builder's `singular`/`plural` pair in `bonusEntryReadout`; the lede's `Badge Points {n} base + {n} bonus` clause; and the `data-pool="Badge Points"` attribute the S container query prints via `::before`. **Identifiers stay `points` / `earnedPoints` / `appliedPoints`** — the rename's `token` collision is not this slice's to resolve. |
+
+### OPEN, CARRIED
+
+- §17.14 OQ 1 — does 2K's header show the earned total or the unapplied remainder? The hint is
+  hedged and the model does not depend on it; confirming it only drops the hedge.
+- §17.14 OQ 2 — is *"capacity not set"* the right thing to say about a discipline known to be
+  genuinely zero? Ruling ① says yes on the asymmetry of the two errors, until the `entered` channel.
+- The `entered` channel inherits three things from here, per §17.13: §17.9 Ruling ③'s second copy
+  table, §4.7 ③'s overspend flip, and the **permanently absent** Σ-vs-20 checksum for any build with
+  a genuinely-zero discipline — now with two causes, one of which never resolves.
+- Operator action, carried a third time: `git branch -D a5-u-bonus-mode` (the stale pre-F5.4 ref).
+
+─────────────────────────────────────────────
+
 ## 2026-08-26 · Tier 2 · F14 the app shell — implemented, with one ruling reverted
 
 **Event:** `milestone-complete` + `stop-condition-triggered` + `decision-needed`
