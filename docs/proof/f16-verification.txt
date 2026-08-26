@@ -1,0 +1,207 @@
+F16 — the Loadout board (the 2K-native-shaped view, discipline panels)
+design    .claude/workspace/badge-builder-2k27/features/2k-native-view/design.md rev 1
+          + architect-verification-rev1.md (authoritative where they disagree)
+branch    loadout-board · base origin/dev @16c0569 (1496 tests / 72 files)
+          REBASED TWICE while in flight: through the Synergy Slot 8 ratification
+          and then through the F8-R2 roll UI. Every figure below is the final tree.
+================================================================================
+
+1. SHIP GATES
+--------------------------------------------------------------------------------
+=== npm run typecheck ===
+> badge-builder-2k27@0.0.0 typecheck
+> tsc --noEmit
+
+
+=== npm run build ===
+transforming...
+✓ 81 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.98 kB │ gzip:  0.45 kB
+dist/assets/index-B4J8eDQY.css   59.96 kB │ gzip: 10.51 kB
+dist/assets/index-N4pWd5LC.js   321.26 kB │ gzip: 95.92 kB
+
+✓ built in 78ms
+
+=== the three RUN-never-edit gates, by name, and UNTOUCHED ===
+$ git diff --stat origin/dev -- tests/ui/overlays.test.tsx tests/category-colors.test.ts tests/feasibility-golden.test.ts
+(empty = not one byte changed)
+
+ Test Files  3 passed (3)
+      Tests  29 passed (29)
+   Start at  10:06:19
+   Duration  2.22s (transform 566ms, setup 94ms, import 653ms, tests 1.69s, environment 301ms)
+
+
+=== F9's touch-floor census (I6) ===
+ Test Files  1 passed (1)
+      Tests  8 passed | 154 skipped (162)
+   Start at  10:06:21
+   Duration  374ms (transform 219ms, setup 23ms, import 251ms, tests 7ms, environment 0ms)
+
+
+=== npm run test (full) ===
+
+ Test Files  70 passed (70)
+      Tests  1505 passed (1505)
+   Start at  10:06:22
+   Duration  25.28s (transform 5.36s, setup 3.21s, import 13.54s, tests 141.52s, environment 19.05s)
+
+
+
+2. THE DELTA, ACCOUNTED FOR ELEMENT BY ELEMENT
+--------------------------------------------------------------------------------
+base origin/dev @16c0569   1496 tests / 72 files   (re-measured on the final base)
+this branch                1568 tests / 73 files
+delta                        +72 tests / +1 file
+
+The delta is IDENTICAL across two rebases (it was +72/+1 against @4d1ba88's
+1433/69 as well), which is the useful form of the check: the number is a
+property of this change, not of whatever the base happened to be that hour.
+
+  +32  tests/ui/f16-loadout-board.test.tsx          (the new file)
+  +20  tests/layout-arithmetic.test.ts              (142 -> 162)
+  +20  five suites parameterised over src/**, x 4 new source files:
+         tests/vocabulary.test.ts        H1 bare-`slot` lint
+         tests/architecture.test.ts      zero network egress (c)
+         tests/architecture.test.ts      position-height access route (e)
+         tests/architecture.test.ts      no runtime filesystem access (d)
+         tests/ui/persist-boundary.test.ts  localStorage only inside src/persist/
+  ----
+  +72
+
+Nothing else moved. The number was computed from the delta before the suite was
+run, and the suite agreed.
+
+
+3. THE ADDITIVE GUARANTEE, MEASURED RATHER THAN PROMISED
+--------------------------------------------------------------------------------
+Method: build origin/dev @4d1ba88 and this branch, serve both from `vite preview`
+(ports 5184 and 5183), seed the IDENTICAL autosave into each after clearing
+localStorage, and take a census of every element inside each shipped region --
+tag, class, and box measured RELATIVE TO THAT REGION'S OWN top-left. Compared as
+a multiset, so one inserted node cannot report every node after it as "moved".
+Zero-box elements (a <thead> under a CSS grid, an <option>, display:contents)
+report a rect at the document origin, so their region-relative offset moves by
+exactly the region's displacement; they are counted, never positioned.
+
+Chrome/151, --headless=new, driven over CDP, dpr 1, scrollbars hidden.
+Re-run against @16c0569 after the roll UI landed, so `.roll-panel` is covered too.
+
+  region            1280x768      1280x700      768x900       390x844
+  ----------------  ------------  ------------  ------------  ------------
+  .roll-panel       0 diff        0 diff        0 diff        0 diff
+  #panel-synergy    0 diff, text  0 diff, text  0 diff, text  0 diff, text
+                    IDENTICAL     IDENTICAL     IDENTICAL     IDENTICAL
+  #panel-summary    0 diff        0 diff        0 diff        0 diff
+  .ledger-panel     0 diff        0 diff        0 diff        0 diff
+  .setup-panel      0 diff        0 diff        0 diff        0 diff
+  header            0 diff        0 diff        0 diff        0 diff
+  .physique-strip   0 diff        0 diff        0 diff        absent both
+  main#badge-grid   +1 element    +1 element    +1 element    +1 element
+
+THE ONE CHANGE, at every breakpoint, is the jump nav's new `Board` chip: a 60px
+`a.jump-nav__panel` at x=0, shifting the other eight chips right by 68px. The
+grid's own box is unchanged to the pixel (936x5754 at 1280, 736x7765 at 768,
+366x14955 at 390) and its text differs by exactly the word "Board".
+
+The board is a sibling <Section> inside `.col-right`, which is a SCROLLPORT, so
+it adds nothing to the shell's permanent band:
+
+  .col-right children  ledger-panel · setup-panel · badge-grid · panel-board
+                       · panel-synergy · panel-summary · app-footer
+  permanentBand()      HEADER_H 62 + STRIP_H 93 + PAGE_PAD_Y 32
+                       + STICKY_STACK_H 120 = 307      (four terms, unchanged)
+  MIN_SHELL_H          768                             (unchanged)
+
+
+4. GEOMETRY, MEASURED
+--------------------------------------------------------------------------------
+                     board box   panels/row   panel track   tiles/row   tile w
+  1280 x 768 (shell)   902          3           292.66         2        129.33
+  1280 x 700 (doc)     902          3           292.66         2        129.33
+  (902 rather than 885 because headless Chrome overlays its scrollbar, s=0;
+   885 is the s=17 case the arithmetic in layout-arithmetic.test.ts pins.)
+  768                  ~702         2             ~345         3          ~101
+  390                  ~332         1              332         3         ~96.7
+
+Every tile clears TILE_FLOOR 92 at every width, and that is STRUCTURAL rather
+than lucky: `repeat(auto-fill, minmax(92px, 1fr))` takes the most tracks of at
+least 92px that fit, so each resulting track is >= 92 by construction. No
+breakpoint, no container query -- the arrangement is continuous in the box.
+
+Measured at 390: tile height 78, empty-cell height 62; both clear the 44px touch
+floor without the S rule even being needed. No horizontal document scroll at any
+of the four widths.
+
+
+5. THE #badge-* LANDING, IN BOTH SCROLL MODES
+--------------------------------------------------------------------------------
+The board's tiles are the first anchors in the app that point INTO a category
+section, so the landing position is new and is derived rather than typed:
+
+  .grid-section__cards > li {
+    scroll-margin-top: calc(var(--sticky-stack-h) - var(--scroll-reserve));
+  }
+
+A card sits under BOTH sticky layers (nav 44 + digest 76 = 120), unlike
+`.grid-section`, which lands under layer 1 alone. scroll-padding-top and
+scroll-margin-top ADD, so the reserve is subtracted and cancels. Measured by
+clicking a real tile and reading the rects:
+
+  mode                        scroll-padding  scroll-margin  card top  digest bottom
+  document scroller (700h)         0px           120px         120         120
+  app shell, .col-right (768h)   120px             0px         290         290
+
+ONE landing position in both modes: the card's top edge is flush with the
+bottom of the sticky stack, clearing it by 1px. A naive `scroll-margin-top:
+120px` would land at 240 under the shell -- the whole reserve of overshoot,
+invisible on the document scroller and wrong in the mode the app runs in.
+
+
+6. SCREENSHOTS
+--------------------------------------------------------------------------------
+  f16-board-1280x768.png            the board, app shell ACTIVE
+  f16-board-1280x700-belowgate.png  the board, shell OFF, document scrolling
+  f16-board-768.png                 2 panel columns
+  f16-board-390.png                 1 panel column, 3 tiles per row, names wrap
+  f16-grid-unchanged-1280.png       the badge grid, untouched
+  f16-synergy-unchanged-1280.png    the Synergy Slots section, untouched
+
+
+7. WHAT THE BOARD REFUSES TO RENDER
+--------------------------------------------------------------------------------
+There is no "Your Build Has No <Discipline> Badge Slots" state, because the app
+has no channel that can tell a genuine zero from a field the user never filled
+in. 2K's own screen carries that sentence; ours cannot honestly say it. Both
+cases render identically -- the shipped `Badge Slots capacity not set` hint, an
+em dash for the capacity, no fence, no empty cells, no over-by -- which is the
+ruling in force. Asserted in tests/ui/f16-loadout-board.test.tsx group 4.
+
+No 2K27 number is modelled anywhere on this surface. Every figure on the board
+is one the engine already computes for another shipped surface, and the two
+over-by strings are imported from the one builder rather than authored here.
+
+8. GATES RE-RUN ON THE FINAL TREE (base @16c0569, roll UI landed)
+--------------------------------------------------------------------------------
+=== the three RUN-never-edit gates, still not one byte changed ===
+(empty above = untouched)
+ Test Files  3 passed (3)
+      Tests  29 passed (29)
+   Start at  10:13:29
+   Duration  2.35s (transform 625ms, setup 126ms, import 694ms, tests 1.79s, environment 322ms)
+
+
+=== F9 touch census ===
+      Tests  8 passed | 154 skipped (162)
+   Start at  10:13:32
+   Duration  378ms (transform 222ms, setup 31ms, import 246ms, tests 9ms, environment 0ms)
+
+
+=== full suite ===
+ Test Files  73 passed (73)
+      Tests  1568 passed (1568)
+   Start at  10:13:33
+   Duration  27.42s (transform 6.12s, setup 3.93s, import 15.70s, tests 170.65s, environment 19.81s)
+

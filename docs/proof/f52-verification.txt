@@ -1,0 +1,340 @@
+F5.2 — the L information-architecture re-cut (layout only)
+Impl brief: workspace/badge-builder-2k27/impl-briefs/f5-2-ia-recut-layout-only.md rev 2
+Design authority: design-spec.md rev 6 §13.0.1 (authoritative over the rest of §13)
+Branch: dev · rebase anchor (tip before this slice): b94d403
+
+================================================================================
+0. DISPATCH PRECONDITIONS
+================================================================================
+git rev-parse --abbrev-ref HEAD          -> dev                                 OK
+git rev-parse HEAD                       -> b94d403913d74beaab4c30a7363d6c49eff5afe7
+git log --oneline -8                     -> b94d403 chore(reportback): F7.1 two-hue substitution slice-complete entry
+                                            6fd0db1 fix(f7): Physicals takes gold, Playmaking returns to orange
+                                            6949956 chore(reportback): F7 + F8 integration entry — PR #2 rebased onto dev
+                                            d5d0f3c feat(f8): full attribute display names
+                                            0392b7d feat(f7): category identity colour layer
+                                            6713746 chore(reportback): F2.2 persistence data-integrity slice-complete entry
+                                            8fbaacd fix(f2.2): preserve unreadable saved data instead of overwriting it
+                                            ff8544e chore(proof): QE runtime verification for the F2.1 -> F3 -> F5 wave
+                                         6949956 / 0392b7d / d5d0f3c / 8fbaacd all in.  OK
+git status --porcelain                   -> "?? .claude/worktrees/" only         OK
+lsof -ti:5173                            -> BOUND (dev server pre-started by the
+                                            dispatching orchestrator; the dispatch
+                                            explicitly instructed "use it, do not
+                                            restart it", superseding §0.3's
+                                            unbound-port precondition).
+grep cat-physicals|cat-playmaking        -> --cat-playmaking: #f58236
+                                            --cat-physicals:  #beb448
+                                         Designer's two-hue slice HAS landed (6fd0db1). OK
+npm test (baseline, untouched tree)      -> Test Files 46 passed (46)
+                                            Tests     694 passed (694)   35.77s
+                                         Higher than the brief's 691 exactly as §0.1 (5)
+                                         predicted: the hue slice added 3 assertions.
+                                         694 IS THE DENOMINATOR for all §4.1 arithmetic.
+
+================================================================================
+1. FIRST PROOF — the raised-constant arithmetic RED against the UNMODIFIED tree
+================================================================================
+Temporary `it` added to tests/layout-arithmetic.test.ts against the tree at b94d403,
+with ZERO CSS bytes changed:
+
+    const rowBox = RAIL_RIGHT - SECTION_CHROME - 2 * WELL_PAD_X;   // 204 - 34 - 8 = 162
+    expect(rowBox).toBeGreaterThanOrEqual(76 + ROW_GAP_X + 127);   // 76 + 8 + 127 = 211
+
+$ npx vitest run tests/layout-arithmetic.test.ts
+
+ RUN  v4.1.11 /Users/tapandesai/App Development/badge-builder-2k27
+
+ ❯ tests/layout-arithmetic.test.ts (20 tests | 1 failed) 6ms
+     × b22f8ab's 204px right rail cannot hold a real 3-digit ledger row 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/layout-arithmetic.test.ts > F5.2 first proof — the raised constant against the shipped tree > b22f8ab's 204px right rail cannot hold a real 3-digit ledger row
+AssertionError: expected 162 to be greater than or equal to 211
+ ❯ tests/layout-arithmetic.test.ts:384:20
+    382|   it("b22f8ab's 204px right rail cannot hold a real 3-digit ledger row…
+    383|     const rowBox = RAIL_RIGHT - SECTION_CHROME - 2 * WELL_PAD_X; // 20…
+    384|     expect(rowBox).toBeGreaterThanOrEqual(76 + ROW_GAP_X + 127); // 76…
+       |                    ^
+    385|   });
+    386| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed (20)
+   Duration  238ms
+
+RED BY 49px, exactly as §0.4 specifies (211 - 162 = 49).
+The temporary `it` was then deleted; this arithmetic survives as the permanent
+`shippedBroken` canary in the rewritten I8b.
+
+================================================================================
+2. SHIPPED GEOMETRY (parsed + measured in headless Chrome against the dev server)
+================================================================================
+L breakpoint          1280, and it is the ONLY fixed-rail breakpoint.
+L columns             grid-template-columns: 300px minmax(0, 1fr);
+XL tier               DELETED. `rg -n "1440" src/` returns nothing.
+Right rail            DELETED. `rg -n "rail-right" src/` returns nothing.
+Rail content box      300 - 34 section chrome = 266
+Well sides            --space-3 (12) restored, uniformly, at every width
+Ledger column gap     --space-3 (12), parsed off .ledger-overview (not the row)
+
+Measured at each width (deviceScaleFactor 1, headless overlay scrollbars = 0px):
+
+ WIDTH | .layout columns   | ledger rail | cards      | synergy tracks    | pickers | h-scroll
+   390 | 366px             | display:none| 1-up @366  | 332px             | column  | NO
+   768 | 736px             | display:none| 2-up @362  | 702px             | row     | NO
+  1280 | 300px 936px       | display:block 3-up @304  | 601px 601px       | row     | NO
+  1440 | 300px 1096px      | display:block 4-up @265  | 450px 450px 450px | column* | NO
+
+  * see §5 T16 — the one deviation from §4.3's "identical to 1280".
+
+Landmarks at every width: ["Ledger overview", "Build"].  "Ledger and synergy"
+appears nowhere in the tree.  Both panels are <div>s, not <section>s.
+
+--------------------------------------------------------------------------------
+2.1 The 4-up seam — DERIVED, and exact
+--------------------------------------------------------------------------------
+v4 = 4*CARD_FLOOR + 3*SPACE_3 + RAIL + SPACE_3 + 2*SPACE_4 + 17 = 1357
+
+The seam is a CENTRE-COLUMN threshold (995 -> 3-up, 996 -> 4-up), and the
+viewport it lands on depends on the scrollbar. Headless Chrome on macOS uses
+0-width overlay scrollbars, so the named 1356/1357 pair maps to 1339/1340
+here. BOTH pairs were shot; the seam itself is exact in both framings:
+
+  1339 | centre =  995 -> 3-up @ 323.7px
+  1340 | centre =  996 -> 4-up @ 240.0px   <- exactly the 240px card floor
+  1356 | centre = 1012 -> 4-up @ 244.0px
+  1357 | centre = 1013 -> 4-up @ 244.3px
+
+centre(1357, s=17) = 1357 - 17 - 32 - 12 - 300 = 996  ==  centre(1340, s=0).
+So with a 17px classic scrollbar the transition falls on 1356/1357 exactly as
+§13.0.1 derives. No horizontal scrollbar at any of the four.
+
+--------------------------------------------------------------------------------
+2.2 The ledger rows at 1280 — the defect, before and after
+--------------------------------------------------------------------------------
+BEFORE (tree at b94d403, same rig, same width):
+  .layout = 258px 762px 204px
+  ALL SIX rows wrapped onto two lines (rowH 54; the over-budget row 75).
+  Metrics x-positions RAGGED across the six rows: 1133.4, 1133.4, 1125.0,
+  1125.0, 1133.4, 1133.4 — right-aligned, so the LAST number lined up and the
+  first (the one being reconciled) did not. That is the reported zigzag.
+  Synergy row header: pickers stacked, 4 controls, toggle stranded.
+  Jump-nav panel chips: HIDDEN at 1280.
+
+AFTER:
+  .layout = 300px 936px
+  Grid tracks resolve to 77.41px / 152.59px.
+  All six labels on ONE line, all six metrics start at the SAME x.
+  Only the over-budget row wraps, and it wraps INSIDE ITS OWN COLUMN:
+      "Finishing"  |  "62/53 over by 2 ⚠"
+                   |  "· 11/9 over by 2 ⚠"
+  — the label stays on line 1, the annotation stacks beneath the numbers it
+  belongs to, and P0-1's per-metric spans are untouched. Exactly §13.4.
+
+--------------------------------------------------------------------------------
+2.3 C4 — the browser-measured max-content, against the pinned 127
+--------------------------------------------------------------------------------
+Measured with a clone of the live .ledger-overview__metrics span, width:
+max-content, white-space: pre, in the shipped --font-num at --text-sm/14px:
+
+  "112/116 · 13/15"  (the pinned 15-char 3-digit string)  =  126.44px   <= 127  PASS
+  "74/112 · 12/15"   (the widest the shipped dataset can actually reach) = 118.01px
+  "0/0 · 0/—"        (the empty state b22f8ab pinned at 76)              =  75.86px
+  over-budget Finishing, whole string                                    = 303.44px
+
+  Implied monospace advance: 126.44 / 15 = 8.429 px/char
+                              75.86 /  9 = 8.429 px/char   (independent, agrees)
+
+C4 CLEARS by 0.56px. Not a stop-and-report. But it is the tightest number in
+the slice and it should be treated as measured-at-the-limit, not comfortable.
+
+Label, measured the same way:
+  "Rebounding" = 77.41px   (pinned LEDGER_LABEL_MAX = 76 — OVER by 1.41px)
+  "Playmaking" = 73.66px
+
+Final slack as the code computes it:
+  content    = RAIL 300 - SECTION_CHROME 34                       = 266
+  maxDemand  = 76 + ROW_GAP_X 12 + 127 + 2 * WELL_PAD_X 12        = 239
+  content - maxDemand = 27  >=  SPACE_6 24                        PASS (+3)
+Recomputed with the MEASURED label (77.41) instead of the pinned 76:
+  240.41 demanded, 25.59 slack — still clears SPACE_6, by 1.59px.
+
+================================================================================
+3. THE --cat CHAIN (§4.2) — all five confirmations
+================================================================================
+[x] `rg -n "categoryAnchorId" src/` -> exactly two consumers, BadgeGridSection
+    (the id) and JumpNav (the href). Neither file appears in git status.
+[x] Six attribute-slider fills in six distinct hues at 1280, with the
+    .attr-group fieldsets now TWO asides deep inside .rail-column/.rail-left:
+      finishing=#3d93e9  shooting=#1caf61  playmaking=#f58236
+      defense=#ef5a64    rebounding=#e467bb physicals=#beb448
+    (playmaking/physicals confirm Designer's two-hue correction is intact.)
+[x] Six attribute-group legends in their category hue (computed `color`
+    matches the six --cat values; "FINISHING" renders blue in the 1280 shot).
+[x] Six category digest h2s in their category hue:
+      rgb(61,147,233) rgb(28,175,97) rgb(245,130,54)
+      rgb(239,90,100) rgb(228,103,187) rgb(190,180,72)
+[x] Jump-nav at 1280: TWO neutral-bordered panel chips at the FRONT
+      Synergy[#panel-synergy] rgb(72,79,88)
+      Summary[#panel-summary] rgb(72,79,88)
+    followed by SIX category-hued chips. The [href^="#cat-"] prefix does not
+    match the panel chips, exactly as C9 rules. Verified at all four widths.
+
+Both panel chips resolve to a live target at every width (ids preserved).
+
+================================================================================
+4. MECHANICAL GATES
+================================================================================
+npm test                                  46 files / 701 tests   PASS
+npm run typecheck (tsc --noEmit)          exit 0                 PASS
+npm run build                             clean, 65 modules      PASS
+npx vitest run tests/ui/overlays.test.tsx            4/4         PASS  (H2 gate)
+npx vitest run tests/category-colors.test.ts        15/15        PASS  (--cat gate)
+npx vitest run tests/ui/f2-disclosure-surfaces.test.tsx 11/11    PASS  (D1 gate)
+npx vitest run tests/layout-arithmetic.test.ts
+             tests/ui/f2-source-pins.test.ts        35/35        PASS
+git status --porcelain                    clean before reportback commit
+
+Test-count arithmetic (denominator 694, NOT the brief's 691):
+    694 baseline
+  −   4   describe("I3 at XL — …")            deleted with the tier
+  −   1   f2-source-pins "XL (≥1440) is a SECOND rail tier"  deleted (T18)
+  +  12   new assertions
+  = 701
+  Per file: layout-arithmetic 19 -> 27 · f2-source-pins 9 -> 8.
+
+rg -n "rail-right|1440|LEDGER_ROW_MIN|splitAtBreakpoint|XL_" src/ tests/
+  -> ZERO hits in src/. Four hits in tests/layout-arithmetic.test.ts, all
+     intentional: two are the LEDGER_ROW_MIN deletion tombstone (§13.7 wants
+     the deletion visible), two are the guards asserting the ABSENCE of
+     ".rail-right" and "@media (min-width: 1440px)".
+
+FLAKES HIT (§4.4), all in the documented class:
+  · Run A: 8 failures across 3 files under full-suite parallelism.
+  · Run B: 1 failure — tests/ui/f2-eligibility-disclosure.test.tsx
+           "the purchased pip is flagged …", Test timed out in 5000ms.
+    ISOLATION: npx vitest run tests/ui/f2-eligibility-disclosure.test.tsx
+               -> 6/6 PASS in 8.81s.
+               tests/ui/f2-disclosure-surfaces.test.tsx -> 11/11 PASS.
+  · Run C (full suite, unchanged tree): 46/46 files, 701/701 PASS.
+  No timeout annotation was lowered, added or moved. vite.config.ts untouched.
+
+================================================================================
+5. DEVIATIONS FROM THE BRIEF — four, all measured, none improvised
+================================================================================
+
+D1. `.rail-column` — ONE structural element beyond the brief's JSX. NECESSARY.
+    A sticky GRID ITEM is constrained by the grid CONTAINER's content box, not
+    by its own grid row. Chrome confirms this: with the two .panel-below divs
+    now occupying rows 2 and 3, a sticky .rail-left placed directly in .layout
+    scrolled clean out of the badge grid and painted on top of the Synergy
+    panel.  MEASURED at 1280, scrollY 4648:
+        rail doc-top 4660 / doc-bottom 5536
+        grid ends at 4644, #panel-synergy starts at 4668   -> OVERLAP
+    Four no-new-element candidates were tested empirically and ALL FOUR failed
+    to change the clamp by a single pixel: `grid-row: 1 / 2`, `align-self:
+    stretch` on .rail-left, `height: fit-content`, and explicit row templates.
+    Wrapping .rail-left in a stretching grid item clamps it correctly:
+        rail doc-top 3768 = 118 + 4526 − 876 = exactly the bottom of row 1
+        overlap: false
+    .rail-column carries NO landmark, NO id, NO storageKey, NO state and one
+    CSS declaration (`align-self: stretch`, L only). .rail-left keeps every
+    rule the brief specifies, so T7's overflow guard still inspects the real
+    overflow surface and the frozen `.rail-left .segmented__track` selector
+    still matches — verified live: 3 × 87.33px, matching §13.0.1's predicted
+    "3 × ~88px" at a 266px content box. Pinned by a new source assertion.
+
+D2. `.ledger-overview__label { min-width: 0 }` -> `min-width: max-content`.
+    §13.4's CSS as written COLLAPSES the label column to zero. `1fr auto`
+    sizes the auto track from its content first; the over-budget row's metrics
+    max-content is 303px against 230px of available track, so auto takes the
+    entire box and the fr track — whose automatic minimum `min-width: 0`
+    explicitly removes — resolves to 0. MEASURED with the spec's literal CSS:
+        grid-template-columns: 0px 230px    (all six labels 0px wide)
+    Every label then overflowed a zero-width column and abutted its own
+    numbers. It renders almost-plausibly, which is why no test caught it.
+    With `min-width: max-content`:
+        grid-template-columns: 77.41px 152.59px
+    §13.4's stated intent — "the label stays on line 1", metrics wrapping
+    inside their own column — is now what actually happens. The `min-width: 0`
+    on .ledger-overview__metrics is unchanged and still correct; it is only
+    the LABEL that must not be allowed to collapse.
+
+D3. `.synergy-panel` floor takes §11.5 ③'s min() sub-floor idiom:
+        repeat(auto-fill, minmax(min(426px, 1fr)…))  ->  minmax(min(426px, 100%), 1fr)
+    A bare 426px grid floor is ABSOLUTE. At 390 the single track stayed 426px
+    inside a 366px box and the whole DOCUMENT grew a horizontal scrollbar —
+    MEASURED: scrollWidth 455 vs clientWidth 390. §13.5's own table says the
+    390 row is "366, stacked", which is only true with the min() clamp; the
+    spec asserted the shrink-to-fit behaviour and then wrote CSS that forbids
+    it. Fixed with the repo's existing, already-tested idiom. 426 is still ONE
+    derived number used TWICE (track floor + container threshold), and the
+    floor still binds at every width that can fund it. After: no horizontal
+    scrollbar at any of 390 / 768 / 1280 / 1440 / 1339 / 1340 / 1356 / 1357.
+    CONSEQUENCE, handled: ATTR_CELL_FLOOR parsed the FIRST min() idiom in the
+    file, and .synergy-panel is declared ABOVE the attribute grid — so it
+    would have silently returned 426 and every I9 assertion would have been
+    grading the wrong surface while staying green. ATTR_CELL_FLOOR is now read
+    out of cssBlock(app, ".attr-group__fields--sliders"). Same class of trap
+    as T5's, same fix as T9's: anchor the parse to the surface that owns it.
+
+D4. The @container block was MOVED below `.synergy-row__pickers`'s base rule.
+    §13.5 lists it immediately after `.synergy-row { container-type }`, but in
+    the shipped stylesheet `.synergy-row__pickers { flex-direction: column }`
+    is declared ~40 lines LOWER. A container query carries no specificity of
+    its own, so at the spec's position the query evaluated TRUE at 1280 and
+    changed nothing — pickers stacked in a 601px row while every assertion in
+    the suite stayed green. MEASURED before the move: containerType
+    "inline-size", row 601px, pickersFlexDir "column". After: "row".
+    Pinned by a new ordering assertion so it cannot regress.
+
+================================================================================
+6. OBSERVATIONS FOR DESIGNER — rev 7
+================================================================================
+
+T16 — THE CONTAINER-QUERY BAND IS NOT EMPTY, and a tested width lands in it.
+  T16 predicted the query fires at border-box >= 460 rather than 426 (426 is a
+  border-box figure but a size query evaluates against the CONTENT box, and
+  .synergy-row is a fieldset with 1px borders and --space-4 sides: 2 + 32 =
+  34px of chrome). T16 then ruled it conservative-safe "because no tested
+  width lands in the 426–460 band". MEASURED: 1440 DOES.
+      1280 -> row 601 -> content 567 >= 426  -> pickers SIDE BY SIDE
+      1440 -> row 450 -> content 416 <  426  -> pickers STACKED
+       768 -> row 702 -> content 668         -> side by side
+       390 -> row 332 -> content 298         -> stacked (intended)
+  So at 1440 the pickers stack while at 1280 they do not — which contradicts
+  §4.3's "1440: everything else identical to 1280". Failure direction is still
+  conservative (stack, never crush) and §6's stop condition #12 is scoped to
+  1280, which is green — so per T16's explicit instruction I did NOT re-derive
+  the number. Designer's call. The one-line fix is a threshold of 460, or
+  moving container-type onto a box whose content edge is the row's border edge.
+
+  ROOT CAUSE OF THE 1440 CASE — §13.0.1's below-grid table omits Section
+  chrome. It derives row widths straight from `belowGrid`, but both panels sit
+  inside a <Section> that costs 34px. Re-derived against the shipped tree:
+      1280: 1248 − 34 = 1214 ; (1214 − 12)/2 = 601   (§13.0.1 says 609)
+      1440: 1408 − 34 = 1374 ; (1374 − 24)/3 = 450   (§13.0.1 says 455)
+  The 5px at 1440 is exactly what drops the content box from 421 to 416 and
+  under the threshold. Worth folding into rev 7's arithmetic generally: it is
+  the same class of omission as I12's (a decoration the geometry did not know
+  about), one level up.
+
+C5 — the 76 ÷ 9 chars monospace bridge is unsound, and here is why it looked
+  right. §13.0.1 derives 8.44 px/char from "Rebounding" = 76. But "Rebounding"
+  is TEN characters, and it renders in the PROPORTIONAL --text-sm UI face, not
+  in --font-num. Measured, "Rebounding" is 77.41px.
+  What 76 actually is, is the EMPTY-STATE METRICS string: "0/0 · 0/—" is nine
+  --font-num characters and measures 75.86px — 9 × 8.43. The two constants
+  coincidentally shared a value, and the derivation note attached itself to
+  the wrong one. The advance itself is sound (8.429 px/char, confirmed twice
+  independently above); only the bridge is wrong. Recommend rev 7 restate it
+  from the metrics string and re-pin LEDGER_LABEL_MAX at 78 (measured 77.41),
+  which the slack still funds (25.59 against SPACE_6 24).
+
+The over-budget row wraps with the middot leading the second line
+("· 11/9 over by 2 ⚠"). Inherent to wrapping a composite string; P0-1's
+per-metric spans are intact. Flagged only in case Designer wants a nbsp.

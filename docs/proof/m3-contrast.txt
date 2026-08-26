@@ -1,0 +1,23 @@
+M3 contrast verification — design-spec §2.1 tokens (WCAG 2.1 ratios)
+Computed 2026-08-25T07:42:24.801Z
+
+PASS  --fg-primary vs canvas: 16.02:1 (requires 4.5:1; spec claimed 16.0:1)
+PASS  --fg-secondary vs canvas: 12.26:1 (requires 4.5:1; spec claimed ~12.3:1)
+PASS  --fg-muted vs canvas: 6.15:1 (requires 4.5:1; spec claimed 6.15:1)
+PASS  --border-strong vs surface (1.4.11 non-text): 3.77:1 (requires 3:1; spec claimed 3.77:1)
+PASS  --accent vs canvas: 5.81:1 (requires 4.5:1; spec claimed 5.81:1)
+PASS  --success vs canvas: 7.45:1 (requires 4.5:1; spec claimed 7.45:1)
+PASS  --warning vs canvas: 7.50:1 (requires 4.5:1; spec claimed 7.50:1)
+PASS  --danger vs canvas: 5.65:1 (requires 4.5:1; spec claimed 5.64:1)
+PASS  --info vs canvas: 7.49:1 (requires 4.5:1; spec claimed ~7.0:1)
+PASS  --lvl-bronze vs canvas: 6.65:1 (requires 4.5:1; spec claimed 6.65:1)
+PASS  --lvl-silver vs canvas: 12.26:1 (requires 4.5:1; spec claimed 12.26:1)
+PASS  --lvl-gold vs canvas: 9.72:1 (requires 4.5:1; spec claimed 9.72:1)
+PASS  --lvl-hof vs canvas: 5.64:1 (requires 4.5:1; spec claimed 5.64:1)
+PASS  --lvl-legend vs canvas: 7.53:1 (requires 4.5:1; spec claimed 7.52:1)
+PASS  canvas-dark text on --lvl-bronze: 6.65:1 (requires 4.5:1; spec claimed (pip glyphs))
+PASS  canvas-dark text on --lvl-gold: 9.72:1 (requires 4.5:1; spec claimed (pip glyphs))
+PASS  canvas-dark text on --lvl-hof: 5.64:1 (requires 4.5:1; spec claimed (pip glyphs))
+PASS  canvas-dark label on --accent (primary Button; spec pairing --fg-primary/--accent measured 2.76:1 and was REPLACED per the §6 AA bar): 5.81:1 (requires 4.5:1; spec claimed (button label))
+
+ALL CHECKS PASS

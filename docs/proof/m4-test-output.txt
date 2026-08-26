@@ -1,0 +1,19 @@
+
+> badge-builder-2k27@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /Users/tapandesai/App Development/badge-builder-2k27
+
+
+ Test Files  28 passed (28)
+      Tests  443 passed (443)
+   Start at  04:21:28
+   Duration  5.71s (transform 2.71s, setup 945ms, import 4.00s, tests 14.99s, environment 4.73s)
+
+
+> badge-builder-2k27@0.0.0 typecheck
+> tsc --noEmit
+
+--- typecheck clean (tsc --noEmit exit 0) ---
+dev server http://localhost:5173 → HTTP 200

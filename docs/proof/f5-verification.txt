@@ -1,0 +1,58 @@
+F5 — visual identity restyle (2K-inspired dark + metallic) — verification evidence
+Date: 2026-08-26 (session) · branch dev · slices F5.0 (geometry) + F5 (restyle)
+
+== Slice shape ==
+Two commits, deliberately separate (design-spec §11.6: a later bisect must be able
+to tell geometry from paint):
+  F5.0  fix(f5.0)  — §11 rev-5 L geometry re-cut (280/176 rails, 287px derived
+                     slider threshold, rail-scoped Position grid, ledger-row wrap,
+                     duplicate right-rail Export/Import deleted)
+  F5    feat(f5)   — §2.7 metallic token layer + §10 restyle (presentation only)
+
+== Pre-change failure proofs ==
+tests/layout-arithmetic.test.ts (NEW, 12 assertions): run against the pre-F5.0
+  tree — 4 failed (I8 left-rail clearance, I8 duplicate Export/Import, I9 threshold
+  identity, I9 track-not-halved canary). All 12 green post-change.
+tests/ui/f2-source-pins.test.ts F5 pairing assertion: run against the pre-F5
+  tokens.css — FAILED ("token not declared: --fg-on-accent"). Green post-change.
+
+== Test/build gates (final tip) ==
+npm test:       40 files / 623 tests — ALL PASS (pre-F5 baseline was 39/610)
+npm run build:  tsc --noEmit clean + vite build clean (34.6 kB css / 272.8 kB js)
+H2 ship gates:  tests/ui/overlays.test.tsx run EXPLICITLY — 4/4 pass (ledger DOM
+                bit-identity across all 4 overlay combinations; §10.7 guardrail:
+                every new data-* hook keys only to overlay-invariant values, and
+                none sits on ledger/summary/feasibility DOM)
+
+== Contrast (invariant I1) ==
+docs/proof/f5-contrast.txt — 18 computed WCAG 2.1 ratios, method calibrated by
+reproducing §2.1's bronze 6.65:1 first. Worst pairing in the layer: dark text on
+--metal-hof base, 5.64:1 vs the 4.5:1 AA bar. -lo never sits under a glyph except
+the verified --fg-primary tarnish pairings (>=6.11:1) — enforced by construction:
+the --metal-face-* gradients contain only -hi and base stops.
+
+== Screenshots (headless Chrome via CDP against http://localhost:5173) ==
+  f5-before-1280.png / f5-before-390.png  — pre-slice tip: uniform grey padlock
+    ladder (the §10.1 defect), 248px rail with the Position-control overflow
+  f5-after-1280.png / f5-after-390.png    — same seeded rig, post-restyle:
+    metallic ladder (owned faces + bevel, current ring, locked letter+lock in
+    metal-rimmed wells), debossed tier medallions A/B/C, purchased-card metal top
+    edge + lift, fuse glow + edge, legend-effective face + glow, gold chrome
+  f5-after-1280-header.png                — header: gold title + rule-gold
+    hairline, gold-faced primary buttons, 2x3 Position grid (F5.0), inset
+    ledger-overview well
+Seeded rig: Float Game Gold (fused +2 -> Legend, Synergy Slot 5), Aerial Wizard
+Bronze (reaction, Synergy Slot 6), Posterizer Silver, Finishing 5 pts / 2 Badge
+Slots (over both -> the H4 flat-danger surfaces are visible alongside the metal,
+proving the channel separation reads).
+
+== §10.7 stop-condition self-check ==
+new dependency: NONE (runtime deps exactly {react, react-dom})
+existing token value changed: NONE (tokens.css diff is additive; --metal-* base
+  tones are aliases of --lvl-*)
+new conditional/handler/state in .tsx: NONE (data attributes only — values are
+  fields the components already rendered)
+styling keyed to overlay state: NONE (data-purchased-level keys to purchasedLevel;
+  pip data-state derives from purchase/eligibility/affordability; legend span
+  carries only static data-level — the overlay-derived legend-effective state
+  stays on the PRE-EXISTING class)

@@ -1,0 +1,247 @@
+F15 — un-wrapping the header at 1280: the gate falls 868 -> 768
+design-spec §3.2 · invariant I18 (F14's gate, re-derived)
+branch header-compaction · base dev @bc2002f (1426/1426 across 69 files)
+================================================================================
+
+Driver: F14's shell is gated at >=1280 x >=868. A 1440x900 display leaves
+roughly 810 CSS px after browser chrome, so the shell never activated on an
+ordinary laptop — the machine the owner and their friends actually use. The
+slice was dead code for its primary audience.
+
+All measurements: Chrome/151.0.7922.174 --headless=new, driven over CDP
+(Runtime.evaluate against a PRODUCTION build served by `vite preview` on
+:4291 — never :5173, which the operator's real profile uses). Zero state.
+
+
+0. THE HEADER AT 1280, BEFORE. MEASURED, NOT REASONED.
+--------------------------------------------------------------------------------
+`.app-header` is `display: flex; flex-wrap: wrap`, so HEADER_H is a VERTICAL
+number produced by a HORIZONTAL fact. Every child's border-box width at 1280:
+
+  child                    width     note
+  -----------------------  --------  ------------------------------------------
+  h1.app-header__title      203.14   --text-lg; margin-right: auto
+  div.build-switcher        299.78   select 220 (at its max-width cap) + 8 + 71.78
+  details.provenance        160.30   `dataset 2026-08-26.1` + the info glyph
+  div.app-header__overlays  367.80   two toggles, 168.89 + 16 + 182.91
+  div.app-header__actions   208.42   `Export JSON` 100.05 + 8 + `Import JSON` 100.38
+  -----------------------  --------
+  sum                      1239.44
+  4 x column-gap (--space-4)  64.00
+  -----------------------  --------
+  DEMAND                   1303.44   against a 1232.00 content box (1280 - 2x24)
+  OVERFLOW                   71.44
+
+  Auto margins are EXCLUDED from the demand deliberately. `margin-right: auto`
+  on the title resolved to 152.984px, but auto margins resolve AFTER line
+  breaking and count as zero while the browser decides where to break —
+  including it would forecast a wrap that never happens. (Cross-check: row 1's
+  used widths plus that auto margin sum to exactly 1232.004.)
+
+The overflow put `.app-header__actions` on a second row:
+
+  row 1  y 12.0 .. 49.0   height 37 (the BuildSwitcher's 37px select is tallest)
+  row gap                 12 (--space-3)
+  row 2  y 61.0 .. 89.0   height 28 (the actions block)
+  padding-block 12 + 12, border-bottom 1
+
+  HEADER_H = 12 + 37 + 12 + 28 + 12 + 1 = 102
+
+
+1. WHAT ACTUALLY CAUSED THE WRAP: TWO WORDS.
+--------------------------------------------------------------------------------
+Button text metrics at the shipped 12px/500 system stack:
+
+  `Export JSON`  74.05      `Export`  37.92      delta  36.13
+  `Import JSON`  74.38      `Import`  38.27      delta  36.11
+                                                 -----  ------
+                                                 TOTAL  72.24
+
+72.24 against an overflow of 71.44 — the suffix is 101% of the overflow. It
+was the second row, on its own.
+
+design-spec §3.2 item 5 names those buttons `Export` / `Import`. The suffix was
+never specified anywhere; it is implementation drift FROM the spec. (Recorded
+contradiction: §3.1's touch-floor bullet quotes the SHIPPED `Export JSON` when
+citing a design-review measurement, so the spec disagrees with itself. §3.2 is
+the copy specification and §3.1's mention is a quotation of the tree, so §3.2
+is taken as authoritative. Flagged rather than silently resolved.)
+
+WHY NO COPY-FREE FIX EXISTS. All three levers that change no words:
+
+  header column-gap   --space-4 -> --space-3   4 x 4  = 16
+  header padding-x    --space-6 -> --space-4   2 x 8  = 16
+  switcher select cap 220px -> 180px                  = 40
+                                                       ----
+                                                         72  against 71.44
+
+They clear by 0.56px, truncate build names, and break the header's inline
+alignment with the footer. The suffix was not one option among several: it was
+the only 71px in the header that cost nothing to give up.
+
+
+2. THE REMEDY, AND WHY EACH HALF IS THERE.
+--------------------------------------------------------------------------------
+  1. `Export JSON` / `Import JSON` -> `Export` / `Import`   -72.24
+       Restores design-spec §3.2's own names. `.json` remains the extension the
+       download carries, so nothing about the format goes unsaid.
+       Alone: demand 1231.20 against 1232.00 — clears by 0.80px, which is not a
+       clearance. It needed a margin.
+
+  2. `.app-header` column-gap --space-4 -> --space-3        -16.00
+       Written as `gap: var(--space-3)`, one token for both axes. The ROW gap
+       was already --space-3, so this changes the column only; a shorthand that
+       had also moved the row gap would be invisible at L and would reflow both
+       narrow layouts.
+
+  DEMAND  1215.20 against 1232.00   CLEARANCE 16.80px (1.4% of the box)
+
+MEASURED AFTER, at 1280: every child on one row, last child's right edge at
+1256.00 = 1280 - 24. HEADER_H = 12 + 37 + 12 + 1 = 62.
+
+
+3. THE GATE, RE-DERIVED. ONLY HEADER_H MOVED.
+--------------------------------------------------------------------------------
+  MIN_SHELL_H = ceil((HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H) / 0.40)
+
+    F14   ceil((102 + 93 + 32 + 120) / 0.40) = ceil(867.5) = 868
+    F15   ceil(( 62 + 93 + 32 + 120) / 0.40) = ceil(767.5) = 768
+
+  STRIP_H 93, PAGE_PAD_Y 32 and STICKY_STACK_H 120 are F14's, unchanged and
+  un-re-measured — no term was touched except the one this slice moved.
+
+  The fall is exactly 100px because 40 / 0.40 = 100, and 40 is precisely the
+  second row (--space-3 row gap 12 + the 28px actions block).
+
+  Cards at the gate: (768 - 307) / 768 = 60.03%, against design-spec §5.3's
+  >= 60%. Still AT THE LIMIT by construction — the gate did not get safer, it
+  got REACHABLE. That is the honest description.
+
+  F14's +40px-of-chrome canary now evaluates to 868, i.e. the old gate. That is
+  not a coincidence and it is asserted: 40px of new always-visible chrome would
+  put the gate back exactly where it was.
+
+
+4. THE HEADER AT EVERY BREAKPOINT, BEFORE AND AFTER.
+--------------------------------------------------------------------------------
+Both trees built and served identically; the BEFORE column is bc2002f's own
+src/ checked out into the same worktree and rebuilt.
+
+  viewport     BEFORE          AFTER           verdict
+  -----------  --------------  --------------  ---------------------------------
+  1440 x 900   62   (1 row)    62   (1 row)    unchanged
+  1280 x 900   102  (2 rows)   62   (1 row)    THE SLICE
+  768 x 1024   102  (2 rows)   102  (2 rows)   unchanged — M is untouched
+  390 x 844    276  (5 rows)   276  (5 rows)   unchanged — S is untouched
+
+The change is surgical: 1280 is the only viewport whose header height moved.
+At 768 the actions block is 136.19 instead of 208.42 and the column gap is 12
+instead of 16, and the row COUNT is unchanged, so the height is identical.
+
+
+5. THE SHELL IN A REAL BROWSER, ACROSS THE NEW GATE.
+--------------------------------------------------------------------------------
+  viewport    shell  headerH  doc scrolls  col-right scrolls  cards band
+  ----------  -----  -------  -----------  -----------------  ----------
+  1280 x 768  ON     62       no  (768)    yes                581.81   <- AT the gate
+  1280 x 767  OFF    62       yes (8762)   n/a                 --      <- 1px below
+  1280 x 867  ON     62       no  (867)    yes                680.81   <- was EXCLUDED
+  1280 x 900  ON     62       no  (900)    yes                713.81
+  1440 x 810  ON     62       no  (810)    yes                623.81   <- THE LAPTOP
+  1279 x 768  OFF    62       yes (8484)   n/a                 --      <- width scoping
+
+  1440x810 is the whole point: excluded at 868, shelled at 768.
+
+DEGRADE PATHS, both verified rather than assumed:
+  - Below the gate (1280x767) `.app-shell` is `position: static`, the document
+    scrolls 8762px, and `.grid-section`'s scroll-margin-top is back to the
+    document scroller's 44px with `scroll-padding-top: auto`.
+  - `@supports not (height: 100dvh)` is byte-unchanged apart from the repeated
+    gate literal, which moved 868 -> 768 in lockstep. Assertion 18 pins that the
+    two literals are one value.
+
+THE ANCHOR ARITHMETIC IS UNTOUCHED, and it was checked rather than trusted:
+under the shell `.col-right` still computes `scroll-padding-top: 120px` and
+`.grid-section` still computes `scroll-margin-top: -76px`. 120 + (-76) = 44,
+the landing position, unchanged. No `--scroll-reserve`, `scroll-margin` or
+`scroll-padding` declaration was edited — grep over the whole diff returns none.
+
+  screenshots: f15-1280x768.png · f15-1280x767.png · f15-1440x810.png ·
+               f15-1280x900.png
+
+
+6. CONSTRAINTS HELD.
+--------------------------------------------------------------------------------
+  - The three RUN-never-edit gates are BYTE-UNMODIFIED (`git diff` against
+    bc2002f is empty for all three) and green: 29/29.
+      tests/ui/overlays.test.tsx · tests/category-colors.test.ts ·
+      tests/feasibility-golden.test.ts
+    No cell of the 504-cell feasibility golden moved.
+  - The 44px touch floor: NOTHING in this slice declares a height. The header
+    block contains no `44px`, no `--tap-target` and no `min-height` — asserted
+    positively (F15 assertion 6), because the census is structurally blind to a
+    hard-coded literal. F9's rules are all inside `@media (max-width: 767px)`
+    and this slice adds nothing there. Census re-run explicitly: 7/7.
+    Button HEIGHTS did not move; only two labels' WIDTHS did.
+  - `--scroll-reserve`, every `scroll-margin` and every `scroll-padding`:
+    untouched (grep over the diff).
+  - The rail stays 300. Not touched, not discussed.
+  - `--space-4` itself is NOT changed — only `.app-header`'s use of it. The four
+    knobs assertion 29 pins (SPACE_4 16, SPACE_3 12, RAIL 300, SECTION_CHROME
+    34) are all still their shipped values and that assertion passes.
+
+
+7. TEST RESULTS, AND THE CONTENTION CLASSIFICATION.
+--------------------------------------------------------------------------------
+  typecheck  clean (tsc --noEmit)
+  build      clean (tsc --noEmit && vite build)
+  suite      1433 tests across 69 files — 1426 baseline + 7 new, no new files
+
+The full run reported 16 failures across 12 files. EVERY ONE was duration, not
+content: `Test timed out in 5000ms` / `in 20000ms`, plus four instances of
+`Unable to find role="dialog" and name "Import build"` — which is how
+`await screen.findByRole` reports a timeout, not a wrong value. This is the
+same lookalike F14's reportback already characterised on this suite. Three
+other agents were running and the machine was suspending repeatedly.
+
+Decisive evidence: the failing SET differed between two runs on the identical
+tree, and every one of the 12 files is green run alone —
+
+  randomize 71/71 · app 6/6 · f11-synergy-board 23/23 ·
+  f2-builds-persistence 13/13 · f2-disclosure-surfaces 11/11 ·
+  f2-eligibility-disclosure 6/6 · f22-import-guard 4/4 · f4-slot7 17/17 ·
+  position-height-clamp 9/9 · reset-build 16/16 · summary-import-export 8/8 ·
+  synergy-panel 8/8
+
+No timeout was lowered, tightened, raised or added anywhere.
+
+SETTLED: a later run of the SAME tree, once the preview server was stopped and
+the other agents' load dropped, was **1433/1433 across 69/69 files, green** —
+no isolation, no retries, no timeout changes. The 16 failures were contention
+and nothing else.
+
+  layout-arithmetic  142/142 (135 before; +7 F15 assertions)
+  the three gates    29/29, byte-unmodified
+  F9 I6 census       7/7
+
+
+8. WHAT CONTRADICTS THE BRIEF.
+--------------------------------------------------------------------------------
+1. The brief forecast "roughly ceil((62 + 93 + 32 + 120) / 0.40) = 768". That is
+   exactly right, and 62 was the correct target — but it was reachable only by
+   changing COPY. The brief's preferred lever ("tightening horizontal gaps or
+   padding") recovers 32px against a 71.44px overflow and cannot do it alone;
+   even all three copy-free levers together clear by 0.56px. The abbreviation
+   was not a preference-ordered choice, it was the only sufficient one.
+2. The brief suggests "an abbreviation the design already uses elsewhere".
+   `Export` / `Import` is not an abbreviation of anything — it is the design
+   spec's OWN wording (§3.2 item 5), and `Export JSON` was the drift. The change
+   moves the tree TOWARD the spec rather than away from it.
+3. design-spec §3.2 opens "Two rows on desktop, three on mobile." That sentence
+   was already false against the shipped tree at 1440 (one row since the header
+   last grew), and it is now false at 1280 as well. §3.2 needs a rev to say one
+   row at >=1280. Reported, not silently re-pinned.
+4. The brief says the gate is "at the limit" and implies un-wrapping buys the
+   cards room. It does not: 60.02% -> 60.03% is a rounding artefact of the
+   formula, not headroom. What the slice buys is REACH — 868 -> 768 — and the
+   cards' share at the gate is a knife-edge by construction either way.

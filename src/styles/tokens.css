@@ -1,0 +1,234 @@
+/*
+ * Design tokens — design-spec.md §2 (BINDING). All tokens are CSS custom
+ * properties declared once on :root. No component may introduce a raw hex,
+ * a raw px spacing value, or a raw duration.
+ *
+ * Dark, single theme (§2.1): the tool is used beside a console in a dim room.
+ * Level colors are a conventional metal/tier palette — a design choice, NOT
+ * 2K27 data (none exists and none is invented).
+ */
+
+:root {
+  /* ---- Surfaces and text (§2.1) ---- */
+  --bg-canvas: #0d1117;
+  --bg-surface: #161b22;
+  --bg-raised: #1c2128;
+  --bg-inset: #010409;
+  --fg-primary: #e6edf3;
+  --fg-secondary: #c9d1d9;
+  --fg-muted: #8b949e;
+  --border-subtle: #30363d;
+  --border: #484f58;
+  --border-strong: #6e7681;
+
+  /* ---- Semantic (§2.1) ---- */
+  --accent: #4c8df6;
+  --accent-quiet: #1f3a66;
+  --success: #3fb950;
+  --warning: #d29922;
+  --danger: #f85149;
+  --danger-quiet: #3d1517;
+  --info: #58a6ff;
+
+  /* ---- Level colors (§2.1) — labelled B/S/G/H/L, never color alone ---- */
+  --lvl-bronze: #cd8b47;
+  --lvl-silver: #c9d1d9;
+  --lvl-gold: #e3b341;
+  --lvl-hof: #a371f7;
+  --lvl-legend: #f778ba;
+
+  /* ---- Metallic identity layer (§2.7, added rev 4 — F5) --------------
+   * ADDITIVE ONLY. Not one token above this comment changes value, so F5
+   * cannot move H4 (overspend), H2 (preview), or focus semantics.
+   *
+   * Base tones are ALIASES of the §2.1 level colors — a metal can never
+   * drift from its level color. Only -hi (highlight) and -lo (shade) are
+   * new values. Ratios re-verified in docs/proof/f5-contrast.txt; the
+   * method was calibrated by reproducing §2.1's bronze 6.65:1 exactly
+   * before any new value was derived (invariant I1). ---- */
+  --metal-bronze: var(--lvl-bronze);
+  --metal-bronze-hi: #e9a868;
+  --metal-bronze-lo: #7a4a22;
+  --metal-silver: var(--lvl-silver);
+  --metal-silver-hi: #eef3f7;
+  --metal-silver-lo: #4a535c;
+  --metal-gold: var(--lvl-gold);
+  --metal-gold-hi: #f7dc8a;
+  --metal-gold-lo: #6e5312;
+  --metal-hof: var(--lvl-hof);
+  --metal-hof-hi: #c9a9ff;
+  --metal-hof-lo: #4c2e86;
+  --metal-legend: var(--lvl-legend);
+  --metal-legend-hi: #ffb3d9;
+  --metal-legend-lo: #8c2f5e;
+
+  /* §2.1 rev-2's foreground-on-fill token, materialized with the layer that
+   * consumes it by name: the ONLY foreground permitted on a saturated fill.
+   * Exactly --bg-canvas, so every token's published canvas ratio IS its
+   * dark-text-on-fill ratio. */
+  --fg-on-accent: var(--bg-canvas);
+
+  /* THE load-bearing rule (§2.7.2): a metal FACE runs -hi → base and stops.
+   * -lo is rims and tarnish; it never appears under a glyph. Had a face run
+   * hi → base → lo, dark text over the -lo corner would measure 1.84–2.62:1
+   * — the exact defect class rev 2 §6 exists to prevent, arriving by a new
+   * route. Every stop below is >= base, so the worst text pairing on any
+   * face is the base pairing: 5.64:1 (dark on HOF). */
+  --metal-face-bronze: linear-gradient(
+    160deg,
+    var(--metal-bronze-hi) 0%,
+    var(--metal-bronze) 55%,
+    var(--metal-bronze) 100%
+  );
+  --metal-face-silver: linear-gradient(
+    160deg,
+    var(--metal-silver-hi) 0%,
+    var(--metal-silver) 55%,
+    var(--metal-silver) 100%
+  );
+  --metal-face-gold: linear-gradient(
+    160deg,
+    var(--metal-gold-hi) 0%,
+    var(--metal-gold) 55%,
+    var(--metal-gold) 100%
+  );
+  --metal-face-hof: linear-gradient(
+    160deg,
+    var(--metal-hof-hi) 0%,
+    var(--metal-hof) 55%,
+    var(--metal-hof) 100%
+  );
+  --metal-face-legend: linear-gradient(
+    160deg,
+    var(--metal-legend-hi) 0%,
+    var(--metal-legend) 55%,
+    var(--metal-legend) 100%
+  );
+
+  /* Glow / bevel / chrome (§2.7.3). Glows are STATIC by rule: no pulse, no
+   * shimmer — §2.6 says no animation carries information, and a glow is a
+   * decorative reinforcement of a state that text already carries.
+   * --bevel-raised is THE metal read (levels are embossed);
+   * --bevel-inset is the tier read (tiers are debossed). */
+  --glow-fuse: 0 0 0 1px rgba(76, 141, 246, 0.35), 0 0 16px -4px rgba(76, 141, 246, 0.55);
+  --glow-reaction: 0 0 0 1px rgba(88, 166, 255, 0.28), 0 0 14px -5px rgba(88, 166, 255, 0.45);
+  --glow-legend: 0 0 0 1px rgba(247, 120, 186, 0.4), 0 0 20px -4px rgba(247, 120, 186, 0.6);
+  --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  --bevel-inset: inset 0 1px 2px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.06);
+  --rule-gold: linear-gradient(90deg, rgba(227, 179, 65, 0.55) 0%, rgba(227, 179, 65, 0.06) 100%);
+  /* The no-op shadow: lets a state slot into the shared box-shadow list
+   * without a specificity fight (see .pip__dot). */
+  --shadow-none: 0 0 rgba(0, 0, 0, 0);
+
+  /* ---- Category identity layer (§2.8, added rev 5 — F7) --------------
+   * ADDITIVE ONLY. No token above this comment changes value.
+   *
+   * PROVENANCE, per category — this is an APPROXIMATION of 2K's attribute
+   * category convention, requested as "match as closely as possible". It is
+   * NOT sourced 2K27 data, and nothing here is presented as published:
+   *   finishing   blue    — user-stated anchor, and the 2K convention
+   *   shooting    green   — 2K convention
+   *   playmaking  gold    — 2K convention (2K's yellow)
+   *   defense     red     — user-stated anchor, and the 2K convention
+   *   rebounding  magenta — NO 2K PRECEDENT. 2K files Rebounding under
+   *                         Defense's red; this dataset separates them, so
+   *                         the hue is ours, picked for separation.
+   *   physicals   violet  — NO 2K PRECEDENT. Physicals is not a 2K badge
+   *                         category at all; the hue is entirely ours.
+   *
+   * DERIVATION (docs/proof/f7-contrast.txt): each hue sits where it still
+   * reads as its named colour at full saturation, NOT at a shared contrast
+   * target — a saturated red cannot reach 6.6:1 on this canvas without
+   * turning pink (which is why --danger is 5.65:1), and a yellow cannot go
+   * below ~8:1 without turning olive. Forcing one register washes both out.
+   * Range is 5.69:1–8.84:1 on --bg-canvas; the AA text bar is 4.5:1, so
+   * every one of these may carry text. Mutual separation is ΔE >= 38.8
+   * (Playmaking↔Defense, the closest pair).
+   *
+   * THE CHANNEL RULE (§2.8.1), which is what makes red-next-to-red safe:
+   * these are IDENTITY, never state. They appear on the attribute slider
+   * fill, the attribute group legend, the category title and the jump-nav
+   * chip — and NOWHERE that carries state. In particular they never touch
+   * .category-ledger's left border (--danger owns it on overspend) or the
+   * ledger numerals (§2.7.4's forbidden list). Colour is never the only
+   * carrier: every one of these surfaces renders the category NAME as text
+   * (§6), which is also what covers the colour-vision-deficiency collisions
+   * recorded in the proof — red/green cannot be separated by hue for a
+   * deuteranope, and is not asked to be. */
+  --cat-finishing: #3d93e9;
+  --cat-shooting: #1caf61;
+  --cat-playmaking: #f58236;
+  --cat-defense: #ef5a64;
+  --cat-rebounding: #e467bb;
+  --cat-physicals: #beb448;
+
+  /* The fallback when no category is in scope — today's single-accent
+   * behaviour, so an un-keyed surface degrades to what F3 shipped. */
+  --cat: var(--accent);
+
+  /* ---- Typography (§2.2) — system stack only, zero network egress ---- */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-num: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 20px;
+  --text-xl: 26px;
+
+  /* ---- Spacing (§2.3) — 4px base ---- */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-3-5: 14px; /* carries the user's py-3.5 row-padding preference */
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* ---- Touch floor (§5.3, invariant I6) — added by F9 ----
+   * The ONE number the whole S-breakpoint control pass turns on, defined here
+   * so every rule consumes it instead of re-typing 44, and so
+   * tests/layout-arithmetic.test.ts can DERIVE the floor instead of pinning a
+   * literal in seventeen assertions.
+   *
+   * Deliberately NOT a spacing step. 44 is not a rung on the 4px semantic
+   * ladder — it is a WCAG 2.2 SC 2.5.5 / §5.3 target size — and calling it
+   * `--space-11` would invite a future density pass to shrink it along with
+   * the padding scale. §5.3's jump-nav budget (≤48px = this + 2px of padding
+   * each side) is derived from it, not stated beside it. */
+  --tap-target: 44px;
+
+  /* ---- Radius (§2.4) ---- */
+  --radius-none: 0;
+  --radius-sm: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  /* ---- Elevation (§2.5) ---- */
+  --shadow-raised: 0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 2px 6px rgba(0, 0, 0, 0.45);
+  --shadow-overlay: 0 12px 32px rgba(0, 0, 0, 0.65);
+  --ring-focus: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--accent);
+
+  /* ---- Motion (§2.6) ---- */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 260ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* All motion is decorative (§2.6). Nothing is lost when it collapses. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 1ms;
+    --dur-base: 1ms;
+    --dur-slow: 1ms;
+  }
+}

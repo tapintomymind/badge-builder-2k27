@@ -1,0 +1,89 @@
+F8-E1 + F8-E2 — MERGE FORECAST AGAINST origin/dev
+Measured, not predicted: an actual trial merge was performed in a throwaway
+worktree and the full suite was driven to green. The recipe below is validated.
+
+Branch f8-engine (33201c9) is based on origin/dev @ 9bd851c.
+origin/dev has since MOVED to 491b392, absorbing TWO slices:
+  · the shared-label-index test-harness slice (59d2c39, d45f8a8, 498dceb)
+  · F4 official-data adoption            (7289386, fbcf49d, 491b392)
+
+===========================================================================
+1. TEXTUAL CONFLICTS — TWO, both trivial, both append-at-tail
+===========================================================================
+  .claude/reportback.md   both sides appended entries at the end of the file.
+                          Keep BOTH, theirs first, mine after.
+  tests/ledger.test.ts    both sides appended a describe block AND edited the
+                          import list. Keep both blocks; union the imports
+                          (mine adds `badgeSlotsCapacityUnset` from the engine,
+                          plus overByBadgePoints / overByBadgeSlots and
+                          srcSources / stripComments).
+
+AUTO-MERGED CLEANLY, no intervention:
+  src/App.tsx · src/engine/ledger.ts · src/ui/summary/SummaryPanel.tsx ·
+  src/engine/__fixtures__/synthetic-badges.ts
+
+  Worth noting: src/App.tsx auto-merged even though BOTH slices edit it, and
+  SummaryPanel.tsx auto-merged with all three of F4's changes intact — the
+  E1 discipline of keeping that file's diff to the import block is what bought
+  that.
+
+===========================================================================
+2. SEMANTIC BREAKAGE — FIVE edits, all mechanical, all validated
+===========================================================================
+(a) src/engine/__fixtures__/synthetic-badges.ts  — 4 x 2 lines
+    F4 made `description` and `isNew` REQUIRED on RawBadge. F4 updated the five
+    pre-existing fixtures; E2's four new ones (twinA, dear, cheap, freeAtHof)
+    need the same two fields. `syntheticTwinB` spreads twinA and needs nothing.
+
+(b) tests/steps.test.ts — ONE line, and THE GUARD DID ITS JOB
+    `Type 'true' is not assignable to type 'never'` at the RefundTrigger
+    exhaustiveness check. F4 added `onFuse`, and the guard BROKE THE BUILD
+    rather than letting INV-11 quietly skip the new arm. Add "onFuse" to
+    REFUND_TRIGGERS.
+    >>> RESULT AFTER ADDING IT: INV-11 IS GREEN ON ALL FOUR TRIGGERS,
+    >>> INCLUDING onFuse. The cost model is additive post-F4, so E2's
+    >>> precomputed net-cost fast path IS SAFE. This is the single most
+    >>> important post-merge finding in this file.
+
+(c) tests/feasibility-golden.test.ts — ONE string
+    The dataVersion staleness guard fired: "2026-08-25.1" -> "2026-08-26.1".
+    >>> AND THE 504-CELL TABLE ITSELF IS BYTE-IDENTICAL POST-F4. Not one
+    >>> affordable-upgrade count moved. F4's data change is annotation-only
+    >>> (description / isNew), so no eligibility gate and no tier cost shifted.
+    >>> The R-4 hoist is stable across the F4 boundary.
+
+(d) tests/summary-text.test.ts — TWO strings in the golden block
+    · `dataset 2026-08-25.1` -> `2026-08-26.1`
+    · `Synergy Slot 7 · Permanent · +1` -> `+2`
+    The second is F4 ratifying Slot 7 as +2 flowing through
+    createDefaultSynergySlots. NO BUILDER CODE CHANGED — the magnitude is read
+    as the slot's own configured value, exactly as design-spec §14.4 requires,
+    and post-F4 the output now matches the spec's own example. That is the test
+    of whether §14.4 was specified correctly, and it passes.
+
+===========================================================================
+3. VERIFIED RESULT
+===========================================================================
+  npx tsc --noEmit   clean
+  npm test           59 files / 1038 tests   ALL GREEN
+
+  (pre-merge f8-engine was 52 / 871; origin/dev @ 491b392 contributes the rest)
+
+===========================================================================
+4. F5.2 (layout) and F5.3 (card layout)
+===========================================================================
+  F5.2 — NO CONFLICT SURFACE. It landed at e11e8f1, BEFORE this branch's base,
+    so its App.tsx re-parenting and its app.css rewrite are already absorbed.
+    Both F8 slices touch zero CSS and no JSX.
+
+  F5.3 (card layout) — NO CONFLICT SURFACE FROM THESE TWO SLICES. E1 and E2
+    touch no card component: src/ui/grid/BadgeCard.tsx is untouched, and E1's
+    only UI diffs are an import line in SummaryPanel.tsx, an import line plus a
+    header comment in CategoryLedger.tsx, the internals of feasibility.ts, and
+    two named lines in App.tsx. The F8 slice that WILL collide with F5.3 is
+    R2, which adds the Pin/Exclude action line to BadgeCard.
+
+  THE ONE FILE TO WATCH for any future F8/F5 pairing is
+  tests/ui/overlays.test.tsx — the H2 ship gate. It was run explicitly and is
+  green and unedited in both slices, but S2 will add a large DOM subtree inside
+  `.summary`, which enters that gate's textContent comparison.

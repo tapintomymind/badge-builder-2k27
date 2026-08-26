@@ -1,0 +1,211 @@
+/**
+ * Canonical vocabulary (H1, H6, H7). Every union in the codebase is defined
+ * here, once. See docs/vocabulary.md for the human-readable glossary.
+ *
+ * H1 note: the bare token "slot" is BANNED in identifiers and user-visible
+ * copy. Per-category badge capacity is `equipSlots` ("Badge Slots" in UI);
+ * the 8 global fuse/reaction pairs are `synergySlots` ("Synergy Slots" in UI).
+ * tests/vocabulary.test.ts lints for violations.
+ */
+
+/** The full 5-level ladder. Legend is boost-only — never purchasable. */
+export const LEVELS = ["bronze", "silver", "gold", "hof", "legend"] as const;
+export type Level = (typeof LEVELS)[number];
+
+/**
+ * The five positions — CANONICAL here as of F3 (hoisted from the UI): the
+ * engine now consumes positions (position → height range, scope.md §0.1 A2),
+ * so a UI-owned vocabulary would be backwards. Position still gates NO
+ * badges — no badge's eligibility consults it.
+ */
+export const POSITIONS = ["PG", "SG", "SF", "PF", "C"] as const;
+export type Position = (typeof POSITIONS)[number];
+
+/**
+ * The 4 purchasable levels (H6). `Exclude<Level, "legend">` makes the
+ * compiler the first guard against Legend indexing into 4-entry cost arrays.
+ */
+export type PurchasableLevel = Exclude<Level, "legend">;
+export const PURCHASABLE_LEVELS = ["bronze", "silver", "gold", "hof"] as const satisfies readonly PurchasableLevel[];
+
+export const TIERS = ["A", "B", "C"] as const;
+export type Tier = (typeof TIERS)[number];
+
+/**
+ * Badge categories (capitalized, 6) — H7. A SEPARATE constant from
+ * ATTR_GROUPS, never derived from it: cross-group badges exist (Physical
+ * Finisher is category Finishing but requires strength, a Physicals
+ * attribute), so any refactor that derives one from the other is wrong.
+ */
+export const CATEGORIES = [
+  "Finishing",
+  "Shooting",
+  "Playmaking",
+  "Defense",
+  "Rebounding",
+  "Physicals",
+] as const;
+export type Category = (typeof CATEGORIES)[number];
+
+/** Attribute groups (lowercase, 6) — groups ATTRIBUTES, not badges. */
+export const ATTR_GROUPS = [
+  "finishing",
+  "shooting",
+  "playmaking",
+  "defense",
+  "rebounding",
+  "physicals",
+] as const;
+export type AttrGroup = (typeof ATTR_GROUPS)[number];
+
+/** The canonical 20-value attribute union, exactly the seed's `Attr` type. */
+export const ATTRS = [
+  "close",
+  "layup",
+  "drivingDunk",
+  "standingDunk",
+  "postControl",
+  "mid",
+  "threePt",
+  "passAcc",
+  "ballHandle",
+  "speedWithBall",
+  "interiorDef",
+  "perimeterDef",
+  "steal",
+  "block",
+  "offReb",
+  "defReb",
+  "speed",
+  "agility",
+  "strength",
+  "vertical",
+] as const;
+export type Attr = (typeof ATTRS)[number];
+
+/** Which attribute group each attribute belongs to (from the seed's `Attr`
+ * type comments). Used to DOCUMENT cross-group badges, never to derive
+ * `Category` from an attribute. */
+export const ATTR_GROUP_OF: Record<Attr, AttrGroup> = {
+  close: "finishing",
+  layup: "finishing",
+  drivingDunk: "finishing",
+  standingDunk: "finishing",
+  postControl: "finishing",
+  mid: "shooting",
+  threePt: "shooting",
+  passAcc: "playmaking",
+  ballHandle: "playmaking",
+  speedWithBall: "playmaking",
+  interiorDef: "defense",
+  perimeterDef: "defense",
+  steal: "defense",
+  block: "defense",
+  offReb: "rebounding",
+  defReb: "rebounding",
+  speed: "physicals",
+  agility: "physicals",
+  strength: "physicals",
+  vertical: "physicals",
+};
+
+/**
+ * SOURCE labels — the seed's own short strings, exactly as they appear in
+ * src/data/badges.source.txt ("Dr Dunk", "SWB", "3Pt"). Transcribed
+ * independently of the generator's ATTR_ALIASES map (scripts/); a test
+ * asserts the two are mutual inverses, so a transcription slip in either
+ * fails loudly instead of shipping a self-consistent, systematically WRONG
+ * dataset.
+ *
+ * THESE ARE PARSE KEYS, NOT DISPLAY TEXT. They may not be prettified,
+ * expanded or re-cased: the generator matches them against the checked-in
+ * source text character-for-character. For anything a user reads, use
+ * ATTR_LABELS below.
+ *
+ * (Until F8 this map was ATTR_LABELS and did both jobs at once, which is why
+ * the UI showed "Dr Dunk" — the display name was structurally pinned to the
+ * dataset's parse key.)
+ */
+export const ATTR_SOURCE_LABELS: Record<Attr, string> = {
+  close: "Close",
+  layup: "Layup",
+  drivingDunk: "Dr Dunk",
+  standingDunk: "St Dunk",
+  postControl: "Post Ctrl",
+  mid: "Mid",
+  threePt: "3Pt",
+  passAcc: "Pass Acc",
+  ballHandle: "Ball Hdl",
+  speedWithBall: "SWB",
+  interiorDef: "Int Def",
+  perimeterDef: "Per Def",
+  steal: "Steal",
+  block: "Block",
+  offReb: "Off Reb",
+  defReb: "Def Reb",
+  speed: "Spd",
+  agility: "Aglty",
+  strength: "Str",
+  vertical: "Vert",
+};
+
+/**
+ * DISPLAY labels — what a user reads, everywhere. Slider labels, the
+ * engine's eligibility copy ("needs 94 Driving Dunk for HOF"), and the
+ * live-region announcements all resolve through here.
+ *
+ * Every entry is the ABBREVIATION IN THE SOURCE LABEL EXPANDED, and nothing
+ * more: Dr→Driving, St→Standing, Ctrl→Control, Acc→Accuracy, Hdl→Handle,
+ * Int→Interior, Per→Perimeter, Off→Offensive, Reb→Rebound, SWB→Speed With
+ * Ball, Spd/Aglty/Str/Vert→their words. The expansions are fixed by the
+ * canonical Attr keys above (`drivingDunk`, `perimeterDef`, …), so none of
+ * them is a guess about what 2K calls anything.
+ *
+ * `Close` and `Mid` are left ALONE deliberately. They are whole words in the
+ * seed, not abbreviations — expanding them to 2K's marketing names ("Close
+ * Shot", "Mid-Range Shot") would add words the source and the Attr key do
+ * not contain, which is inventing copy rather than un-abbreviating it.
+ */
+export const ATTR_LABELS: Record<Attr, string> = {
+  close: "Close",
+  layup: "Layup",
+  drivingDunk: "Driving Dunk",
+  standingDunk: "Standing Dunk",
+  postControl: "Post Control",
+  mid: "Mid",
+  threePt: "Three-Point",
+  passAcc: "Pass Accuracy",
+  ballHandle: "Ball Handle",
+  speedWithBall: "Speed With Ball",
+  interiorDef: "Interior Defense",
+  perimeterDef: "Perimeter Defense",
+  steal: "Steal",
+  block: "Block",
+  offReb: "Offensive Rebound",
+  defReb: "Defensive Rebound",
+  speed: "Speed",
+  agility: "Agility",
+  strength: "Strength",
+  vertical: "Vertical",
+};
+
+/** User-visible level names. */
+export const LEVEL_LABELS: Record<Level, string> = {
+  bronze: "Bronze",
+  silver: "Silver",
+  gold: "Gold",
+  hof: "HOF",
+  legend: "Legend",
+};
+
+/** Position of a level on the 5-level ladder (bronze = 0 … legend = 4). */
+export function levelIndex(level: Level): number {
+  return LEVELS.indexOf(level);
+}
+
+/** 69 → `5'9"` … 88 → `7'4"`. */
+export function formatHeightInches(heightInches: number): string {
+  const feet = Math.floor(heightInches / 12);
+  const inches = heightInches % 12;
+  return `${feet}'${inches}"`;
+}

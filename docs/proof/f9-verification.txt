@@ -1,0 +1,321 @@
+F9 — the app-wide I6 touch-floor pass
+design-spec.md §5.3 · §3.1 · §6 · invariant I6 · WCAG 2.2 SC 2.5.5
+branch f9-touch-floors · base dev @a5fe8e1 (1204/1204 across 62 files)
+================================================================================
+
+HOW EVERYTHING BELOW WAS MEASURED
+--------------------------------------------------------------------------------
+Chrome/151.0.7922.174 --headless=new driven over CDP, deviceScaleFactor 1 (2 for the
+PNGs), against a PRODUCTION BUILD of each tree served by `python3 -m
+http.server` on two throwaway ports:
+
+  BEFORE  dev @a5fe8e1        http://127.0.0.1:5391
+  AFTER   f9-touch-floors     http://127.0.0.1:5392
+
+NO DEV SERVER WAS STARTED. vite.config.ts pins 5173 with strictPort, every
+worktree in this repo shares that origin, and localStorage is keyed to origin
+INCLUDING port — a stale-code mount on 5173 can strip fields out of the
+operator's real saved builds. Both measurement origins are distinct ports, so
+neither tree could see or write the operator's data.
+
+Every state below was reached by a REAL event, never by poking React state:
+  · the quarantine banner, by seeding an autosave the deserializer must refuse
+    (Page.addScriptToEvaluateOnNewDocument, so it runs before the app boots)
+  · the saved build, by typing into the BuildManager footer and clicking
+    `Save as new`
+  · the reset dialog, by committing a slider and clicking `Reset build`
+  · the import dialog, by capturing the app's OWN export Blob through a
+    patched URL.createObjectURL and handing the bytes straight back to the
+    file input as a File
+
+
+1. THE DEFECT, AS A CENSUS — 390 x 844, EVERY HIT TARGET ON THE PAGE
+--------------------------------------------------------------------------------
+Every <details> opened, Synergy Slot 1 unlocked, all three dialogs visited. A
+control wrapped in a <label> is measured at the LABEL's box, because that is
+the hit target (§3.1 Toggle). Distinct (class, height) pairs:
+
+  BEFORE                                                   AFTER
+  h=  14  n=  1  .filter-bar__clear                        44
+  h=  18  n=  1  .provenance summary                       44
+  h=  18  n= 53  .badge-card__desc-summary                 44
+  h=  21  n=  6  .filter-bar__category-option              44
+  h=  21  n=  9  .toggle                                   44
+  h=  26  n= 34  .number-field input                       44
+  h=26.8  n=  3  .chip.chip--tier.filter-chip  (26.02 wide) 44 x 44
+  h=  28  n=  3  .btn--sm                                  44
+  h=  28  n=  1  .export-import__label                     44
+  h=  28  n=  2  .jump-nav__panel                          44
+  h=  28  n=  6  .jump-nav a[href^="#cat-"]                44
+  h=  29  n= 22  .segmented label                          44
+  h=  31  n=  1  .filter-bar__categories > summary         44
+  h=  37  n=  1  .build-switcher__select                   44
+  h=  37  n=  4  .select__control                          44
+  h=  39  n=  1  .skip-link                                44
+  h=  42  n=  2  .toggle--overlay                          44
+  ------------------------------------------------------  ----------------
+  h=  44         input[type="range"]        (F3)           unchanged
+  h=  44         .build-panel__reset        (F5.3, scoped) unchanged
+  h=  50         .pip                       (F5.3, frozen) unchanged
+  h=  52         .section > summary                        unchanged
+  h=  59         .category-ledger (the sticky digest)      unchanged
+
+  SEVENTEEN classes under the floor before. ZERO after.
+  Counted as individual elements rather than classes: 80 hit targets under
+  44px before, 0 after.
+
+`.btn--md` never appears in this census because NOT ONE `md` BUTTON RENDERS IN
+THE APP — every call site passes size="sm". That fact is what forced the
+divergence from §3.1's letter; see section 6.
+
+
+2. THE SIX SURFACES, BEFORE AND AFTER AT 390
+--------------------------------------------------------------------------------
+`L` is the flex-line count, computed by vertical-interval overlap (rounding
+`top` is wrong for an align-items:center row — same-line children of different
+heights have different tops). `OVF` means the element's own scrollWidth
+exceeded its clientWidth.
+
+  surface                       BEFORE                    AFTER
+  ---------------------------------------------------------------------------
+  1  .app-header                390.00 x 225.00  L5        390.00 x 276.00  L5
+     .app-header__actions       208.42 x  28.00  L1        208.42 x  44.00  L1
+     .app-header__overlays      342.00 x  42.00  L1        342.00 x  44.00  L1
+     .build-switcher            299.78 x  37.00  L1        299.78 x  44.00  L1
+  2  .build-manager__footer     354.00 x  67.00  L1        354.00 x  76.00  L1
+     .build-manager__header     354.00 x  63.00  L1        354.00 x  77.00  L1
+     .build-manager__list li    354.00 x 126.00  L1 OVF    354.00 x 152.00  L2
+     .build-manager__row-actions 294.80 x 30.00  L1        294.80 x  46.00  L1
+  3  .banner                    390.00 x 143.95  L1        390.00 x 138.78  L2
+     .banner__actions           232.28 x  30.00  L1        232.28 x  46.00  L1
+  4  .filter-bar                366.00 x 148.00            366.00 x 194.00
+     .filter-bar__controls      366.00 x 102.00  L3        366.00 x 148.00  L3
+     .filter-bar__category-list 131.41 x 164.00  L6        131.41 x 302.00  L6
+  5  .export-import             208.42 x  28.00  L1        208.42 x  44.00  L1
+  6  .reset-dialog__actions     322.00 x  28.00  L1        322.00 x  96.00  L2
+     .reset-dialog__opt-in      322.00 x  42.38  L1        322.00 x  44.00  L1
+     .import-dialog__actions    322.00 x  28.00  L1        322.00 x  44.00  L1
+     .build-manager__header     (dialog 3's action row is its Close button,
+                                 counted above)
+  +  .jump-nav                  366.00 x  44.00           366.00 x  48.00
+     (found beyond the six; see section 4)
+
+  dialog boxes   build-manager  356 x 258.00  ->  356 x 307.00
+                 reset          356 x 365.56  ->  356 x 435.19
+                 import         356 x 195.00  ->  356 x 211.00
+
+  document horizontal scrollbar: absent BEFORE, absent AFTER, in every scene.
+  scrollWidth === clientWidth === 390 at rest and with each dialog open.
+
+FOUR OF THE SIX NEEDED A REFLOW FIX. Each got `flex-wrap: wrap`. None got an
+overflow — assertion 26 forbids `overflow-x: hidden`, `overflow-x: clip` and
+`overflow: hidden` in EVERY max-width:767px block in the file, and its own
+positive canary proves it can still see those literals.
+
+  3  .banner — the interesting one, because it got SHORTER. `.banner__actions`
+     is `flex: none` at 232.28px inside a 368px content box, which left 120px
+     for the body: the quarantine sentence broke over FIVE lines beside a
+     two-button rail. Wrapping drops the rail to its own line (still
+     right-aligned by its existing `margin-left: auto`) and gives the body the
+     full width. 143.95 -> 138.78.
+
+  6  .reset-dialog__actions — 65.66 + 8 + 150.73 + 8 + 89.61 = 321.99px inside
+     a 322px box. ONE HUNDREDTH OF A PIXEL of slack across the whole row, in a
+     <dialog> that cannot scroll sideways. With wrap enabled `Reset build`
+     takes a second line and the destructive action ends up alone, which is
+     better than the accident it replaces. 28 -> 96 (44 + 8 + 44).
+
+  2  .build-manager__list li — this row ALREADY overflowed its own box on the
+     BASE TREE (OVF above, measured at 390 before any F9 edit): 294.8px of
+     actions plus a name and a timestamp inside a 320px content box. Wrapping
+     the <li> puts the action rail under the name and the OVF goes away. Fixed
+     in passing because the BuildManager footer is one of the six and the
+     overflow is two selectors from it, not because F9 caused it.
+
+  4  .filter-bar needed NOTHING. It was three wrapped control lines before and
+     is three after — the widths are bit-identical (no padding or font-size
+     moved anywhere in this pass), so the same items land on the same lines,
+     44px tall instead of 26.8/31/37. 102 -> 148.
+
+
+3. THE PASS IS S-ONLY — PROVED BY WHOLE-DOCUMENT GEOMETRY, NOT ASSERTED
+--------------------------------------------------------------------------------
+Both trees rendered at five widths; every element under <body> digested as
+`TAG.class|x,y,w,h` and the two lists compared element by element.
+
+  width   elements   differing   verdict
+  --------------------------------------------------------------------
+    390     2678       2616      changed, by intent
+    640     2678       2617      changed, by intent — 640 IS the S layout
+                                 (§6: 1280 at 200% zoom = 640 CSS px)
+    768     2678          0      BIT-IDENTICAL
+   1280     2681          0      BIT-IDENTICAL
+   1440     2681          0      BIT-IDENTICAL
+
+THE SUMMARY PANEL'S RESOLVED COLUMN COUNT, checked explicitly because a 3px
+move in page padding / rail width / column gap / <Section> chrome flips it:
+
+  width   BEFORE                          AFTER
+   1280   2 cols, tracks "380px 380px",   2 cols, tracks "380px 380px",
+          content box 902                 content box 902
+   1440   2 cols, tracks "380px 380px",   2 cols, tracks "380px 380px",
+          content box 1062                content box 1062
+    768   1 col,  content box 702         1 col,  content box 702
+    390   1 col,  content box 332         1 col,  content box 332
+
+  UNCHANGED, and it could not have been otherwise: NONE of the four knobs was
+  touched. --space-4 is 16, --space-3 is 12, the rail is 300px and <Section>
+  chrome is 34 — all four re-asserted by value in assertion 29, alongside the
+  count-based proof that every `var(--tap-target)` in the stylesheet sits
+  inside a max-width block and that no min-width block mentions the token.
+
+  (The 902 here is a headless overlay-scrollbar measurement. The 885 figure in
+  the coordinator's note assumes a 17px classic scrollbar. Either way the
+  before/after numbers are the same number, which is the claim.)
+
+
+4. THE JUMP NAV — THE SEVENTH SURFACE, AND THE ONE WITH A BUDGET
+--------------------------------------------------------------------------------
+Not one of the six, found by the census, and the most-tapped row on a phone:
+its chips were 28px. §5.3's sticky-budget table already specifies what layer 1
+is made of — "44px chips (the touch floor — this layer cannot shrink) + 2px
+padding each side" — so the chips take the floor and the nav's padding drops
+from --space-2 to the 2px the budget actually funds.
+
+  MEASURED AT scrollY 4200, 390 x 844, with a digest stuck:
+
+                       BEFORE            AFTER
+    jump nav           top 0, h 44       top 0, h 48   (cap: <= 48)
+    stuck digest       top 44, h 59      top 48, h 59  (cap: <= 88)
+    gap between        0.00              0.00
+    two-layer total    103               107           (cap: <= 136)
+    doc h-scrollbar    none              none
+
+The digest's `top` is re-derived, not re-typed: `calc(var(--tap-target) + 4px)`
+at S, which assertion 28 checks EQUALS 2 x the parsed S nav padding + the
+parsed token. The base `top: 44px` is untouched and still equals the nav's
+height at M and L, where the chips stay 28px — also re-derived (2 x --space-2
++ the parsed `.btn--sm` height = 44).
+
+`.jump-nav`'s `overflow-x: auto` is inherited from the base rule and is NOT
+added by this pass. §6 names it as the one permitted single-axis scroll, and
+the chips' widths did not change, so the nav's scrollWidth is what it was.
+
+
+5. TOP OF PAGE TO THE FIRST BADGE CARD
+--------------------------------------------------------------------------------
+Reported in two states, because the honest number depends on which one the
+user is in. The zero state is session one; the collapsed state is every
+session after that, and it is the one the auto-collapse latch exists to
+produce.
+
+  width   state                   BEFORE     AFTER    delta
+  ------------------------------------------------------------
+    390   zero state (open)       3396.86   3638.86   +242.00
+    390   after first commit       656.00    757.00   +101.00
+    640   zero state              2861.09   3283.09   +422.00
+    640   after first commit       509.00    592.00    +83.00
+    768   zero state              2212.70   2212.70      0.00
+    768   after first commit       471.00    471.00      0.00
+   1280   zero state              1596.70   1596.70      0.00
+   1280   (panel stays open at L) 1546.33   1546.33      0.00
+
+The +101 at 390 in the steady state is the header (+51), the filter bar (+46)
+and the jump nav (+4), less the banner's -5. It is the price of the floor and
+it is paid once, above the fold, not per card.
+
+
+6. THE §3.1 DIVERGENCE — DECLARED, NOT SILENTLY RE-PINNED
+--------------------------------------------------------------------------------
+§3.1 rev 2 ratified `sm` -> 36px and `md` -> 44px at S, and gave its reason in
+one sentence:
+
+    "The `md` variant is the one used for every header and dialog action, so
+     raising it to 44 at S clears the rule for the whole set."
+
+THAT PREMISE IS FALSE AGAINST THE SHIPPED TREE. Every header action, every
+dialog action, every banner action, every BuildManager row action and both
+Export/Import controls pass `size="sm"`. `grep -c 'size="md"' src/ui/**` is
+ZERO; `md` is only the prop default, and no call site takes it. Shipping
+§3.1's letter would have left the ENTIRE named set at 36px — still under §5.3's
+own "every interactive target >= 44x44px", which is the invariant the §3.1
+bullet exists to satisfy and which it cites in its own title.
+
+RESOLUTION: the invariant wins. Both sizes clear 44 at S. §3.1's size bullet
+needs a rev to match, and that is a decision for the spec's owner, not a
+cleanup — recorded here and in the reportback rather than performed.
+
+Assertion 25 pins the divergence from both ends: it asserts the base heights
+are still 28 and 36 (so the S block stays load-bearing) AND that no file under
+src/ui/ ships `size="md"` (so the premise stays false, or the test goes red and
+someone re-reads this section).
+
+ALSO OUT OF SCOPE, NAMED RATHER THAN OMITTED:
+  · src/main.tsx's RecoveryBoundary renders three UNSTYLED native <button>s
+    with inline styles, deliberately — that screen has to render when the
+    stylesheet itself is the casualty. They carry no class, so no rule in this
+    pass can reach them and none should.
+  · `.segmented label:has(input:disabled) { opacity: 0.45 }` is an invariant I2
+    violation (§6's disabled floor is 0.6, which F5.3 already applied to
+    `.btn:disabled`). It is a contrast defect, not a target-size one, and
+    changing it here would put a §6 edit inside a §5.3 slice. FLAGGED, not
+    fixed.
+
+
+7. RED CANARIES — EACH NEW ASSERTION SEEN FAILING
+--------------------------------------------------------------------------------
+Run against the finished tree with one deliberate regression at a time, then
+reverted. An assertion never seen red is a decoration.
+
+  regression                                    fails
+  ---------------------------------------------------------------------------
+  --tap-target: 44px -> 40px                    23, 28   (2 failed | 74 passed)
+  delete `.btn { min-height: var(--tap-target) }` 24, 27 (2 failed | 74 passed)
+  `.banner { flex-wrap }` -> `{ overflow-x: hidden }` 26 (1 failed | 75 passed)
+  restored                                      76 passed
+
+Assertion 28 falling out of the --tap-target canary is the chain working: the
+sticky offset is DERIVED from the token, so shrinking the token desynchronises
+the digest from the nav and the budget arithmetic notices.
+
+
+8. GATES
+--------------------------------------------------------------------------------
+  baseline (dev @a5fe8e1, before any edit)   62 files / 1204 tests   PASS
+  full suite after                           62 files / 1211 tests   PASS  (+7)
+  npm run typecheck                          tsc --noEmit            PASS
+  npm run build                              tsc + vite build        PASS
+  tests/ui/overlays.test.tsx        }        RUN, never edited       PASS
+  tests/category-colors.test.ts     }        3 files / 23 tests
+  tests/feasibility-golden.test.ts  }
+
+  No flake from the load-dependent class fired on any run. No { timeout: 20000 }
+  was touched and vite.config.ts is untouched.
+
+  Built CSS 38.27 kB -> 39.40 kB (gzip 7.32 -> 7.50). JS byte-identical at
+  290.52 kB — this pass adds no JavaScript, and no .tsx file was modified.
+
+
+9. SCREENSHOTS — BEFORE AND AFTER, 390 x 844 AT dpr 2
+--------------------------------------------------------------------------------
+  f9-{before,after}-top-390.png       header, banner, top of the build panel
+  f9-{before,after}-filters-390.png   filter bar, jump nav, first cards
+  f9-{before,after}-manager-390.png   BuildManager dialog with a saved build
+  f9-{before,after}-reset-390.png     reset dialog, action row wrapped
+  f9-{before,after}-cards-390.png     badge cards and the description toggles
+
+All ten are genuine painted captures (120–172 kB each). Two things are worth
+looking at rather than reading: the quarantine banner's body going from five
+lines to two in the `top` pair, and the BuildManager row's action rail moving
+below the build name in the `manager` pair.
+
+TWO ITEMS REMAIN VISUALLY UNVERIFIED, for the same reason F5.3 recorded:
+  · the keyboard :focus-visible ring on the newly-flexed controls
+    (`.segmented label`, `.jump-nav a`, `.filter-bar__clear`, `.skip-link`).
+    :focus-visible requires a TRUSTED interaction and CDP can only dispatch
+    untrusted events, so programmatic focus correctly refuses to match. The
+    rings are unchanged structurally — no rule in this pass touches
+    `box-shadow`, `outline` or any :focus-visible selector, and `display`
+    changes do not affect ring geometry on a box that only grew.
+  · real-finger ergonomics. 44px is the standard's number, not a measurement
+    of the operator's thumb.

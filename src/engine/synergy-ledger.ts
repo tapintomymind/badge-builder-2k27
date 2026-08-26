@@ -1,0 +1,201 @@
+/**
+ * Synergy-aware refund ledger (M2) — the H2 ledger/overlay separation.
+ *
+ * THE STRUCTURAL CONTROL: `ledger(state, basis)` takes a LedgerBasis — a
+ * string union that is a DIFFERENT TYPE from OverlayState. The ledger's
+ * signature literally cannot accept `reactionsActive`. "Reactions activated"
+ * is an in-game transient and NEVER touches the ledger — not the primary one,
+ * not the projection (H2(b)); treating it as a persistent refund would be
+ * inventing 2K27 behavior.
+ *
+ * H2(a) — refund basis, ratified 2026-08-25: the ledger is computed from
+ * COMMITTED state = purchased levels + fuse-role boosts from EVERY synergy
+ * slot the user has marked unlocked (temporary ones included), evaluated with
+ * reactionsActive: false and seasonReset: false. Season reset does not
+ * un-refund the primary ledger — it is reachable only through the parallel
+ * "postSeasonReset" basis, which M4 renders as a second, LABELLED row.
+ *
+ * `overlayForBasis` is the ONE place the basis channel and the overlay
+ * channel can re-couple. It is total over its 2 cases and `reactionsActive`
+ * is a literal `false` in both — pinned by the totality test.
+ *
+ * Derived, never accumulated: everything below delegates to the M1 ledger,
+ * whose numbers are pure functions of current state (no running balance
+ * exists anywhere), through the `effectiveLevelFor` seam M1 shipped for
+ * exactly this wiring.
+ */
+
+import { shippedDataset } from "./dataset";
+import { categoryLedger } from "./ledger";
+import type { LedgerState } from "./ledger";
+import { boost, clampToLegend, synergySlotActive } from "./synergy";
+import type {
+  BonusBudget,
+  Budget,
+  LedgerBasis,
+  LoadoutEntry,
+  OverlayState,
+  RefundTrigger,
+  SynergySlot,
+} from "./types";
+import type { BadgeDataset } from "./types";
+import type { Category, Level } from "./vocabulary";
+import { CATEGORIES } from "./vocabulary";
+
+/** Both members of the LedgerBasis union, for exhaustive tests/UI rows. */
+export const LEDGER_BASES = ["current", "postSeasonReset"] as const satisfies readonly LedgerBasis[];
+
+/**
+ * The internal basis → OverlayState mapping — total over its 2 cases, with
+ * `reactionsActive` a LITERAL false in both. This is the single place the
+ * ledger channel and the display-overlay channel re-couple (H2); the
+ * totality test pins it.
+ */
+export function overlayForBasis(basis: LedgerBasis): OverlayState {
+  switch (basis) {
+    case "current":
+      return { reactionsActive: false, seasonReset: false };
+    case "postSeasonReset":
+      return { reactionsActive: false, seasonReset: true };
+  }
+}
+
+/** The full state the synergy-aware ledger derives from. A plain value. */
+export interface SynergyLedgerState {
+  loadout: readonly LoadoutEntry[];
+  /**
+   * [A5] THE COMPOSED (EFFECTIVE) RECORD — base + applied bonus, already run
+   * through `effectiveBudgets`. Every consumer of this field reads effective
+   * capacity and pool with NO EDIT, which is the whole point of composing at
+   * the seam rather than retyping `Budget`.
+   */
+  budgets: Readonly<Record<Category, Budget>>;
+  synergySlots: readonly SynergySlot[];
+  refundTrigger: RefundTrigger;
+  /**
+   * [A5] The bonus layer, OPTIONAL — deliberately, and it is the choice that
+   * keeps this slice's diff honest.
+   *
+   * Exactly two consumers need it: `validateLoadout` (the Σ ≤ earned
+   * SoftViolations) and `buildSummary` (recovering the BASE Badge Slots Σ for
+   * `badgeSlotsBaselineText`). The ledger math never sees it — `LedgerState`
+   * does NOT carry it, and must not: it reads the composed record and has no
+   * business learning that a bonus layer exists.
+   *
+   * ABSENT means "this caller has no bonus layer", not "zero bonus": no
+   * violations fire and no base-Σ recovery happens, which is the pre-A5
+   * behaviour byte for byte. Requiring it would churn 68 budget literals
+   * across 29 test files for zero correctness gain.
+   */
+  bonus?: BonusBudget;
+}
+
+/**
+ * The committed effective level of one loadout entry under a basis: purchased
+ * level + the badge's fuse boost (reaction boosts are structurally excluded —
+ * `overlayForBasis` never sets reactionsActive, so a reaction role contributes
+ * 0 here by construction). For the pre-wired `legendByPermanentBoostOnly`
+ * trigger, only PERMANENT synergy slots' boosts count — expressed by
+ * filtering the slots the boost computation may see, exactly the seam M1's
+ * ledger documented for M2.
+ */
+export function ledgerEffectiveLevel(
+  state: SynergyLedgerState,
+  entry: LoadoutEntry,
+  basis: LedgerBasis,
+): Level {
+  const consideredSynergySlots =
+    state.refundTrigger === "legendByPermanentBoostOnly"
+      ? state.synergySlots.filter((synergySlot) => synergySlot.permanence === "permanent")
+      : state.synergySlots;
+  const boostAmount = boost(
+    { loadout: state.loadout, synergySlots: consideredSynergySlots },
+    entry.badgeId,
+    overlayForBasis(basis),
+  );
+  return clampToLegend(entry.purchasedLevel, boostAmount);
+}
+
+/**
+ * Does this entry's badge hold a LIVE FUSE role under the basis (F4, the
+ * `onFuse` trigger)? THE H2-critical line, three rulings in one expression:
+ *
+ *  1. It reuses `synergySlotActive` — the CANONICAL activity predicate —
+ *     rather than hand-negating it or re-deriving "unlocked and permanent".
+ *     That makes it STRUCTURALLY IMPOSSIBLE for the refund to disagree with
+ *     the boost math about whether a Synergy Slot is live:
+ *       basis "current"          ⇒ seasonReset false ⇒ every unlocked slot counts.
+ *       basis "postSeasonReset"  ⇒ seasonReset true  ⇒ a fuse role held in a
+ *                                  TEMPORARY Synergy Slot contributes nothing,
+ *                                  and its refund vanishes with it.
+ *  2. Only `fuseBadgeId` is consulted. REACTION ASSIGNMENTS FREE NOTHING, in
+ *     either basis — the page's only token-return mechanic is the Fuse
+ *     placement.
+ *  3. It reads the FULL slot array, never `ledgerEffectiveLevel`'s
+ *     `consideredSynergySlots` filter. That filter is specific to
+ *     `legendByPermanentBoostOnly`'s effective-level computation and has no
+ *     business in a role predicate.
+ *
+ * H2 IS NOT WEAKENED: the overlay is derived from `overlayForBasis(basis)`,
+ * total over two cases with `reactionsActive` a literal false in both. No
+ * ledger signature gains an OverlayState parameter.
+ */
+function isFusedForBasis(
+  state: SynergyLedgerState,
+  entry: LoadoutEntry,
+  basis: LedgerBasis,
+): boolean {
+  const overlay = overlayForBasis(basis);
+  return state.synergySlots.some(
+    (synergySlot) =>
+      synergySlot.fuseBadgeId === entry.badgeId && synergySlotActive(synergySlot, overlay),
+  );
+}
+
+/** The M1 LedgerState for a basis — the synergy-aware effective level wired
+ * through the seam M1 shipped, with no M1 signature change. */
+function toLedgerState(state: SynergyLedgerState, basis: LedgerBasis): LedgerState {
+  return {
+    loadout: state.loadout,
+    budgets: state.budgets,
+    refundTrigger: state.refundTrigger,
+    effectiveLevelFor: (entry) => ledgerEffectiveLevel(state, entry, basis),
+    isFusedFor: (entry) => isFusedForBasis(state, entry, basis),
+  };
+}
+
+/** The four per-category readouts the status bars render. */
+export interface CategoryLedgerReadout {
+  spent: number;
+  refunded: number;
+  remainingPoints: number;
+  equipSlotsUsed: number;
+}
+
+/**
+ * One category's committed ledger under a basis. The signature is the H2
+ * control: `basis` is a LedgerBasis — there is no parameter through which
+ * `reactionsActive` (or any OverlayState) can arrive.
+ */
+export function categoryLedgerAt(
+  state: SynergyLedgerState,
+  basis: LedgerBasis,
+  category: Category,
+  dataset: BadgeDataset = shippedDataset,
+): CategoryLedgerReadout {
+  return categoryLedger(toLedgerState(state, basis), category, dataset);
+}
+
+/**
+ * The whole ledger under a basis, all 6 categories. Same H2 signature
+ * control as categoryLedgerAt: no overlay can reach this function.
+ */
+export function ledger(
+  state: SynergyLedgerState,
+  basis: LedgerBasis,
+  dataset: BadgeDataset = shippedDataset,
+): Record<Category, CategoryLedgerReadout> {
+  return Object.fromEntries(
+    CATEGORIES.map((category) => [category, categoryLedgerAt(state, basis, category, dataset)]),
+  ) as Record<Category, CategoryLedgerReadout>;
+}

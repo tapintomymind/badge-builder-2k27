@@ -1,0 +1,37 @@
+F3 — attribute sliders + position→height constraints — verification evidence
+Date: 2026-08-26 (session) · branch dev · slice F3.1 (constrained mode)
+
+== First proof (browser, http://localhost:5173, headless Chrome via CDP) ==
+select C → hint: Sets the available height range (C: 6'7"–7'4"). No badge has a
+  position requirement; badges gate on height and attributes only.
+select C → default 6'6" auto-clamped: ⚠ Height adjusted 6'6" → 6'7" to fit C's
+  range (6'7"–7'4").
+set ft=7 at C → height echo: = 88 in  (blur-clamp to C max 7'4")
+switch to PG → height echo: = 79 in · ft=6 in=7  (clamped to PG max 6'7")
+switch to PG → visible clamp notice: ⚠ Height adjusted 7'4" → 6'7" to fit PG's
+  range (5'9"–6'7").
+sliders commit at 1280 → Close aria-valuetext: 88
+first slider hit area at 390: 234x44px (≥44px touch floor; thumb pseudo-element
+  extends to 44x44 via transparent border, S media block)
+
+Screenshots:
+  docs/proof/f3-position-clamp-1280.png  (PG selected, clamp notice visible)
+  docs/proof/f3-sliders-1280.png         (Close 88 / Layup 72 / Dr Dunk 65
+                                          committed; L-rail stacked numeric)
+  docs/proof/f3-sliders-390.png          (S zero state, 44px slider rows,
+                                          side-by-side numeric)
+
+== Test/build gates ==
+npm test:       39 files / 610 tests — ALL PASS (pre-F3 baseline was 35/518)
+npm run build:  tsc --noEmit clean + vite build clean (272.72 kB js)
+pre-change proof: with src/ stashed to the F2.1 tip, the F3 test files fail
+  (10 failures / import errors) — the pins do not pass pre-change.
+
+== Six ship-gate groups ==
+1 position-range clamp + disclosure   tests/ui/position-height-clamp.test.tsx
+2 slider keyboard step                tests/ui/attribute-slider.test.tsx
+3 slider-drag → stale-purchase        tests/ui/attribute-slider.test.tsx
+4 engine height-range validation      tests/validate-build.test.ts
+5 deserializer does NOT reject        tests/serialization.test.ts (F3 block)
+6 table integrity + no-hardcode lint  tests/position-heights.test.ts +
+                                      tests/architecture.test.ts (e)
