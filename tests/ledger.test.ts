@@ -188,3 +188,54 @@ describe("badgeSlotsCapacityUnset — hoisted out of CategoryLedger.tsx, behavio
     expect(source).toContain('from "../../engine/ledger"');
   });
 });
+
+/* --------------------------------- F16.1: the seams are wired on every path -- */
+
+/**
+ * [F16.1] WHY THE `isFusedFor` DEFAULT STAYS `() => false`, MECHANIZED.
+ *
+ * When the fuse refund failed to reach the screen, the first suspicion was
+ * this seam: an optional injected function whose default means "nothing is
+ * ever fused" is exactly the shape of a silently-wrong default. It was not the
+ * cause — the seam is injected on every production path — and the reason it
+ * can be TRUSTED to be, rather than merely observed to be today, is that
+ * `LedgerState` has exactly ONE production constructor.
+ *
+ * That is what this pins. `synergy-ledger.ts`'s `toLedgerState` is the only
+ * place a `LedgerState` is built in `src/`, and it wires BOTH seams
+ * unconditionally; every ledger reader in the app reaches the math through
+ * `categoryLedgerAt`, which routes through it. A THIRD file naming the type
+ * reddens this — and a new construction site that forgets a seam is precisely
+ * the defect the group above describes as "honest M1 behaviour", arriving in
+ * M4 where it would no longer be honest at all.
+ *
+ * Making the seams REQUIRED was considered and rejected: it would delete the
+ * group above, which is a deliberate record of M1's contract, and it would buy
+ * nothing this pin does not already buy. Revisit if a second constructor ever
+ * earns its place.
+ */
+describe("F16.1 — LedgerState has exactly one production constructor, and it wires both seams", () => {
+  it("only ledger.ts and synergy-ledger.ts name LedgerState in src/", () => {
+    // Word-bounded, so `SynergyLedgerState` — a DIFFERENT type, the one every
+    // caller actually passes around — is correctly not a mention of this one.
+    const namesIt = Object.keys(srcSources).filter((file) =>
+      /\bLedgerState\b/.test(stripComments(srcSources[file] as string)),
+    );
+    expect(
+      [...namesIt].sort(),
+      "a THIRD file names LedgerState — if it CONSTRUCTS one, it must inject " +
+        "effectiveLevelFor and isFusedFor, or every refund it computes is silently zero",
+    ).toEqual(["/src/engine/ledger.ts", "/src/engine/synergy-ledger.ts"]);
+  });
+
+  it("toLedgerState injects BOTH seams, unconditionally", () => {
+    const source = stripComments(srcSources["/src/engine/synergy-ledger.ts"] as string);
+    const body = source.slice(source.indexOf("function toLedgerState"));
+    const constructor = body.slice(0, body.indexOf("\n}"));
+    // Present, and NOT behind a conditional or a `??` — the two shapes that
+    // would reintroduce "sometimes nothing is fused" without deleting a line.
+    expect(constructor).toContain("effectiveLevelFor:");
+    expect(constructor).toContain("isFusedFor:");
+    expect(constructor).not.toContain("?");
+  });
+});
