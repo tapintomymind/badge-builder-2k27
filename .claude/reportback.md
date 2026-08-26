@@ -9220,3 +9220,250 @@ Corrected by appending rather than by editing the sentence: an entry is a dated 
 run observed, and revising one in place would make it assert something that was never true at
 the time it was written. Nothing else in that entry is affected — the landing, the counts, the
 gates and the browser proof all stand as recorded. `dev` is `785118b`.
+
+═════════════════════════════════════════════
+F16.1 — the fuse refund never reached an existing build · defect-fix · slice-complete
+Agent: Tier-2 implementer · 2026-08-26
+Trigger: user-reported defect ("I fused a badge, but my points never returned")
+Branch: `fuse-refund` (isolated worktree /private/tmp/bb-fuse-refund), based on
+origin/dev @ 44de81f. Commits f089b94 + a7f5d4b + f025aa6. NOT merged to `dev`.
+`main` untouched.
+─────────────────────────────────────────────
+
+### THE ROOT CAUSE, AND IT WAS NOT THE SEAM THE HYPOTHESIS NAMED
+
+The dispatch's hypothesis was that some path builds a `LedgerState` without
+injecting `isFusedFor`, whose default is `() => false`. **Disproven.**
+`toLedgerState` is the ONLY production constructor of `LedgerState` — pinned
+mechanically now in `tests/ledger.test.ts` — and it wires both seams
+unconditionally. Every ledger reader in the app reaches the math through
+`categoryLedgerAt`, which routes through it.
+
+The defect was one layer out, and it is an ASYMMETRY inside F4's own slice.
+
+F4 landed TWO ratified facts on 2026-08-26:
+
+  · Synergy Slot 7's +2 → `applyRatifiedMagnitudes`, re-derived at LOAD,
+    overriding whatever the file says, DISCLOSED at all three reload routes.
+  · The `onFuse` refund trigger → `DEFAULT_REFUND_TRIGGER` flipped, and
+    **nothing else**.
+
+A default only reaches a build CONSTRUCTED after the flip. Every build saved
+before it — which, on 2026-08-26, is every build that existed — kept the
+`legendByAnyMeans` placeholder in `config.refundTrigger`, and `fromSaved`
+restored it verbatim (`config: saved.config`). Fusing a badge then freed
+nothing, with no error and entirely plausible numbers.
+
+F4's own reportback predicted the opposite: *"The onFuse flip changes on-screen
+ledger numbers for any build with fused badges below the Legend-reaching
+pairs — refunds now appear where none did."* For a build already on disk, it
+did not.
+
+### WHICH SURFACES WERE AFFECTED — ALL OF THEM, NOT THE BOARD
+
+Verified in a real browser on the pre-fix bundle, same seeded save:
+
+  · Loadout board panel      `Badge Tokens 13/12 over by 1 ⚠  Badge Slots 5/5`
+  · In-grid category digest  `Finishing Badge Tokens 13 / 12 over by 1 ⚠ …`
+  · Rail Ledger overview     `Finishing 13/12 · 5/5`, in danger red
+  · Category lede            no `refunded` row at all
+  · Summary / feasibility / the roll — all read the same `ledgerState`
+
+The board and the main ledger show the SAME wrong number, because
+`DisciplinePanel` imports `overByBadgePoints` from `CategoryLedger.tsx` and
+both are fed `categoryLedgerAt(ledgerState, "current", …)`. This was never a
+board bug. Its severity is app-wide, and it is data-shaped rather than
+render-shaped: the ledger was correct for the state it was given, and the
+state was stale.
+
+### RULED OUT, WITH EVIDENCE
+
+  1. **Un-injected `isFusedFor`** — the stated hypothesis. No such site exists
+     in `src/`; now pinned so none can appear.
+  2. **A legitimately-false `isFusedFor`** — a fuse assignment on a LOCKED
+     Synergy Slot reproduces the identical reading, because `synergyRoleFor`
+     (which paints the tile's ⚡) ignores `unlocked` while `isFusedForBasis`
+     correctly consults `synergySlotActive`. Reachable only by assigning and
+     then re-locking. See OPEN below — it is a real second defect, and it is
+     NOT the one reported.
+  3. **A deliberately-gross readout** — partly true and NOT the defect. The
+     digest numerator IS gross spend by design (`readout.spent / pool`), with
+     the refund carried by `left N` and by the lede's `refunded N` row. So a
+     correct render of this build reads `13/12 left 0`, **not** `12/12`. What
+     was wrong was the `over by 1 ⚠`, and that is arithmetic, not phrasing.
+  4. **Board vs main ledger disagreeing** — they do not; they agreed, wrongly.
+  5. **The projection basis leaking in** — no. `overlays.test.tsx` is green
+     UNEDITED and its numbers did not move.
+
+### THE FIX
+
+`applyRatifiedRefundTrigger(config)` in `src/config/index.ts`, shaped exactly
+like `applyRatifiedMagnitudes`, called from `fromSaved` so it covers all three
+reload routes, with the override DISCLOSED in SynergyPanel beside its sibling
+note. `RATIFIED_REFUND_TRIGGER` is now the named fact; `DEFAULT_REFUND_TRIGGER`
+derives from it, so the normalizer reads the FACT and never the new-build
+default.
+
+Why this is the root cause and not the symptom: the symptom is one number on
+one panel; the cause is that a ratified rule could not reach a build that
+already existed. Correcting the number would have left every OTHER future
+ratification with the same hole.
+
+Why it is a DATA REFRESH and not an H8 auto-migration: nothing in the app
+writes `refundTrigger` — no picker, no route, no gesture — so a persisted
+non-ratified value is provably app-authored and nothing of the user's is being
+overwritten. That is one degree stronger than the precedent, where Synergy Slot
+magnitudes at least have a control the user could have touched.
+
+**Serialization is untouched.** `validateConfig` still accepts all four values.
+A shape validator that refused a value the app itself once wrote would turn a
+disclosable state into an unloadable file — F4/A1's recorded mistake at the +2
+cap.
+
+### THE SEAM'S DEFAULT — DELIBERATELY NOT CHANGED, AND WHAT THAT RISKS
+
+`isFusedFor` stays optional, defaulting to `() => false`. Making it required
+would delete `tests/ledger.test.ts`'s F4 group 9.6, a deliberate record of M1's
+contract, and would buy nothing the single-constructor pin does not already
+buy. **The residual risk is that a future second constructor could forget a
+seam and compute silent zeroes** — which is exactly what the new pin reddens on.
+
+### THE RISK I DID TAKE, STATED PLAINLY
+
+The override is UNCONDITIONAL, so **an App-level fixture can no longer choose a
+refund trigger, and neither could a hand-edited export.** That is correct today
+because no user can either. The day a trigger picker ships, a persisted value
+stops being provably app-authored and `applyRatifiedRefundTrigger` must gain an
+explicit "the user chose this" channel — the same shape §17.9's `entered`
+channel is waiting on for Badge Slots capacity. `tests/config.test.ts` carries
+a PREMISE PIN (a containment allowlist over the nine files naming
+`refundTrigger`) so a tenth file — most likely that picker — reddens it.
+
+### WHY NO TEST CAUGHT IT
+
+`tests/ui/m4-rig.ts` pinned `refundTrigger: "legendByAnyMeans"` on EVERY
+App-level fixture in the suite. The instinct behind that (F4/A4: a behavioural
+fixture must not ride a default) was sound; the value it pinned meant the
+ratified trigger was never once evaluated through a render. The engine was
+tested directly and the UI path was not. The rig now pins the ratified literal;
+the alternates keep full coverage where they are reachable — at the engine.
+
+### THE REGRESSION TEST
+
+`tests/ui/f16-1-fuse-refund.test.tsx` (8 cases) seeds the user's exact
+PRE-RATIFICATION save and reads every number off the DOM:
+
+  1. board + digest + `refunded 1`, with the ⚡ tile still asserted present
+  2. NEGATIVE CANARY — the same committed state under the alternate trigger
+     really is `over by 1`, so case 1 is not passing on an accident of zero
+  3. the disclosure renders, as plain text and not a live region
+  4. a post-ratification save shows NO note (a disclosure that always renders
+     is not one)
+  5. the correction is DURABLE — the next autosave carries `onFuse`
+  6. OWN-CATEGORY: two fused badges in two disciplines with distinct costs
+     (Finishing 1, Shooting 5); each pool gets its own back and exactly two
+     ledes render a `refunded` row
+  7. clearing the fuse THROUGH THE PICKER removes the refund
+  8. no overlay combination moves the committed ledger; the season-reset
+     projection genuinely differs (the fuse sits in a TEMPORARY Synergy Slot)
+
+### EVIDENCE
+
+npm test         1669 passed / 1669, 75 files, 0 failed  (baseline 1653 / 74)
+                 +16 = 8 (new file) + 6 (config) + 2 (ledger). Predicted before
+                 the run and matched exactly.
+npm run typecheck  exit 0
+npm run build      exit 0 — 87 modules, dist 340.05 kB / 101.55 kB gzip
+
+THE THREE RUN-NEVER-EDIT GATES — run explicitly, 29/29 green, and
+`git diff origin/dev` over all three files is EMPTY. No string, no value and no
+golden cell was edited. `overlays.test.tsx` is the one directly relevant to
+this defect and its arithmetic is INVARIANT under the flip: its rig fuses Float
+Game Gold at +2 → Legend, which refunds 6 under both triggers, and its
+post-season-reset projection loses the refund under both.
+
+tests/vocabulary.test.ts   183/183 green, unedited (all four lint classes)
+tests/layout-arithmetic.test.ts + tests/ui/f9-bonus-mode.test.tsx
+                           182/182 green, unedited (the I6 touch-floor census)
+Runtime dependencies still exactly {react, react-dom}. tokens.css untouched.
+No engine rule moved into JSX; the one new rule is an engine/config function.
+
+### BROWSER PROOF — BOTH STATES, PRODUCTION BUILDS, FREE PORTS
+
+Not 5173, and not the one dev server already running on 5199. Two production
+builds on two ports so BEFORE and AFTER are different artifacts, not a
+remembered page:
+
+  · PRE-FIX  http://127.0.0.1:4578  bundle `index-BWArAc6g.js`  (origin/dev src)
+  · FIXED    http://127.0.0.1:4577  bundle `index-BZ98Es7Q.js`
+
+Served bytes were sha256'd against `dist/` before use and matched exactly on
+both ports, and the bundle filename was re-read out of the live DOM in every
+capture — the staleness trap an earlier agent hit.
+
+Both loads were seeded with the SAME real envelope, produced by
+`serializeSavedBuild` (never hand-written): the user's five Finishing badges at
+their levels, pool 12, 5 Badge Slots, Paint Prodigy in Synergy Slot 1's Fuse
+position, `config.refundTrigger: "legendByAnyMeans"`, `savedAt` 2026-08-25.
+Seeding is done on a same-origin 404 page, never on the app — loading the app
+first arms its `pagehide` flush, which overwrites the seed with a fresh empty
+build on the way out.
+
+  PRE-FIX   board    `Badge Tokens 13/12 over by 1 ⚠  Badge Slots 5/5`
+            digest   `Finishing Badge Tokens 13 / 12 over by 1 ⚠ …`
+            tile     `Paint Prodigy, Bronze, 1 Badge Token, Fuse in Synergy
+                      Slot 1` — the ⚡ the user was reading
+            refunded rows: none
+            → the user's report, reproduced exactly.
+
+  FIXED     board    `Badge Tokens 13/12 left 0  Badge Slots 5/5` — no ⚠, no red
+            digest   `Finishing Badge Tokens 13 / 12 left 0 Badge Slots 5 / 5`
+            lede     `refunded 1`
+            note     "Fusing a badge now returns its Badge Tokens to that
+                      discipline — 2K's ratified refund rule, confirmed
+                      2026-08-26. This build was saved before that landed, so
+                      its Badge Tokens ledger has been recalculated."
+            storage  `config.refundTrigger` on disk is now `onFuse`
+
+  FUSE CLEARED (real `<select>` → "None" on Synergy Slot 1's Fuse picker)
+            board    `Badge Tokens 13/12 over by 1 ⚠  Badge Slots 5/5`
+            tile     `Paint Prodigy, Bronze, 1 Badge Token` — ⚡ gone
+            lede     no `refunded` row
+            status   "Fuse cleared in Synergy Slot 1."
+            → the refund is DERIVED, never accumulated.
+
+**NOTE FOR THE DISPATCHER: the corrected panel reads `13/12 left 0`, not
+`12/12`.** The digest numerator is gross spend by design and the refund is a
+separate channel. If `12/12` is what the design should say, that is a Designer
+question about the numerator, not a bug in this fix — and it would move a
+string `overlays.test.tsx` asserts, so it needs its own dispatch.
+
+### OPEN — A SECOND, DISTINCT DEFECT FOUND WHILE HERE. NOT FIXED.
+
+A Fuse assignment on a **locked** Synergy Slot renders the board tile's ⚡ and
+the badge card's `⚡ Fuse · SS1 +1` chip with NO indication the role is inert,
+while the ledger correctly refunds nothing. The state is legitimate and ruled
+(`validate-loadout.ts`: "assign while unlocked, then re-lock … the lock
+invariant guards the assignment ACTION, not the state"), and it is reachable
+only by re-locking. `board-model.ts` reads `synergyRoleFor`, which is a
+role-EXISTENCE lookup; `BadgeCard`'s `statusText` discloses the season-reset
+case via `synergySlotDisabledByPreview` but has no locked case, and
+`f2-source-pins.test.ts`'s canonical-predicate pin does not cover
+`src/ui/board/**` at all.
+
+It produces a reading indistinguishable from the reported one, so it is worth
+closing — but WHAT a locked role should look like on a tile is a Designer
+decision, not an implementer one, and fixing it inside a defect slice would
+have been scope creep. Flagged, not touched.
+
+### HOUSEKEEPING
+
+Three named commits, no `git add -A` — paths named explicitly and `git status`
+re-checked before each. `node_modules` symlinked from the main checkout; no
+`npm install` in the worktree. The scratch reproduction files were deleted
+before the first commit and never staged. One stale Browser tab (a dead port,
+verified with curl before closing) was closed to clear the tab cap; the live
+5199 server and its tab were not disturbed. The two static servers on 4577/4578
+are `python3 -m http.server` and are left for the dispatcher to reap. `dev` was
+not merged into and `main` was not touched.
+─────────────────────────────────────────────
