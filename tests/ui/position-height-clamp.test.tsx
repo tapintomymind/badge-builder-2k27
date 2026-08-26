@@ -29,6 +29,15 @@
  *   · the clamp notice is BYTE-UNCHANGED. It still names the range, and
  *     that is not duplication — it is the record of a value the app changed
  *     on the user's behalf.
+ *
+ * R12 — the workbench re-cut (user ruling 2026-08-26). At L — which is what
+ * jsdom renders: no matchMedia, so the compound isLarge is true — the SAME
+ * four-part body (Position, its hint, Height, the violation Banner) renders
+ * via PhysiqueSection inside `.col-body`'s aside[aria-label="Physique"];
+ * `.physique-strip` is the 768–1279 band's surface only now, and never
+ * renders here. The queries below scope to the aside. The SURFACE moved;
+ * the F13 contract did not: the range renders exactly once, the hint keeps
+ * both facts, the clamp notice is byte-unchanged.
  */
 
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -167,14 +176,22 @@ describe("no position selected (\"Any\") — the dataset's 69–88, today's beha
 });
 
 describe("the withdrawn \"Cosmetic\" treatment (scope.md §0.1 A2 copy consequence, F13-amended)", () => {
-  /** Every leaf node anywhere in the physique strip that renders a
-   *  feet-and-inches figure. Counting NODES rather than asserting on one
-   *  string is the point: the defect being guarded is DUPLICATION, and a
-   *  by-name assertion cannot see a second copy it was not told about. */
+  /** Every leaf node anywhere in the Physique surface (R12: the
+   *  aside[aria-label="Physique"] in `.col-body` — the strip is an M-band
+   *  surface and never renders at jsdom-L) that renders a feet-and-inches
+   *  figure. Counting NODES rather than asserting on one string is the
+   *  point: the defect being guarded is DUPLICATION, and a by-name
+   *  assertion cannot see a second copy it was not told about. Requiring
+   *  exactly ONE matching aside guards the same defect one level up — the
+   *  R12 three-surface seam says exactly one Physique surface renders at
+   *  every viewport, and a second surface is a second copy of everything. */
   function rangeRecitations(): string[] {
-    const strip = document.querySelector(".physique-strip");
-    if (strip === null) throw new Error("no physique strip");
-    return [...strip.querySelectorAll("*")]
+    const surfaces = document.querySelectorAll('aside[aria-label="Physique"]');
+    if (surfaces.length !== 1) {
+      throw new Error(`expected exactly one Physique surface, found ${surfaces.length}`);
+    }
+    const surface = surfaces[0]!;
+    return [...surface.querySelectorAll("*")]
       .filter(
         (element) =>
           /\d'\d+"/.test(element.textContent ?? "") &&
@@ -204,9 +221,9 @@ describe("the withdrawn \"Cosmetic\" treatment (scope.md §0.1 A2 copy consequen
 
   it("the SURVIVING range readout is live: Any → SF re-renders it", { timeout: 20000 }, () => {
     render(<App />);
-    // At rest, in the strip, the range is rendered EXACTLY ONCE. Pre-F13
-    // this was two (Position hint + HeightField hint), and three with a
-    // clamp standing.
+    // At rest, in the Physique surface, the range is rendered EXACTLY
+    // ONCE. Pre-F13 this was two (Position hint + HeightField hint), and
+    // three with a clamp standing.
     expect(rangeRecitations()).toEqual([`5'9"–7'4", the range this dataset covers.`]);
 
     pickPosition("SF");
@@ -225,7 +242,7 @@ describe("the withdrawn \"Cosmetic\" treatment (scope.md §0.1 A2 copy consequen
   });
 });
 
-describe("engine violation surfaces in the physique strip (HARD-DISCLOSED)", () => {
+describe("engine violation surfaces on the Physique surface (HARD-DISCLOSED)", () => {
   it("a restored out-of-range build renders the warning Banner, un-mutated", { timeout: 20000 }, () => {
     // A build saved before F3 (or imported): 7'0" PG. The deserializer must
     // NOT reject it and the UI must NOT silently re-clamp it (H8) — it

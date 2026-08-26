@@ -142,6 +142,11 @@ export interface BuildPanelProps {
    * panel as `PhysiqueSection`. There is no width at which both surfaces
    * render it, and this file never asks the query itself. */
   physique: PhysiqueStripProps | null;
+  /** R12 slice 3 — render WITHOUT the outer collapsible `<Section title=
+   * "Build">` and without arming the auto-collapse latch. True only on the
+   * phone tab shell, where this panel is the whole of its tab; see the
+   * rationale at the `if (unwrapped)` return. */
+  unwrapped?: boolean;
 }
 
 /** F5.4 (§16.5) — the Attributes Section, lifted VERBATIM out of BuildPanel
@@ -392,6 +397,7 @@ export function BuildPanel(props: BuildPanelProps) {
     onOpenBonus,
     onResetRequest,
     canReset,
+    unwrapped = false,
   } = props;
   const [autoCollapsed, setAutoCollapsed] = useState<boolean>(
     () => readUiSectionOpen(BUILD_PANEL_AUTO_COLLAPSED_KEY) === true,
@@ -490,7 +496,12 @@ export function BuildPanel(props: BuildPanelProps) {
 
   // F5.4: the `compact` term is GONE (§16.5). The panel is in flow above the
   // cards at every width now, so its height costs the user something at L too.
-  const latchArmed = hasValues && !autoCollapsed;
+  // R12 slice 3: `unwrapped` disarms the latch outright. There is no outer
+  // Section for it to close, so firing it would only write a preference key
+  // that nothing on this surface reads — and it would then be waiting to
+  // collapse the panel the moment the same user turned their phone sideways
+  // into the M layout, which is a collapse they never asked for.
+  const latchArmed = hasValues && !autoCollapsed && !unwrapped;
 
   const fireLatch = useCallback(() => {
     writeUiSectionOpen(BUILD_PANEL_SECTION_KEY, false);
@@ -577,6 +588,28 @@ export function BuildPanel(props: BuildPanelProps) {
     `${totalPoints} pts`,
     `${totalEquipSlots} Badge Slots`,
   ].join(" · ");
+
+  /**
+   * R12 slice 3 — THE PHONE TAB UNWRAPS THIS PANEL, and the auto-collapse
+   * latch is exactly why it has to.
+   *
+   * The `<Section title="Build">` wrapper earns its chrome when the panel is
+   * one region among several in a long scroll: collapsing it turns a 595px
+   * block into a 53px digest row, and F5.4 measured that trade as worth it.
+   * Under the phone tab shell the premise is gone — the panel IS the tab, the
+   * tab's own label already reads "Build", and the latch's one-shot collapse
+   * leaves a user who taps Build looking at a single 54px grey row with the
+   * whole station folded inside it. Measured on this tree at 375×812.
+   *
+   * So on the phone tab the outer Section is not rendered and the latch is
+   * not armed. NOTHING ELSE CHANGES: the three inner Sections (Physique,
+   * Attributes, Badge Tokens & Badge Slots) keep their own collapse controls
+   * and their own storage keys, so a phone user's per-section preferences
+   * still persist and the long attribute stack is still foldable. The digest
+   * goes with the wrapper, which is correct — a digest describes what a
+   * COLLAPSED panel is hiding, and nothing is collapsed here.
+   */
+  if (unwrapped) return sections;
 
   return (
     <Section

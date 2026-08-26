@@ -15,9 +15,16 @@
  * was a no-op; post-A5 they are not, and rendering the effective number there
  * compounds it on every blur: 3 renders 4, commits 4, renders 5. Test 6.6
  * blurs ten times and asserts the base never moved.
+ *
+ * R12 (the workbench re-cut; user ruling 2026-08-26) — jsdom renders the L
+ * workbench, where the base entry grid lives inside `#dialog-budgets`,
+ * opened from the rail TotalsStrip's `Edit budgets…`. Same BudgetGrid, same
+ * shared commit seam (App's `handleBudgetCommit`), so every claim below —
+ * base in, base out, never the effective number — holds at its original
+ * strength; only the route to the fields changed.
  */
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import App from "../../src/App";
 import { defaultAppConfig } from "../../src/config";
@@ -80,9 +87,20 @@ function seededBuild(overrides: Partial<SavedBuild> = {}): SavedBuild {
   };
 }
 
-/** The Badge Slots input for a category, by its (visually hidden) label. */
-function badgeSlotsField(category: Category): HTMLInputElement {
-  return screen.getByLabelText(`${category} Badge Slots`) as HTMLInputElement;
+/** R12 (user ruling 2026-08-26): at L the entry grid renders inside
+ * `#dialog-budgets`, behind the rail's `Edit budgets…` button. Select by id,
+ * never by tag (the app's own dialog rule). */
+function openBudgetsDialog(): HTMLElement {
+  fireEvent.click(screen.getByRole("button", { name: /^Edit budgets/ }));
+  const dialog = document.querySelector("#dialog-budgets");
+  if (!(dialog instanceof HTMLElement)) throw new Error("no #dialog-budgets");
+  return dialog;
+}
+
+/** The Badge Slots input for a category, by its (visually hidden) label —
+ * scoped to the budgets dialog, the only surface carrying the grid at L. */
+function badgeSlotsField(dialog: HTMLElement, category: Category): HTMLInputElement {
+  return within(dialog).getByLabelText(`${category} Badge Slots`) as HTMLInputElement;
 }
 
 function currentAutosave(): SavedBuild {
@@ -132,7 +150,8 @@ describe("A5 test 3.9 — a bonus survives the autosave boot path, and never qua
 
     // And the App itself boots on it rather than falling back to a fresh state.
     render(<App />);
-    expect(badgeSlotsField("Shooting").value).toBe("3");
+    // R12: the grid is behind the rail's `Edit budgets…` — open the dialog.
+    expect(badgeSlotsField(openBudgetsDialog(), "Shooting").value).toBe("3");
     cleanup();
   });
 
@@ -147,7 +166,8 @@ describe("A5 test 3.9 — a bonus survives the autosave boot path, and never qua
     expect(readAutosave()?.bonus).toEqual(zeroBonus());
 
     render(<App />);
-    expect(badgeSlotsField("Shooting").value).toBe("3");
+    // R12: the grid is behind the rail's `Edit budgets…` — open the dialog.
+    expect(badgeSlotsField(openBudgetsDialog(), "Shooting").value).toBe("3");
     cleanup();
   });
 });
@@ -165,7 +185,9 @@ describe("A5 test 3.10 — bonus survives every write route and every reload rou
     // Boot: App reads it, holds it in WorkingState, and writes it back out.
     render(<App />);
     // An ordinary edit, so the app takes its own write path over the bonus.
-    const field = badgeSlotsField("Defense");
+    // R12: the field is reached through #dialog-budgets; the commit seam
+    // behind it (handleBudgetCommit) is the same one the M/S panel uses.
+    const field = badgeSlotsField(openBudgetsDialog(), "Defense");
     fireEvent.change(field, { target: { value: "2" } });
     fireEvent.blur(field);
 
@@ -188,7 +210,8 @@ describe("A5 test 3.10 — bonus survives every write route and every reload rou
   it("the envelope the app writes still DECLARES schemaVersion 1 — a stale worktree degrades, never quarantines", () => {
     expect(writeAutosave(seededBuild({ bonus: bonusWith({ earnedEquipSlots: 1 }) })).ok).toBe(true);
     render(<App />);
-    const field = badgeSlotsField("Defense");
+    // R12: the field is reached through #dialog-budgets.
+    const field = badgeSlotsField(openBudgetsDialog(), "Defense");
     fireEvent.change(field, { target: { value: "1" } });
     fireEvent.blur(field);
 
@@ -212,23 +235,26 @@ describe("A5 test 6.6 — SHIP GATE: the base grid never renders, and never comm
     ).toBe(true);
 
     render(<App />);
+    // R12: the entry surface under test lives inside #dialog-budgets — the
+    // same BudgetGrid, fed the same base record through the same commit seam.
+    const dialog = openBudgetsDialog();
 
     // The ENTRY surface shows the BASE. Not 4.
-    expect(badgeSlotsField("Shooting").value).toBe("3");
+    expect(badgeSlotsField(dialog, "Shooting").value).toBe("3");
     // The LEDGER shows the EFFECTIVE capacity. The two disagree on purpose.
     expect(screen.getAllByText("0 / 4").length).toBeGreaterThan(0);
 
     // Ten no-change blur cycles — the exact gesture that compounds if the
     // grid is wired to the composed record (3 → 4 → 5 → 6 …).
     for (let cycle = 0; cycle < 10; cycle += 1) {
-      const field = badgeSlotsField("Shooting");
+      const field = badgeSlotsField(dialog, "Shooting");
       fireEvent.focus(field);
       fireEvent.blur(field);
       expect(field.value, `base inflated on blur cycle ${cycle}`).toBe("3");
     }
 
     // The rendered field, the persisted base and the applied bonus all held.
-    expect(badgeSlotsField("Shooting").value).toBe("3");
+    expect(badgeSlotsField(dialog, "Shooting").value).toBe("3");
     expect(screen.getAllByText("0 / 4").length).toBeGreaterThan(0);
 
     const persisted = readAutosave();
@@ -246,13 +272,15 @@ describe("A5 test 6.6 — SHIP GATE: the base grid never renders, and never comm
     });
     expect(writeAutosave(seededBuild({ bonus })).ok).toBe(true);
     render(<App />);
+    // R12: the field is reached through #dialog-budgets.
+    const dialog = openBudgetsDialog();
 
-    const field = badgeSlotsField("Shooting");
+    const field = badgeSlotsField(dialog, "Shooting");
     fireEvent.change(field, { target: { value: "5" } });
     fireEvent.blur(field);
 
     // The user typed 5, so the BASE is 5 and the ledger reads 5 + 1.
-    expect(badgeSlotsField("Shooting").value).toBe("5");
+    expect(badgeSlotsField(dialog, "Shooting").value).toBe("5");
     expect(screen.getAllByText("0 / 6").length).toBeGreaterThan(0);
     expect(currentAutosave().budgets.Shooting.equipSlots).toBe(5);
     cleanup();

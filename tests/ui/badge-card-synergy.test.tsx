@@ -72,8 +72,11 @@ describe("fuse state", () => {
     });
     expect(document.querySelector(".badge-card--fuse")).not.toBeNull();
     // Compact visible chip (design-review P1-5) + the H1-correct long form
-    // as the accessible name (sr-only).
-    expect(screen.getByText(/⚡ Fuse · SS5 \+1/)).toBeTruthy();
+    // as the accessible name (sr-only). R12 slice 2 shortens the VISIBLE form
+    // to the mockup's `.r-role` pill — `⚡ Fuse · SS5 +1` is 130px and the
+    // compact tile's whole row is 160px — and does not touch the accessible
+    // name, which is the string that has to say `Synergy Slot` in full (H1).
+    expect(screen.getByText("Fuse S5")).toBeTruthy();
     expect(screen.getByText("Fuse · Synergy Slot 5 +1")).toBeTruthy();
     expect(screen.getByText("Now Gold · Fused to HOF")).toBeTruthy();
     // Purchased pip keeps its ring; the effective (HOF) pip carries the
@@ -90,7 +93,7 @@ describe("fuse state", () => {
       loadout: [{ badgeId: "float-game", purchasedLevel: "gold" }],
       synergySlots: patchedSynergySlots({ 5: { unlocked: false, fuseBadgeId: "float-game" } }),
     });
-    expect(screen.getByText(/⚡ Fuse · SS5/)).toBeTruthy();
+    expect(screen.getByText("Fuse S5")).toBeTruthy();
     expect(screen.getByText("Fuse · Synergy Slot 5 +1")).toBeTruthy();
     expect(screen.getByText("Now Gold")).toBeTruthy();
     expect(document.querySelector(".pip--halo-fuse")).toBeNull();
@@ -106,7 +109,7 @@ describe("reaction state", () => {
   it("reactions OFF: dashed info edge + chip + base level plus `activates to X`", () => {
     renderCard(requireBadge("aerial-wizard"), { loadout, synergySlots });
     expect(document.querySelector(".badge-card--reaction")).not.toBeNull();
-    expect(screen.getByText(/↺ Reaction · SS5 \+1/)).toBeTruthy();
+    expect(screen.getByText("Reac S5")).toBeTruthy();
     expect(screen.getByText("Reaction · Synergy Slot 5 +1")).toBeTruthy();
     expect(screen.getByText("Now Bronze — activates to Silver")).toBeTruthy();
     expect(document.querySelector(".pip--halo-reaction")).toBeNull();
