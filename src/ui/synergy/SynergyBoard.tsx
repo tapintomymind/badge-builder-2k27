@@ -197,7 +197,7 @@ export function SynergyBoard({ synergySlots, loadout, dataset, overlay }: Synerg
     if (!synergySlot.unlocked) {
       return (
         <td
-          key={roleKind}
+          key={synergySlot.id}
           {...shared}
           className="synergy-board__cell synergy-board__cell--locked"
         >
@@ -212,7 +212,7 @@ export function SynergyBoard({ synergySlots, loadout, dataset, overlay }: Synerg
     const occupied = badge !== undefined;
 
     return (
-      <td key={roleKind} {...shared} className="synergy-board__cell">
+      <td key={synergySlot.id} {...shared} className="synergy-board__cell">
         <button
           type="button"
           className={`synergy-board__button synergy-board__button--${occupied ? "filled" : "empty"}`}
