@@ -10188,3 +10188,170 @@ resolution that had quietly satisfied them would have shown up here as a lower f
 pre-existing untracked `.claude/worktrees/`. No `npm install` was run. One scratch worktree
 (`/private/tmp/bb-verify`, detached at `a24705f`, `node_modules` symlinked) was used for the
 before-counts and the pinning proof; it is left for the dispatcher to reap and holds no commits.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · integration — the roll-panel roster overflow, onto `dev`
+
+**Event:** `integration-complete`
+**Landed:** `rollpanel-overflow` (4 commits off `44de81f`, worktree `/private/tmp/bb-rollfix`).
+Checked out as a throwaway `land-rollpanel`, REBASED onto `dev`, then FAST-FORWARD.
+**`dev`:** `74c7042` → **`da0e7d4`** by the fast-forward, then one commit further for this entry.
+**Merge commits 2 before, 2 after** — `git rev-list --merges --count dev`. `main` was never
+checked out; its pre-existing local/origin divergence (`444d034` vs `e6b3ae4`) is left alone.
+`rollpanel-overflow` itself was never moved and `/private/tmp/bb-rollfix` is untouched.
+
+Landed SECOND, deliberately: the persistence fix is the invasive one and shares `src/App.tsx`
+with the F16.1 landing, so it went first and this file-disjoint layout fix rebased over both.
+
+### The rebase — again one conflict, again not in the code
+
+`git merge-base dev rollpanel-overflow` = **`44de81f`**, now NINE commits behind `dev`, so this
+branch rebased through both the F16.1 fuse-refund landing AND the F2.3 persistence landing.
+
+| commit | outcome |
+|---|---|
+| `fix(roster): the pin reason sized the pin column…` | applied clean |
+| `fix(roster): close the second overflow — double gutters…` | applied clean |
+| `test(roster): pin the five defects, and the brace-in-comment hazard…` | applied clean |
+| `chore(reportback): …measured causes, residual, conflict forecast` | **CONFLICT** in `.claude/reportback.md` |
+
+Checked in both directions rather than trusted, the same way as the last landing:
+
+- `git diff 44de81f bd038bc` against `git diff dev land-rollpanel` — **`src` 401 lines each,
+  `tests` 401 lines each, identical.** The rebase added exactly what the branch authored.
+- `git diff 44de81f dev` against `git diff bd038bc land-rollpanel` — **`src` 847 lines each,
+  `tests` 1,561 lines each, identical.** Everything `dev` gained from the two prior landings
+  survived in full.
+
+**The three forecast contact points, each measured:**
+
+| forecast | outcome |
+|---|---|
+| `rosterDigestParts()` in `LoadoutRoster.tsx` — "left byte-identical" | **TRUE, and verified.** The function body hashes to `b4b927df61a20196b13d6847df476083a5f35110` at all four points — `44de81f`, `dev`, `bd038bc`, and the integration tip — 17 lines each. |
+| an append collision in `tests/ui/f8-roster.test.tsx` | **no conflict.** `dev` had rewritten 69 lines of it at F16.1 and this branch appends 110; the two regions do not touch. The diff against `dev` is **+110 / −0**, a pure append. |
+| `feasibility-golden` | **untouched**, by blob hash (below). |
+
+`f8-roster` was **re-run after merging regardless**, as instructed, and not merely covered by the
+full suite: **19 passed**.
+
+**The one shipped test this branch edited was kept in its STRICTER form.**
+`tests/ui/f8-pin-exclude.test.tsx` case 1.4 previously asserted
+`reason.parentElement === pin.parentElement`; the sentence is now a sibling ROW, so that exact
+identity no longer holds. The replacement does not weaken §6's rule ("never inside a dimmed
+element") — it strengthens it: it still asserts neither element contains the other, adds the
+roster's deliberate new placement (`colspan="6"`, `tr.summary-roster__reason`,
+`td.summary-roster__pin`), and then runs the opacity walk **on BOTH hosts**, roster and card,
+where before it ran on one. The case count is unchanged at **8 → 8** because the assertion was
+replaced, not added.
+
+### The reportback conflict — reconstructed from blobs, and SPLICED again
+
+| segment | source blob | lines | position | `cmp` |
+|---|---|---|---|---|
+| base | `44de81f:` | 9,222 | 1–9,222 | byte-identical |
+| F16.1 slice-complete | `2aa11bc:` | 247 | 9,223–9,469 | byte-identical |
+| F2.3 slice-complete | `42d2c4c:` | 194 | 9,470–9,663 | byte-identical |
+| **roll-panel slice-complete** | `bd038bc:` | 168 | **9,664–9,831** | byte-identical |
+| F16.1 integration | `a24705f:` | 184 | 9,832–10,015 | byte-identical |
+| F2.3 integration | authored this run | 175 | 10,016–10,190 | byte-identical |
+
+9,222 + 247 + 194 + 168 + 184 + 175 = **10,190**, and `wc -l` reads 10,190; byte totals agree at
+**659,927**. Zero conflict markers. Nothing was hand-edited.
+
+**Authored order, checked against timestamps and not against landing order.** This branch's
+banner was authored `12:16:23 -0400` — after the F2.3 banner (`12:15:56`) and still BEFORE the
+F16.1 integration entry (`12:20:42`) — so it was spliced into the middle, exactly as the previous
+integration entry predicted it would need to be. The naive append that `git rebase` left in the
+conflict would have placed a 12:16 entry after a 12:20 one and after a 12:31 one.
+
+### Counts — computed from source before measuring
+
+| | tests | files |
+|---|---|---|
+| `dev` `74c7042` | 1706 | 78 |
+| predicted delta | **+9** | **+0** |
+| **predicted** | **1715** | **78** |
+| **measured** | **1715** | **78** |
+
+Derived by RUNNING each touched file at `74c7042` in a scratch worktree and again on the merged
+tree — never by grepping `it(`:
+
+- `tests/layout-arithmetic.test.ts` — **165 → 172** → +7 (no new file; the branch appends 212
+  lines to an existing one)
+- `tests/ui/f8-roster.test.tsx` — **17 → 19** → +2
+- `tests/ui/f8-pin-exclude.test.tsx` — **8 → 8** → +0, the replaced case 1.4
+
+7 + 2 + 0 = **9**; 1706 + 9 = **1715**; no new test file, so **78** stands. Both match the run.
+
+### Gates
+
+- `npm test` — **1715 passed / 78 files**, 0 failed. Single run, no flakes, no re-runs, no
+  `{ timeout: 20000 }` touched.
+- `npm run typecheck` clean · `npm run build` clean (87 modules) →
+  `index-CaUagHFW.js` 341.72 kB / `index-ByLFPND1.css` **62.92 kB** (up from 62.54 kB — this
+  slice is the only one of the three that moves CSS, and the growth is its `.summary-roster*` /
+  `.pin-control*` rules).
+- **RUN-never-edit gates, byte-unchanged by blob hash:**
+  `tests/ui/overlays.test.tsx` `30a7131b22a9344025c91ff32b60e052335ff07e` ·
+  `tests/category-colors.test.ts` `f1539c1dda0dbeb625f3891cb31d31646e1151a3` ·
+  `tests/feasibility-golden.test.ts` `cef359dc01c40ddda1ef5a629c4f81ec060288d7`. Identical to the
+  pre-landing baseline. Run explicitly: **29 passed**. No golden cell moved.
+- F9 touch-floor census, **both axes**: 23–29 (height) and 30–32 (width) green — **10 passed /
+  162 skipped** under `-t "I6 — the S touch floor"`. Assertion 31 matters most here: this slice
+  edits `.pin-control`, and the width census is still "exactly the stylesheet, not short and not
+  long".
+- Vocabulary lint — **183 passed**, classes 1 through 4 including every POSITIVE CANARY and the
+  class-3 pin-is-never-a-lock scan over the two files this branch touched
+  (`LoadoutRoster.tsx`, `PinControl.tsx`).
+
+### Browser proof — the final merged tree, `da0e7d4`
+
+Production `dist` served by `python3 -m http.server` on **127.0.0.1:4611**. **Port 5173 was never
+navigated to, read, or written** — it holds a live dev server with the owner's real data, and
+localStorage is per-origin, so 4611 is a clean, separate store. Before trusting anything, the
+served bytes were diffed against `dist`: `index.html`, `index-ByLFPND1.css` and
+`index-CaUagHFW.js` all SHA-256-match the built files, and `index.html` references exactly those
+two hashed assets.
+
+Fixtures were seeded from **`/seed.html`**, a same-origin page carrying no app bundle, with both
+app tabs first parked on it — loading the app arms its unload flush, which would clobber a seed
+written under it.
+
+**1 — Two-tab survival. PASS.** Tab A set Position **PG** (storage agreed). Tab B opened and
+booted holding PG — the stale snapshot. Tab A then set **C**, then **PF**; storage read PF. Tab B
+was reloaded, firing the unload flush that pre-fix wrote its hour-old copy back. **Storage still
+read `PF`**, and Tab B re-rendered as PF. The guarded writer saw the key had moved and refused.
+
+**2 — Boot preservation. PASS.** A real save was captured and one loadout id rewritten to
+`phantom-badge-not-in-dataset` (2,374 bytes, SHA-256
+`be84c4c203ce97ca1d3d53092fc16b65d3c02bd4120949b9d25f31d66fcb7791`), seeded from `/seed.html`
+with the preservation and quarantine keys cleared first. The app was loaded **once and nothing
+was touched**. `badge-builder-2k27:autosave-preserved:v1` then held **2,374 bytes hashing to
+`be84c4c2…` — byte-identical**. The banner disclosed it in as many words: *"1 badge from this
+build no longer exists in the dataset: phantom-badge-not-in-dataset — removed from the plan."*
+**The autosave key was also still the original bytes**, same hash — the lossy boot suppressed its
+mount-time write entirely, which is layer 2's whole point observed live rather than in jsdom.
+
+**3 — No overflow. PASS at 1920 and at 1280.** Every roster row sits inside its card at both
+widths (worst row edge **−1,078px** inside at 1920, **−382px** at 1280; deepest descendant of
+`.summary-roster` **−17px**, of `.roll-panel` **−34px**). `scrollWidth − clientWidth` is **0** on
+the roster host and on `documentElement` at both widths. The annotation reads *"Pinned — holds
+the Fuse role in Synergy Slot 1."* — **ends in a full stop**, sits in its own `td[colspan="6"]`
+with `white-space: normal`, and is **not** inside the pin cell, which still carries the
+`nowrap` it was always meant to have. The pin column now measures **75px at 1920 / 84px at
+1280**, against the 286.7px min-content the sentence used to force. Card heights are uniform per
+row — every grid row's card heights collapse to a single distinct value (10 rows at 1920, 19 at
+1280).
+
+**4 — The refund still reads correctly. PASS.** With the ratified `onFuse` trigger and Paint
+Prodigy fused into Synergy Slot 1, the Finishing header reads **`Badge Tokens 13 / 12 · left 0 ·
+Badge Slots 5 / 5`** with a **`refunded 1`** row beneath it, and the string `over by` appears
+**zero times anywhere in the document**. F16.1's fix is intact under both later landings.
+
+### Housekeeping
+
+`git add` was given explicit paths only; `git add -A` was never used. `git status` shows only the
+pre-existing untracked `.claude/worktrees/`. No `npm install` was run. The static server on 4611
+was stopped and the temporary `dist/seed.html` deleted (`dist/` is gitignored, so neither ever
+reached the index). The scratch worktree `/private/tmp/bb-verify` is left for the dispatcher to
+reap and holds no commits.
