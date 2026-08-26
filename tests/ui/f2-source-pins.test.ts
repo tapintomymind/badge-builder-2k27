@@ -135,7 +135,7 @@ describe("E — the R12 workbench: one compound-gated block, three columns", () 
     // (160 + 20), and it restores ≥3-up at 1280 at every scrollbar. The
     // derivation lives in tests/layout-arithmetic.test.ts (I3, I12+I13); this
     // pin exists so the number cannot drift back by accident.
-    expect(css).toContain("repeat(auto-fill, minmax(180px, 1fr))");
+    expect(css).toContain("repeat(auto-fill, minmax(181px, 1fr))");
     expect(css).not.toContain("repeat(auto-fill, minmax(240px, 1fr))");
   });
 });

@@ -10803,3 +10803,89 @@ still runs through the attribute groups, the grid section headers and the totals
 **Next:** merge `main` (14 commits: roster overflow fixes + deploy hardening) into this branch,
 then promote for a production build.
 
+
+## 2026-08-26 · Tier 2 · integration — R12 the workbench redesign, onto `main` (SHIPPED)
+
+**Event:** `integration-complete`
+**Promotion:** `claude/app-design-system-5e4dd6` → `dev` (`9547d7f`) → `main` (`bc90c2b`), both no-ff,
+both pushed. `main` moved `1006bda..bc90c2b`.
+**Live:** verified serving `index-C1hVjBQG.js` in production, and rendered — the workbench at
+1440×900 and the three-tab shell at 375×812, both checked in a real browser against the deployed
+origin rather than against the dev server.
+
+**Provenance:** user directive 2026-08-26 — "get this full redesign to main branch for a latest
+prod build so my friends will use this redesign."
+
+### The merge, and the one thing git could not see
+
+`dev` was 6 commits BEHIND `main` and the branch was 14 behind; the branch merged `main` first, so
+the promotion back-filled that gap in the same move. Two textual conflicts, both resolved by
+keeping BOTH sides (`src/App.tsx`'s storage-scope disclosure travelled into `planPanels`, so it now
+reaches the rail AND the sub-gate column; the append-only reportback kept both histories).
+
+**The semantic conflict is the one worth recording.** `main` moved the roster's pin reason into a
+spanning row so a 47-character sentence would stop sizing the pin column; R12 moved the CARD's roll
+controls behind the expand control. Git merged both files cleanly and the RESULT was wrong: the
+card test reached for a control that is no longer permanent chrome. Nothing in the text conflicted;
+only the meaning did. `tests/ui/f8-pin-exclude.test.tsx` now expands the card first, and both
+slices' contracts stand unweakened. Verified after the merge that main's fix still holds on its new
+surface: the roster table is 285px inside its 306px host in the rail — no overflow.
+
+### Gates, run at every hop (branch tip → dev → main), never once
+
+`npx tsc --noEmit` clean · `npx vitest run` **80 files / 1,781 tests green** · `npm run build`
+clean · browser checks at 1440×900, 1024×800, 375×812.
+
+### The one open item carried to Tier 1
+
+The badge card's left edge remains the SYNERGY-ROLE channel rather than the category hue the mockup
+shows. Putting `--cat` there would make the card a fifth consumer and fails
+`tests/category-colors.test.ts`'s §2.8.1 channel-rule allowlist — identity must not ride a surface
+that carries state. Widening that allowlist is a **designer ratification, not an implementer
+call**. The category thread still runs through the attribute groups, the grid section headers and
+the totals cells.
+
+**Deferred by scope decision, not forgotten:** the lit-loop cross-column picking (press a Synergy
+Slot's empty Fuse → eligible purchased badges glow in the catalog → click to assign). It is the
+delight feature of the approved mockup and nothing breaks without it; it was cut to get the
+redesign in front of users. First candidate for the next slice.
+
+## 2026-08-26 · Tier 2 · fyi — the badge cost readout, made apparent (card floor 180 → 181)
+
+**Event:** `fyi`
+**Provenance:** user ask 2026-08-26 — "Can we make the badge cost more apparent within each card?"
+
+**What changed.** The compact tile's cost was `--text-xs` at weight 400 in `--fg-secondary` — the
+same weight and nearly the same colour as everything around it, and the least prominent thing on a
+card whose entire subject is spending Badge Tokens. It is now a HIERARCHY rather than a size jump:
+the word `from` recedes to `--fg-muted`, and the number steps to `--text-sm` / 700 / `--fg-primary`
+with `line-height: 1` so the taller glyph sets no taller row (card height stays 73px).
+
+**Why not bigger.** Measured, not assumed. `COST_MAX` is a term of the card floor, and the catalog's
+grid box at 1280 is 576 — so 559 with a 17px scrollbar, which is EXACTLY three 181px tracks plus two
+8px gaps. At `--text-base` the widest arm `from 3` measures 39.28, forcing a 182 floor, and **182
+drops the catalog to 2-up on every classic scrollbar** — the precise regression slice 2 existed to
+undo. `--text-sm` measures 38.08 and fits. Weight was free: `--font-num` is monospace, so a bold
+digit has the same advance.
+
+**What it cost, stated plainly.** `COST_MAX` 38 → 39, `ROW2_MIN` 160 → 161, the floor 180 → 181, and
+with it the 3px of slack that assertion used to report. **181 is now the ceiling and there is no
+margin left in row 2.** That is safe only because the suite DERIVES the floor from its terms and
+asserts the resolved track count at 0/15/17px scrollbars — seven pinned literals moved in step, and
+a new canary asserts that floor + 1 really does fall to 2-up. The 3-up seam moved 1277 → 1280, i.e.
+exactly the workbench gate; the property that matters (the workbench cannot be entered at a width
+that cannot hold three cards) still holds, now with equality.
+
+**Failure mode, named:** `from` is the one term in `--font-ui` rather than `--font-num`, so its
+advance varies with the platform UI face. Where it renders wider than measured here the row wraps
+(the wrap grant is declared, not incidental) and that card gets taller — the 3-up layout itself
+cannot break, because the floor is a fixed CSS number.
+
+**Not done, and why:** no colour channel. Gold would read as "currency" instantly and is exactly
+wrong — `--lvl-gold` is the Gold LEVEL colour and a gold numeral beside the B/S/G/H/L pips would
+collide with the channel those pips own (§2.8.1). The visible unit stays sr-only for the same width
+reason as above. Both remain available if the user wants more prominence and will accept a copy
+change (e.g. `3+` for `from 3`, which frees ~21px and would allow a much larger numeral).
+
+Gates: tsc clean · 80 files / 1,781 tests green · vite build clean · 3-up re-verified in Chrome at
+1280 across all three simulated scrollbar widths.
