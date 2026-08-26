@@ -107,8 +107,8 @@ describe("3 — the re-roll confirm", () => {
     expect(text).toContain("unpinned");
     expect(text).toContain("pinned");
     expect(text).toMatch(/\d+ unpinned/);
-    // The blast radius is stated in points, not just in counts.
-    expect(text).toMatch(/\(\d+ points?\)/);
+    // The blast radius is stated in tokens, not just in counts.
+    expect(text).toMatch(/\(\d+ tokens?\)/);
 
     // React's autoFocus FOCUSES the element rather than reflecting an
     // attribute, so the attribute is the wrong thing to assert — what matters

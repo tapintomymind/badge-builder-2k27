@@ -2133,7 +2133,7 @@ describe("A5 group 5 — an applied bonus Badge Slot lets the roll equip one mor
     expect(withBonus.newBadgesBlockedByBadgeSlots).toBe(true);
   });
 
-  it("5.2 an applied bonus Badge POINT raises the affordable-upgrade count", () => {
+  it("5.2 an applied bonus Badge TOKEN raises the affordable-upgrade count", () => {
     const base = {
       ...budgets(0, 4),
       Shooting: { equipSlots: 4, points: 1 },

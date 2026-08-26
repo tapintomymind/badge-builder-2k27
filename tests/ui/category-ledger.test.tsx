@@ -100,7 +100,7 @@ describe("CategoryLedgerDigest + CategoryLedgerLede — engine readouts rendered
 
   it("meter reflects spent against the pool", () => {
     renderLedger({ points: 16, equipSlots: 3 });
-    const meter = screen.getByRole("meter", { name: "Finishing Badge Points" });
+    const meter = screen.getByRole("meter", { name: "Finishing Badge Tokens" });
     expect(meter.getAttribute("aria-valuenow")).toBe("7");
     expect(meter.getAttribute("aria-valuemax")).toBe("16");
   });
@@ -200,11 +200,11 @@ describe("F5.3/B — a collapsed category is hidden, never subtracted", () => {
     expect((finishing as HTMLDetailsElement).open).toBe(true);
   });
 
-  it("(1) a collapsed category STILL SPENDS Badge Points, in its own digest", () => {
+  it("(1) a collapsed category STILL SPENDS Badge Tokens, in its own digest", () => {
     seedShootingBuild();
     render(<App />);
     const spentOpen = shootingDigest().textContent;
-    expect(spentOpen).toContain("Badge Points");
+    expect(spentOpen).toContain("Badge Tokens");
     // cleanup() first: a second render() APPENDS a container, so a
     // document-scoped query would silently keep reading the open instance.
     cleanup();

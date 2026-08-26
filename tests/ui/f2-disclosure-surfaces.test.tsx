@@ -191,7 +191,7 @@ describe("C — removing a purchase clears its synergy role (no stranded HardVio
 
 describe("D1 — rail Ledger overview: per-metric strings, danger only where genuinely over", () => {
   it("an over-Badge-Slots / under-points category reddens ONLY the capacity metric, with text", () => {
-    // Finishing: 99-point pool (deeply under budget), 1 Badge Slot, two
+    // Finishing: 99-token pool (deeply under budget), 1 Badge Slot, two
     // badges bought → points fine, capacity over by 1.
     const rig = makeRig({
       attributes: { close: 90, drivingDunk: 80 },
@@ -295,7 +295,7 @@ describe("F — '0 = unset' Badge Slots capacity, uniform across all four surfac
     // A real points pool so the only candidate warning is the capacity one;
     // Badge Slots capacity stays 0 (fresh boot uses zeroBudgets).
     commitNumber(
-      screen.getByLabelText("Finishing Badge Points", { selector: "input" }),
+      screen.getByLabelText("Finishing Badge Tokens", { selector: "input" }),
       "99",
     );
     const pips = screen.getByRole("radiogroup", { name: "Float Game — purchase level" });

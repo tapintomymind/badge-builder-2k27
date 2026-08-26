@@ -8,7 +8,7 @@
  * `Activated: X`), Legend-effective (filled Legend pip + LEGEND chip).
  *
  * Per-pip affordability (§3.6): an upgrade pip whose whatIf delta exceeds
- * the category's remaining points renders dashed with `+N⚠` — and stays
+ * the category's remaining tokens renders dashed with `+N⚠` — and stays
  * fully clickable (H4: the Budget class never disables anything).
  *
  * F5.3/I12: the space before the glyph is GONE (`+N ⚠` -> `+N⚠`). The pip is
@@ -170,7 +170,7 @@ describe("per-pip affordability (§3.6) — warned, never disabled (H4)", () => 
     expect(costs).toEqual(["+3", "+5", "+6⚠", "—", "boost"]);
     expect(document.querySelectorAll(".pip--unaffordable")).toHaveLength(1);
     const gold = screen.getByRole("radio", { name: /^Gold/ });
-    expect(gold.getAttribute("aria-label")).toContain("exceeds remaining points");
+    expect(gold.getAttribute("aria-label")).toContain("exceeds remaining tokens");
     // H4: unaffordable is a warning, not a block — the pip still works.
     expect((gold as HTMLInputElement).disabled).toBe(false);
   });

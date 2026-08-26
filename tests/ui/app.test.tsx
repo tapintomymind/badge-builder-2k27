@@ -77,7 +77,7 @@ describe("the M3 outcome: build → gate → buy → ledger → save → reload"
     commitNumber(screen.getByLabelText("Close"), "90");
     // Enter the Finishing budget (manual, behind the deriveBudget seam).
     commitNumber(
-      screen.getByLabelText("Finishing Badge Points", { selector: "input" }),
+      screen.getByLabelText("Finishing Badge Tokens", { selector: "input" }),
       "16",
     );
     commitNumber(

@@ -1565,7 +1565,7 @@ describe("F5.3/C — `Reset build`: the scope, pinned where it is written", () =
     // The budgets are written ONLY on the checkbox branch — and A5-U put the
     // bonus layer on that same branch, because bonus totals and placements ARE
     // budgets (design-spec §17.13/5). A confirm whose checkbox says "Also
-    // clear Badge Points and Badge Slots" while fourteen bonus fields survive
+    // clear Badge Tokens and Badge Slots" while fourteen bonus fields survive
     // would be telling a half-truth.
     expect(handleReset).toContain(
       "alsoBudgets ? { budgets: zeroBudgets(), bonus: zeroBonus() } : {}",

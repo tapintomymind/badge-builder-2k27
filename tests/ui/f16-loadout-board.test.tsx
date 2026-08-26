@@ -271,7 +271,7 @@ describe("F16 3 — one string builder, N surfaces (P0-1)", () => {
     });
     render(<App />);
     const metrics = [...panel("finishing").querySelectorAll(".board-panel__metric")];
-    const points = metrics.find((node) => node.textContent?.includes("Badge Points"));
+    const points = metrics.find((node) => node.textContent?.includes("Badge Tokens"));
     const capacity = metrics.find((node) => node.textContent?.includes("Badge Slots"));
     expect(capacity?.className).toContain("board-panel__metric--over");
     expect(points?.className).not.toContain("board-panel__metric--over");
@@ -307,7 +307,7 @@ describe("F16 4 — 0 = capacity not set, honoured exactly", () => {
     // it is the false alarm the ruling exists to prevent.
     expect(defense.querySelectorAll(".board-panel__fence")).toHaveLength(0);
     expect(emptyTiles("defense")).toHaveLength(0);
-    // …no over-by on the CAPACITY metric. The Badge POINTS pool is a separate
+    // …no over-by on the CAPACITY metric. The Badge TOKENS pool is a separate
     // number with its own (shipped, app-wide) behaviour: an un-entered pool
     // with purchases against it does read as overspend, on the board exactly
     // as it does in the rail overview. The 0 = unset ruling is about Badge
@@ -387,18 +387,18 @@ describe("F16 5 — the tile: level, cost, role and staleness, each with two car
     // the assertion with it rather than leaving a stale literal behind.
     const expected = costForLevel("A", "gold", shippedDataset);
     expect(tile.querySelector(".board-tile__cost")?.textContent).toBe(`${String(expected)} pts`);
-    expect(tile.getAttribute("aria-label")).toContain(`${String(expected)} Badge Points`);
+    expect(tile.getAttribute("aria-label")).toContain(`${String(expected)} Badge Tokens`);
     // THE SPOKEN STRING TAKES THE SINGULAR; the visible chip keeps the unit.
     // "pts" is a unit abbreviation and does not inflect — the app's own
     // feasibility line writes "N pts left" at every N — but the aria-label is
-    // read aloud, and "1 Badge Points" is a seam a screen-reader user notices
+    // read aloud, and "1 Badge Tokens" is a seam a screen-reader user notices
     // immediately. The two channels are allowed to differ for that reason.
     const onePoint = [...board().querySelectorAll("a.board-tile")].find(
       (node) => node.querySelector(".board-tile__cost")?.textContent === "1 pts",
     );
     expect(onePoint, "no 1-point badge in the fixture to check").toBeTruthy();
-    expect(onePoint?.getAttribute("aria-label")).toContain(", 1 Badge Point ");
-    expect(onePoint?.getAttribute("aria-label")).not.toContain("1 Badge Points");
+    expect(onePoint?.getAttribute("aria-label")).toContain(", 1 Badge Token ");
+    expect(onePoint?.getAttribute("aria-label")).not.toContain("1 Badge Tokens");
   });
 
   it("marks a synergy role with an edge SHAPE, a glyph and words — never hue alone", () => {

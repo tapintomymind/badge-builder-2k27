@@ -139,14 +139,14 @@ describe("Hint", () => {
 
 describe("Meter", () => {
   it("exposes role=meter with values", () => {
-    render(<Meter label="Finishing Badge Points" value={10} max={16} />);
-    const meter = screen.getByRole("meter", { name: "Finishing Badge Points" });
+    render(<Meter label="Finishing Badge Tokens" value={10} max={16} />);
+    const meter = screen.getByRole("meter", { name: "Finishing Badge Tokens" });
     expect(meter.getAttribute("aria-valuenow")).toBe("10");
     expect(meter.getAttribute("aria-valuemax")).toBe("16");
   });
 
   it("overflow renders the hatched over-bar segment (shape, not only color)", () => {
-    render(<Meter label="Finishing Badge Points" value={18} max={16} />);
+    render(<Meter label="Finishing Badge Tokens" value={18} max={16} />);
     const meter = screen.getByRole("meter");
     expect(meter.className).toContain("meter--over");
     expect(meter.querySelector(".meter__overflow")).not.toBeNull();

@@ -92,7 +92,7 @@ describe("2 — the roll panel and its report", () => {
     fireEvent.click(fillRemaining());
     expect(fillRemaining().disabled).toBe(false);
     expect(panel().querySelector(".roll-panel__lede")?.textContent ?? "").toContain(
-      "Badge Points",
+      "Badge Tokens",
     );
   });
 
@@ -123,7 +123,7 @@ describe("2 — the roll panel and its report", () => {
       [{ kind: "alreadyOverspent", overBy: 2 }, "nothing rolled — already over by 2, nothing to fill"],
       [
         { kind: "pinnedOverPoints", pinnedNetCost: 19, pool: 16, overBy: 3 },
-        "nothing rolled — pinned badges cost 19 against a 16-point pool",
+        "nothing rolled — pinned badges cost 19 against a 16-token pool",
       ],
       [
         { kind: "pinnedOverBadgeSlots", pinnedCount: 4, equipSlotCapacity: 3, overBy: 1 },

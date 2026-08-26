@@ -98,7 +98,7 @@ describe("H2(a) — reactions-only regression (ship gate)", () => {
     // The strip announces the preview, in the spec's exact words.
     expect(
       screen.getByText(
-        /Preview: reactions activated\. Card levels show in-game ceilings\. Points are unchanged\./,
+        /Preview: reactions activated\. Card levels show in-game ceilings\. Tokens are unchanged\./,
       ),
     ).toBeTruthy();
     // …and every ledger DOM node's text is unchanged, bit for bit.
@@ -132,7 +132,7 @@ describe("H2(b) — primary-row invariance regression (the real control, ship ga
         expect(rows[0]?.textContent).toContain("After season reset");
         // The projection shows the refund dying: 16 spent-equivalent? No —
         // spent stays 7; refund drops to 0 → left 9.
-        expect(rows[0]?.textContent).toContain("Badge Points 7 / 16");
+        expect(rows[0]?.textContent).toContain("Badge Tokens 7 / 16");
         expect(rows[0]?.textContent).toContain("left 9");
         expect(rows[0]?.textContent).toContain("refunded 0");
       } else {
@@ -146,14 +146,14 @@ describe("H2(b) — primary-row invariance regression (the real control, ship ga
     setSwitch("Season-reset preview", true);
     expect(
       screen.getByText(
-        "Preview: season reset. Synergy Slots 1–4 disabled. Primary points are unchanged; 1 of 6 categories show a projection.",
+        "Preview: season reset. Synergy Slots 1–4 disabled. Primary tokens are unchanged; 1 of 6 categories show a projection.",
       ),
     ).toBeTruthy();
     // Both overlays on → both sentences, joined.
     setSwitch("Reactions activated", true);
     expect(
       screen.getByText(
-        "Preview: reactions activated. Card levels show in-game ceilings. Points are unchanged. Preview: season reset. Synergy Slots 1–4 disabled. Primary points are unchanged; 1 of 6 categories show a projection.",
+        "Preview: reactions activated. Card levels show in-game ceilings. Tokens are unchanged. Preview: season reset. Synergy Slots 1–4 disabled. Primary tokens are unchanged; 1 of 6 categories show a projection.",
       ),
     ).toBeTruthy();
     // Both off → the strip is gone entirely.

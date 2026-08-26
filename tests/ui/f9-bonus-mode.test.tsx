@@ -80,7 +80,7 @@ function bonusNodes(): Element[] {
 }
 
 function openBonusMode(): HTMLElement {
-  fireEvent.click(screen.getByRole("button", { name: /^Bonus Badge Points & Badge Slots/ }));
+  fireEvent.click(screen.getByRole("button", { name: /^Bonus Badge Tokens & Badge Slots/ }));
   const dialog = document.querySelector("#dialog-bonus");
   if (!(dialog instanceof HTMLElement)) throw new Error("no #dialog-bonus");
   return dialog;
@@ -111,7 +111,7 @@ describe("A5-U states — the five rulings, rendered", () => {
   it("58 ZERO EARNED — one secondary Button and nothing else", () => {
     mountWith();
     expect(
-      screen.getByRole("button", { name: /^Bonus Badge Points & Badge Slots/ }),
+      screen.getByRole("button", { name: /^Bonus Badge Tokens & Badge Slots/ }),
     ).toBeTruthy();
     // The whole zero-state cost. No readout, no columns, no lede line, no
     // extra tab stop beyond the button.
@@ -156,7 +156,7 @@ describe("A5-U states — the five rulings, rendered", () => {
       }),
     });
     expect(document.querySelector(".bonus-readout")?.textContent).toBe(
-      "4 bonus Badge Points and 1 bonus Badge Slot placed.",
+      "4 bonus Badge Tokens and 1 bonus Badge Slot placed.",
     );
     // Two equal numbers ARE the all-clear; there is no zero-valued advisory.
     expect(screen.queryByText(/not placed/)).toBeNull();
@@ -195,7 +195,7 @@ describe("A5-U states — the five rulings, rendered", () => {
 
     // The composition lives one line down, in the lede.
     const lede = document.querySelector("#cat-finishing .category-ledger__composition");
-    expect(lede?.textContent).toBe("Badge Points 16 base + 4 bonus · Badge Slots 3 base + 1 bonus");
+    expect(lede?.textContent).toBe("Badge Tokens 16 base + 4 bonus · Badge Slots 3 base + 1 bonus");
   });
 
   it("62 OVER-ALLOCATED — reduce the earned total below what is placed: disclosed, per-metric, and NOTHING is discarded", () => {
@@ -221,7 +221,7 @@ describe("A5-U states — the five rulings, rendered", () => {
     );
     // PER-METRIC (design-review P0-1): the points pool is level and stays
     // neutral in the same readout.
-    expect(readout?.textContent).toContain("4 bonus Badge Points placed.");
+    expect(readout?.textContent).toContain("4 bonus Badge Tokens placed.");
 
     const dialog = openBonusMode();
     expect(within(dialog).getByText("4 / 3")).toBeTruthy();
@@ -451,7 +451,7 @@ describe("A5-U canaries — each one fails a plausible wrong implementation", ()
       expect(section?.textContent, category).toContain("Badge Slots capacity not set");
       // The Badge Slots metric renders as a BARE COUNT, not a fraction —
       // §4.7 suppresses the COMPARISON while never suppressing the FACT. (The
-      // Badge Points metric keeps its own `0 / 0`; it is a different pool with
+      // Badge Tokens metric keeps its own `0 / 0`; it is a different pool with
       // its own rule.)
       const digest = section?.querySelector(".category-ledger")?.textContent ?? "";
       expect(digest, category).toContain("Badge Slots 0");
@@ -481,7 +481,7 @@ describe("A5-U canaries — each one fails a plausible wrong implementation", ()
   });
 
   it("6 — neither `3` nor `12` is frozen into the slice as a default, a max or a copy literal", () => {
-    // The user's "3 extra Badge Slots and 12 Badge Points" is an OBSERVATION,
+    // The user's "3 extra Badge Slots and 12 Badge Tokens" is an OBSERVATION,
     // explicitly qualified by "you can earn more … so this will be dynamic".
     // The per-category maxima are taken BY REFERENCE from their base twins, so
     // the bonus fields inherit an app convention that predates the observation

@@ -205,7 +205,7 @@ describe("19 — the confirm names real counts and states the guarantee", () => 
     // Resetting to a height the user did not pick has to be said out loud.
     expect(text).toContain("Height returns to 6'6\"");
     expect(text).toContain("Position returns to Any");
-    expect(text).toContain("Badge Points and Badge Slots for all six categories");
+    expect(text).toContain("Badge Tokens and Badge Slots for all six categories");
   });
 
   it("suppresses zero-count rows on a sparse build", () => {
@@ -281,7 +281,7 @@ describe("17 — the scope: the player is cleared, the plan container survives",
     render(<App />);
     const dialog = openConfirm();
     fireEvent.click(
-      within(dialog).getByRole("checkbox", { name: /Also clear Badge Points and Badge Slots/ }),
+      within(dialog).getByRole("checkbox", { name: /Also clear Badge Tokens and Badge Slots/ }),
     );
     fireEvent.click(within(dialog).getByRole("button", { name: "Reset build" }));
     const after = await exportEnvelope();

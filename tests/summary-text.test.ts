@@ -130,7 +130,7 @@ function summarize(state: SynergyLedgerState): {
  */
 const GOLDEN = `## Badge Builder — 2K27 · Slasher v2
 6'6" (78 in) · SF · dataset 2026-08-26.1
-Badge Points and Badge Slots are unverified — 2K has not published the derivation.
+Badge Tokens and Badge Slots are unverified — 2K has not published the derivation.
 
 ### Finishing — 15 / 16 pts · left 1 · 3 / 3 Badge Slots
 - Float Game [A] Gold — 6   !! no longer qualifies: needs 90 Close (now 85) or 93 Layup (now 70) for Gold
