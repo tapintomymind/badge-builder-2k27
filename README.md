@@ -198,18 +198,49 @@ browser.
 
 ## Deploying (Vercel)
 
-The app deploys to Vercel as a static build. `vercel.json` carries the whole configuration: the Vite
-framework preset, an SPA fallback rewrite, immutable caching for hashed assets, and a small set of
-security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`).
+The app deploys to Vercel as a static build. `vercel.json` carries the whole configuration and
+states every value rather than inheriting it from the Vite framework preset — `buildCommand`
+(`npm run build`, i.e. `tsc --noEmit && vite build`) and `outputDirectory` (`dist`, which is what
+`vite build` really emits: `vite.config.ts` sets no `build.outDir`). The preset defaults were
+already correct; writing them down means a dashboard-side preset change cannot silently retarget a
+directory that does not exist.
 
-One-time setup:
+### The caching posture, and why it is the shape it is
 
-1. In the [Vercel dashboard](https://vercel.com/new), import this GitHub repo. Vite is auto-detected
-   and the defaults are correct (`npm run build`, output `dist`). No environment variables to set.
-2. Deploy. From then on, every push to `main` deploys to production and every pull request gets its
+| Path | `Cache-Control` | Why |
+|---|---|---|
+| `/assets/(.*)` | `public, max-age=31536000, immutable` | Every file Vite emits there is content-hashed (`index-<hash>.js`, `index-<hash>.css`), so the URL changes whenever the bytes do. |
+| `/` and `/index.html` | `public, max-age=0, must-revalidate` | index.html is the one unhashed file that names the hashed ones. Pin it and a returning visitor asks for asset hashes that no longer exist — a permanently broken app, not a stale one. |
+| `/favicon.svg` | Vercel default (revalidating) | Unhashed, and deliberately **outside** `/assets/`, so it never picks up `immutable`. |
+
+The two `Cache-Control` rules cannot collide: `/assets/(.*)`, `/` and `/index.html` are mutually
+exclusive paths, so it does not matter whether Vercel resolves duplicate header keys first-match or
+last-match — a question this repo cannot test locally and therefore does not depend on. The
+catch-all `/(.*)` rule sets only the three security headers (`X-Content-Type-Options`,
+`X-Frame-Options`, `Referrer-Policy`) and no `Cache-Control`, so it cannot overwrite either.
+
+The SPA fallback rewrite stays even though the app has **no router** — every destination is `/` plus
+a hash fragment, and fragments never reach the server. It exists only so a stale or mistyped path
+lands on the app instead of a 404.
+
+### One-time setup
+
+1. In the [Vercel dashboard](https://vercel.com/new), import this GitHub repo. No environment
+   variables to set — the app reads none, by design.
+2. **Settings → Deployment Protection.** If Vercel Authentication is enabled on production, the
+   URL returns **401 to everyone without a Vercel account**, which reads as a broken app rather
+   than a locked one. Confirm production is public before sending the link to anyone. Note that
+   Vercel's *Standard Protection* leaves production public but protects **preview** URLs — so a
+   preview link from a pull request will 401 even when production is fine. Share the production
+   URL, not a preview one.
+3. Deploy. From then on, every push to `main` deploys to production and every pull request gets its
    own preview URL.
 
-Custom domain:
+### Custom domain
+
+Decide this **before** sharing the link, not after — see the origin note under
+[Known constraints](#known-constraints). Moving from `*.vercel.app` to a custom domain later
+orphans every build anyone has saved.
 
 1. In the Vercel project, go to **Settings → Domains** and add your domain.
 2. At your registrar, add the DNS records Vercel shows you — an `A`/`ALIAS` record for an apex
@@ -221,12 +252,18 @@ intentional — Vercel's build is the only gate there is.
 ## Known constraints
 
 - **Saved builds live in one browser on one device.** There are no accounts and no sync: what you
-  save on your phone is not on your laptop, and nobody sees anyone else's builds. Sharing a build
-  means sharing the file, not the data store.
-- **`localStorage` is keyed to origin.** In production that is the custom domain — so changing the
-  domain later orphans everything saved against the old one. Pick the domain once. The same rule is
-  why the dev port is pinned to 5173 with `strictPort`: a silent roll to 5174 would orphan local
-  saves and read as data loss, so a port collision fails loudly instead.
+  save on your phone is not on your laptop, and nobody sees anyone else's builds. It is per-*browser*
+  rather than per-*person*, too — two people sharing one laptop profile share one build. Sharing a
+  build means sharing the file, not the data store. **The app now says this itself**, in the build
+  manager and at the foot of the Summary panel, because the person who loses a build is by
+  definition the person who did not read this file.
+- **Clearing browsing data destroys saved builds.** Export is the only backup, and it writes the
+  build you are working on — one build, not the whole store. Same two surfaces say so.
+- **`localStorage` is keyed to origin.** In production that is the deployed hostname — so moving
+  from `*.vercel.app` to a custom domain, or between domains, orphans everything saved against the
+  old one. Pick the origin once, before sharing the link. The same rule is why the dev port is
+  pinned to 5173 with `strictPort`: a silent roll to 5174 would orphan local saves and read as data
+  loss, so a port collision fails loudly instead.
 - **Data is pre-release.** Some 2K27 mechanics are unpublished. The dataset carries provenance so a
   value's confidence is always visible, and saved builds record which dataset version they were
   planned against.

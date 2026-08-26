@@ -1369,6 +1369,15 @@ main#badge-grid {
   color: var(--fg-primary);
 }
 
+/* The storage-scope disclosure (STORAGE_SCOPE_LINE). Row padding and rule
+ * match .build-manager__list li exactly, so it reads as the first row of the
+ * dialog rather than as a banner bolted above it. `.hint` already carries the
+ * muted colour, the xs size and the 65ch measure; only the box is set here. */
+.build-manager__note {
+  padding: var(--space-3-5) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .build-manager__list li {
   display: flex;
   align-items: flex-start;
@@ -2115,7 +2124,29 @@ main#badge-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(444px, 100%), 1fr));
   gap: var(--space-4) var(--space-6);
-  align-items: start;
+  /* I13, THE SAME RULING `.badge-card` TOOK, APPLIED TO REGION A. `start` left
+   * every group at its content height, so a 3-badge Physicals card sat 132px
+   * shorter than the Finishing card beside it and the row read as ragged
+   * (measured 346.1 / 256.1 / 248.9 / 316.3 / 214.1 / 214.1). The grid was
+   * never broken — it was told not to stretch. `stretch` is the initial
+   * behaviour for a grid item, so this is a REMOVAL of an override, and the
+   * group needs to know nothing about its cell.
+   *
+   * REJECTED, for the reason I13 rejected it on the card: a `height: 100%` on
+   * `.summary-roster__group`, which works today and makes the group depend on
+   * its parent having a definite height.
+   *
+   * NO BRACE APPEARS IN THIS COMMENT, and that is not fussiness: the
+   * stylesheet lints parse a rule by scanning forward to its closing brace, so
+   * one written inside a comment silently truncates the block they read and
+   * every declaration after it stops being asserted at all. Held by R0 in
+   * tests/layout-arithmetic.test.ts.
+   *
+   * The TABLE does not stretch with it (it is a block in a taller box, top
+   * aligned) and must not: ROSTER_TABLE_MAX caps eye travel horizontally, and
+   * a table stretched vertically would put --space-4 of nothing between the
+   * <tfoot> rule and the digest it underlines. */
+  align-items: stretch;
 }
 
 .summary-roster__group {
@@ -2150,26 +2181,50 @@ main#badge-grid {
   padding: 0 0 var(--space-1) var(--space-2);
 }
 
+/* THE ROW'S SHARED FIRST BASELINE (all six cells below).
+ *
+ * A <td>'s used vertical-align is `middle` — the UA sheet's, inherited from
+ * <table> — and that is only invisible while every cell is one line. "Post
+ * Spin Catalyst" wraps to two at a 444px track, the row grows to 50.8px, and
+ * the single-line lvl / eff / cost cells re-centre INSIDE it: measured, the
+ * cost digit landed 10.3px below the name's first line and 10.4px above its
+ * second, floating in the gutter between them rather than reading against
+ * either. `baseline` puts every cell's FIRST line on one baseline, so a name
+ * that wraps grows downward and the numbers stay level with where it starts.
+ *
+ * NOT `top`: the cells have different font sizes (--text-sm data, --text-xs
+ * chip) and top-aligning them lines up their boxes rather than their type. */
+/* ONE --space-2 PER SEAM, WHICH IS WHAT §14.2 ALREADY BUDGETS. The row
+ * arithmetic is "four --space-2 gutters" (ROSTER_ROW_MAX, re-derived in
+ * tests/layout-arithmetic.test.ts) and `.summary-roster__head th` has always
+ * padded on ONE side for exactly that reason — but the body cells padded on
+ * BOTH, so every seam was 16px against a budget of 8 and the header columns
+ * did not sit over the body columns they label. 33px of inline padding across
+ * the row instead of 66: the gutters below are all `padding-left`, and the
+ * first and last cells take none on the outside. */
 .summary-roster__name {
   text-align: left;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--fg-primary);
-  padding: var(--space-1) var(--space-2) var(--space-1) 0;
+  padding: var(--space-1) 0;
+  vertical-align: baseline;
   /* §13.4's device: fall back to min-content and wrap INSIDE the column,
    * never re-order the row. */
   min-width: 0;
 }
 
 .summary-roster__tier {
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
+  vertical-align: baseline;
   white-space: nowrap;
 }
 
 .summary-roster__level {
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
   font-size: var(--text-sm);
   text-align: right;
+  vertical-align: baseline;
   min-width: 0;
 }
 
@@ -2183,10 +2238,22 @@ main#badge-grid {
 .summary-roster__level[data-purchased-level="hof"]    { color: var(--lvl-hof); }
 
 .summary-roster__effective {
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
   font-size: var(--text-sm);
   color: var(--fg-secondary);
   text-align: right;
+  vertical-align: baseline;
+  /* §14.2's own mechanism — "a table wraps its cells natively" — switched off
+   * in this one cell. `nowrap` made "→ HOF ⚡2" a single 85.2px min-content
+   * token, which is the SECOND reason the row could not fit a 283px card
+   * content box at 375 (the first was the pin reason, above). The role marker
+   * is a separate fact from the level and may take its own line; the arrow and
+   * the level may not be parted, and `.summary-roster__effective-pair` is what
+   * holds them together. */
+  white-space: normal;
+}
+
+.summary-roster__effective-pair {
   white-space: nowrap;
 }
 
@@ -2202,6 +2269,7 @@ main#badge-grid {
   font-size: var(--text-sm);
   color: var(--fg-primary);
   text-align: right;
+  vertical-align: baseline;
 }
 
 /* The stale disclosure: a second <tr> beneath its own, spanning the table.
@@ -2215,6 +2283,30 @@ main#badge-grid {
 
 .summary-roster__stale-glyph {
   color: var(--warning);
+}
+
+/* THE IMPLICIT-PIN SENTENCE'S OWN LINE — third use of the spanning-<tr>
+ * device, after the pin-mode radios and the stale disclosure.
+ *
+ * IT IS HERE BECAUSE A TABLE COLUMN IS SIZED BY WHAT IS IN IT. The sentence
+ * used to sit in the pin <td> beside the button; `.summary-roster__pin`
+ * carries `white-space: nowrap` for the BUTTON, the sibling span inherited it,
+ * and the column's min-content became the whole unwrapped sentence — 286.7px
+ * measured, against the 60px PIN_CHIP_MAX the row arithmetic budgets. A table
+ * is never laid out narrower than its min-content, so `max-width: 520px` on
+ * `.summary-roster__table` was silently inoperative (its rule reads
+ * `max-width: 520px`) and the table left its card by 93.2 / 107.2 / 179.1px at
+ * a 498px track — appearing as a half-sliced
+ * Pin button, a chip sitting outside the card, and a sentence "truncated" that
+ * was in fact painted over by the NEXT group's opaque --bg-surface.
+ *
+ * `max-width` in ch and NOT a nowrap: the measure matches the stale
+ * disclosure directly above, and a truncated sentence would lose the only
+ * statement in this surface of WHICH Synergy Slot a badge holds. */
+.summary-roster__reason td {
+  padding: 0 0 var(--space-2);
+  max-width: 65ch;
+  vertical-align: baseline;
 }
 
 /* §14.6's labelled projection. All four §3.4 markers: the dashed rule, the
@@ -2391,7 +2483,10 @@ main#badge-grid {
   .pin-control__reason,
   .badge-card__action,
   .summary-roster__pin,
-  .summary-roster__pin-mode {
+  .summary-roster__pin-mode,
+  /* …and the row the pin reason moved into, or the sentence hides and leaves
+     an empty spanning <tr> ruled across the printed table. */
+  .summary-roster__reason {
     display: none !important;
   }
 
@@ -5189,11 +5284,29 @@ main#badge-grid {
   margin-top: var(--space-1);
   color: var(--fg-secondary);
   font-size: var(--text-xs);
+  /* DECLARED, NOT INHERITED, AND THAT IS THE WHOLE POINT. This span sits in
+   * two hosts and one of them — the roster's pin <td> — used to carry
+   * `white-space: nowrap` for the button beside it; the sentence inherited it
+   * and stopped wrapping. Stating `normal` here means no host can turn this
+   * sentence into one long line again by styling its own box, which is the
+   * shape the defect actually had. `break-word` is the tail of the same rule:
+   * it wraps rather than overflows even in a box narrower than its longest
+   * word. */
+  white-space: normal;
+  overflow-wrap: break-word;
   line-height: 1.4;
 }
 
 .summary-roster__pin {
   text-align: right;
+  /* The SIXTH cell on the row's first baseline. Without it the control centres
+   * itself against a wrapped name — measured at 375, the Pin chip sat level
+   * with line 2 of "High-Flying Denier" while that row's Bronze / — / 1 sat on
+   * line 1. `.btn` is inline-flex, so its baseline is its label's. */
+  vertical-align: baseline;
+  /* KEPT, and it was never the defect. A button label must not break; what
+   * broke the column was the SENTENCE that used to share this cell and
+   * inherited this declaration. It lives in `.summary-roster__reason` now. */
   white-space: nowrap;
 }
 

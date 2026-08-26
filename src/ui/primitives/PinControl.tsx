@@ -56,6 +56,29 @@
  *
  * THE REASON SPAN IS NEVER INSIDE A DIMMED ELEMENT (§6). It is a SIBLING of the
  * button, not a child, so no `:disabled` opacity can reach it.
+ *
+ * ---------------------------------------------------------------------------
+ * `reasonId` — WHY THE HOST MAY TAKE THE SPAN OFF US, AND WHY ONLY THE ROSTER
+ * DOES. The default placement puts the sentence in the SAME BOX as the button.
+ * On the card that box is `.badge-card__action`, a flex row inside a 249px
+ * card, and the sentence wraps there for free (measured: 158.9px in a 249px
+ * content box, zero overflow).
+ *
+ * In the ROSTER that box is a <td> — and a table column is sized by the
+ * intrinsic width of what is in it. A 47-character sentence in the pin column
+ * made that column's min-content 286.7px against the 60px `PIN_CHIP_MAX` the
+ * layout arithmetic budgets for it, and a table cannot be laid out narrower
+ * than its min-content: `.summary-roster__table { max-width: 520px }` was
+ * silently inoperative and the table overflowed its card by up to 179.1px at
+ * a 498px track. The fix is not to shrink the sentence — it is the ONLY place
+ * the user learns which Synergy Slot a badge holds — but to stop it sizing a
+ * column, by giving it the whole row.
+ *
+ * So the roster passes `reasonId`, renders the span itself in a spanning <tr>
+ * (the device `.summary-roster__pin-mode` and `.summary-roster__stale` already
+ * use), and this component renders NO span while still wiring
+ * `aria-describedby` to it. §6 is not weakened by that — the sentence moves
+ * FURTHER from the dimmed element, out of the button's box entirely.
  */
 
 import { useId } from "react";
@@ -72,6 +95,11 @@ export interface PinControlProps {
   /** When present the control is disabled and this is exposed via a sibling
    *  span + aria-describedby. Never a `title`. */
   disabledReason?: string;
+  /** OPT-OUT OF RENDERING THE SPAN, NOT OF THE REASON. When the host supplies
+   *  an id it owns the element carrying it, and `aria-describedby` points at
+   *  the host's node instead of one this component made. Meaningless without
+   *  `disabledReason` — an enabled control describes nothing. */
+  reasonId?: string;
 }
 
 const LABELS: Record<PinControlKind, { off: string; on: string }> = {
@@ -93,9 +121,14 @@ export function PinControl({
   onToggle,
   badgeName,
   disabledReason,
+  reasonId,
 }: PinControlProps) {
-  const reasonId = useId();
+  const ownReasonId = useId();
   const disabled = disabledReason !== undefined;
+  /** The host's id when it has one, ours otherwise. ONE id either way — the
+   *  button always describes SOMETHING when it is disabled, and which node
+   *  carries the sentence is a layout decision, not an a11y one. */
+  const describedBy = reasonId ?? ownReasonId;
   const labels = LABELS[kind];
   return (
     <>
@@ -104,16 +137,18 @@ export function PinControl({
         className={`btn btn--sm pin-control pin-control--${kind}`}
         aria-pressed={pressed}
         aria-label={accessibleName(kind, pressed, badgeName)}
-        aria-describedby={disabled ? reasonId : undefined}
+        aria-describedby={disabled ? describedBy : undefined}
         disabled={disabled}
         onClick={onToggle}
       >
         {pressed ? labels.on : labels.off}
       </button>
       {/* SIBLING, never a child: §6 forbids a reason inside a dimmed element,
-          and `:disabled` styling stops at the button's own box. */}
-      {disabled ? (
-        <span id={reasonId} className="pin-control__reason">
+          and `:disabled` styling stops at the button's own box. Skipped
+          entirely when the host said it is rendering the sentence itself —
+          two nodes with one id would be the defect, not the fix. */}
+      {disabled && reasonId === undefined ? (
+        <span id={ownReasonId} className="pin-control__reason">
           {disabledReason}
         </span>
       ) : null}

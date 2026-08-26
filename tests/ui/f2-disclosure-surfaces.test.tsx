@@ -30,6 +30,7 @@ import { shippedDataset } from "../../src/engine/dataset";
 import { serializeSavedBuild } from "../../src/engine/serialization";
 import type { LoadoutValidation } from "../../src/engine/validate-loadout";
 import { readUiSectionOpen, writeAutosave, writeUiSectionOpen } from "../../src/persist/local-storage";
+import { STORAGE_SCOPE_LINE } from "../../src/ui/builds/BuildManager";
 import { SummaryPanel } from "../../src/ui/summary/SummaryPanel";
 import { importBuildFile } from "./import-route";
 import { makeRig, budgetsWith } from "./m4-rig";
@@ -432,5 +433,83 @@ describe("E — JumpNav panel chips render at the FRONT of the row (below the ga
     for (const label of ["Board", "Synergy", "Summary"]) {
       expect(links).not.toContain(label);
     }
+  });
+});
+
+/* ---------------------------------------------------------------------------
+ * The storage-scope disclosure (STORAGE_SCOPE_LINE).
+ *
+ * Two facts decided this block's existence: localStorage is per-browser and
+ * per-device, and a browsing-data clear destroys the build. Before this slice
+ * the running app stated NEITHER — both lived only in README.md, which the
+ * person who loses a build has by construction not read.
+ *
+ * WHAT IS PINNED, and why each one is not redundant:
+ *  1. It reaches a first-time visitor with no saved builds and no dialog
+ *     opened. If it only appeared once you already had something to lose, it
+ *     would arrive after the moment it exists to prevent.
+ *  2. It reaches the build manager, where Delete lives.
+ *  3. It is the SAME string in both — the `unreadableBuildsLine` doctrine.
+ *     Two surfaces stating one fact in two wordings is how the fact quietly
+ *     stops being true in one of them.
+ *  4. It is OUTSIDE `.summary`. That subtree is what
+ *     tests/ui/overlays.test.tsx compares across all four overlay
+ *     combinations, and that gate is RUN-never-edit. Static copy could not
+ *     break a bit-identical comparison — but the placement is deliberate and
+ *     an accidental move inside would be invisible without this assertion.
+ * ------------------------------------------------------------------------ */
+describe("storage-scope disclosure — stated in the app, not only in the README", () => {
+  it("reaches a first visit: rendered at zero state, with no saved builds and no dialog", () => {
+    render(<App />);
+    const notes = screen.getAllByText(STORAGE_SCOPE_LINE);
+    expect(notes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("says both facts a user can lose work to, and names the way out", () => {
+    // Asserted as CLAIMS, not as a copy snapshot: the wording may be edited,
+    // but a rewrite that drops the per-device scope, the clear-destroys-it
+    // consequence, or the pointer to Export has removed the reason the line
+    // exists and must fail here.
+    expect(STORAGE_SCOPE_LINE).toMatch(/this browser only/i);
+    expect(STORAGE_SCOPE_LINE).toMatch(/another device/i);
+    expect(STORAGE_SCOPE_LINE).toMatch(/clearing your browsing data/i);
+    expect(STORAGE_SCOPE_LINE).toMatch(/export/i);
+  });
+
+  it("reaches the build manager, where Delete lives", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
+    const dialog = screen.getByRole("dialog", { name: "Manage builds" });
+    // OPEN, not merely mounted: BuildManagerDialog always renders its
+    // <dialog> element and toggles `open`, so a node found inside it proves
+    // nothing on its own — a test that skipped this would have passed
+    // against copy the user could never actually reach.
+    expect(dialog.hasAttribute("open")).toBe(true);
+    const note = within(dialog).getByText(STORAGE_SCOPE_LINE);
+    expect(note).toBeTruthy();
+    // ABOVE the list. The two facts that decide what to keep have to land
+    // before the row of Delete buttons, not after them.
+    const list = within(dialog).getByRole("list");
+    expect(note.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("both surfaces carry ONE string — no second wording to drift", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
+    const rendered = screen.getAllByText(STORAGE_SCOPE_LINE);
+    expect(rendered.length).toBe(2);
+    for (const node of rendered) {
+      expect(node.textContent).toBe(STORAGE_SCOPE_LINE);
+    }
+  });
+
+  it("the Summary instance sits OUTSIDE `.summary` — the overlays gate's subtree", () => {
+    const { container } = render(<App />);
+    const summary = container.querySelector(".summary");
+    expect(summary).not.toBeNull();
+    expect(summary?.textContent ?? "").not.toContain(STORAGE_SCOPE_LINE);
+    // …and it really is in the Summary section, not somewhere incidental.
+    const panel = container.querySelector("#panel-summary");
+    expect(panel?.textContent ?? "").toContain(STORAGE_SCOPE_LINE);
   });
 });

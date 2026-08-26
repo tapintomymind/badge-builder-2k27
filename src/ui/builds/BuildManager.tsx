@@ -40,6 +40,41 @@ export function unreadableBuildsLine(count: number): string {
   );
 }
 
+/**
+ * THE STORAGE-SCOPE DISCLOSURE. One string, rendered in two places (this
+ * dialog and the Summary section), for exactly the reason
+ * `unreadableBuildsLine` above is one string: two surfaces stating the same
+ * fact in two wordings is how the fact quietly stops being true in one of
+ * them.
+ *
+ * WHY IT EXISTS. Nothing in the running app said either of these out loud.
+ * They were in README.md — which the person who loses their build has, by
+ * construction, not read. Both are consequences of the architecture, not
+ * defects in it: there is no account and no sync BY DESIGN, so the only
+ * honest move is to say so where the work is, before it is needed rather
+ * than after.
+ *
+ * IT IS NOT A BANNER AND MUST NOT BECOME ONE. Both render sites cost ZERO
+ * always-visible height — `.build-manager` is a modal, and the Summary site
+ * is inside `.col-right`, which is the shell's scrollport at the L gate and
+ * the document scroller below it. A permanent band would have forced F14's
+ * height gate UP and undone the work that made the shell activate on an
+ * ordinary laptop. See the note above <RollPanel> in App.tsx, which rules the
+ * same way for the same reason.
+ *
+ * EVERY CLAUSE IS A PROPERTY THE APP ACTUALLY HAS — no aspirational copy:
+ *  - `src/persist/local-storage.ts` is the sole localStorage owner, and
+ *    localStorage is scoped to origin AND to the browser profile. So a second
+ *    browser, a second device and a private window each genuinely hold their
+ *    own separate set, and a browsing-data clear genuinely destroys this one.
+ *  - `exportNow` (App.tsx) serialises the WORKING build. ONE build, not the
+ *    whole store — which is why this says so rather than implying a backup.
+ */
+export const STORAGE_SCOPE_LINE =
+  "Saved builds live in this browser only — another browser, another device, " +
+  "or a private window each keep their own, and clearing your browsing data " +
+  "deletes them. Export saves the build you're working on to a file you keep.";
+
 export function BuildSwitcher({
   builds,
   currentName,
@@ -150,6 +185,11 @@ export function BuildManagerDialog({
           Close
         </Button>
       </div>
+      {/* ABOVE the list, deliberately. This is the surface where a user
+        * decides what to keep, and the two facts that decide it — where the
+        * builds live, and what deletes them — have to arrive before the row
+        * of Delete buttons, not after. */}
+      <p className="hint build-manager__note">{STORAGE_SCOPE_LINE}</p>
       <ul className="build-manager__list">
         {builds.length === 0 && unreadableCount === 0 ? (
           <li>

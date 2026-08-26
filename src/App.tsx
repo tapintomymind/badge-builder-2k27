@@ -101,7 +101,7 @@ import {
 import type { HeightClampNotice } from "./ui/build/BuildPanel";
 import { ResetBuildDialog } from "./ui/build/ResetBuildDialog";
 import type { ResetBlastRadius } from "./ui/build/ResetBuildDialog";
-import { BuildManagerDialog, BuildSwitcher } from "./ui/builds/BuildManager";
+import { BuildManagerDialog, BuildSwitcher, STORAGE_SCOPE_LINE } from "./ui/builds/BuildManager";
 import { badgeAnchorId } from "./ui/board/board-model";
 import { LoadoutBoard } from "./ui/board/LoadoutBoard";
 import { BadgeCard } from "./ui/grid/BadgeCard";
@@ -1963,6 +1963,26 @@ export default function App() {
             synergy={synergyRows}
             buildName={working.name}
           />
+          {/* The storage-scope disclosure, at the END of the surface whose
+              whole job is reading the plan back out — the moment a user is
+              most likely to think "I want to keep this," and therefore the
+              last moment it is still cheap to tell them Export exists.
+
+              A SIBLING OF <SummaryPanel>, NOT A CHILD, for the same
+              mechanical reason <RollPanel> above is: `.summary` is the exact
+              subtree tests/ui/overlays.test.tsx compares across all four
+              overlay combinations, and that gate is RUN-never-edit. Static
+              copy could not break a bit-identical comparison, but staying
+              outside the subtree means the gate never has to reason about it.
+
+              MERGED FORWARD INTO `planPanels` (R12). It arrived on main
+              inside the Summary Section while that Section lived inline in
+              `.col-right`; R12 moved the Section into the one shared
+              definition that the rail and the sub-gate column both mount, so
+              the disclosure travels with it and reaches BOTH homes. Dropping
+              it here would have deleted a shipped feature silently — the
+              import above would have been the only trace. */}
+          <p className="hint">{STORAGE_SCOPE_LINE}</p>
         </Section>
       </div>
 
@@ -2322,6 +2342,7 @@ export default function App() {
             {boardRegion}
             {isLarge ? null : planPanels}
           </div>
+
         </div>
 
         {isLarge ? (

@@ -9662,6 +9662,174 @@ roll-panel slices own; this slice's only engine change is one additive report fi
 `dependencies` still exactly `{react, react-dom}`. **No persisted key or serialized field was
 renamed**; the one storage change is additive.
 
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · `refactor` — the roll-panel roster rows left their cards; measured, then fixed
+
+**Branch:** `rollpanel-overflow`, off `origin/dev` `44de81f`. **Not merged.** `main` untouched and
+still diverged exactly as the correction above records.
+
+**Scope:** layout and presentation only. `src/engine/` was not opened. A refund defect visible in
+the same user screenshot (`13 / 12 pts over by 1` in Finishing) is another agent's slice and was
+left alone — no ledger arithmetic, no refund path, no `pts` abbreviation, and no change to the
+annotation's wording beyond letting it wrap.
+
+### What was measured, before anything was changed
+
+Chrome, production build (`vite preview`, port 5199 — **not** 5173), served asset hashes
+reconciled against `dist/index.html` before every reading. The reported state was reproduced by
+seeding an autosave: six populated categories, two Fuse holders, one Reaction holder, one stale
+purchase, three names that wrap.
+
+**Seeding an autosave takes a page that is not the app.** Writing the key and calling
+`location.reload()` looks like it works and does not: the outgoing page's `pagehide` flush writes
+its own (empty) working state over the seed, so the app boots fresh every time with no quarantine
+key to explain it. A `<head>` probe reading `localStorage` before the bundle ran is what showed
+the seed already overwritten at boot. Seed from a same-origin page with no app on it — the served
+JSON fixture works — then navigate to `/`.
+
+At 1920×1080 the roster is 3-up on 498px tracks, giving each group a **464px content box**:
+
+| group | table width | past the card's content box |
+|---|---|---|
+| Finishing | 571.2px | **107.2px** |
+| Shooting | 643.1px | **179.1px** |
+| Defense | 557.2px | **93.2px** |
+| Playmaking / Rebounding / Physicals | 464px | 0 |
+
+At 375: 571.2 / 643.1 / 557.2px against a **283px** box — 274–360px outside the card and **314px
+of document horizontal scroll**.
+
+### The cause, and the four things it was NOT
+
+`.summary-roster__pin` carries `white-space: nowrap`, which is right for the Pin button. The
+implicit-pin sentence rendered as a **sibling of that button inside the same `<td>`**, inherited
+the nowrap, and a table column is sized by the intrinsic width of what is in it: the pin column's
+min-content measured **286.7px** against the **60px** `PIN_CHIP_MAX` the row arithmetic budgets —
+4.8× its allowance, from one declaration written for a different element in the same box.
+
+Ruled out by measurement, each of which looked likelier:
+
+- **Not a fixed-column grid.** The row is an auto-layout `<table>`; every other column sat at its
+  natural width (77 / 43 / 61 / 85 / 16 — sum 282.4, +288.7 pin = the 571.2 measured).
+- **Not a positioned or absolutely-placed annotation.** `.pin-control__reason` is
+  `display: block`, `position: static`, fully in flow — which is exactly *why* it could size a
+  column. Taking it out of flow would have hidden the cause.
+- **Not a negative offset, and not an `overflow` that should have clipped.** `.col-right` reported
+  `scrollWidth === clientWidth === 1584` — it never clipped anything, because the overflow lands
+  on the *neighbouring card*, not past the scrollport. The "truncated mid-sentence" symptom is the
+  **next group's opaque `--bg-surface` painting over the overflow** (later in DOM order). Where the
+  neighbour was shorter — the ragged-height defect — there was no background to overpaint and the
+  text showed in the open. Same overflow, two appearances.
+- **`.summary-roster__table { max-width: 520px }` looked like the guard and was inoperative.** A
+  table is never laid out narrower than its min-content.
+
+The other two reported defects had their own causes, also measured:
+
+- **Rows misaligned when a name wraps:** a `<td>`'s used `vertical-align` is `middle`, invisible
+  until a cell wraps. With "Post Spin Catalyst" on two lines the row grew to 50.8px and the
+  single-line cells re-centred — the cost digit landed **10.3px below** the name's first line and
+  **10.4px above** its second, reading against neither.
+- **Ragged card heights:** `.summary-roster { align-items: start }`. Measured on one 3-up row:
+  346.1 / 256.1 / 248.9 against 316.3 / 214.1 / 214.1.
+
+### A SECOND, INDEPENDENT OVERFLOW at S, which the first fix did not touch
+
+With the pin column returned to the button, 375 still overflowed by 59.2 / 65.8px. Two more
+measured causes, neither related to the pin reason:
+
+1. **Every gutter was double.** §14.2 prices the row over *"four `--space-2` gutters"* and
+   `.summary-roster__head th` has always padded on one side for exactly that reason — but the body
+   cells padded on **both**, so every seam was 16px against a budget of 8, 66px across the row
+   instead of 33, and the header columns did not sit over the body columns they label.
+2. **`.summary-roster__effective { white-space: nowrap }`** made `→ HOF ⚡2` a single **85.2px**
+   min-content token. §14.2's own stated mechanism is that a table wraps its cells natively; this
+   one cell had it switched off. Letting it wrap unheld strands the arrow on a **12.5px** line of
+   its own (measured), so the arrow and the level get a wrapping-boundary span that adds no text.
+
+### After
+
+| viewport | tracks | table width | past content box | past card border | doc h-scroll |
+|---|---|---|---|---|---|
+| 1920×1080 | 3 × 498px | 464px (all six) | **0** | **0** | **0** |
+| 1280×768 | 1 × 902px | 520px (all six) | **0** | **0** | **0** |
+| 375×812 | 1 × 317px | 283–290.8px | 0 · except **3.1 / 7.8** | **0** | **0** |
+
+Card heights are now uniform per grid row (341.3 × 3 and 277.7 × 3 at 1920). Annotations wrap to
+1–3 lines and none is clipped (`scrollWidth === clientWidth` on every one); every sentence ends in
+its full stop with its Synergy Slot number intact. Cells share the row's first baseline: with
+"Paint Prodigy" on two lines the cost digit is **0.5px** off line 1's baseline (was 10.3px adrift)
+and the Pin chip sits on line 1 rather than centred against line 2. The chip is still 44px tall and
+57.8px wide at S, through `var(--tap-target)` — **no `44px` literal was introduced**, asserted.
+
+### `decision-needed` — ROSTER_ROW_MAX is optimistic by ~45px, and this slice did not re-cut it
+
+Two cards at 375 still put **3.1px** and **7.8px** into the card's own 16px inner padding. Nothing
+crosses any card's border box and the document does not scroll horizontally, so nothing renders
+outside a card — but the row genuinely needs 290.8px where the box offers 283.
+
+`tests/layout-arithmetic.test.ts` derives `rowMinWithPin = 246` and asserts **+86px of headroom at
+390**. Measured, the row's min-content is **290.8px** and the headroom is **−7.8px**. The
+derivation is wrong in three ways at once: it prices the name column off *"Visionary"* (68) where
+`Immovable` measures 65.6 **plus a gutter**, prices the level column off *"Gold"* (30) where the
+data says `Bronze` (45), and folds the **effective column into the level column** rather than
+counting it as the sixth cell it is. It is a pre-existing gap — not introduced here, and not
+papered over: closing it needs either a re-cut of §14.2's five constants or a design call on the
+S row, and both are Tier 1's to make.
+
+### Verification
+
+`npm test` **74 files / 1662 tests green** — 1653 on `origin/dev` plus the 9 added, count computed
+before the run. `npm run typecheck` and `npm run build` clean. The three RUN-never-edit gates
+(`tests/ui/overlays.test.tsx`, `tests/category-colors.test.ts`, `tests/feasibility-golden.test.ts`)
+run explicitly: **29 green, no cell moved in the 504-cell golden**. Vocabulary lint 183 green — the
+surface says **Badge Tokens · Badge Slots · Synergy Slots**, never a bare "slot". F9's touch-floor
+census green on **both** axes.
+
+Nine assertions added. `R0` is the one worth naming: `blocksFor()` scans to a rule's closing brace,
+so a brace written **inside a CSS comment inside a block** truncates what every stylesheet lint
+reads and silently stops grading the declarations after it. One of the new comments did exactly
+that and turned a real assertion green-then-red; `R0` now holds every roster rule to it.
+
+**One shipped test was edited**, and only its mechanism: `tests/ui/f8-pin-exclude.test.tsx` 1.4
+asserted `reason.parentElement === pin.parentElement`. §6's rule is *"never inside a dimmed
+element"*, and the sentence now satisfies it **more** strongly — it is not even in the same cell.
+The identity check is replaced by not-a-descendant-either-way, no dimming ancestor, and the new
+structure named explicitly, applied to **both** hosts so a later pass cannot collapse
+`PinControl` back to one placement. The card host is unchanged and still renders its own sibling
+span (measured: 158.9px in a 249px card, zero overflow — the card never had this defect).
+
+### Housekeeping
+
+Worktree `/private/tmp/bb-rollfix` with `node_modules` symlinked from the main checkout; no
+`npm install` in a worktree. **Nothing staged with `git add -A`** — paths named explicitly and
+`git status` re-checked before each of the four commits. The 5199 preview server was stopped. One
+Chrome tab was closed to free a tab slot; it was a duplicate origin, not a live surface.
+
+### Conflict forecast against the refund fix in flight
+
+**Low, and file-disjoint on the likely shape of that slice.** This branch touches
+`src/ui/summary/LoadoutRoster.tsx`, `src/ui/primitives/PinControl.tsx`, `src/styles/app.css`,
+`tests/layout-arithmetic.test.ts`, `tests/ui/f8-roster.test.tsx`,
+`tests/ui/f8-pin-exclude.test.tsx`. A refund fix lives in `src/engine/` (`ledger.ts`,
+`synergy-ledger.ts`, `budget.ts`) and its tests, none of which is opened here.
+
+Three contact points to watch, in order of likelihood:
+
+1. **`rosterDigestParts()` in `LoadoutRoster.tsx`.** If the refund fix changes what
+   `CategorySummary.readout` carries, it lands in this function — which this branch leaves
+   byte-identical, so the merge is textual and clean, but re-run `tests/ui/f8-roster.test.tsx`
+   after: the `<tfoot>` assertions read the shared over-by builders.
+2. **`tests/ui/f8-roster.test.tsx`.** Both slices plausibly append here. This branch adds `1.14`
+   and `1.15` immediately before the closing *"the App always supplies the summary"* test; an
+   append at the end of the same `describe` is a two-hunk conflict at worst.
+3. **`tests/feasibility-golden.test.ts`.** Untouched here and green; if the refund fix moves a cell
+   in the 504-cell golden, that is theirs and it is a stop-and-report on their side, not a merge
+   conflict with this branch.
+
+No shared line is expected in `src/styles/app.css` — a refund fix has no reason to enter it, and
+this branch's edits are confined to the `.summary-roster*` / `.pin-control*` rules.
+
 ## 2026-08-26 · Tier 2 · integration — F16.1 the fuse refund defect, onto `dev`
 
 **Event:** `integration-complete`
@@ -9845,6 +10013,665 @@ temporary fixture-emitting test was written under `tests/`, run once, and **dele
 staging** — `git status` was re-checked immediately after and showed only the pre-existing
 untracked `.claude/worktrees/`. No `npm install` was run.
 ─────────────────────────────────────────────
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · integration — F2.3 autosave concurrency + the lossy boot read, onto `dev`
+
+**Event:** `integration-complete`
+**Landed:** `persist-concurrency` (3 commits off `44de81f`, worktree `/private/tmp/bb-persist`).
+Checked out as a throwaway `land-persist`, REBASED onto `dev`, then FAST-FORWARD.
+**`dev`:** `a24705f` → **`64864ca`** by the fast-forward, then one commit further for this entry.
+**Merge commits 2 before, 2 after** — `git rev-list --merges --count dev`, never
+`git log --merges | wc -l`, which counts LINES. `main` was never checked out; it is left with its
+pre-existing local/origin divergence (`444d034` vs `e6b3ae4`) untouched and unreconciled.
+`persist-concurrency` itself was never moved and `/private/tmp/bb-persist` is untouched.
+
+### The rebase — one conflict, and it was not in the code
+
+`git fetch --all --prune` first. `git merge-base dev persist-concurrency` = **`44de81f`**, four
+commits behind `dev`'s `a24705f`, so the rebase through the F16.1 fuse-refund landing was real
+and was performed.
+
+| commit | outcome |
+|---|---|
+| `fix(persist): a stale tab's flush and a lossy boot read…` | applied clean |
+| `test(persist): the four missing pins…` | applied clean |
+| `chore(reportback): …slice-complete entry` | **CONFLICT** in `.claude/reportback.md` |
+
+**`src/App.tsx` did not conflict, and that was verified rather than trusted.** A clean 3-way
+merge is not evidence that both sides survived, so the composition was checked in BOTH
+directions by comparing the two deltas line-for-line:
+
+- `git diff 44de81f 42d2c4c -- src` (what the branch originally changed) against
+  `git diff dev land-persist -- src` (what the rebase actually added on top of `dev`) —
+  **611 lines each, identical.**
+- `git diff 44de81f dev -- src` (F16.1's own change) against
+  `git diff 42d2c4c land-persist -- src` (what the rebase added on top of the branch tip) —
+  **240 lines each, identical.**
+
+Both sides are therefore present in full at every contact point; the two changes are genuinely
+orthogonal within `src/App.tsx` and neither was dropped to make the file parse. Spot-checked by
+symbol count as well: `applyRatifiedRefundTrigger` 3, `refundTriggerNormalized` 7,
+`ratifiedTrigger` 3, `setRefundTriggerNormalized` 3 — identical to `dev`; and `workingRef` 18,
+`persistableRef` 9, `bootWasLossy` 4, `lastObservedAutosaveRef` 4, `writeAutosaveIfUnmoved` 3,
+`flushSettledWorkingRef` 5, `RawReadOutcome` 2 — identical to the branch tip. The `tests/` delta
+is byte-identical to the branch's own, so no test was weakened by a resolution.
+
+### The reportback conflict — reconstructed from blobs, and SPLICED
+
+Never hand-edited. All five segments were taken from source blobs and the result `cmp`-verified
+segment by segment:
+
+| segment | source blob | lines | position | `cmp` |
+|---|---|---|---|---|
+| base | `44de81f:.claude/reportback.md` | 9,222 | 1–9,222 | byte-identical |
+| F16.1 slice-complete | `2aa11bc:` | 247 | 9,223–9,469 | byte-identical |
+| **F2.3 slice-complete** | `42d2c4c:` | 194 | **9,470–9,663** | byte-identical |
+| F16.1 integration | `a24705f:` | 184 | 9,664–9,847 | byte-identical |
+
+9,222 + 247 + 194 + 184 = **9,847**, and `wc -l` reads 9,847. Byte totals agree too:
+598,158 + 13,751 + 14,954 + 11,627 = **638,490**. Zero conflict markers remain. Each of the four
+source blobs was first confirmed to be a strict APPEND onto the base by `cmp` of its first 9,222
+lines, so treating them as separable segments was checked, not assumed.
+
+**This entry required a SPLICE, and the last one did not.** Authored timestamps decide position,
+not landing order:
+
+| entry | authored | |
+|---|---|---|
+| F16.1 slice-complete `2aa11bc` | 12:06:39 -0400 | |
+| **F2.3 slice-complete `42d2c4c`** | **12:15:56 -0400** | **← between the two** |
+| F16.1 integration `a24705f` | 12:20:42 -0400 | |
+
+So the F2.3 banner belongs BEFORE the F16.1 integration entry that landed first, and it was
+inserted there rather than appended at EOF. The naive append — which is what `git rebase` left in
+the conflict — would have put a 12:15 entry after a 12:20 one. A one-line cosmetic artifact is
+left standing as a consequence: `2aa11bc`'s block ends with a `─────` separator and `42d2c4c`'s
+block opens with one, so two adjacent separators now sit at line 9,469/9,470. That is preserved
+DELIBERATELY — the mandate is byte-identical segments, and deleting a line to tidy the seam would
+have meant hand-editing conflicted text.
+
+`rollpanel-overflow`'s banner (`bd038bc`, authored 12:16:23) will need the same treatment: it
+belongs after this entry's block and still BEFORE F16.1's integration entry.
+
+### Counts — computed from source before measuring, and the forecast was base-relative
+
+The hand-off forecast of **1690 / 77** is the branch's own number and is correct only on the
+branch's own base. `persist-concurrency` was cut from `44de81f`, which is **1653 / 74**; `dev` has
+since taken F16.1's **+16 / +1**. The branch's delta is what transfers:
+
+| | tests | files |
+|---|---|---|
+| `dev` `a24705f` | 1669 | 75 |
+| predicted delta | **+37** | **+3** |
+| **predicted** | **1706** | **78** |
+| **measured** | **1706** | **78** |
+
+Derived per file by RUNNING each, not by grepping `it(` — a loop can expand one line into several
+cases, which is how the previous integrator's first derivation went wrong:
+
+- `tests/ui/flush-blur-synchrony.test.tsx` — new, **7** → +7, +1 file
+- `tests/ui/two-tab-autosave.test.tsx` — new, **11** → +11, +1 file
+- `tests/ui/boot-lossy-preservation.test.tsx` — new, **17** → +17, +1 file
+- `tests/ui/recovery-boundary.test.tsx` — **8 → 10** (measured at `a24705f` in a scratch worktree
+  before the landing, and again after) → +2, no new file
+
+7 + 11 + 17 + 2 = **37**; 1669 + 37 = **1706**; 75 + 3 = **78**. Both match the run exactly. The
+whole chain reconciles: 1653 + 16 (F16.1) + 37 (F2.3) = 1706, and 74 + 1 + 3 = 78.
+
+### The four required properties, verified on the MERGED tree
+
+**1 — no persisted key and no serialized field was renamed.** The four localStorage keys are
+character-for-character what `dev` carries — `badge-builder-2k27:autosave:v1`,
+`:autosave-quarantine:v1`, `:named-builds:v1`, `:ui-state:v1` — and the sessionStorage key
+`bb2k27.ui.scrollTop.colRight` is untouched, its whole file (`src/ui/shell/scroll-memory.ts`)
+byte-identical at `d6e14d1e…`. The ONLY storage addition is the new
+`badge-builder-2k27:autosave-preserved:v1`, which no existing reader looks for. The
+`src/engine/serialization.ts` change is additive in the same way: one new report field
+(`droppedUnknownFields`) and one new exported constant (`KNOWN_TOP_LEVEL_FIELDS`, whose ten names
+are the existing envelope's, unchanged). There is no translation boundary in the save path, so a
+rename would have stranded every existing save — none happened.
+
+**2 — `RawReadOutcome` fails open on BOTH `failed` and `absent`.** The guard reads, in full:
+
+```
+const current = rawGetItem(AUTOSAVE_KEY);
+if (current.kind === "present" && current.raw !== expected) {
+  return { kind: "refused", foreign: current.raw };
+}
+return writeAutosaveTracked(saved);
+```
+
+Refusal is conjunctive on `present` AND a byte mismatch. `failed` (a read that THREW) and
+`absent` both fall through to the write. This is the property that keeps a transient storage
+hiccup from becoming total autosave loss, and no resolution inverted it.
+
+**3 — no cross-tab auto-adoption channel exists.** `BroadcastChannel` in `src/`: **0**.
+`addEventListener("storage"` in `src/`: **0**; `StorageEvent` / `onstorage` / the bare `"storage"`
+event name in `src/`: **0**. Zero across `tests/` as well. The slice refuses and PRESERVES foreign
+bytes; it never reads them into memory, which is what would destroy the other tab's work.
+
+**4 — the blur-synchrony pins survive, canary and census both.** The method canary
+(`MicrotaskCommitField`, a deliberately microtask-deferred field) still asserts **0** synchronous
+commits and then 1 after a tick — so "the spy was called" cannot pass for "called in the blur".
+The frozen `BLUR_CENSUS` still names exactly three `src` files and the run confirms the
+stylesheet-style equality assertion is neither short nor long: `NumberField.tsx`,
+`AttributeSlider.tsx`, and `BuildPanel.tsx` (named and excused as a UI-preference latch). F16.1
+added no fourth `onBlur`, which is why the frozen list still balances.
+
+**And the three new files still PROVE something.** The branch's own pinning proof was reproduced
+against the merged tree's pre-fix source — a scratch worktree at `a24705f`, the three files copied
+in, nothing else changed: **18 failed / 17 passed**, the exact split the branch recorded. A merge
+resolution that had quietly satisfied them would have shown up here as a lower failure count.
+
+### Gates
+
+- `npm test` — **1706 passed / 78 files**, 0 failed. Single run, no flakes, no re-runs. No
+  `{ timeout: 20000 }` was lowered or tightened anywhere.
+- `npm run typecheck` clean · `npm run build` clean (87 modules) →
+  `index-DnSoEaw_.js` 341.38 kB / `index-CijHueLd.css` 62.54 kB (CSS byte-identical to `dev` —
+  this slice moves no CSS).
+- **RUN-never-edit gates, byte-unchanged by blob hash and not merely green:**
+  `tests/ui/overlays.test.tsx` `30a7131b22a9344025c91ff32b60e052335ff07e` ·
+  `tests/category-colors.test.ts` `f1539c1dda0dbeb625f3891cb31d31646e1151a3` ·
+  `tests/feasibility-golden.test.ts` `cef359dc01c40ddda1ef5a629c4f81ec060288d7`. All three match
+  the baseline exactly. Run explicitly: **29 passed**. No golden cell moved.
+- F9 touch-floor census, **both axes**: height assertions 24 + 27 and width assertions 30 + 31 all
+  green, plus assertion 33 (the bonus mode adds no new floor control). Whole
+  `tests/layout-arithmetic.test.ts` green.
+- Vocabulary lint — all classes green, class 1 (bare slot-word) through class 4 ("Badge Tokens",
+  never "Badge Points"), including every POSITIVE CANARY.
+
+### Housekeeping
+
+`git add` was given explicit paths only; `git add -A` was never used. `git status` shows only the
+pre-existing untracked `.claude/worktrees/`. No `npm install` was run. One scratch worktree
+(`/private/tmp/bb-verify`, detached at `a24705f`, `node_modules` symlinked) was used for the
+before-counts and the pinning proof; it is left for the dispatcher to reap and holds no commits.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · integration — the roll-panel roster overflow, onto `dev`
+
+**Event:** `integration-complete`
+**Landed:** `rollpanel-overflow` (4 commits off `44de81f`, worktree `/private/tmp/bb-rollfix`).
+Checked out as a throwaway `land-rollpanel`, REBASED onto `dev`, then FAST-FORWARD.
+**`dev`:** `74c7042` → **`da0e7d4`** by the fast-forward, then one commit further for this entry.
+**Merge commits 2 before, 2 after** — `git rev-list --merges --count dev`. `main` was never
+checked out; its pre-existing local/origin divergence (`444d034` vs `e6b3ae4`) is left alone.
+`rollpanel-overflow` itself was never moved and `/private/tmp/bb-rollfix` is untouched.
+
+Landed SECOND, deliberately: the persistence fix is the invasive one and shares `src/App.tsx`
+with the F16.1 landing, so it went first and this file-disjoint layout fix rebased over both.
+
+### The rebase — again one conflict, again not in the code
+
+`git merge-base dev rollpanel-overflow` = **`44de81f`**, now NINE commits behind `dev`, so this
+branch rebased through both the F16.1 fuse-refund landing AND the F2.3 persistence landing.
+
+| commit | outcome |
+|---|---|
+| `fix(roster): the pin reason sized the pin column…` | applied clean |
+| `fix(roster): close the second overflow — double gutters…` | applied clean |
+| `test(roster): pin the five defects, and the brace-in-comment hazard…` | applied clean |
+| `chore(reportback): …measured causes, residual, conflict forecast` | **CONFLICT** in `.claude/reportback.md` |
+
+Checked in both directions rather than trusted, the same way as the last landing:
+
+- `git diff 44de81f bd038bc` against `git diff dev land-rollpanel` — **`src` 401 lines each,
+  `tests` 401 lines each, identical.** The rebase added exactly what the branch authored.
+- `git diff 44de81f dev` against `git diff bd038bc land-rollpanel` — **`src` 847 lines each,
+  `tests` 1,561 lines each, identical.** Everything `dev` gained from the two prior landings
+  survived in full.
+
+**The three forecast contact points, each measured:**
+
+| forecast | outcome |
+|---|---|
+| `rosterDigestParts()` in `LoadoutRoster.tsx` — "left byte-identical" | **TRUE, and verified.** The function body hashes to `b4b927df61a20196b13d6847df476083a5f35110` at all four points — `44de81f`, `dev`, `bd038bc`, and the integration tip — 17 lines each. |
+| an append collision in `tests/ui/f8-roster.test.tsx` | **no conflict.** `dev` had rewritten 69 lines of it at F16.1 and this branch appends 110; the two regions do not touch. The diff against `dev` is **+110 / −0**, a pure append. |
+| `feasibility-golden` | **untouched**, by blob hash (below). |
+
+`f8-roster` was **re-run after merging regardless**, as instructed, and not merely covered by the
+full suite: **19 passed**.
+
+**The one shipped test this branch edited was kept in its STRICTER form.**
+`tests/ui/f8-pin-exclude.test.tsx` case 1.4 previously asserted
+`reason.parentElement === pin.parentElement`; the sentence is now a sibling ROW, so that exact
+identity no longer holds. The replacement does not weaken §6's rule ("never inside a dimmed
+element") — it strengthens it: it still asserts neither element contains the other, adds the
+roster's deliberate new placement (`colspan="6"`, `tr.summary-roster__reason`,
+`td.summary-roster__pin`), and then runs the opacity walk **on BOTH hosts**, roster and card,
+where before it ran on one. The case count is unchanged at **8 → 8** because the assertion was
+replaced, not added.
+
+### The reportback conflict — reconstructed from blobs, and SPLICED again
+
+| segment | source blob | lines | position | `cmp` |
+|---|---|---|---|---|
+| base | `44de81f:` | 9,222 | 1–9,222 | byte-identical |
+| F16.1 slice-complete | `2aa11bc:` | 247 | 9,223–9,469 | byte-identical |
+| F2.3 slice-complete | `42d2c4c:` | 194 | 9,470–9,663 | byte-identical |
+| **roll-panel slice-complete** | `bd038bc:` | 168 | **9,664–9,831** | byte-identical |
+| F16.1 integration | `a24705f:` | 184 | 9,832–10,015 | byte-identical |
+| F2.3 integration | authored this run | 175 | 10,016–10,190 | byte-identical |
+
+9,222 + 247 + 194 + 168 + 184 + 175 = **10,190**, and `wc -l` reads 10,190; byte totals agree at
+**659,927**. Zero conflict markers. Nothing was hand-edited.
+
+**Authored order, checked against timestamps and not against landing order.** This branch's
+banner was authored `12:16:23 -0400` — after the F2.3 banner (`12:15:56`) and still BEFORE the
+F16.1 integration entry (`12:20:42`) — so it was spliced into the middle, exactly as the previous
+integration entry predicted it would need to be. The naive append that `git rebase` left in the
+conflict would have placed a 12:16 entry after a 12:20 one and after a 12:31 one.
+
+### Counts — computed from source before measuring
+
+| | tests | files |
+|---|---|---|
+| `dev` `74c7042` | 1706 | 78 |
+| predicted delta | **+9** | **+0** |
+| **predicted** | **1715** | **78** |
+| **measured** | **1715** | **78** |
+
+Derived by RUNNING each touched file at `74c7042` in a scratch worktree and again on the merged
+tree — never by grepping `it(`:
+
+- `tests/layout-arithmetic.test.ts` — **165 → 172** → +7 (no new file; the branch appends 212
+  lines to an existing one)
+- `tests/ui/f8-roster.test.tsx` — **17 → 19** → +2
+- `tests/ui/f8-pin-exclude.test.tsx` — **8 → 8** → +0, the replaced case 1.4
+
+7 + 2 + 0 = **9**; 1706 + 9 = **1715**; no new test file, so **78** stands. Both match the run.
+
+### Gates
+
+- `npm test` — **1715 passed / 78 files**, 0 failed. Single run, no flakes, no re-runs, no
+  `{ timeout: 20000 }` touched.
+- `npm run typecheck` clean · `npm run build` clean (87 modules) →
+  `index-CaUagHFW.js` 341.72 kB / `index-ByLFPND1.css` **62.92 kB** (up from 62.54 kB — this
+  slice is the only one of the three that moves CSS, and the growth is its `.summary-roster*` /
+  `.pin-control*` rules).
+- **RUN-never-edit gates, byte-unchanged by blob hash:**
+  `tests/ui/overlays.test.tsx` `30a7131b22a9344025c91ff32b60e052335ff07e` ·
+  `tests/category-colors.test.ts` `f1539c1dda0dbeb625f3891cb31d31646e1151a3` ·
+  `tests/feasibility-golden.test.ts` `cef359dc01c40ddda1ef5a629c4f81ec060288d7`. Identical to the
+  pre-landing baseline. Run explicitly: **29 passed**. No golden cell moved.
+- F9 touch-floor census, **both axes**: 23–29 (height) and 30–32 (width) green — **10 passed /
+  162 skipped** under `-t "I6 — the S touch floor"`. Assertion 31 matters most here: this slice
+  edits `.pin-control`, and the width census is still "exactly the stylesheet, not short and not
+  long".
+- Vocabulary lint — **183 passed**, classes 1 through 4 including every POSITIVE CANARY and the
+  class-3 pin-is-never-a-lock scan over the two files this branch touched
+  (`LoadoutRoster.tsx`, `PinControl.tsx`).
+
+### Browser proof — the final merged tree, `da0e7d4`
+
+Production `dist` served by `python3 -m http.server` on **127.0.0.1:4611**. **Port 5173 was never
+navigated to, read, or written** — it holds a live dev server with the owner's real data, and
+localStorage is per-origin, so 4611 is a clean, separate store. Before trusting anything, the
+served bytes were diffed against `dist`: `index.html`, `index-ByLFPND1.css` and
+`index-CaUagHFW.js` all SHA-256-match the built files, and `index.html` references exactly those
+two hashed assets.
+
+Fixtures were seeded from **`/seed.html`**, a same-origin page carrying no app bundle, with both
+app tabs first parked on it — loading the app arms its unload flush, which would clobber a seed
+written under it.
+
+**1 — Two-tab survival. PASS.** Tab A set Position **PG** (storage agreed). Tab B opened and
+booted holding PG — the stale snapshot. Tab A then set **C**, then **PF**; storage read PF. Tab B
+was reloaded, firing the unload flush that pre-fix wrote its hour-old copy back. **Storage still
+read `PF`**, and Tab B re-rendered as PF. The guarded writer saw the key had moved and refused.
+
+**2 — Boot preservation. PASS.** A real save was captured and one loadout id rewritten to
+`phantom-badge-not-in-dataset` (2,374 bytes, SHA-256
+`be84c4c203ce97ca1d3d53092fc16b65d3c02bd4120949b9d25f31d66fcb7791`), seeded from `/seed.html`
+with the preservation and quarantine keys cleared first. The app was loaded **once and nothing
+was touched**. `badge-builder-2k27:autosave-preserved:v1` then held **2,374 bytes hashing to
+`be84c4c2…` — byte-identical**. The banner disclosed it in as many words: *"1 badge from this
+build no longer exists in the dataset: phantom-badge-not-in-dataset — removed from the plan."*
+**The autosave key was also still the original bytes**, same hash — the lossy boot suppressed its
+mount-time write entirely, which is layer 2's whole point observed live rather than in jsdom.
+
+**3 — No overflow. PASS at 1920 and at 1280.** Every roster row sits inside its card at both
+widths (worst row edge **−1,078px** inside at 1920, **−382px** at 1280; deepest descendant of
+`.summary-roster` **−17px**, of `.roll-panel` **−34px**). `scrollWidth − clientWidth` is **0** on
+the roster host and on `documentElement` at both widths. The annotation reads *"Pinned — holds
+the Fuse role in Synergy Slot 1."* — **ends in a full stop**, sits in its own `td[colspan="6"]`
+with `white-space: normal`, and is **not** inside the pin cell, which still carries the
+`nowrap` it was always meant to have. The pin column now measures **75px at 1920 / 84px at
+1280**, against the 286.7px min-content the sentence used to force. Card heights are uniform per
+row — every grid row's card heights collapse to a single distinct value (10 rows at 1920, 19 at
+1280).
+
+**4 — The refund still reads correctly. PASS.** With the ratified `onFuse` trigger and Paint
+Prodigy fused into Synergy Slot 1, the Finishing header reads **`Badge Tokens 13 / 12 · left 0 ·
+Badge Slots 5 / 5`** with a **`refunded 1`** row beneath it, and the string `over by` appears
+**zero times anywhere in the document**. F16.1's fix is intact under both later landings.
+
+### Housekeeping
+
+`git add` was given explicit paths only; `git add -A` was never used. `git status` shows only the
+pre-existing untracked `.claude/worktrees/`. No `npm install` was run. The static server on 4611
+was stopped and the temporary `dist/seed.html` deleted (`dist/` is gitignored, so neither ever
+reached the index). The scratch worktree `/private/tmp/bb-verify` is left for the dispatcher to
+reap and holds no commits.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · promotion — `dev` → `main`, the ship
+
+**Event:** `promotion-complete`
+
+**The two `main` SHAs, confirmed before anything was touched.** Local `main` was `444d034` — the
+original Vite+React+TS scaffold commit, never checked out this session. `origin/main` was
+**`e6b3ae4`**, carrying PR #3 *"Prep app for Vercel hosting"* which the repo owner merged himself
+(2026-08-25T23:13:37Z). That SHA was confirmed with `git ls-remote origin refs/heads/main` —
+straight off the server, not merely the local remote-tracking ref, which is the one thing a stale
+`.git` cannot fake. **The remote was treated as authoritative in both directions:** local `main`
+was moved FORWARD onto `e6b3ae4` with `git merge --ff-only origin/main`, which can only advance a
+ref and would have failed loudly had the two genuinely diverged. Nothing was reconciled toward the
+stale local ref, and **nothing was force-pushed at any point**.
+
+**Containment — `origin/main` held nothing absent from `dev`.** `git rev-list --count
+dev..origin/main` returned **0** and `git merge-base --is-ancestor origin/main dev` succeeded, so
+`e6b3ae4` is fully reachable from `dev`; `dev` was **146 commits** ahead. The stop-and-report
+condition (work landed on `main` outside this session, needing a back-merge first) **did not
+fire**. The Vercel work was already in `dev` by way of `ac61296` *"Merge branch 'main' into dev —
+Vercel hosting backmerge"*.
+
+**Merge commits: 2 before, 2 after** (`git rev-list --merges --count dev` = 2 — `e6b3ae4` the PR
+merge and `ac61296` the backmerge, both inherited from that same Vercel work), plus the promotion
+merge itself now on `main`.
+
+### The promotion
+
+`dev` → `main` as a **`--no-ff` merge**, per this project's branch discipline: one auditable
+commit rather than a fast-forward. It merged **cleanly, with no conflicts**.
+
+It was performed in a **throwaway worktree**, not in the main working directory, and deliberately
+so: a `vite` dev server (PID 62499) is live on **port 5173** with its cwd set to the repo root,
+and that origin holds the owner's real saved builds in `localStorage`. Checking `main` out there
+would have yanked 146 commits of `src/` out from under a running server mid-session. The worktree
+symlinked `node_modules`; **no `npm install` was run**.
+
+**The strongest integrity proof available was taken, and it is exact:** the merged `main` tree
+hashes to **`b462216bb959751fea473e99e9109a6032594213`** — *byte-for-byte the same tree object as
+`dev`*. `git diff HEAD dev` is empty. The promotion therefore added no content, dropped no
+content, and altered no file; `main`'s tree simply became `dev`'s tree.
+
+### Gates, all re-run on the merged `main` (not on `dev`, and not assumed)
+
+- **`npm test` — 1715 passed / 78 files, exit 0.** Matches the `dev` baseline exactly.
+- **`npm run typecheck`** — clean, exit 0.
+- **`npm run build`** — clean, exit 0. Emits **`dist/`** (`index.html` 0.98 kB, `assets/index-ByLFPND1.css`
+  62.92 kB, `assets/index-CaUagHFW.js` 341.72 kB).
+- **The three RUN-never-edit gates ran, and are proven byte-unchanged by blob hash** — not merely
+  green, but provably the same file: `tests/ui/overlays.test.tsx` **`30a7131b`**,
+  `tests/category-colors.test.ts` **`f1539c1d`**, `tests/feasibility-golden.test.ts` **`cef359dc`**.
+  All three match the pinned prefixes.
+- **The 504-cell golden is intact, cell for cell.** INV-19's matrix is `7 * 6 * 4 * 3` = **504**,
+  and *"every affordable-upgrade count is unchanged, cell for cell"* passed, as did the
+  dataset pin (`dataVersion 2026-08-26.1`). **No cell moved**, so the stop-and-report did not fire.
+- **F9/I6 touch-floor census, BOTH axes.** Height axis (checks 23–29) and the WIDTH axis (checks
+  30–32, *"the literal blind spot"*) both green, canaries included.
+- **All four vocabulary lint classes green** — class 1 (bare `slot` banned in `src/**`, 76 checks),
+  class 2 (no ranking vocabulary in the roll engine, 11), class 3 (the pin is never called a lock,
+  15), class 4 (the currency is Badge Tokens, never Badge Points, 77).
+
+### The Vercel configuration survived — diffed explicitly, not eyeballed
+
+`git diff origin/main HEAD -- vercel.json` is **empty**. By blob hash the file is
+**`9f03c29b6b3e3553a3b3cac755a241c2119ed8c8` on `origin/main` and the identical
+`9f03c29b6b3e3553a3b3cac755a241c2119ed8c8` on the merged `main`**. `public/favicon.svg` likewise
+unchanged (`d7f2f4c9`). Every other artefact of PR #3 was confirmed present on the merged result
+rather than assumed: the `.vercel/` ignore rule, the favicon link and the og/description/theme-color
+meta tags in `index.html`, the `engines.node = 22.x` pin, and the reworded package description.
+
+`vercel.json` configures: `framework: "vite"` (so Vercel infers the build — there is **no explicit
+`buildCommand` or `outputDirectory`**, and the Vite preset's default output `dist` is exactly what
+`npm run build` emits, so the two agree), an SPA rewrite of `/(.*)` → `/index.html`, a one-year
+immutable `Cache-Control` on `/assets/(.*)`, and `X-Content-Type-Options: nosniff` /
+`X-Frame-Options: DENY` / `Referrer-Policy: strict-origin-when-cross-origin` on all routes.
+
+### Deploy — NOT verified, and the reason is not a failure
+
+**The `vercel` CLI is installed (53.4.0) but its stored token is invalid** — `vercel whoami`
+returns *"The specified token is not valid."* Re-authenticating was declined on purpose: entering
+credentials is out of bounds for an agent. So deployment state could not be read from Vercel, and
+is **not** being guessed at here.
+
+What the GitHub side shows, which is evidence but not proof: **no deployments** on the repo, **no
+check runs** and **no commit statuses** on `e6b3ae4`, **no webhooks**, and an empty `homepageUrl`.
+PR #3 prepared the *repository* for Vercel; README step 1 (*"In the Vercel dashboard, import this
+GitHub repo"*) is a manual dashboard action, and nothing observable suggests it has been done. The
+likeliest reading is that **the repo is not yet connected to a Vercel project, so the push to
+`main` triggers nothing**. The owner has to confirm that himself.
+
+Also worth the owner's eye before real users arrive: the repo is **PUBLIC**, and its **default
+branch is `dev`**, not `main` — so a visitor lands on `dev`, and any Vercel import would default
+its production branch to `dev` unless told otherwise.
+
+### Housekeeping
+
+`git add` was given **explicit paths only**; `git add -A` was never used. **No `npm install`.**
+**Nothing was force-pushed.** Port **5173 was left strictly alone** — never bound, never killed,
+never served against. The promotion worktree holds no commits and is left for the dispatcher to
+reap. The ~30 accumulated throwaway branches and worktrees still need the owner's hand: the
+permission layer refuses agent branch deletion, so none were removed.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · correction — the deploy claim in the promotion entry above
+
+**Event:** `correction`
+
+The entry above recorded the deploy as **NOT verified**, reasoning from the absence of GitHub
+deployments, check runs, webhooks and a `homepageUrl` that the repo was probably not yet connected
+to a Vercel project. **That conclusion was wrong, and the push disproved it.** Vercel *is*
+connected. The correction is recorded rather than the original silently amended, because the
+original was written before the push and its evidence was genuinely all that existed at the time —
+but a reader must not be left with the false claim.
+
+**What actually happened on the push of `a0b3233` to `main`:**
+
+- GitHub deployment **6108081800**, environment **Production**, ref `a0b3233` — status **success**,
+  *"Deployment has completed"*.
+- The Vercel commit status on `a0b3233` is **success**.
+- The canonical alias **https://badge-builder-2k27.vercel.app** serves it, publicly, **HTTP 200**.
+
+**The live site was proven to be this exact commit, not merely reachable.** The served
+`index.html` is **byte-identical** to the `dist/index.html` built locally from `a0b3233`, and both
+hashed assets match by **SHA-256**: `index-CaUagHFW.js` → `bb7529c1…`, `index-ByLFPND1.css` →
+`a3541a12…`. Every `vercel.json` rule is live and observable in the response headers — the
+immutable one-year `Cache-Control` on `/assets/*`, and `nosniff` / `DENY` /
+`strict-origin-when-cross-origin` on all routes — and the SPA rewrite resolves a deep route to
+**200** instead of a 404.
+
+**In the browser at 1280 desktop:** the shell renders in full (header, position + height row,
+Attributes pane, Ledger overview, Build panel), `dataset 2026-08-26.1` displayed — the same
+version INV-19's golden is pinned to. React mounted (2,992 DOM nodes, 81 buttons, 308 inputs) and
+**`documentElement.scrollWidth − clientWidth` is 0** — no horizontal overflow, the defect class the
+roll-panel fix closed, holding in production. **Zero console messages of any level.**
+
+**What stands from the original entry:** the `vercel` CLI's token genuinely is invalid, so none of
+the above came from the CLI — it is all GitHub deployment API plus direct HTTP against the live
+origin. The team-scoped deployment URL
+(`badge-builder-2k27-j8ip1298i-tapintomyminds-projects.vercel.app`) does sit behind Vercel's SSO
+wall and redirects to a login page; **no credentials were entered and no attempt was made to get
+past it**. That wall is deployment protection on the internal URL, not an app failure — the public
+alias is open, which is the one real users will use.
+
+One nuance the owner should still confirm: the repo's **default branch is `dev`**, and the
+deployment history shows `dev@67b0fef` deployed as *Production* at 16:58 while `dev@97016f3`
+deployed as *Preview* at 17:02 and `main@a0b3233` as *Production*. That pattern is consistent with
+the Vercel production branch having been set to `main`, which is what the promotion assumed — but
+it is inferred from the deployment record, not read from Vercel settings.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · slice-complete — deploy readiness + the storage-scope disclosure
+
+**Event:** `slice-complete`
+**Branch:** `deploy-readiness`, 4 commits off `18aea30`, worktree `/private/tmp/bb-deploy`
+(`node_modules` symlinked from the main checkout; no `npm install` was run).
+**Not merged.** `dev` is untouched and `main` was never checked out.
+**Suite:** 78 files / **1715 → 1720** tests, green. Typecheck clean. Build clean.
+
+Rebased once, mid-slice: the promotion agent pushed `97016f3` + `18aea30` to `dev` while this
+branch was open. Both are reportback-only, the rebase was conflict-free, and the diff against the
+new `origin/dev` is exactly the six files below. `git add` was given explicit paths throughout;
+`git add -A` was never used.
+
+### 1 — `vercel.json`: checked against reality, not against convention
+
+Every claim was verified rather than assumed, and the file was **mostly right**:
+
+| Claim | Verified how | Verdict |
+|---|---|---|
+| output dir is `dist` | ran `vite build`; `vite.config.ts` sets no `build.outDir` | correct |
+| build command | `package.json` `build` = `tsc --noEmit && vite build` | correct |
+| base path serves at a domain root | built `index.html` references `/assets/*` + `/favicon.svg` | correct |
+| `/assets/*` may be `immutable` | every emitted file is content-hashed; `favicon.svg` is deliberately OUTSIDE `/assets/` | correct |
+| hash anchors work on a static host | fragments never reach the server — proven live | correct |
+
+**The one real gap was `index.html`.** It carried no `Cache-Control` at all and inherited a Vercel
+default. The default happens to be right — production returns `public, max-age=0, must-revalidate`
+on `/`, measured — but a default is not a guarantee, and this is the failure that does not
+self-heal: a visitor pinned to an old `index.html` requests asset hashes that no longer exist, so
+the app is permanently broken rather than merely stale. This project has been bitten twice by
+stale served assets during verification; for real users there is no "rebuild and retry".
+
+Now stated: `/` and `/index.html` → `public, max-age=0, must-revalidate`. **The two `Cache-Control`
+rules cannot collide by construction** — `/assets/(.*)`, `/` and `/index.html` are mutually
+exclusive paths, so it does not matter whether Vercel resolves duplicate header keys first-match or
+last-match, a question this repo cannot test locally and therefore must not depend on. No regex
+lookahead was used: a `vercel.json` that fails to parse fails the entire deploy. `buildCommand` and
+`outputDirectory` are now stated rather than inherited from the framework preset.
+
+**The SPA rewrite was kept and is not load-bearing.** The app has no router — `grep` for
+`pushState` / `replaceState` / any history API over `src/` is clean. Every destination is `/` plus a
+fragment, and fragments are never sent to a server. The rewrite only keeps a stale path off a 404.
+
+### 2 — The deploy is already live, and open. Measured, unauthenticated.
+
+Read-only HTTP against `https://badge-builder-2k27.vercel.app`, no credentials, no CLI, no
+`vercel deploy` or `vercel link`:
+
+| Path | Status | `Cache-Control` |
+|---|---|---|
+| `/` | **200** | `public, max-age=0, must-revalidate` |
+| `/assets/index-*.js` | **200** | `public, max-age=31536000, immutable` |
+| `/favicon.svg` | **200** | `public, max-age=0, must-revalidate` |
+| `/some/deep/path` | **200** `text/html` | `public, max-age=0, must-revalidate` |
+| `/#cat-defense` | **200** | fragment never reaches the server |
+
+**200, not 401 — deployment protection is OFF on the public alias**, so friends without a Vercel
+account can load it today. `nosniff` / `DENY` / `strict-origin-when-cross-origin` are all live.
+Note the fourth row: a rewritten path gets the revalidating header, **not** the immutable one — the
+rewrite cannot leak `immutable` onto HTML.
+
+This independently agrees with the correction entry above, and adds the reason its
+team-scoped-URL SSO wall is expected rather than alarming: it is Vercel's *Standard Protection*,
+which protects **preview** URLs and leaves production public. The consequence for the owner is that
+a link copied from a pull request will 401 even while production is fine.
+
+### 3 — First visit, real browser, empty storage
+
+Served bytes were diffed against the build **before** any measurement was trusted: `/`,
+`/assets/index-CAZe-MzN.js` and `/assets/index-A9kZd_ZK.css` each SHA-256-match `dist/` exactly,
+and the served `index.html` references those two hashes. Preview on **4319** — never 5173, which
+holds the owner's real saved data at that origin.
+
+**Zero external network requests, from the network layer rather than from reading source.** Both
+the network panel and `performance.getEntriesByType('resource')` report the same three same-origin
+requests — the document plus the two hashed assets — and `externalRequests` filtered against
+`location.origin` is **empty**. **Zero console messages of any level.** The static scan agrees: the
+only absolute URLs in the bundle are XML namespaces and React's error-docs string, none of which is
+fetched. Type stack is the system one (`--font-ui` / `--font-num`); no web font, no CDN, no
+analytics.
+
+**1440×900** — fixed shell active (`body { overflow: hidden }`, document `scrollHeight` = 900).
+**1280×800** — shell active, badge grid 3-up at 304px. **1280×700** (what a 1280×800 laptop
+actually has once browser chrome is subtracted) — shell correctly stands down: `body` overflow
+`visible`, document scrolls, and the attributes pane is `position: sticky` and **stays on screen**
+(measured at `top: 12` after scrolling 1,400px) rather than scrolling away. **390** — 1-up cards at
+366px, jump-nav sticky and horizontally scrollable as designed. `scrollWidth − clientWidth` is
+**0 at every width**, before and after this slice's copy.
+
+Deep links resolve **on a first visit with genuinely empty storage**: `#panel-summary` left
+`.col-right` at 8,256 of 8,382 with the target at `top: 182`. That is not luck — `scroll-memory.ts`
+stands down when the document loads with a fragment ("THE HASH WINS"), so the anchor and the
+remembered offset cannot fight.
+
+**What a new user actually sees, honestly:** the zero state is not broken and shows no error, but
+it is a wall of 53 locked cards, six `0/0` ledger rows and a per-category `0 pts left → nothing else
+fits at these prices.` Every line of that is *true* — no capacity has been entered yet — and none
+of it is styled as a failure. The path in is visible (position + height at the top, the attribute
+rail immediately below; on mobile the order is even better: Physique then Attributes, before any
+badge). Entering two attributes was enough to light the grid up. **This was left alone
+deliberately** — the feasibility string is engine-derived and `tests/feasibility-golden.test.ts` is
+a RUN-never-edit gate, so rewriting zero-state copy is a scoped decision for the owner, not a thing
+to smuggle into a deploy slice.
+
+### 4 — The two storage caveats now exist inside the app
+
+Before this slice the running app said **neither** — `grep` over `src/ui/` and `src/App.tsx` for
+any per-browser / per-device / clearing-data copy returned nothing. Both facts lived only in
+`README.md`, which the person who loses a build has by construction not read.
+
+One string, `STORAGE_SCOPE_LINE`, rendered in two places — the `unreadableBuildsLine` doctrine
+applied again, because two surfaces stating one fact in two wordings is how the fact quietly stops
+being true in one of them:
+
+- the **Summary section**, as a SIBLING of `<SummaryPanel>` — that surface's job is reading the plan
+  back out, which is the moment a user thinks "I want to keep this";
+- the **build manager**, ABOVE the list, so the facts that decide what to keep land before the row
+  of Delete buttons.
+
+**Not a banner, and it must not become one.** Both sites cost **zero always-visible height** —
+`.build-manager` is a modal, and the Summary site is inside `.col-right`, the shell's scrollport at
+the L gate. A permanent band would have forced F14's height gate UP. F9's touch-target census is
+unchanged and still exact **on both axes** (assertions 24 / 27 height, 30 / 31 width, plus 33), and
+the layout arithmetic is untouched — this slice adds text, not a control, so §11.5's "no second
+Export/Import pair in the rail" ruling stands.
+
+Sibling rather than child is mechanical, not stylistic: `.summary` is the subtree
+`tests/ui/overlays.test.tsx` compares across all four overlay combinations, and that gate is
+RUN-never-edit. Static copy could not break a bit-identical comparison, but staying outside means
+the gate never has to reason about it. **Asserted**, so an accidental move inside cannot happen
+silently.
+
+Every clause is a property the app actually has: `src/persist/local-storage.ts` is the sole
+`localStorage` owner and `localStorage` is scoped to origin AND browser profile; `exportNow`
+serialises the **working** build — one build, not the whole store, which is why the copy says so
+rather than implying a backup. No 2K mechanic is claimed. No bare "slot"; all four vocabulary lint
+classes green.
+
+### Gates and verification
+
+Full `npm test` **78 files / 1720 tests**, predicted as 1715 + 5 before running. `npm run
+typecheck` clean, `npm run build` clean. The three RUN-never-edit gates run explicitly and green:
+`tests/ui/overlays.test.tsx`, `tests/category-colors.test.ts`,
+`tests/feasibility-golden.test.ts` — **no golden cell moved**; none of the three was edited. No
+persisted key was renamed, added or removed. Runtime dependencies are still exactly
+`react` + `react-dom`.
+
+### Left for the owner — the Vercel dashboard only
+
+1. **Confirm Production Deployment Protection stays off.** Measured off today; it is a setting, and
+   turning it on 401s every friend.
+2. **Send the production alias, never a preview URL.** Preview URLs are behind the SSO wall by
+   design.
+3. **Confirm the Production Branch is `main`.** Inferred from the deployment record, not read from
+   settings — and the repo's default branch is `dev`, so the two disagree.
+4. **Decide the custom domain BEFORE sharing the link, or accept `*.vercel.app` permanently.**
+   `localStorage` is keyed to origin: moving domains later orphans every build every friend has
+   saved, with no migration path. This is the one irreversible decision on the list.
+
+### Housekeeping
+
+Six files changed: `vercel.json`, `README.md`, `src/App.tsx`, `src/styles/app.css`,
+`src/ui/builds/BuildManager.tsx`, `tests/ui/f2-disclosure-surfaces.test.tsx` (+ this entry). The
+preview server on 4319 was stopped; `dist/` is gitignored and never reached the index. Nothing was
+run against Vercel that mutates: no `deploy`, no `link`, no promote, no rollback, no credentials
+entered anywhere — every Vercel observation is an unauthenticated HTTP GET of a public URL.
 
 ## 2026-08-26 · Tier 2 · slice-complete — R12 slice 1: the workbench shell
 
@@ -9975,3 +10802,4 @@ still runs through the attribute groups, the grid section headers and the totals
 
 **Next:** merge `main` (14 commits: roster overflow fixes + deploy hardening) into this branch,
 then promote for a production build.
+
