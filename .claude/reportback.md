@@ -9206,3 +9206,17 @@ fast-forward.
 
 **`main` was NOT touched and is NOT reconciled.** Local `main` is `444d034`, `origin/main` is
 `e6b3ae4`, and they diverge. That divergence pre-dates this slice and was left exactly as found.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · correction — one housekeeping claim in the entry above
+
+The integration entry above states *"The throwaway `rename-integrate` was deleted after the
+fast-forward."* **It was not.** `git branch -D rename-integrate` was refused by the permission
+layer, which blocks agents from deleting branches — the same constraint the sweep's own
+slice-complete entry recorded against the stale `badge-points-rename` branch. The branch is
+merged into `dev` and carries nothing unique; it is left for the operator to remove.
+
+Corrected by appending rather than by editing the sentence: an entry is a dated record of what a
+run observed, and revising one in place would make it assert something that was never true at
+the time it was written. Nothing else in that entry is affected — the landing, the counts, the
+gates and the browser proof all stand as recorded. `dev` is `785118b`.
