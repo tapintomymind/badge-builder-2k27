@@ -7109,3 +7109,175 @@ contention slowdown. No timeout was lowered or tightened to make anything pass.
 **OPERATOR ACTION:** the worktrees `/tmp/bb-shell` and `/tmp/bb-a5u` are left in place on
 `f14-app-shell` and `a5-u-bonus-mode-v2`. Both landed branches can be deleted at the operator's
 discretion; `git branch -d` on them is refused to an agent by the permission layer.
+
+---
+
+## F8-R2 — the roll UI: pins, exclusions, the roll panel, the report, the fourth dialog
+
+**Branch:** `roll-ui` (off `origin/dev` = `bc2002f`), worktree `/tmp/bb-roll`. **Not merged. `main` untouched.**
+
+### changed_files
+
+`src/ui/primitives/PinControl.tsx` (new) · `src/ui/summary/RollPanel.tsx` (new) ·
+`src/ui/roll/newSeed.ts` (new) · `src/ui/roll/roll-controls.ts` (new, see Deviation 2) ·
+`src/ui/summary/LoadoutRoster.tsx` · `src/ui/grid/BadgeCard.tsx` · `src/App.tsx` ·
+`src/styles/app.css` · `tests/ui/f8-pin-exclude.test.tsx` (new) ·
+`tests/ui/f8-roll-panel.test.tsx` (new) · `tests/ui/f8-reroll-dialog.test.tsx` (new) ·
+`tests/ui/f8-roster.test.tsx` · `tests/vocabulary.test.ts`
+
+### denied_paths_checked — I did not touch these
+
+`src/engine/**` (ZERO diff — `git diff bc2002f..HEAD -- src/engine` is empty; `randomize.ts`,
+`random.ts` and `ROLL_ALGORITHM_VERSION` are byte-identical) · `src/ui/summary/SummaryPanel.tsx` ·
+`src/ui/summary/SynergyDigest.tsx` · `src/ui/summary/SummaryTextBlock.tsx` · `src/ui/synergy/**` ·
+`src/ui/build/**` · `src/ui/shell/**` · `src/ui/builds/**` · `src/ui/primitives/**` except the new
+`PinControl.tsx` · `src/styles/tokens.css` (ZERO new tokens) · `src/persist/**` · `src/data/**` ·
+`src/config/**` · `src/main.tsx` · `package.json` (`dependencies` still exactly
+`{react, react-dom}`) · `tests/ui/overlays.test.tsx` · `tests/category-colors.test.ts` ·
+`tests/feasibility-golden.test.ts` · `tests/layout-arithmetic.test.ts` · `tests/architecture.test.ts` ·
+`tests/randomize.test.ts` · `tests/steps.test.ts` · `vite.config.ts` (no timeout changed).
+
+### first_proof_result
+
+Production build served on **port 4319** (not 5173), Chrome at **1280x868**, shell ON, seeded with
+the F8 fixture (Posterizer purchased at **Gold**, holding the Fuse in Synergy Slot 5), then
+`Fill remaining` pressed.
+
+- **(a) THE PIN WAS HONOURED.** Posterizer read `Gold` before the roll and `Gold` after it, and is
+  still present. Rise Up and Float Game also survived. Roster went 4 -> 8 badges.
+- **(b) ONE LINE PER CATEGORY INCLUDING THE SUCCESSES**, all six, in category order:
+  `Finishing added Aerial Wizard (Silver), Paint Prodigy (Bronze), Aerial Wizard (Silver → Gold),
+  Ghost Stepper (Bronze), Aerial Wizard (Gold → HOF), Paint Prodigy → Layup Mixmaster (Bronze),
+  Ghost Stepper (Bronze → Silver)` · four `no badge in this category is legal for a 6'6" build`
+  declines · `Physicals added Pogo Stick (Bronze), Pogo Stick (Bronze → Gold)`. Heading:
+  `Rolled with seed 2095-997E · 2 of 6 categories filled · 9 added`. Closing line verbatim:
+  `Chosen at random from what fits. There is no ranking here.`
+- **(c) FOCUS IS ON THE REPORT HEADING.** `document.activeElement.className === "roll-report__heading"`,
+  and the report container is `aria-live="off"`.
+- **(d) SEED DISPLAYED WITH ITS HONESTY SENTENCE** — `2095-997E`, plus
+  `Same seed + same build + same budgets + same pins reproduces this roll. Change any of them and it won't.`
+
+### verification_evidence
+
+| Gate | Result |
+|---|---|
+| `npx vitest run` (full) | **1489 passed / 1489, 72 files, exit 0**, 39.28s — zero failures, zero flakes |
+| `npm run typecheck` | clean |
+| `npm run build` | clean, 334.05 kB / 100.02 kB gzip |
+| `tests/ui/overlays.test.tsx` + `tests/category-colors.test.ts` + `tests/feasibility-golden.test.ts` | **29/29**, unedited. The 504-cell golden did not move. |
+| `tests/layout-arithmetic.test.ts` (F9 census) | **135/135**, incl. assertion 27 (census exactly equals the stylesheet) and 34 |
+| `tests/vocabulary.test.ts` | **102/102**, all canaries seen to fail correctly |
+| `tests/ui/f8-roster-h2.test.tsx` | green with the pin column present |
+
+**Test count BEFORE 1426 / 69 files -> AFTER 1489 / 72 files.** The +63 reconciles exactly:
+26 new UI tests (8 + 11 + 7) + 21 new vocabulary assertions + **16 from five existing lint tests
+that emit one `it` per source file** (`architecture`, `layout-arithmetic`, `f9-bonus-mode`,
+`persist-boundary`, `vocabulary`) picking up the 4 new source files. Worth knowing for future
+count forecasts — a new *source* file grows the suite by 5 on its own.
+
+- **one-state-write spy:** wrapped `localStorage.setItem` after mount; a roll that added 9 badges
+  across 2 categories produced **exactly 1** write.
+- **activeElement check:** asserted in test 2.7 and confirmed in the browser.
+- **anchor landing, measured not declared:** `.grid-section` 44px · `#panel-summary` 12px ·
+  `.roll-report__heading` **12px** under the shell (computed `scroll-margin-top: -108px`,
+  `--scroll-reserve: calc(44px + 76px)`), and **12px** again below the gate at 1024x700 where the
+  reserve is `0px` and the declaration is a plain `12px`. One landing position, both regimes.
+- **shell-off:** at 1024x700 `.col-right` is `overflow-y: visible`, the document scrolls, the roll
+  panel renders and the report still shows all six lines.
+- **S touch floor at the 767 breakpoint:** all 64 pin/roll controls measure >=44x44, no horizontal
+  document scroll. See Defect 2 — this needed a fix.
+- **print:** `.roll-panel`, `.pin-control`, `.pin-control__reason`, `.badge-card__action`,
+  `.summary-roster__pin` and `.summary-roster__pin-mode` all confirmed inside `@media print`'s
+  hide list **in the built CSS**.
+- **`any level` was NOT cut** — the two-segment native radio sub-row ships.
+
+### stop_conditions_triggered
+
+None reached, but **three findings** and **two deliberate deviations** are recorded below.
+
+### FINDING 1 — the ratified closing sentence collides head-on with lint class 2
+
+§14.7 makes `Chosen at random from what fits. There is no ranking here.` mandatory and fixed.
+Class 2 bans the substring `rank`, and class 2's own shipped header says F8-R2 must add
+`RollPanel.tsx` to its scope. The brief's assertions **2.5 and 2.6 therefore contradict each
+other literally**, on the rendered output as well as in source.
+
+Resolved WITHOUT weakening the pattern: the exact literal is excised by string match before class 2
+runs, and three canaries keep the carve-out honest — the sentence still fails the RAW pattern, the
+exemption is an exact literal so a paraphrase is not covered, and a second `rank` in the same file
+is still caught. Same posture as AJ-4's documented `import.meta` / `prefers-reduced-motion`
+collisions. **Design should confirm the sentence, or re-word it to avoid the token.**
+
+### FINDING 2 — pre-existing duplicate-key defect in `SynergyBoard.tsx` (denied path, NOT fixed)
+
+`src/ui/synergy/SynergyBoard.tsx:216` (and `:201`) return `<td key={roleKind}>` from inside
+`synergySlots.map(...)`, so **all eight cells in a row share one React key**. React logs
+`Encountered two children with the same key, "fuse"/"reaction"`. It is latent on the shipped tests
+and surfaces once App re-renders, which the roll's session state now does. The key should be the
+synergy slot id. F11's file, in this slice's denied set, so it is reported rather than changed.
+
+### FINDING 3 — the `inputDigest` cannot gate `Restore` on its own
+
+§1(e) says compare the stored `ReproducibilityToken.inputDigest` to a freshly computed one. But
+`inputDigest` includes the **loadout**, which necessarily changes the moment a roll is applied — so
+a naive comparison disables `Restore` immediately after every roll, contradicting assertion 2.10.
+
+Implemented so the digest still has exactly ONE definition: a candidate `RollRequest` is composed
+from the CURRENT build/budgets/pins/exclusions but the STORED pre-roll loadout, and its
+engine-computed digest is compared to the stored one. No second change detector. The per-field
+comparisons below that gate choose the WORDING ONLY and never the enabled/disabled decision.
+
+### DEFECT FOUND AND FIXED (mine) — the S touch floor on the WIDTH axis
+
+Measured in Chrome at the S breakpoint: `Pin` was **36px** wide and the single-glyph `⟳` was
+**34px**. Both clear 44 on the height axis for free (they carry `.btn`, which F9 raised below 768)
+and failed §3.1's 44x44 on width first — the `.filter-chip` case exactly. Fixed with
+`min-width: var(--tap-target)` in an S block. **min-width only, deliberately:** assertion 27 reads
+the stylesheet back by matching `min-height: var(--tap-target)` and requires that selector set to
+equal `S_TOUCH_FLOOR_CENSUS`, so a min-height would have reddened a RUN-never-edit gate, and a
+`44px` literal would have escaped the gate while breaking the doctrine. Census re-verified exact.
+
+### DEVIATION 1 — RollPanel is a sibling ABOVE `<SummaryPanel>`, not inside it
+
+§14.4 puts the roll panel inside the Summary region between the over-capacity chips and the roster,
+but `SummaryPanel.tsx` is a denied path and S2 left no slot (its own comment says the region is
+"absent and NOT reserved"). Rendering it in `App.tsx` immediately above `<SummaryPanel>`, inside the
+same `<Section title="Summary">`, achieves the design intent — above the roster, beside its own
+output device, in flow, never sticky — with **zero diff to SummaryPanel**.
+
+It is also strictly better for the H2 gate: `.summary` is the exact subtree `overlays.test.tsx`
+compares across all four overlay combinations, and keeping the roll surface outside it means that
+gate never has to reason about roll state. **Cost:** the panel sits above the errors banner and the
+over-capacity chips rather than below them. Design should confirm.
+
+### DEVIATION 2 — roll state reaches its two consumers by CONTEXT, not props
+
+`LoadoutRoster` is rendered by `SummaryPanel` and `BadgeCard` is rendered 53 times by the grid;
+both parents are denied paths and neither has any business knowing a randomizer exists. A new
+`src/ui/roll/roll-controls.ts` provides the session state; the two consumers read it. `LoadoutRoster`
+keeps S2's exact public props and `BadgeCardProps` does not grow. The default is INERT (no pins,
+no-op handlers) rather than throwing, so any surface rendering without the wiring still paints.
+
+### Other spec-vs-code notes
+
+- **`colspan` 5 -> 6 in `tests/ui/f8-roster.test.tsx`.** The brief said S2's assertions stay green
+  unedited; this one mechanically cannot — the stale disclosure spans the table, and the table now
+  has six columns. "Spans the table" is the invariant; 5 was only ever its arithmetic.
+- **"exactly four `<dialog>` elements" is not assertable.** Three of the four are mounted only while
+  open (App.tsx's own A5-U comment states that as deliberate). What the count protected is asserted
+  instead: `#dialog-reroll` is distinct from the build manager's, and a bare
+  `document.querySelector("dialog")` provably returns the WRONG one.
+- **The seed field shows after any roll**, including one where `changed === false`. Strictly, §14.7
+  says hide it when the loadout did not come from a roll. Showing the report without its seed read
+  worse. Flagged rather than silently chosen.
+- **`@testing-library/user-event` is NOT a dependency** — the three new files use `fireEvent`,
+  matching the shipped convention. No dependency was added.
+- **`LoadoutRoster`'s zero-state copy** ("Buy a badge in the grid above, or roll one") now points at
+  a real surface directly above the roster. Verified in the browser: the promise is kept.
+
+### Environment note
+
+A fresh `git worktree` has no `node_modules`; it was symlinked to the main checkout so the tree runs
+byte-identical dependency versions. **`.gitignore` has `node_modules/` with a trailing slash, which
+does NOT match a symlink** — it was caught before the final commit, but any agent using
+`git add -A` in a worktree will commit that symlink. Worth an untrailing-slash fix.
