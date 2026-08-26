@@ -28,6 +28,26 @@ import type { Category } from "../../engine/vocabulary";
 import { readUiSectionOpen, writeUiSectionOpen } from "../../persist/local-storage";
 import { categoryAnchorId, categorySectionStorageKey } from "./anchors";
 
+/**
+ * Does the current fragment name this section, or anything INSIDE it?
+ *
+ * The `#cat-*` half is the shipped JumpNav case. The second half is F16's:
+ * a Loadout board tile links to `#badge-{id}` on a card's own <li>, and that
+ * <li> lives inside this section's <details>. A closed <details> still keeps
+ * its children in the DOM, so the node is findable and `contains` answers
+ * truthfully — which is what lets a board tile reveal a card in a discipline
+ * the user had collapsed. Without it the link would scroll to a hidden node
+ * and appear to do nothing.
+ */
+function hashTargetsThisSection(category: Category): boolean {
+  const hash = window.location.hash;
+  if (hash.length < 2) return false;
+  if (hash === `#${categoryAnchorId(category)}`) return true;
+  const section = document.getElementById(categoryAnchorId(category));
+  const target = document.getElementById(hash.slice(1));
+  return section !== null && target !== null && section.contains(target);
+}
+
 export interface BadgeGridSectionProps {
   category: Category;
   /** The CategoryLedger DIGEST — it renders as this section's <summary>, so
@@ -64,7 +84,7 @@ export function BadgeGridSection({ category, digest, lede, children }: BadgeGrid
    */
   useEffect(() => {
     const openIfTargeted = () => {
-      if (window.location.hash !== `#${categoryAnchorId(category)}`) return;
+      if (!hashTargetsThisSection(category)) return;
       setOpen(true);
       writeUiSectionOpen(storageKey, true);
     };
