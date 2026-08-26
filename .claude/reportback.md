@@ -7109,6 +7109,106 @@ contention slowdown. No timeout was lowered or tightened to make anything pass.
 **OPERATOR ACTION:** the worktrees `/tmp/bb-shell` and `/tmp/bb-a5u` are left in place on
 `f14-app-shell` and `a5-u-bonus-mode-v2`. Both landed branches can be deleted at the operator's
 discretion; `git branch -d` on them is refused to an agent by the permission layer.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · docs — the three user-facing docs, rebased onto the shipped app
+
+**Event:** `slice-complete`
+**Branch:** `docs-landing`, forked from `dev` `bc2002f`. Docs-only: `README.md`,
+`EXPLANATION.md`, `GUIDE.md` at the repo root, plus this entry. Nothing under `src/`, `tests/`
+or `public/` touched. No dev server started; port 5173 never bound.
+**Gate:** `npm run build` clean (`tsc --noEmit && vite build`, 77 modules). Full suite not
+re-run — the slice changes no compiled input, and `build` is what proves a malformed markdown
+file cannot break it.
+
+### The drafts were stale. What was corrected, and on what evidence
+
+The drafts predated the F14 shell and A5-U bonus mode, and had drifted further besides. Every
+factual claim was re-verified against `bc2002f` and corrected where it had moved:
+
+1. **Page scrolling → the fixed shell.** The drafts described ordinary page scrolling. `app.css`
+   gates a `100dvh` shell on width AND height, with two independent scrollports. Documented
+   BEHAVIOURALLY, with no figure in prose, per the dispatch — the height gate is derived from
+   measured chrome and a slice lowering it is in flight. Pointed at
+   `tests/layout-arithmetic.test.ts` instead, which asserts the formula.
+2. **Bonus mode was absent entirely.** Added from `BonusDialog.tsx`, `budget.ts` and
+   `CategoryLedger.tsx`: two earned totals, placed per category, composed on read, freely
+   reassignable, over-placement disclosed not blocked, and the base-0-plus-bonus case.
+3. **`23 / 20 default — 3 bonus Badge Slots?` no longer exists.** A5-U struck the guess branch;
+   `BudgetGrid.tsx:117` now emits a plain `/ ${DEFAULT_TOTAL_BADGE_SLOTS} default`, identical on
+   both sides of 20, compared against the BASE spread only. All three drafts quoted the old
+   string.
+4. **"Badge Tokens" is NOT the shipped word.** `types.ts:207` and `BonusDialog.tsx:38` both state
+   the rename is approved but the sweep has not run. Docs say **Badge Points** throughout, and
+   name "Badge Tokens" once each as 2K's own term so the two reconcile.
+5. **Cap breakers — engine-only, and said so.** `attributes.ts` honours an ABSOLUTE declared
+   value for eligibility and grants no economy (mechanically: the economy reads no attribute at
+   all). But `architecture.test.ts` lint (g) confines the field to two files and no UI writes it
+   — A6-U has not shipped. Documented as: engine honours it, the in-app control does not exist
+   yet, a value reaches a build only via imported JSON. Also carried the "one breaker != +1"
+   fact (60 -> 83 across five).
+6. **Eligibility reasons carry the current value.** `eligibility.ts`'s `nowNote` appends
+   `(now N)`. The GUIDE quoted `needs 90 Close or 93 Layup for Gold`; corrected to
+   `needs 90 Close (now 88) or 93 Layup (now 72) for Gold`.
+7. **Filter bar has FIVE facets, not four.** `FilterBar.tsx` ships a `Purchased` toggle (F8-S2).
+8. **Position hint copy changed.** F13 dropped the `(SF: 6'4"–6'10")` recitation; the shipped
+   string is `Sets the available height range. No badge has a position requirement; badges gate
+   on height and attributes only.`
+9. **Physique / Attributes moved.** Physique is a full-bleed strip at >=768 and a `<Section>`
+   below it; Attributes are the left pane at >=1280 and inside the Build panel below. The Build
+   digest omits height/position wherever the strip renders them.
+10. **Attribute display labels.** `ATTR_LABELS` gives `Mid` and `Three-Point`; the GUIDE's
+    example said "Mid-Range 78, 3-Point 83".
+11. **Test count dropped, not corrected.** The README draft claimed "868 tests"; the tree read
+    1374 when I branched and 1426 after the two landings. A number that moves every slice does
+    not belong in a README — replaced with a description of what the suite covers.
+12. **Doc links repointed** from `docs/EXPLANATION.md` / `docs/GUIDE.md` to the repo root.
+
+Newly documented because the drafts predated them: the Synergy board (F11), the loadout roster /
+Synergy digest / copy-as-text block (F8-S2), `Reset build` (F5.3), the jump nav, and the
+one-shot Build-panel collapse latch.
+
+### Cut as unverifiable
+
+**The category-colour provenance claim.** The EXPLANATION draft asserted that "2K files
+Rebounding under Defense's red, and doesn't split out Physicals as its own badge category at
+all," and that both colours were therefore the app's own invention. Neither half is supported by
+anything in the tree, and `tests/category-colors.test.ts` contradicts the second: Physicals took
+gold *from the user's own 2K HQ build-sheet screenshot*, which is why Playmaking vacated gold
+for that screenshot's orange. Both halves are assertions about 2K's presentation that the app
+does not implement and cannot back — exactly the class the seed's #1 rule forbids. Replaced with
+what IS verifiable: the palette descends from a build-sheet screenshot where it had one and is
+the app's own choice elsewhere, it is presentation either way, and no part of it is published 2K
+data. Kept the two properties the suite DOES enforce — colour is identity never state, and
+colour is never the only carrier.
+
+Also verified-and-kept rather than assumed: 53 badges (11/9/10/12/5/6 by category, 22/15/16 by
+tier), 19 NEW, `dataVersion 2026-08-26.1`, `gameVersion: null`, `confidence: pre-release`, the
+tier cost table, the position->height table, the feasibility strings, and every `+2` /
+discipline-lock string quoted. The GUIDE's worked example was re-computed against
+`badges.json` and is arithmetically correct as written (Aerial Wizard Bronze 1 + Float Game
+Silver 5 + Ghost Stepper Gold 4 = 10/16; fuse refunds 5 then 4; Gold+2 = Legend).
+
+### README merge — pre-existing content preserved
+
+The repo README was not overwritten. Kept in full: the Posture section, the sealed-`seed.md`
+requirements note and its two rules, the Vercel deploy runbook, the `src/` layout, Known
+constraints, Branches, and License. Removed only the stale `Status: skeleton` banner (the app is
+built). Corrected one pre-existing error: it claimed "each directory carries a `README.md`" —
+`tests/` has none, so the sentence now names the four `src/` directories that do. Added
+`src/persist/` to the layout block, and the declared Node `22.x`. Every command printed was
+checked against `package.json`; all seven scripts exist as written, and the 5173 `strictPort`
+claim is verified in `vite.config.ts`.
+
+### Vocabulary
+
+`Badge Slots` / `Synergy Slots` throughout, never a bare "slot". All three files were linted for
+unqualified `slots?`; the only hits are line-wrap continuations of a qualified term, the
+hyphenated `Badge-Slot overflow`, and the EXPLANATION glossary quoting the banned token to
+define it.
+
+**OPERATOR ACTION:** `docs-landing` is pushed and unmerged — sequencing is the coordinator's.
+The worktree `/tmp/bb-docs` is left in place on it.
 
 ---
 
