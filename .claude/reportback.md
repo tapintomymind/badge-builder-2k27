@@ -5863,3 +5863,225 @@ Merge order for what remains is unchanged: **A5-U → F8-R2**, with `f11-synergy
 file and on nothing else that is currently forecast; `f13` additionally shares
 `BuildPanel.tsx`'s `hasValues` ternary with A6-E, where the standing rule is **widen, never replace**.
 ─────────────────────────────────────────────
+
+SLICE COMPLETE — F11 the Synergy board (cut 1), 2026-08-25
+─────────────────────────────────────────────
+
+WHAT LANDED
+One new component, `SynergyBoard`, rendered as the HEAD of the existing
+`<Section title="Synergy Slots">` — two labelled rows (Fuse above Reaction)
+crossed with eight columns in `SynergySlotId` order, a Temporary/Permanent
+band divider on the 4/5 seam, live `(+1)`/`(+2)` headers read off
+`slot.magnitude`, `🔒 Locked` on locked columns, badge name + purchased-level
+letter in occupied cells, `⊕` in empty ones. Pressing a column header or a
+cell scrolls the Synergy Slot's own row into view and puts focus in it. The
+eight shipped `SynergySlotRow`s are untouched and are the board's detail.
+
+It is a READ-PLUS-NAVIGATE surface. It dispatches no state change: no
+`onSynergySlotsChange`, no `assignSynergy`, no `clearSynergy`, no `onSetLevel`.
+Its own state is one `SynergySlotId | null` — which column is selected — and
+nothing is persisted.
+
+CHANGED FILES — a subset of the allowlist, nothing outside it
+  src/ui/synergy/SynergyBoard.tsx        new — the entire slice
+  src/ui/synergy/SynergyPanel.tsx        TWO edits: the mount between
+                                         <PlusTwoDesignator/> and the .map(),
+                                         and id={`synergy-row-${id}`} on the
+                                         <fieldset>. One import line.
+  src/styles/app.css                     ONE appended delimited block, after
+                                         F5.4's, between machine markers
+  tests/layout-arithmetic.test.ts        14 assertions (the brief's 13 + the
+                                         NAME_MIN record below)
+  tests/ui/f11-synergy-board.test.tsx    new — 23 cases
+  tests/ui/f2-source-pins.test.ts        ONE string appended to the :96 array
+  docs/proof/f11-verification.txt        + 10 screenshots
+  .claude/reportback.md                  this entry
+
+DENIED PATHS — NOT TOUCHED, and `src/App.tsx` named explicitly
+`src/App.tsx` was never opened for edit and needs no wiring: the board mounts
+inside `SynergyPanel`, which already receives all four props the board consumes
+(`synergySlots`, `loadout`, `dataset`, `overlay`). Nothing is threaded. Also
+untouched: `src/engine/**`, `src/styles/tokens.css`, `src/config/**`,
+`src/data/**`, `src/ui/grid/**`, `src/ui/{summary,build,builds,shell,primitives}/**`,
+`src/persist/**`, `tests/ui/overlays.test.tsx`, `tests/category-colors.test.ts`,
+`tests/feasibility-golden.test.ts`, `tests/ui/synergy-panel.test.tsx`,
+`package.json`, `package-lock.json`, `vite.config.ts`, `tsconfig*.json`.
+`src/ui/board/**` was never created.
+
+THE ZERO-LIST HOLDS, AND IS ASSERTED RATHER THAN CLAIMED
+Zero engine changes · zero new tokens · zero new dependencies (`react,react-dom`,
+confirmed) · zero persisted-shape change (schemaVersion stays 1, so no reader
+inventory applies to this slice) · zero new live regions · zero dialogs · zero
+new breakpoints (the 767 touch floor is the shipped one) · zero sticky layers ·
+zero new scrollports. Each is a named assertion over the stylesheet block or
+the rendered DOM, not a claim in prose.
+
+BOTH SHIP-GATE TRAPS, CONFIRMED HANDLED
+  1. THE STRING COLLISION. The band label is
+     `⟳ Temporary Synergy Slots disabled by season-reset preview`, not the
+     row's `⟳ Disabled by season-reset preview`. `overlays.test.tsx:171` does
+     a global exact `getByText` on the row string and `getByText` throws on a
+     second match. Asserted twice — at source level in
+     `tests/layout-arithmetic.test.ts` so it reds there FIRST, and in the DOM
+     in the new UI file, which also pins that the row-level string count is
+     unchanged (3 row notes for three unlocked temporary Synergy Slots, plus
+     exactly one band note). `overlays.test.tsx` is green, run by name.
+  2. THE GRID SPAN. `.synergy-board { grid-column: 1 / -1 }`, following
+     `.synergy-panel > .banner` eight lines from `.synergy-panel`'s own
+     declaration. Asserted, with the canary that without it the board lands
+     in one 436.5px track at 1280 against an 829px floor.
+Trap 3 (`.synergy-row`), trap 2 (`category-ledger`/`ledger-overview`/`summary`)
+and trap 6 (the getByText collision set) are each asserted in the DOM as well.
+Trap 4's one-string append to `f2-source-pins.test.ts` is the only edit to that
+file. Trap 5 is honoured: `blocksFor()` is used for every selector that has more
+than one block, and `.synergy-board__table` has three.
+
+GATE RESULTS
+  npm run test        63 files / 1246 tests PASS (base 62 / 1204). No skips,
+                      no .only. The +42 are this slice's.
+  npm run typecheck   PASS
+  npm run build       PASS — tsc --noEmit && vite build, 69 modules, CSS
+                      43.46 kB. Run because it is the ONLY gate that parses
+                      the appended app.css block.
+  RUN-never-edit, by name, all green and none edited:
+      tests/ui/overlays.test.tsx · tests/category-colors.test.ts ·
+      tests/feasibility-golden.test.ts   (3 files / 23 tests)
+  dependencies        react,react-dom
+  git status          every path inside the allowlist
+
+BROWSER PROOF — MEASURED, NOT EYEBALLED
+Chrome/151.0.7922.174 --headless=new over CDP. Full tables in
+docs/proof/f11-verification.txt.
+      1440  box 1062  8 columns  cellW 115.13   divider on the 4/5 seam
+      1280  box  902  8 columns  cellW  95.13   the binding case
+       768  box  702  4 + 4      cellW 151.50   both band labels
+       390  box  332  4 blocks of 2  cellW 126.00   nothing hidden
+Every measured cellW equals the derivation to the pixel. No page h-scroll and
+no board scrollport at any width. Zero nodes on the board with a computed
+opacity other than 1.
+
+THE 828/830 SEAM — SHOT AS A PAIR, BOTH READINGS
+The 829 floor is a BOARD-BOX figure, not a viewport, so both are on the record.
+  · The real seam, found by sweeping the viewport and reading the box back:
+    box 828 → 4+4, box 829 → 8 across, box 830 → 8 across at cellW 86.13,
+    clearing CELL_FLOOR 86 by 0.13. `f11-seam-828.png` / `f11-seam-830.png`.
+    The threshold is written `@container (width < 829px)` in range syntax, so
+    the number in the stylesheet IS the derived demand — no max-width
+    off-by-one to reconcile.
+  · The literal viewports 828 and 830 give boxes 762 and 764 and are BOTH
+    four-wide, which is correct rather than a failure: below 1280 the box is
+    `v − 2×--space-4 − 34`, so eight-wide needs viewport ≥ 895 at s=0. Shot
+    and kept as `f11-seam-viewport-828.png` / `-830.png`.
+
+THE MEASURED BOX AT 1280 IS 902, AND THE STOP CONDITION DID NOT FIRE
+885 is `boardBox(1280, s=17)`. Headless Chrome on macOS renders overlay
+scrollbars, so s = 0 and the box is 902 — the SAME F5.4 derivation at a
+different scrollbar, confirmed against `.section__body` clientWidth 934 = 902 +
+2×--space-4. The derivation has not moved. The arithmetic test asserts the
+eight-column fit across all of `SCROLLBARS = [0, 15, 17]` and names 885 /
+cellW 93.00 / margin **+7.00** as the binding s=17 case — the design's +13.3
+was wrong by the uniform +6.25/cell the brief identified.
+
+TWO THINGS THE OPERATOR SHOULD SEE
+  1. NAME_MIN_CONTENT IS 2.156px LIGHT — RECORDED, NOT SILENTLY RE-PINNED.
+     Re-measured in headless Chrome inside a live `.synergy-board__button`:
+     "Unpluckable" **70.156** against the paper 68 ("Interceptor" 62.563,
+     "High-Flying Denier" 36.969 — the hyphen breaks it early). §13.0.1's
+     take-the-larger rule would re-pin to 71, move CELL_FLOOR 86 → 89 and move
+     the eight-column floor **829 → 853**. That is a threshold change to a
+     number this slice was briefed to land on and to prove at the 828/830
+     seam, so it is surfaced for ratification rather than taken unilaterally.
+     Cost, bounded and measured: only for a board box between 829 and 853 does
+     the longest single word want ~2.2px more than its cell's inner edge
+     offers; it cannot scroll and cannot reach the document, and NO coverage
+     width is in that band. Carried as assertion "1b" in
+     `tests/layout-arithmetic.test.ts` so it fails the day someone moves one
+     number without the other. "Reaction" re-measured at 59.141 against its
+     64px track — the ROW_LABEL_W 72 pin holds with 4.86px to spare.
+  2. THE SECOND RESPONSIVE STEP IS DERIVED, NOT THE DESIGN'S "~560".
+     The design named ~560 as a comfort threshold and declined to derive it.
+     Implemented at **440** — the four-wide floor itself, `4×86 + 72 + 3×8` —
+     which is the same rule as the 829 one step down. It lands identically at
+     both widths the coverage set names: 768 (box 702) is four-wide, 390 (box
+     332) is two-wide.
+
+ONE DEFECT FOUND AND FIXED DURING THE CUT, WORTH RECORDING
+The narrow arrangements' band placement was written `.synergy-board__band
+{ grid-column: 1 / -1 }` at specificity (0,1,0) against wide placements at
+`.synergy-board__band[data-band="…"]`, (0,2,0). The bare selector LOST, the
+Permanent band kept columns 7/11, and the five-track template grew five
+implicit tracks it never sized. Measured before the fix: cellW **88.97** at 768
+against a 151.50 demand, and **2.00** at 390. No jsdom test can see a collapsed
+grid track — the suite was green throughout and the DOM was correct at every
+width. Caught only by measuring in the browser, which is the argument for the
+browser gate. The selector now names both bands and says why in place.
+
+RULINGS HONOURED WITHOUT DRIFT
+  · `.synergy-row--dimmed { opacity: 0.6 }` is a known live violation of
+    design-spec §6 / I2 in the shipped rows. NOT touched (brief §6.2). The
+    board renders its own locked columns de-opacified: `--bg-canvas` fill,
+    `--border-subtle` rim, `--fg-muted` spelled out ON the text (6.15:1),
+    computed opacity 1 everywhere, and the cells of a locked column are NOT
+    buttons — H4's control-not-offered class.
+  · No control renders inside a cell. `SELECT_FLOOR` 180 against a 93px cell
+    is a 1.94× shortfall, so `pickerGroups`' whole disable-with-reason
+    discipline in `SynergyPanel.tsx` is untouched. Asserted: zero `select`,
+    zero `input`, zero `.select/.segmented/.toggle` inside the board, and the
+    rows below still have theirs.
+  · The season-reset preview leaves every control in the band operable —
+    6 buttons, 0 disabled, measured. Rev 1's dimmed-but-declared-operable
+    defect does not reappear.
+  · Badge names are TEXT, never art. No glyph set, no images, zero network.
+  · The board announces nothing. `.synergy-panel`'s live-region count is
+    exactly 2 with the board present, and the board contributes 0.
+
+CONFLICT FORECAST — the four in flight and the four queued
+  · `a6-e-cap-breakers`, `f9-touch-floors`, `f13-physique-strip`,
+    `f8-s2-summary`: none touches `SynergyPanel.tsx` or
+    `src/ui/synergy/**`. The only shared file is `src/styles/app.css`, and
+    this slice's CSS is one appended block at end of file between markers, so
+    any collision is a trivial append-order resolution. `f9-touch-floors` is
+    the one to watch: it owns I6 and this block declares
+    `@media (max-width: 767px) { .synergy-board__button { min-height: 44px } }`.
+    That is an ADDITIVE rule on a NEW class inside an existing breakpoint — if
+    F9 introduces a shared touch-floor selector, the board's button should be
+    folded into it and this rule deleted rather than kept alongside.
+    `f8-s2-summary` also lands in `tests/layout-arithmetic.test.ts`, but at a
+    different describe and against `.summary`; the F11 section is appended at
+    end of file. `a6-e-cap-breakers` may touch
+    `tests/ui/f2-source-pins.test.ts` — this slice's edit there is one string
+    inside the `:96` array and merges cleanly unless that array is
+    restructured.
+  · `a5-u-bonus-mode`: no synergy surface. `app.css` append-order only.
+  · `f10-feedback-loop`: unknown surface. If it adds a live region anywhere
+    inside `.synergy-panel`, note that `tests/ui/f11-synergy-board.test.tsx`
+    pins that panel's live-region count at exactly 2.
+  · `f8-r2-roll-ui`: no synergy surface expected; `app.css` append-order only.
+  · `f12-reset-placement`: THE ONE REAL OVERLAP. It moves or re-frames the
+    season-reset preview control. This slice adds a SECOND consumer of that
+    overlay — the board's band label — and the band string
+    `⟳ Temporary Synergy Slots disabled by season-reset preview` must stay
+    DISTINCT from the row string or `overlays.test.tsx` reds. F12 should read
+    brief §6.3 before re-wording either.
+  · `.synergy-row--dimmed`'s de-opacification is routed as its own micro-slice
+    and is still unclaimed. Whoever takes it should expect the board's locked
+    columns to already look correct and the rows to change to match.
+
+CARRIED FORWARD
+  · The NAME_MIN_CONTENT 68 → 71 re-pin and the 829 → 853 threshold move it
+    implies. Needs a ratification, not an implementer.
+  · Cut 2 stays specced and unbuilt in full: `LoadoutBoard`, `DisciplinePanel`,
+    `BadgeTile`, `BoardDetail`, a second `<Section>`, a `JumpNav` chip, the
+    selection tagged union, assign/clear from the board, the over-capacity
+    fence, and the 864px side-by-side threshold. `src/ui/board/**` does not
+    exist.
+
+KNOWN AND NOT MINE
+The load-dependent vitest flake class. `vite.config.ts` untouched, no
+`{ timeout: 20000 }` lowered, no flake observed across the five full or partial
+runs this slice made.
+
+NEXT
+Branch `f11-synergy-board` pushed. `dev` untouched at `a5fe8e1`; `main`
+untouched. Not merged.
+─────────────────────────────────────────────
