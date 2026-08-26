@@ -47,6 +47,7 @@ import { SegmentedControl } from "../primitives/SegmentedControl";
 import { Select } from "../primitives/Select";
 import type { SelectGroup, SelectOption } from "../primitives/Select";
 import { Toggle } from "../primitives/Toggle";
+import { SynergyBoard } from "./SynergyBoard";
 
 const ROLE_LABELS: Record<SynergyRoleKind, string> = { fuse: "Fuse", reaction: "Reaction" };
 
@@ -219,6 +220,11 @@ export function SynergySlotRow({
 
   return (
     <fieldset
+      // [F11] The scroll-and-focus anchor the SynergyBoard's column buttons
+      // target. An id rather than a ref map or a context — it matches the
+      // app's existing in-page-anchor convention (#cat-*, #panel-synergy,
+      // #badge-grid) and needs no plumbing at all.
+      id={`synergy-row-${synergySlot.id}`}
       className={`synergy-row${
         !synergySlot.unlocked || previewDisabled ? " synergy-row--dimmed" : ""
       }`}
@@ -418,6 +424,16 @@ export function SynergyPanel({
         </p>
       ) : null}
       <PlusTwoDesignator designatedCount={designatedCount} />
+      {/* [F11] The board is the HEAD of this section and the eight rows below
+          are its detail. It takes four props this component already holds and
+          adds none — nothing is threaded through App.tsx, because there is
+          nothing to thread. It dispatches no state change. */}
+      <SynergyBoard
+        synergySlots={synergySlots}
+        loadout={loadout}
+        dataset={dataset}
+        overlay={overlay}
+      />
       {synergySlots.map((synergySlot) => (
         <SynergySlotRow
           key={synergySlot.id}

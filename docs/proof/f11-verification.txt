@@ -1,0 +1,300 @@
+F11 — the Synergy board (cut 1)
+impl-brief .claude/workspace/badge-builder-2k27/impl-briefs/f11-synergy-board.md
+branch f11-synergy-board · base origin/dev @a5fe8e1 (1204 tests / 62 files)
+================================================================================
+
+
+1. SHIP GATES
+--------------------------------------------------------------------------------
+=== npm run typecheck ===
+
+> badge-builder-2k27@0.0.0 typecheck
+> tsc --noEmit
+
+
+=== npm run build ===
+
+> badge-builder-2k27@0.0.0 build
+> tsc --noEmit && vite build
+
+vite v8.2.2 building client environment for production...
+transforming...
+✓ 69 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.98 kB │ gzip:  0.45 kB
+dist/assets/index-xzmgGEA9.css   43.46 kB │ gzip:  8.02 kB
+dist/assets/index-C2c_MU6q.js   294.69 kB │ gzip: 89.03 kB
+
+✓ built in 419ms
+
+=== npx vitest run (three RUN-never-edit gates, by name) ===
+
+ RUN  v4.1.11 /private/tmp/bb-f11
+
+
+ Test Files  3 passed (3)
+      Tests  23 passed (23)
+   Start at  23:35:35
+   Duration  2.36s (transform 461ms, setup 124ms, import 520ms, tests 1.48s, environment 471ms)
+
+
+=== dependencies ===
+react,react-dom
+
+
+  === npm run test (full suite) ===
+> badge-builder-2k27@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /private/tmp/bb-f11
+
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+
+ Test Files  63 passed (63)
+      Tests  1246 passed (1246)
+   Start at  23:35:47
+   Duration  21.16s (transform 4.68s, setup 2.45s, import 10.96s, tests 99.89s, environment 14.20s)
+
+  No skips, no .only.  63 files / 1246 tests (base 62 / 1204).
+  The +42 are this slice's: 23 in tests/ui/f11-synergy-board.test.tsx, 14 in
+  tests/layout-arithmetic.test.ts, 1 in tests/ui/f2-source-pins.test.ts (the
+  one-string append), and 4 from the per-file source lints that iterate
+  src/** and now see SynergyBoard.tsx.
+
+  npm run build is NOT redundant with typecheck and was run for the reason
+  the brief gives: it is the only gate that parses the appended app.css
+  block. Vitest reads that stylesheet as a raw string and tsc never sees it.
+
+
+2. BLOCKING IN-SLICE MEASUREMENT — NAME_MIN_CONTENT RE-MEASURED
+--------------------------------------------------------------------------------
+Chrome/151.0.7922.174, --headless=new, driven over CDP, viewport 1280,
+deviceScaleFactor 1. A width:min-content probe carrying the class a real
+badge name carries, appended INSIDE a live .synergy-board__button so it
+inherits the cell's own font stack and --text-xs size.
+
+  "Unpluckable"            70.156   <- binding (11 chars, no break)
+  "Interceptor"            62.563       (11 chars, tied on count)
+  "High-Flying Denier"     36.969       (the hyphen breaks it early)
+
+THE PAPER FIGURE IS 68 AND THE BROWSER SAYS 70.156 — 2.156px LIGHT.
+
+The pin is LEFT AT 68 and the gap is recorded, in this file and as an
+assertion (tests/layout-arithmetic.test.ts, "1b"). The reasoning, stated so
+it can be overruled rather than rediscovered:
+
+  - Applying §13.0.1's take-the-larger rule re-pins to 71, moves CELL_FLOOR
+    86 -> 89 and moves the eight-column floor 829 -> 853.
+  - 829 is the number this slice was briefed to land on and to PROVE at the
+    828/830 seam. Moving it is a spec change, not an implementation detail.
+  - The cost is bounded and measured: only for a board box between 829 and
+    853 does the longest single word want ~2.2px more than its cell's inner
+    edge offers. It cannot scroll (no overflow anywhere in the block, and
+    document scrollWidth == clientWidth at every width below) and it cannot
+    reach the document. NO coverage width is inside that band.
+        1280 -> cell content 77.13 against 70.16 needed  (clears by 6.97)
+         830 -> cell content 68.13 against 70.16 needed  (the tightest legal
+                eight-wide box; "Unpluckable (B)" renders on two lines there
+                — see f11-seam-830.png)
+
+  ROW_LABEL_W's text half, re-measured the same way:
+    "Reaction" at --text-sm     59.141  against a 64px track (72 - --space-2).
+  It fits on one line with 4.86px to spare; the 72 pin holds.
+
+
+3. THE MEASURED BOARD BOX vs F5.4's DERIVATION
+--------------------------------------------------------------------------------
+The brief's stop condition reads "the measured board box at 1280 is not 885".
+MEASURED: 902.00. That is NOT a moved derivation — it is the SAME derivation
+at a different scrollbar. 885 is boardBox(1280, s=17); headless Chrome on
+macOS renders overlay scrollbars, so s = 0 and the box is boardBox(1280, 0):
+
+    centre(1280, 0) = 1280 - 0 - 2 x --space-4 - --space-3 - RAIL 300 = 936
+    board box       = 936 - SECTION_CHROME 34                         = 902
+
+Confirmed against the DOM: .section__body clientWidth 934 = 902 content +
+2 x --space-4. The <Section> chrome is present and F5.4's derivation is
+intact, so the stop condition did NOT fire. tests/layout-arithmetic.test.ts
+asserts the eight-column fit across ALL of SCROLLBARS = [0, 15, 17], and
+names 885 / cellW 93.00 / margin +7.00 as the binding s=17 case.
+
+
+4. THE ARRANGEMENT AT EVERY COVERAGE WIDTH — MEASURED IN THE BROWSER
+--------------------------------------------------------------------------------
+  label                 vpt    board box  cols   cellW   lbls   seam   h-scroll
+  ---------------------------------------------------------------------------
+  1440                    1440   1062.00    8    115.13    2    True   False
+  1280  (binding)         1280    902.00    8     95.13    2    True   False
+  768                      768    702.00    4     151.5    4   False   False
+  390                      390    332.00    2       126    8   False   False
+  SEAM box 828             894    828.00    4       183    4   False   False
+  SEAM box 830             896    830.00    8     86.13    2    True   False
+  viewport 828             828    762.00    4     166.5    4   False   False
+  viewport 830             830    764.00    4       167    4   False   False
+
+  Every measured cellW equals the derivation exactly:
+    8-wide   cellW = (box - 72 - 7 x 8 - 13) / 8
+      1062 -> 115.125    902 -> 95.125    830 -> 86.125
+    4-wide   cellW = (box - 72 - 3 x 8) / 4     702 -> 151.50
+    2-wide   cellW = (box - 72 - 1 x 8) / 2     332 -> 126.00
+
+  Measured gutters at 1280: column-to-column 8.00, and the 4|5 seam 20.99
+  (= 8 gap + 5 seam track + 8 gap), i.e. BAND_DIVIDER = 12.99 more than a
+  plain gutter, which is 1px rule + --space-3. Seam track width 5.00.
+
+  Row labels: 2 visible at 8-wide, 4 at 4-wide, 8 at 2-wide — one Fuse and
+  one Reaction per block. The surplus pairs are aria-hidden repeats; exactly
+  one real <th scope="row"> per row exists at every width.
+
+  Document scrollWidth == clientWidth at every width above. No board scroll-
+  port, no page h-scroll, at any of them.
+
+
+5. THE SEAM — 828 AND 830, SHOT AS A PAIR
+--------------------------------------------------------------------------------
+THE 829 FLOOR IS A BOARD-BOX FIGURE, NOT A VIEWPORT. Both readings are shot,
+because the dispatch names the viewport numbers and the assertion lives on
+the box.
+
+  a) THE ACTUAL SEAM — f11-seam-828.png / f11-seam-830.png
+     Found by sweeping the viewport and reading the measured box back:
+
+    viewport 890  ->  board box 824.00  ->  4 columns
+    viewport 891  ->  board box 825.00  ->  4 columns
+    viewport 892  ->  board box 826.00  ->  4 columns
+    viewport 893  ->  board box 827.00  ->  4 columns
+    viewport 894  ->  board box 828.00  ->  4 columns
+    viewport 895  ->  board box 829.00  ->  8 columns
+    viewport 896  ->  board box 830.00  ->  8 columns
+    viewport 897  ->  board box 831.00  ->  8 columns
+    viewport 898  ->  board box 832.00  ->  8 columns
+
+     board box 828  ->  4 + 4, split on the temporary/permanent seam
+     board box 830  ->  8 across, cellW 86.13, clearing CELL_FLOOR 86 by 0.13
+     The flip is exact and lands where the arithmetic says: `@container
+     (width < 829px)`, range syntax, so the number in the stylesheet IS the
+     derived demand with no max-width off-by-one to reconcile.
+
+  b) THE LITERAL VIEWPORTS — f11-seam-viewport-828.png / -830.png
+     828 -> box 762 -> 4+4 ;  830 -> box 764 -> 4+4.
+     BOTH are four-wide, and that is correct rather than a failure: at a
+     sub-1280 viewport the box is v - 2 x --space-4 - 34, so 8-wide needs
+     viewport >= 895 at s=0. Shot and kept so the reading is on the record.
+
+
+6. LOCKED COLUMNS — THE DE-OPACIFIED RECIPE (design-spec §6 / I2)
+--------------------------------------------------------------------------------
+f11-locked-1280.png. The fixture leaves Synergy Slots 3, 8 locked.
+
+  cell text            '🔒 Locked'
+  color                rgb(139, 148, 158)   (--fg-muted #8b949e, 6.15:1 on canvas)
+  background           rgb(13, 17, 23)      (--bg-canvas #0d1117)
+  computed opacity     1
+  focusable child      False
+
+  Nodes on the board with a computed opacity other than 1, at every width
+  measured: 0.  Locked cells that are buttons: 0 of 4 — H4's
+  invariant class, the control is not offered rather than offered-and-refused.
+
+  `.synergy-row--dimmed { opacity: 0.6 }` is a KNOWN live violation of the
+  same rule in the eight shipped rows. It is deliberately NOT touched (brief
+  §6.2): different surface, it sits under a RUN-never-edit gate, and the
+  resulting crisper-columns-over-dimmer-rows contrast is arguably useful
+  because it makes an unshipped ruling visible. Routed as its own slice.
+
+
+7. SEASON-RESET PREVIEW — ONE BAND STATEMENT, AND THE STRING THAT DIFFERS
+--------------------------------------------------------------------------------
+f11-season-reset-1280.png, preview ON.
+
+  band labels rendered:
+    'Temporary — resets at season end ⟳ Temporary Synergy Slots disabled by season-reset preview'
+    'Permanent — survives the season reset'
+
+  band-level notes on the board            1
+  row-level notes still on .synergy-row    3   (unlocked temporary slots 1, 2, 4)
+  buttons inside the temporary band        6
+  of those DISABLED                        0
+
+  The band carries "⟳ Temporary Synergy Slots disabled by season-reset
+  preview" — NOT the row string. tests/ui/overlays.test.tsx:171 does a global
+  exact getByText on the row string and getByText THROWS on a second match;
+  reusing it would red a declared RUN-never-edit gate. The row strings are
+  untouched and their count is unchanged, so nothing was compacted away.
+
+  Every control in the band stays operable: the preview is a display overlay,
+  not a state change. Rev 1's defect — dimmed rows whose controls it
+  simultaneously declared operable — does not reappear on this surface.
+
+  The dashed rule is --info on --bg-surface (6.85:1), and the state has three
+  non-colour carriers: the glyph, the full sentence, and the rule itself.
+
+
+8. LIVE MAGNITUDE — READ OFF STATE, NEVER HARDCODED
+--------------------------------------------------------------------------------
+  rendered header boosts, shipped config:
+    (+1) (+1) (+1) (+1) (+1) (+1) (+2) (+1)
+
+  Synergy Slot 7 is the RATIFIED +2 (Build Specialization Level 10). The
+  other seven read (+1), which is scope.md deviation #5 made visible as a
+  SHAPE for the first time rather than as a banner counter.
+
+  Synergy Slot 8 is user-confirmed as the second +2 but not yet ratified in
+  config. The board needs NO edit when it lands: it reads slot.magnitude, and
+  magnitudeForSynergySlot already derives from ratified ∪ user-designated.
+  Proved both ways — tests/ui/f11-synergy-board.test.tsx renders a fixture
+  designating a second +2 and asserts the board follows it, and
+  tests/layout-arithmetic.test.ts asserts no literal (+1)/(+2) exists in the
+  component's markup at all.
+
+
+9. THE ONE DEFECT FOUND AND FIXED DURING THE CUT
+--------------------------------------------------------------------------------
+The narrow arrangements' band placement was written as `.synergy-board__band
+{ grid-column: 1 / -1 }` — specificity (0,1,0) — against wide placements
+written as `.synergy-board__band[data-band="..."]` at (0,2,0). The bare
+selector LOST, the Permanent band kept columns 7/11, and the five-track
+template grew five implicit tracks it never sized. Measured before the fix:
+cellW 88.97 at 768 against a 151.50 demand, and 2.00 at 390.
+
+Caught by measuring rather than by looking, and worth recording because a
+green suite said nothing about it: no jsdom test can see a collapsed grid
+track, and the arrangement is correct in the DOM at every width.
+
+
+10. CHANGED FILES — ALL INSIDE THE ALLOWLIST
+--------------------------------------------------------------------------------
+  src/ui/synergy/SynergyBoard.tsx          new — the whole slice
+  src/ui/synergy/SynergyPanel.tsx          two edits: the mount, and the id anchor
+  src/styles/app.css                       one appended delimited block
+  tests/layout-arithmetic.test.ts          14 assertions
+  tests/ui/f11-synergy-board.test.tsx      new — 23 cases
+  tests/ui/f2-source-pins.test.ts          ONE string appended to the :96 array
+  docs/proof/f11-*.png, f11-verification.txt
+  .claude/reportback.md
+
+NOT TOUCHED, named explicitly: src/App.tsx (the mount is inside SynergyPanel,
+which already receives all four props — nothing to thread), src/engine/**,
+src/styles/tokens.css, src/config/**, src/data/**, src/ui/grid/**,
+src/ui/summary|build|builds|shell|primitives/**, src/persist/**,
+tests/ui/overlays.test.tsx, tests/category-colors.test.ts,
+tests/feasibility-golden.test.ts, tests/ui/synergy-panel.test.tsx,
+package.json, package-lock.json, vite.config.ts, tsconfig*.json,
+src/ui/board/** (never created).
+
+Dependencies unchanged: react,react-dom.
+
+
+11. HOW THE BROWSER PROOF WAS SERVED
+--------------------------------------------------------------------------------
+NOT on the pinned 5173 origin. The dispatch forbids starting a dev server
+there because every worktree shares that origin's localStorage and stale code
+could strip fields from the operator's real saved builds. Served on
+http://localhost:5111 instead (`npx vite --port 5111 --strictPort`), which is
+a DIFFERENT origin and therefore a different localStorage store — the same
+isolation F5.4 used at 5199/5201. The fixture was injected with
+Page.addScriptToEvaluateOnNewDocument so it lands before any page script; the
+operator's own 5173 store was never opened, read or written.
