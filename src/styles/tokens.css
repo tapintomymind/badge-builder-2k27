@@ -191,6 +191,19 @@
   --space-8: 32px;
   --space-12: 48px;
 
+  /* ---- Touch floor (§5.3, invariant I6) — added by F9 ----
+   * The ONE number the whole S-breakpoint control pass turns on, defined here
+   * so every rule consumes it instead of re-typing 44, and so
+   * tests/layout-arithmetic.test.ts can DERIVE the floor instead of pinning a
+   * literal in seventeen assertions.
+   *
+   * Deliberately NOT a spacing step. 44 is not a rung on the 4px semantic
+   * ladder — it is a WCAG 2.2 SC 2.5.5 / §5.3 target size — and calling it
+   * `--space-11` would invite a future density pass to shrink it along with
+   * the padding scale. §5.3's jump-nav budget (≤48px = this + 2px of padding
+   * each side) is derived from it, not stated beside it. */
+  --tap-target: 44px;
+
   /* ---- Radius (§2.4) ---- */
   --radius-none: 0;
   --radius-sm: 6px;
