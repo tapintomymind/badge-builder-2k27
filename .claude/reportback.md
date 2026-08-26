@@ -9912,3 +9912,66 @@ sliders visible at 900 drop to 4 until slice 2's compact rows (~36px) roughly do
 **Next:** slice 2 (compact card family, compact attribute rows, roster styling, synergy dock),
 slice 3 (lit-loop cross-column picking, phone bottom tabs). Design-spec rev 12 section to be
 drafted against this landing.
+
+## 2026-08-26 · Tier 2 · slice-complete — R12 slices 2 + 3: the card family, the rail dock, the phone tabs
+
+**Event:** `slice-complete`
+**Branch:** `claude/app-design-system-5e4dd6` (worktree)
+**Provenance:** the same user ruling and mockup as slice 1 (`docs/mockups/workbench-recut.html`),
+plus the user's 2026-08-26 direction "make sure the UI and design matches what you showed … one to
+one" and the goal statement "get this full redesign to main for a latest prod build".
+
+### 2A — the compact card family
+`BadgeCard` becomes a two-line tile: tier medallion · name · NEW pill · expand control over the
+five lettered marks · role chip · cost. Description, the requirement ladder and Pin/Exclude move
+into an `aria-expanded` region. Measured 307px → **73px** compact (110–128 when the engine's gate
+string wraps). Floor re-derived to 180 (ROW2_MIN 160 + edge + border + padding), so **3-up is
+RESTORED at 1280** — the requirement slice 1 explicitly deferred — and holds at 1440 and 768.
+Four paper pins were wrong against the live tree and were re-measured; the first pass would have
+shipped a floor 2px small and silently cost the gate its third column.
+
+### 2B — the rail dock and the roster
+New `SynergyDock` pinned at `.col-build`'s foot by flex order (no sticky layer): eight chips
+banded by the engine's own `permanence` field, pair names resolved from the dataset, a press
+routing through `SynergyBoard`'s exported `goToSynergySlotRow`. It takes no change callback, so
+the build is structurally unreachable from it. Roster rows re-cut toward the mockup; totals-strip
+polish; both added to the print-hide lists. Height budget derived AND measured: dock 184, strip
+148, leaving **318** of rail scroller at the 768 gate against a 266 two-row floor.
+
+### 3 — the phone tab shell
+Below 768 the three columns become three tabs (`MobileTabs`, WAI-ARIA tablist with roving
+tabindex and arrow/Home/End), the totals bar is the rail's own `TotalsStrip` in its `bar`
+arrangement (one component — the six numbers cannot disagree across widths), and the dock is one
+fixed box with a single reserved height. Three defects found and fixed, two of them visible ONLY
+on screen:
+
+1. **All three stations painted at once.** `.mobile-panel { display: block }` outranks the UA
+   sheet's `[hidden] { display: none }` — every DOM assertion, `aria-selected` included, stayed
+   green while the screen was wrong. `tests/ui/mobile-tabs.test.tsx` case 4 now pins the guard
+   rule by reading the STYLESHEET, since jsdom has no cascade.
+2. **The Build tab was a 54px grey row** — F5.4's one-shot auto-collapse latch folding a station
+   that IS its tab. `BuildPanel` gains `unwrapped`, which drops the outer Section and disarms the
+   latch on that surface only; the three inner Sections keep their collapses and storage keys.
+3. **Dead jump-nav chips** — Board/Synergy/Summary anchored into a `hidden` subtree. The panel
+   chips are now an M-only surface (L has the panels on screen; S has them on another tab).
+
+`.mobile-tab` registered in the I6 touch-floor census, which asserts it is EXACTLY the stylesheet.
+
+### Gates
+`npx tsc --noEmit` clean · `npx vitest run` **80 files / 1,767 tests green** · `npm run build`
+clean (69.36 kB css / 347.87 kB js). Verified live in Chrome at 1440×900 (workbench, zero page
+scroll, catalog 9,996 → 4,137px), 1024×800 (M band intact and mutually exclusive: strip, setup
+panel, panel chips, document flow — no workbench, no dock) and 375×812 (all three tabs, one
+station painted each).
+
+### Deviations from the mockup, deliberate and flagged
+Pips 24px not 15 (SC 2.5.8 AA); blocked tiles keep dimmed pips (they carry the engine's per-level
+reasons and are the stale-removal path); no container opacity on blocked (the pinned P1-1
+contrast fix); **the card's left edge stays the synergy-role channel rather than the category
+hue** — `--cat` there would be a fifth consumer and fails `tests/category-colors.test.ts`'s
+§2.8.1 channel-rule allowlist. Widening that allowlist is a designer ratification, not an
+implementer call: **carried to Tier 1 as the one open item from this slice.** The category thread
+still runs through the attribute groups, the grid section headers and the totals cells.
+
+**Next:** merge `main` (14 commits: roster overflow fixes + deploy hardening) into this branch,
+then promote for a production build.

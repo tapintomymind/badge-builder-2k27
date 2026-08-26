@@ -123,6 +123,9 @@ import { DriftBanner } from "./ui/shell/DriftBanner";
 import { PreviewModeStrip } from "./ui/shell/PreviewModeStrip";
 import { QuarantineBanner } from "./ui/shell/QuarantineBanner";
 import { mountColRightScrollMemory } from "./ui/shell/scroll-memory";
+import { SynergyDock } from "./ui/rail/SynergyDock";
+import { MobileTabs, mobileTabId, mobileTabPanelId } from "./ui/shell/MobileTabs";
+import type { MobileTabId } from "./ui/shell/MobileTabs";
 import { TotalsStrip } from "./ui/rail/TotalsStrip";
 import { Section } from "./ui/primitives/Section";
 import { Toggle } from "./ui/primitives/Toggle";
@@ -790,6 +793,21 @@ export default function App() {
    * to the phone shape silently. tests/layout-arithmetic.test.ts asserts
    * this source text. */
   const isWide = !useMediaQuery("(max-width: 767px)");
+
+  /** R12 slice 3 — THE PHONE, as the complement of `isWide` and never as a
+   * fourth query. `isWide` already owns the 768 seam (F13's ruling), so the
+   * tab shell keys off its negation rather than asking matchMedia a third
+   * time: two owners for one breakpoint is how a layout comes to disagree
+   * with itself. jsdom yields isWide = true, so isPhone is false and every
+   * component test keeps rendering the desktop shape. */
+  const isPhone = !isWide;
+
+  /** Which station the phone is showing. Session state, never persisted: a
+   * tab is a viewport position, not plan data, and persisting it would put a
+   * layout preference inside the reader-inventory ceremony for no gain.
+   * Defaults to the catalog — the surface the app exists for, and the one a
+   * returning user most often wants. */
+  const [mobileTab, setMobileTab] = useState<MobileTabId>("badges");
 
   /** EVERY working-state mutation flows through here (write-through ref). */
   const applyWorking = useCallback(
@@ -1842,6 +1860,52 @@ export default function App() {
    * overlay comparison in tests/ui/overlays.test.tsx never has to reason
    * about roll state. §11.5 ⑤'s ban on a rail Export/Import pair also
    * stands — the header pair remains the only one. */
+  /**
+   * R12 slice 3 — the tab-panel attributes for one station, and they exist
+   * ONLY on the phone.
+   *
+   * `.mobile-panel` is a `display: contents` wrapper at every width above the
+   * phone: it generates no box, so `.col-right`'s flex children are exactly
+   * what they were before this slice and no measurement in
+   * tests/layout-arithmetic.test.ts moves. Below 768 it becomes a real block
+   * carrying `role="tabpanel"`, its tab's id as `aria-labelledby`, and
+   * `hidden` when another tab is active.
+   *
+   * HIDDEN, NEVER UNMOUNTED — see the MobileTabs docblock. A torn-down panel
+   * takes `#badge-grid` (the skip link's target) and every `#cat-*` anchor
+   * with it, and loses the catalog's scroll position on every switch.
+   */
+  const mobilePanelProps = (id: MobileTabId) =>
+    isPhone
+      ? {
+          role: "tabpanel",
+          id: mobileTabPanelId(id),
+          "aria-labelledby": mobileTabId(id),
+          hidden: mobileTab !== id,
+        }
+      : {};
+
+  /** F16 — the Kanban board's region, hoisted so the phone can group it with
+   * the synergy station without the JSX being written twice. */
+  const boardRegion = (
+    <div id="panel-board">
+      <Section title="Loadout board" storageKey="section-board">
+        <LoadoutBoard
+          loadout={working.loadout}
+          synergySlots={working.synergy}
+          build={working.build}
+          dataset={shippedDataset}
+          readouts={readouts}
+          // The EFFECTIVE record, exactly as the grid takes it: `budgets`,
+          // never `baseBudgets`. Asking a different record is how two
+          // surfaces come to disagree about whether a discipline is over.
+          budgets={budgets}
+          onBrowseCategory={browseCategoryInGrid}
+        />
+      </Section>
+    </div>
+  );
+
   const planPanels = (
     <>
       <div id="panel-synergy">
@@ -2088,6 +2152,7 @@ export default function App() {
               M/S behaviour: the auto-collapse latch, the digest row, the
               F13 physique carve-out at S, F5.3's Reset — untouched. */}
           {isLarge ? null : (
+            <div className="mobile-panel" {...mobilePanelProps("build")}>
             <aside className="setup-panel" aria-label="Build">
               {/* [A5] `budgets` here is the BASE record, never the composed
                   one. The grid is a base-ENTRY surface and `onBudgetCommit`
@@ -2109,8 +2174,14 @@ export default function App() {
                 }}
                 canReset={playerHasContent(working)}
                 onBudgetCommit={handleBudgetCommit}
+                // R12 slice 3 — on the phone this panel IS the Build tab, so
+                // the outer collapsible wrapper (and its one-shot latch) come
+                // off: see the `unwrapped` rationale in BuildPanel. At M the
+                // panel is one region in a scroll and keeps both.
+                unwrapped={isPhone}
               />
             </aside>
+            </div>
           )}
 
           {/* tabIndex={-1} is not decoration under a shell. A skip link whose
@@ -2118,6 +2189,7 @@ export default function App() {
               but does not move FOCUS in all of them — and a focus move is what
               drives a scrollport. Without it the skip link can leave
               `.col-right` exactly where it was. */}
+          <div className="mobile-panel" {...mobilePanelProps("badges")}>
           <main id="badge-grid" tabIndex={-1}>
             <FilterBar
               filters={filters}
@@ -2126,13 +2198,19 @@ export default function App() {
               totalCount={shippedDataset.badges.length}
             />
             {/* R12 — the panel chips exist to REACH panels that live below
-                the grid; at L those panels are permanently on screen in the
-                build rail, so the chips are not rendered there. The category
-                chips remain at every width — they navigate the catalog
-                column, which is still the one tall scroller. */}
+                the grid, and that is true at exactly ONE width band now.
+                At L those panels are permanently on screen in the build
+                rail. On the PHONE they are on another TAB, and an anchor
+                into a `hidden` subtree is a dead link — worse than a missing
+                one, because it looks live and does nothing. Both get `[]`;
+                only M (768–1279), where the panels really are further down
+                the same scroll, renders them.
+
+                The category chips remain at every width — they navigate the
+                catalog, which is still the one tall scroller. */}
             <JumpNav
               panelAnchors={
-                isLarge
+                isLarge || isPhone
                   ? []
                   : [
                       { id: "panel-board", label: "Board" },
@@ -2222,50 +2300,45 @@ export default function App() {
               })
             )}
           </main>
-
-          {/* F16 — the Loadout board, and R12 KEEPS IT HERE at every width
-              (user ruling 2026-08-26: "maintain the 2K style board layout —
-              looked like a Kanban"). The board's discipline tiles need the
-              catalog column's width to lay out as the 2K-style tile grid;
-              a 348px rail would stack them 1-wide and lose exactly the look
-              the ruling names. Its original placement argument re-validates
-              under the workbench: the tile → card loop ("over by two →
-              press the tile → land on its card → drop a level") stays
-              inside ONE scroller, directly below the grid it navigates. */}
-          <div id="panel-board">
-            <Section title="Loadout board" storageKey="section-board">
-              <LoadoutBoard
-                loadout={working.loadout}
-                synergySlots={working.synergy}
-                build={working.build}
-                dataset={shippedDataset}
-                readouts={readouts}
-                // The EFFECTIVE record, exactly as the grid takes it:
-                // `budgets`, never `baseBudgets`. Asking a different record
-                // is how two surfaces come to disagree about whether a
-                // discipline is over.
-                budgets={budgets}
-                onBrowseCategory={browseCategoryInGrid}
-              />
-            </Section>
           </div>
 
-          {/* R12 — below the gate the Synergy and Summary panels and the
-              footer render HERE, exactly as they shipped; at L they live in
-              the build rail. One definition (`planPanels`, above the
-              return), two conditional homes — the same JSX cannot drift
-              between widths. */}
-          {isLarge ? null : planPanels}
+          {/* R12 slice 3 — THE THIRD PHONE STATION: the Kanban board, the
+              Synergy Slots panel, the Summary and the footer, grouped under
+              one tab. Above the phone this wrapper is `display: contents`,
+              so `.col-right`'s flex children are byte-identical to slice 1's
+              and the board keeps its place directly under the grid.
+
+              F16 — the board renders HERE at every width (user ruling
+              2026-08-26: "maintain the 2K style board layout — looked like a
+              Kanban"). Its tiles need the catalog column's width; a 348px
+              rail would stack them 1-wide and lose exactly the look the
+              ruling names.
+
+              R12 — below the gate the Synergy and Summary panels and the
+              footer render here too; at L they live in the build rail. One
+              definition (`planPanels`, above the return), two conditional
+              homes — the same JSX cannot drift between widths. */}
+          <div className="mobile-panel" {...mobilePanelProps("synergy")}>
+            {boardRegion}
+            {isLarge ? null : planPanels}
+          </div>
         </div>
 
         {isLarge ? (
           /* R12 — THE BUILD RAIL: what you are making, permanently visible.
-             The TotalsStrip is pinned at the rail's top (it is the flex
-             child that does not grow); the plan panels scroll beneath it in
-             the rail's own scrollport. The board's old "over by two → press
-             the tile → land on its card → drop a level" loop now crosses
-             two columns that are BOTH on screen, which is the whole point
-             of the re-cut. */
+             THREE flex children, and the two outer ones are the furniture:
+             the TotalsStrip is pinned at the rail's top and the SynergyDock
+             at its foot (neither grows), with the plan panels scrolling
+             between them in the rail's own scrollport. That is the whole of
+             "pinned" — no sticky layer is opened at either end (I5). The
+             board's old "over by two → press the tile → land on its card →
+             drop a level" loop now crosses two columns that are BOTH on
+             screen, which is the whole point of the re-cut.
+
+             The dock READS `working.synergy` and resolves names against the
+             dataset. It takes no change callback: the build is structurally
+             unreachable from it, and a chip press only scrolls the rail's
+             scroller to the Synergy Slot's own row and focuses it. */
           <div className="col-build">
             <TotalsStrip
               readouts={readouts}
@@ -2275,9 +2348,49 @@ export default function App() {
               }}
             />
             <div className="col-build__scroll">{planPanels}</div>
+            <SynergyDock synergySlots={working.synergy} dataset={shippedDataset} />
           </div>
         ) : null}
       </div>
+
+      {/* R12 slice 3 — THE PHONE DOCK, and it is the tab shell's whole
+          chrome: the totals bar (the rail's strip in its `bar` arrangement —
+          one component, so the six numbers cannot disagree across widths)
+          above the tab bar, both fixed to the bottom of the viewport.
+
+          ONE FIXED ELEMENT, NOT TWO. The dock is a single fixed box so the
+          space the document has to reserve for it is one number
+          (`--mobile-dock-h`) rather than a sum that two rules could drift
+          apart on.
+
+          OUTSIDE `.layout`, like the physique strip and for the same reason:
+          it is chrome, not a grid item. It renders only below 768, where the
+          app shell is NOT fixed and the document scrolls normally — so the
+          totals stay on screen while the catalog scrolls under them, which
+          is the one property the phone shares with the workbench. */}
+      {isPhone ? (
+        <div className="mobile-dock">
+          <TotalsStrip
+            variant="bar"
+            readouts={readouts}
+            budgets={budgets}
+            onEditBudgets={() => {
+              setBudgetsOpen(true);
+            }}
+          />
+          <MobileTabs
+            active={mobileTab}
+            onSelect={(next) => {
+              setMobileTab(next);
+              // A tab switch is a change of PLACE, so it lands at the top of
+              // the new station rather than at whatever offset the previous
+              // one happened to be scrolled to. The panels are hidden rather
+              // than unmounted, so nothing else about their state moves.
+              window.scrollTo({ top: 0 });
+            }}
+          />
+        </div>
+      ) : null}
 
       <BuildManagerDialog
         open={managerOpen}

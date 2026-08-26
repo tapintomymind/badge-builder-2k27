@@ -470,7 +470,16 @@ describe("F16 6 — ADDITIVE: the existing view is untouched", () => {
     const synergy = document.querySelector("#panel-synergy") as HTMLElement;
     expect(grid.compareDocumentPosition(mount) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(mount.compareDocumentPosition(synergy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(mount.parentElement?.className).toBe("col-right");
+    // R12 slice 3 — INSIDE the catalog column, not necessarily its direct
+    // child. The board now sits in a `.mobile-panel` wrapper that groups it
+    // with the synergy station for the phone's third tab; above 768 that
+    // wrapper is `display: contents`, so it generates no box and the board
+    // is laid out as `.col-right`'s own flex child exactly as before.
+    // Asserting literal parenthood tests the wrapper, not the placement —
+    // the two ordering assertions above are what the contract actually is.
+    const colRight = document.querySelector(".col-right") as HTMLElement;
+    expect(colRight.contains(mount)).toBe(true);
+    expect(mount.parentElement?.className).toContain("mobile-panel");
     // The <Section>'s own <summary> is the keyboard bypass for every board
     // tab stop — one Tab, one Enter, and they all leave the tab order.
     expect(mount.querySelector("details.section > summary")).toBeTruthy();

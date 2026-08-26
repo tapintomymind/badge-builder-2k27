@@ -195,7 +195,9 @@ describe("C — removing a purchase clears its synergy role (no stranded HardVio
     const pips = screen.getByRole("radiogroup", { name: "Float Game — purchase level" });
     const card = pips.closest(".badge-card");
     if (!(card instanceof HTMLElement)) throw new Error("Float Game card missing");
-    expect(within(card).getByText(/⚡ Fuse · SS5/)).toBeTruthy();
+    // R12 slice 2 shortened the VISIBLE role pill to the mockup's form; the
+    // accessible name still says `Fuse · Synergy Slot 5 +1` in full.
+    expect(within(card).getByText("Fuse S5")).toBeTruthy();
     // Remove the purchase via the pip control.
     fireEvent.keyDown(within(card).getByRole("radio", { name: /^Gold, current level/ }), {
       key: "Escape",
@@ -204,7 +206,8 @@ describe("C — removing a purchase clears its synergy role (no stranded HardVio
     // PRE-FIX: slot 5 still held fuseBadgeId="float-game" — the chip stayed
     // on an unpurchased card, validateLoadout errored invisibly, and a
     // re-purchase silently re-attached the boost.
-    expect(within(card).queryByText(/⚡ Fuse · SS5/)).toBeNull();
+    expect(within(card).queryByText("Fuse S5")).toBeNull();
+    expect(within(card).queryByText(/Fuse · Synergy Slot 5/)).toBeNull();
     expect(screen.queryByText(/Invalid loadout state/)).toBeNull();
     // Re-purchasing at Bronze does NOT resurrect the fuse.
     fireEvent.click(within(card).getByRole("radio", { name: /^Bronze/ }));

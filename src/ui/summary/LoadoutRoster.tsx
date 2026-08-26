@@ -164,7 +164,16 @@ function RosterRowCells({
   // roll will do.
   const pinned = implicitReason !== undefined || controls.pinnedBadgeIds.has(row.badgeId);
   return (
-    <tr>
+    // R12 slice 2 — a CLASS, and nothing else. The <tr> already existed; what
+    // it lacked was a hook that says "the data row" as opposed to the stale
+    // disclosure or the pin-mode sub-row, both of which are also tbody rows.
+    // The rail's card treatment paints on this row's cells alone, and a
+    // :not(.summary-roster__stale):not(.summary-roster__pin-mode) chain would
+    // have encoded that distinction by accident and silently gained a third
+    // exception the day one is added. No text, no element, no prop moves —
+    // tests/ui/overlays.test.tsx compares this subtree's textContent across
+    // every overlay combination and is RUN-never-edit.
+    <tr className="summary-roster__row">
       <th scope="row" className="summary-roster__name">
         {row.name}
       </th>

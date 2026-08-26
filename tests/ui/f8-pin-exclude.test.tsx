@@ -44,6 +44,15 @@ function rosterPin(name: string): HTMLButtonElement {
   return matches[0] as HTMLButtonElement;
 }
 
+/** R12 slice 2 — the card's roll controls live behind the expand control now
+ *  (they were permanent chrome on all 53 cards; they are roll SESSION state,
+ *  not build state). Every assertion below that used to read a card's action
+ *  line goes through this, which is the affordance a user takes. */
+function expandCard(card: Element): void {
+  const control = within(card as HTMLElement).getByRole("button", { name: /^Details — / });
+  if (control.getAttribute("aria-expanded") === "false") fireEvent.click(control);
+}
+
 beforeEach(() => {
   installMemoryLocalStorage();
 });
@@ -148,8 +157,12 @@ describe("1 — the pin control", () => {
     let purchased = 0;
     let unpurchased = 0;
     for (const card of cards) {
+      // Collapsed, the card carries no action line at all — that is the R12
+      // compaction, asserted rather than assumed…
+      expect(card.querySelector(".badge-card__action")).toBeNull();
+      expandCard(card);
       const action = card.querySelector(".badge-card__action");
-      expect(action, "every card has an action line").not.toBeNull();
+      expect(action, "every expanded card has an action line").not.toBeNull();
       const controls = (action as HTMLElement).querySelectorAll(".pin-control");
       // NEVER BOTH, NEVER NEITHER.
       expect(controls).toHaveLength(1);
@@ -171,10 +184,13 @@ describe("1 — the pin control", () => {
   it("1.6 — an excluded card gains NO opacity, NO recede class, NO new card state", SLOW, () => {
     mount();
     const card = [...document.querySelectorAll(".badge-card")].find(
-      (candidate) =>
-        candidate.getAttribute("data-purchased-level") === null &&
-        candidate.querySelector(".pin-control") !== null,
+      (candidate) => candidate.getAttribute("data-purchased-level") === null,
     ) as HTMLElement;
+    expandCard(card);
+    expect(card.querySelector(".pin-control")).not.toBeNull();
+    // Measured AFTER the expand, so the only class this can catch is one the
+    // EXCLUSION adds — `badge-card--expanded` is the open state, not a state
+    // of the plan.
     const before = card.className;
 
     const chip = card.querySelector(".pin-control") as HTMLButtonElement;
@@ -197,7 +213,10 @@ describe("1 — the pin control", () => {
     const chips = [...document.querySelectorAll(".badge-card")]
       .filter((card) => card.getAttribute("data-purchased-level") === null)
       .slice(0, 3)
-      .map((card) => card.querySelector(".pin-control") as HTMLButtonElement);
+      .map((card) => {
+        expandCard(card);
+        return card.querySelector(".pin-control") as HTMLButtonElement;
+      });
     for (const chip of chips) fireEvent.click(chip);
 
     const rollUp = document.querySelector(".roll-panel__exclusions") as HTMLElement;
@@ -212,6 +231,8 @@ describe("1 — the pin control", () => {
     // kinds at once would quietly couple the two sets.
     for (const card of document.querySelectorAll(".badge-card")) {
       if (card.getAttribute("data-purchased-level") !== null) continue;
+      // Only the cards the test actually opened carry a control; a collapsed
+      // card has none, and `if (chip !== null)` was always the guard here.
       const chip = card.querySelector(".pin-control");
       if (chip !== null) expect(chip.getAttribute("aria-pressed")).toBe("false");
     }
@@ -222,11 +243,16 @@ describe("1 — the pin control", () => {
     const BANNED = /\b(?:locks?|locked|unlock(?:ed)?|freeze|frozen|keep|hold)\b/i;
     // §7.4 cross-cutting check 6: accessible NAMES too, not only visible text.
     // A `Lock` that only exists in an aria-label is still H1's failure mode.
+    for (const card of document.querySelectorAll(".badge-card")) expandCard(card);
     const surfaces = [
       roster(),
       document.querySelector(".roll-panel") as HTMLElement,
       ...[...document.querySelectorAll(".badge-card__action")].map((node) => node as HTMLElement),
     ];
+    // The sweep is only worth anything if it reaches all 53 action lines.
+    expect(document.querySelectorAll(".badge-card__action")).toHaveLength(
+      document.querySelectorAll(".badge-card").length,
+    );
     for (const surface of surfaces) {
       expect(surface).not.toBeNull();
       expect(surface.textContent ?? "", surface.className).not.toMatch(BANNED);

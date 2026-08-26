@@ -127,8 +127,16 @@ describe("E — the R12 workbench: one compound-gated block, three columns", () 
     expect(cssBlock(css, ".layout")).toContain("grid-template-columns: minmax(0, 1fr);");
   });
 
-  it("cards keep the ≥240px floor", () => {
-    expect(css).toContain("repeat(auto-fill, minmax(240px, 1fr))");
+  it("cards keep a DERIVED floor, and it is the compact card's", () => {
+    // R12 slice 2 (user ruling 2026-08-26, mockup-approved) re-cut this pin
+    // from 240 to 180. 240 was the COMFORTABLE card's floor and it bought
+    // 2-up at the 1280 gate — which slice 1 accepted on the record and
+    // deferred. 180 is the compact tile's own min-content plus its chrome
+    // (160 + 20), and it restores ≥3-up at 1280 at every scrollbar. The
+    // derivation lives in tests/layout-arithmetic.test.ts (I3, I12+I13); this
+    // pin exists so the number cannot drift back by accident.
+    expect(css).toContain("repeat(auto-fill, minmax(180px, 1fr))");
+    expect(css).not.toContain("repeat(auto-fill, minmax(240px, 1fr))");
   });
 });
 

@@ -49,6 +49,20 @@ export interface TotalsStripProps {
    * to disagree about whether a discipline is over. */
   budgets: Record<Category, Budget>;
   onEditBudgets: () => void;
+  /**
+   * R12 slice 3 — WHICH SHELL IS ASKING, and it changes the arrangement only.
+   *
+   * `rail` (default) is the L build rail's 3×2 cell grid. `bar` is the phone
+   * dock's single horizontally-scrolling row above the tab bar.
+   *
+   * ONE COMPONENT, TWO ARRANGEMENTS, and deliberately not two components: the
+   * six cells are the same engine readouts, the same over-by string builders
+   * and the same §2.8.1 channel rule at both widths. A second phone-only
+   * totals component is how two surfaces come to disagree about whether a
+   * discipline is over — which is the exact defect R12 collapsed five
+   * surfaces down to two to prevent.
+   */
+  variant?: "rail" | "bar";
 }
 
 /** One metric span: `spent/capacity`, danger + ⚠ + sr-only sentence when the
@@ -82,9 +96,42 @@ function Metric({
   );
 }
 
-export function TotalsStrip({ readouts, budgets, onEditBudgets }: TotalsStripProps) {
+/**
+ * R12 slice 3 — the phone bar's three-letter category labels.
+ *
+ * A DISPLAY ABBREVIATION, not a rename: the rail's strip, the grid's
+ * digests, the board and the summary all keep the full word, and the
+ * sr-only over-by sentences beside these abbreviations spell the full
+ * category out for assistive tech. This map exists because the alternative
+ * measured badly — a CSS truncation of the full name renders "Fi…", "Sh…",
+ * "Pl…", which is not shorter reading, only worse reading, and the full
+ * words make the six-chip row about 1,020px wide on a 375px screen.
+ *
+ * SPELLED OUT PER CATEGORY rather than sliced from the name, because
+ * `Playmaking`.slice(0, 3) is "Pla" and `Physicals`.slice(0, 3) is "Phy" —
+ * two labels one character apart in the app's two most-confusable pair.
+ * Written down, they are PLY and PHY.
+ */
+const CATEGORY_SHORT: Record<Category, string> = {
+  Finishing: "FIN",
+  Shooting: "SHO",
+  Playmaking: "PLY",
+  Defense: "DEF",
+  Rebounding: "REB",
+  Physicals: "PHY",
+};
+
+export function TotalsStrip({
+  readouts,
+  budgets,
+  onEditBudgets,
+  variant = "rail",
+}: TotalsStripProps) {
   return (
-    <aside className="totals-strip" aria-label="Build totals">
+    <aside
+      className={variant === "bar" ? "totals-strip totals-strip--bar" : "totals-strip"}
+      aria-label="Build totals"
+    >
       <div className="totals-strip__grid">
         {CATEGORIES.map((category) => {
           const readout = readouts[category];
@@ -94,7 +141,10 @@ export function TotalsStrip({ readouts, budgets, onEditBudgets }: TotalsStripPro
           const capacityUnset = badgeSlotsCapacityUnset(budget);
           return (
             <div key={category} className="totals-strip__cell" data-category={category}>
-              <span className="totals-strip__name">{category}</span>
+              <span className="totals-strip__name">
+                {variant === "bar" ? CATEGORY_SHORT[category] : category}
+                {variant === "bar" ? <span className="sr-only"> {category}</span> : null}
+              </span>
               <span className="num totals-strip__nums">
                 <Metric
                   spent={readout.spent}

@@ -7,6 +7,14 @@
  * strings, height-blocked grey-out with the engine reason, the pointer cycle
  * capped at maxPurchasableLevel, and H4's soft class — an over-Badge-Slots
  * card warns but every control stays enabled.
+ *
+ * R12 slice 2 (user ruling 2026-08-26, mockup-approved) re-cut the card to the
+ * compact tile. NOT ONE CONTRACT ABOVE WAS DELETED — the ones whose prose moved
+ * behind the expand control are asserted THROUGH it, via `expand()`, which is
+ * the affordance a real user takes. What did change, and is asserted here as
+ * its own behaviour: a card with nothing owned and nothing reachable renders
+ * the gate line INSTEAD of five locked pips, because five controls that cannot
+ * be operated are not a ladder, they are noise.
  */
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -46,6 +54,16 @@ function renderCard(
     />,
   );
   return handlers;
+}
+
+/** R12 slice 2 — open the card the way a user does. The expand control is a
+ *  native button with `aria-expanded`, so it is found by role and state
+ *  rather than by class. */
+function expand(card: HTMLElement = document.querySelector(".badge-card") as HTMLElement): void {
+  const control = within(card).getByRole("button", { name: /^Details — / });
+  expect(control.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(control);
+  expect(control.getAttribute("aria-expanded")).toBe("true");
 }
 
 describe("BadgeCard — the effectiveLevel hard contract", () => {
@@ -101,7 +119,12 @@ describe("BadgeCard — eligibility rendering (engine strings, never invented)",
       "needs 96 Close (now 90) or 95 Layup (now 0) for HOF",
     );
     expect(hofPip.getAttribute("aria-disabled")).toBe("true");
-    // The card's eligibility line names the NEXT failing level only.
+    // R12 slice 2: the requirement ladder is the EXPANDED card's, and it is
+    // the whole ladder now rather than the next failing level only — the
+    // compact tile has no room and the expanded one has no reason to ration.
+    // The string itself is untouched: it is still the engine's.
+    expect(screen.queryByText(/needs 96 Close \(now 90\) or 95 Layup \(now 0\) for HOF/)).toBeNull();
+    expand();
     expect(
       screen.getByText(/needs 96 Close \(now 90\) or 95 Layup \(now 0\) for HOF/),
     ).toBeTruthy();
@@ -119,9 +142,40 @@ describe("BadgeCard — eligibility rendering (engine strings, never invented)",
     ).toBeTruthy();
     fireEvent.click(card as Element);
     expect(handlers.onCycle).not.toHaveBeenCalled();
+    // THE PIPS STAY, and they stay disabled. R12 slice 2 dims the ladder and
+    // states the gate; it does not remove the control, because the pip is
+    // where the engine's per-level reason lives.
     for (const radio of screen.getAllByRole("radio")) {
       expect(radio.getAttribute("aria-disabled")).toBe("true");
     }
+    expect(card?.className).toContain("badge-card--gated");
+    expect(document.querySelector(".badge-card__gate")?.textContent).toContain(
+      "Blocked — requires height",
+    );
+  });
+
+  it("an attribute-gated card states its gate, and the gate is its ONLY prose", () => {
+    // The mockup's `blocked` tile: `needs 60 Post Control — now 25`. In this
+    // app the copy is the ENGINE's, and the tile shows the LOWEST level's
+    // requirement because in this state every level fails and the lowest one
+    // is what the user has to clear first.
+    const badge = requireBadge("float-game");
+    renderCard(badge, makeBuild(78, 0));
+    const gate = document.querySelector(".badge-card__gate");
+    expect(gate).not.toBeNull();
+    expect(gate?.textContent).toContain("for Bronze");
+    expect(gate?.textContent).not.toContain("for HOF");
+    // ONE line of prose on the compact tile, and no cost readout — there is
+    // no price on something that cannot be bought.
+    expect(screen.queryByText(badge.description)).toBeNull();
+    expect(document.querySelector(".badge-card__cost")).toBeNull();
+    expect(document.querySelectorAll(".badge-card__eligibility")).toHaveLength(1);
+    // …and the REST of the ladder is behind the control — the Bronze rung is
+    // not repeated there, because the tile already stated it in full.
+    expand();
+    expect(screen.getByText(badge.description)).toBeTruthy();
+    expect(screen.getAllByText(/for HOF/).length).toBe(1);
+    expect(screen.getAllByText(/for Bronze/).length).toBe(1);
   });
 });
 
@@ -172,8 +226,11 @@ describe("BadgeCard — pips as the canonical control, cycle on top", () => {
   });
 
   it("the Legend pip is never an interactive control", () => {
+    // Close 90 makes Bronze reachable, which is what puts the ladder on the
+    // tile at all after R12 slice 2 (a card with nothing reachable shows its
+    // gate instead — asserted above).
     const badge = requireBadge("float-game");
-    renderCard(badge);
+    renderCard(badge, makeBuild(78, 0, { close: 90 }));
     expect(screen.getAllByRole("radio")).toHaveLength(4);
     expect(
       screen.getByRole("img", { name: "Legend — boost only, cannot be purchased" }),

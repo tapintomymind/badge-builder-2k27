@@ -1,11 +1,41 @@
 /**
  * BadgeCard + LevelPipRow (design-spec §3.4).
  *
+ * R12 SLICE 2 — THE COMPACT CARD IS THE DEFAULT (user ruling 2026-08-26,
+ * approved one-to-one from docs/mockups/workbench-recut.html). The card is a
+ * TWO-LINE tile:
+ *
+ *   row 1  tier medallion · name (ellipsised) · NEW · the expand control
+ *   row 2  the five lettered level marks B/S/G/H/L · role chip · cost
+ *
+ * and a card with nothing to sell — no purchase AND no reachable level — puts
+ * the binding gate line where the cost would be and dims its ladder, which is
+ * the ONLY prose a compact card carries. Everything else the 307px
+ * "comfortable" card showed at all times — the description, the per-level
+ * requirement ladder, the height range and the roll controls — moves behind
+ * the expand control. Prose appears when it is actionable; nothing was
+ * deleted.
+ *
+ * WHAT DID NOT MOVE, because these are contracts and not layout:
+ *   · the pips are still the per-level purchase control, with levelPasses
+ *     gating, Escape-to-remove on the current pip and their full aria names;
+ *   · the card body still cycles on tap (onCycle), and every child that is
+ *     itself a control still stops propagation — without that, expanding a
+ *     card or pinning a badge would BUY A LEVEL;
+ *   · the status line is still built from effectiveLevel and is still in the
+ *     DOM on every card. It is `.sr-only` while the card is compact (the
+ *     lettered pips and the cost carry the same fact visually there) and
+ *     visible once expanded. Nothing is announced twice.
+ *
  * HARD CONTRACT (scope.md §2 M3): the card's displayed level renders via
  * `effectiveLevel(state, badgeId, overlay)` — NEVER `purchasedLevel`
  * directly. The pip radiogroup's VALUE is the purchased level (it is the
  * purchase control); everything the card *says* about the level it plays at
- * comes from effectiveLevel.
+ * comes from effectiveLevel. The COST readout is the one number keyed to the
+ * purchase rather than to the effective level, and it must be: a fused HOF
+ * costs what its Gold purchase cost. That is a purchase fact, like the
+ * radiogroup's value and like `data-purchased-level`, not a claim about the
+ * level the badge plays at.
  *
  * M4 synergy states (§3.4): Fuse (solid --accent edge + role Chip + `Fused
  * to X` status + accent halo on the effective pip), Reaction (dashed --info
@@ -24,8 +54,8 @@
  * selects which engine string to show and computes no rule of its own.
  */
 
-import { useId } from "react";
-import { costForLevelOrNull, whatIf } from "../../engine/cost";
+import { useId, useState } from "react";
+import { costForLevel, costForLevelOrNull, whatIf } from "../../engine/cost";
 import { levelPasses } from "../../engine/eligibility";
 import type { BadgeEligibility } from "../../engine/types";
 import {
@@ -316,29 +346,87 @@ export function BadgeCard(props: BadgeCardProps) {
   const entry = synergyState.loadout.find((candidate) => candidate.badgeId === badge.id);
   const purchased = entry?.purchasedLevel ?? null;
 
+  /** R12 slice 2 — the expand control's state. Session-only and per card: it
+   *  is a view state, never a plan state, so it is deliberately NOT persisted
+   *  and NOT lifted (the same reasoning F5.3/B applied to a collapsed
+   *  category, one level down). */
+  const [expanded, setExpanded] = useState(false);
+  const panelId = useId();
+
   // THE HARD CONTRACT: the level the card displays comes from effectiveLevel.
   const effective = effectiveLevel(synergyState, badge.id, overlay);
   const role = synergyRoleFor(synergyState.synergySlots, badge.id);
   const roleClass =
     role === null ? "" : role.kind === "fuse" ? " badge-card--fuse" : " badge-card--reaction";
 
-  /** The next failing level only (§3.4): the lowest locked level above the
-   * current purchase (or above none). */
-  const nextLocked = heightBlocked
-    ? null
-    : PURCHASABLE_LEVELS.find(
-        (level) =>
-          !levelPasses(badge.requirements, props.build, level) &&
-          (purchased === null || levelIndex(level) > levelIndex(purchased)),
-      );
-  const nextLockedReasons = nextLocked ? reasonsFor(nextLocked, eligibility.reasons) : [];
+  /** THE LOWEST LEVEL THE BUILD CAN ACTUALLY BUY, selected by the engine's own
+   *  per-level predicate. Two things read it: the `from N` cost readout, and
+   *  the gate-only test below. No rule of its own — `levelPasses` decides. */
+  const lowestOpen = heightBlocked
+    ? undefined
+    : PURCHASABLE_LEVELS.find((level) => levelPasses(badge.requirements, props.build, level));
+
+  /** GATED — the mockup's `blocked` tile: nothing is owned and nothing is
+   *  reachable, so the tile states the binding requirement and the ladder
+   *  recedes (the same dim `--blocked` has always put on the pip glyphs, and
+   *  never on the text — design-review P1-1).
+   *
+   *  THE PIPS STAY. The mockup's sketch drops them; this does not, and the
+   *  reason is a contract rather than a preference: the pips are the purchase
+   *  control with the engine's per-level reasons in their accessible names,
+   *  and the gate line is prose ABOUT them. What the ruling asks for is that
+   *  the gate line be the tile's ONLY prose, and it is. */
+  const gated = purchased === null && lowestOpen === undefined;
+  /** The shortest TRUE gate line, and every word of it is the engine's:
+   *  height blocks read as the eligibility reasons, an attribute gate reads as
+   *  the LOWEST level's failing requirement (in the gated state every level
+   *  fails, so the lowest one is the one to clear first). */
+  const gateLevel = PURCHASABLE_LEVELS[0] as PurchasableLevel;
+  const gateReasons = heightBlocked
+    ? eligibility.reasons
+    : reasonsFor(gateLevel, eligibility.reasons);
 
   /** Stale purchase (eligibility disclosure): the purchased level itself no
-   * longer passes — the engine's failing-requirement string renders on the
-   * card, and the purchase is never auto-removed. */
+   * longer passes. */
   const stalePurchase =
     purchased !== null && !heightBlocked && !levelPasses(badge.requirements, props.build, purchased);
-  const staleReasons = stalePurchase ? reasonsFor(purchased, eligibility.reasons) : [];
+
+  /** THE LADDER (expanded state): every failing level with its own engine
+   *  string, in ladder order. It supersedes the "next failing level only"
+   *  compaction the comfortable card needed — the expanded card has the room,
+   *  and the mockup's expanded specimen states the whole ladder.
+   *
+   *  The two levels the COMPACT card already states in full — the stale
+   *  purchase and the gate — are skipped here. That is de-duplication of one
+   *  sentence, never suppression of one: both strings are on screen without
+   *  the card being opened at all. */
+  const ladder = PURCHASABLE_LEVELS.map((level) => ({
+    level,
+    reasons: reasonsFor(level, eligibility.reasons),
+  })).filter(
+    (rung) =>
+      rung.reasons.length > 0 &&
+      !(stalePurchase && rung.level === purchased) &&
+      !(gated && rung.level === gateLevel),
+  );
+
+  /** The stale disclosure line, WORD FOR WORD as it shipped: the condition and
+   * the engine's failing-requirement strings, on the COMPACT card. A stale
+   * purchase is the one state that is both urgent and actionable, so it keeps
+   * its prose without being opened (H8: the tool never destroys the plan, and
+   * never hides the fact that the plan drifted). It is the ONLY compact line
+   * that may wrap past two lines, and it does so on a handful of cards. */
+  const staleReasons = stalePurchase ? reasonsFor(purchased as PurchasableLevel, eligibility.reasons) : [];
+
+  /** The cost readout — an engine number in both arms. `from N` is what the
+   *  cheapest reachable level costs; `N` is what the purchase cost. Both go
+   *  through costForLevel; nothing is added up here. */
+  const costTokens =
+    purchased !== null
+      ? costForLevel(badge.tier, purchased, props.dataset)
+      : lowestOpen === undefined
+        ? null
+        : costForLevel(badge.tier, lowestOpen, props.dataset);
 
   /** F8-R2 session-only roll state. Read from CONTEXT rather than props: this
    *  component's prop list is already the widest in the app, it is instantiated
@@ -352,7 +440,10 @@ export function BadgeCard(props: BadgeCardProps) {
 
   return (
     <div
-      className={`badge-card${heightBlocked ? " badge-card--blocked" : ""}${roleClass}`}
+      className={
+        `badge-card${heightBlocked ? " badge-card--blocked" : ""}${roleClass}` +
+        `${gated ? " badge-card--gated" : ""}${expanded ? " badge-card--expanded" : ""}`
+      }
       // F5 presentation hooks (design-spec §10.7, ruled in). H2 guardrail:
       // every value here is overlay-INVARIANT — data-purchased-level keys to
       // purchasedLevel (NEVER effectiveLevel), data-tier is static dataset
@@ -365,43 +456,61 @@ export function BadgeCard(props: BadgeCardProps) {
         onCycle(badge.id);
       }}
     >
-      {/* F5.3/A (design-spec §15.4, invariant I11): the title row carries the
-          NAME and the TIER MEDALLION ONLY. Every chip left the line, because
-          the arithmetic says they must: at the binding 204px content box the
-          173px `Would go over Badge Slots` warning leaves the name −1px even
-          at zero synergy-chip width. Compaction was not available; eviction
-          was. The row is now a provably one-line 24px band (assertion 2),
-          which is what licenses `align-items: center` in the CSS. */}
-      <div className="badge-card__title-row">
-        <span className="badge-card__name">{badge.name}</span>
-        <Chip variant="tier">{badge.tier}</Chip>
-      </div>
-      {/* F5.3/A: meta is now the card's chip rail — a WRAPPING flex row. The
-          visible `{category} · ` prefix is gone (it is restated on all 53
-          cards under a sticky h2 that already names the category in its own
-          hue); it survives as an .sr-only prefix because DriftBanner links
-          straight to a card by anchor and that user never passed the section
-          heading. That reclamation takes meta's max-content 122 -> 47, which
-          is what pays for the chips WITHOUT a new band.
+      {/* ROW 1 — identity. R12 slice 2 re-opens the title line the F5.3
+          arithmetic had to empty, and it is the COMPACTION that pays for it,
+          not a bigger box: the name is the row's only flexible item and it
+          ellipsises (the mockup's own `.bc-name` does), so a fixed chip added
+          here can never wrap the row. The tier medallion leads, per the
+          mockup; the NEW pill and the expand control ride the far end.
 
-          F4's NEW chip joins them here, and that is arithmetic too: on the
-          title line `152 + 8 + 40 + 8 + 24 = 232 > 204` — the widest isNew
-          name ("Post Spin Catalyst") would wrap the row straight back open.
-          Worst case here is `47 + 8 + 40 + 8 + 130 = 233`, which wraps to a
-          second line BY DESIGN (assertion 3b) and is absorbed by A1. */}
-      <div className="badge-card__meta">
+          The `{category} · ` prefix stays .sr-only and stays a SIBLING of
+          `.badge-card__name` — the name element's textContent is read as the
+          badge's name by three filter tests, so nothing may be nested inside
+          it. */}
+      <div className="badge-card__title-row">
+        <Chip variant="tier">{badge.tier}</Chip>
         <span className="sr-only">{badge.category} · </span>
-        <span>
-          {formatHeightInches(badge.requirements.heightMinInches)}–
-          {formatHeightInches(badge.requirements.heightMaxInches)}
-        </span>
+        <span className="badge-card__name">{badge.name}</span>
+        {/* F4's NEW flag, back on the title line where the mockup draws it. */}
+        {badge.isNew ? <Chip variant="info">NEW</Chip> : null}
+        {/* THE EXPAND CONTROL. The mockup's caption names the affordance
+            ("click / focus / ?") but does not draw it, because the card body's
+            own click is already spoken for: it cycles the purchase. So the
+            control is explicit and it is its own button.
+
+            stopPropagation is MANDATORY, not defensive — the card root carries
+            the pointer-cycle handler, so without it every expand would BUY A
+            LEVEL. Same idiom as the pip-row fieldset and the action line. */}
+        <button
+          type="button"
+          className="badge-card__more"
+          aria-expanded={expanded}
+          aria-controls={panelId}
+          aria-label={`Details — ${badge.name}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            setExpanded((open) => !open);
+          }}
+        >
+          <span className="badge-card__more-caret" aria-hidden="true">
+            ▾
+          </span>
+        </button>
+      </div>
+      {/* ROW 2 — the lettered ladder, its chips, and ONE trailing readout: the
+          cost, or (when nothing is reachable) the gate line that answers the
+          same question with the reason instead of the price. */}
+      <div className="badge-card__line">
+        <LevelPipRow {...props} />
         {role !== null ? (
-          // Compact on-card form (design-review P1-5): the H1-correct long
-          // form stays the ACCESSIBLE name; the visible chip abbreviates.
+          // Compact on-card form (design-review P1-5, and now the mockup's
+          // `.r-role`): the H1-correct long form stays the ACCESSIBLE name;
+          // the visible chip abbreviates. The long form is 130px against a
+          // 160px row — it never fitted beside five level marks at any
+          // width the workbench offers.
           <Chip variant={role.kind === "fuse" ? "accent" : "info"}>
             <span aria-hidden="true">
-              {role.kind === "fuse" ? "⚡ Fuse" : "↺ Reaction"} · SS{role.synergySlotId} +
-              {role.magnitude}
+              {role.kind === "fuse" ? "Fuse" : "Reac"} S{role.synergySlotId}
             </span>
             <span className="sr-only">
               {role.kind === "fuse" ? "Fuse" : "Reaction"} · Synergy Slot {role.synergySlotId} +
@@ -414,88 +523,123 @@ export function BadgeCard(props: BadgeCardProps) {
             LEGEND
           </Chip>
         ) : null}
-        {overBadgeSlotsIfBought ? <Chip variant="warning">Would go over Badge Slots</Chip> : null}
-        {/* F4: the official page's NEW flag. `info` is the EXISTING Chip
-            variant — F4 does not invent one. It is the same variant the
-            Reaction role chip uses; that collision is a Designer ask, not an
-            implementer decision (raised in the F4 reportback). */}
-        {badge.isNew ? <Chip variant="info">NEW</Chip> : null}
-      </div>
-      {/* F4 — the official one-line description behind a NATIVE <details>
-          (design-spec §10.3 + §10.8 item 1: the reveal control is F4's).
-          The collapsed state IS the 3-line clamp, which is CSS-only, so the
-          FULL string is always in the DOM and AT reads it ONCE. The body is
-          deliberately EMPTY: duplicating the text would double-announce it
-          on 53 cards.
-
-          stopPropagation is MANDATORY, not defensive: the card root carries
-          the pointer-cycle handler, so without it every expand of a
-          description would BUY A LEVEL. Same idiom as the pip-row fieldset
-          above. */}
-      <details
-        className="badge-card__desc"
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-      >
-        <summary className="badge-card__desc-summary">
-          <span className="badge-card__desc-text">{badge.description}</span>
-        </summary>
-      </details>
-      <LevelPipRow {...props} />
-      {/* F8-R2 THE ACTION LINE — below the cost line (the pip row carries the
-          costs), above the status line. EXACTLY ONE control: Pin when the
-          badge is purchased, Exclude when it is not. Never both, never
-          neither.
-
-          NO NEW CARD STATE, no recede treatment and NO opacity for an excluded
-          card (invariant I2). The pressed chip IS the marker, and the roll
-          panel carries the roll-up. That keeps ~42 of 53 cards visually
-          unchanged at zero state.
-
-          stopPropagation for the same MANDATORY reason the description
-          <details> above has it: the card root carries the pointer-cycle
-          handler, so without it pinning a badge would also BUY A LEVEL. */}
-      <div
-        className="badge-card__action"
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-      >
-        {purchased !== null ? (
-          <PinControl
-            kind="pin"
-            pressed={implicitPinReason !== undefined || roll.pinnedBadgeIds.has(badge.id)}
-            badgeName={badge.name}
-            onToggle={() => {
-              roll.onTogglePin(badge.id);
-            }}
-            {...(implicitPinReason === undefined ? {} : { disabledReason: implicitPinReason })}
-          />
-        ) : (
-          <PinControl
-            kind="exclude"
-            pressed={roll.excludedBadgeIds.has(badge.id)}
-            badgeName={badge.name}
-            onToggle={() => {
-              roll.onToggleExclude(badge.id);
-            }}
-          />
+        {/* H4 SOFT CLASS: the warning has to sit where the ACTION is, and the
+            action (a pip) is on this row, so it is NOT moved behind the expand
+            control. Abbreviated by the same rule as the role chip — and the
+            abbreviation still says `Badge Slots` in full, because §14.1's H1
+            lint is right that a bare `slots` is ambiguous in an app that also
+            has Synergy Slots. Only `Would go` is dropped; the accessible name
+            keeps the whole sentence. */}
+        {overBadgeSlotsIfBought ? (
+          <Chip variant="warning">
+            <span aria-hidden="true">⚠ over Badge Slots</span>
+            <span className="sr-only">Would go over Badge Slots</span>
+          </Chip>
+        ) : null}
+        {gated ? (
+          // THE GATE LINE — the tile's only prose, and the engine's own
+          // words. It is a flex item that takes a full line of its own
+          // (never a truncation: I14, the reason string is never clipped).
+          <span className="badge-card__eligibility badge-card__gate">
+            {heightBlocked ? "Blocked — " : ""}
+            {gateReasons.join("; ")}
+          </span>
+        ) : costTokens === null ? null : (
+          <span className="badge-card__cost">
+            {/* The NUMBER takes --font-num (§2.2's tabular figures, via the
+                app's own `.num` utility) and the word does not: `from ` in the
+                monospace face measures 36px against 27 in the UI face, and
+                that 9px is a third of the compact row's whole cost budget. */}
+            {purchased === null ? "from " : ""}
+            <span className="num">{costTokens}</span>
+            <span className="sr-only"> {costTokens === 1 ? "token" : "tokens"}</span>
+          </span>
         )}
       </div>
-      <div className="badge-card__status">
-        {statusText(badge, synergyState, overlay, role, purchased, effective)}
-      </div>
+      {/* The stale disclosure KEEPS ITS PLACE ON THE COMPACT CARD, and keeps
+          its whole sentence. §10.4 and H8: the tool never destroys the plan
+          silently, so the one card state that is genuinely urgent states
+          itself — reasons included — without being opened. */}
       {stalePurchase && purchased !== null ? (
         <div className="badge-card__eligibility badge-card__eligibility--stale">
           Purchased at {LEVEL_LABELS[purchased]} — no longer meets requirements
           {staleReasons.length > 0 ? `: ${staleReasons.join("; ")}` : ""}
         </div>
       ) : null}
-      {heightBlocked ? (
-        <div className="badge-card__eligibility">Blocked — {eligibility.reasons.join("; ")}</div>
-      ) : nextLockedReasons.length > 0 ? (
-        <div className="badge-card__eligibility">{nextLockedReasons.join("; ")}</div>
+      {/* THE STATUS LINE, unchanged in construction and in wording: built from
+          effectiveLevel, on every card, in the DOM in both states. `.sr-only`
+          while compact — the lettered pips, the role chip and the cost carry
+          the same fact visually there, and the mockup's compact tile carries
+          no prose but a gate. */}
+      <div className={`badge-card__status${expanded ? "" : " sr-only"}`}>
+        {statusText(badge, synergyState, overlay, role, purchased, effective)}
+      </div>
+      {expanded ? (
+        <div
+          className="badge-card__expanded"
+          id={panelId}
+          // The same MANDATORY stopPropagation: this region holds the roll
+          // controls, and a pin that also bought a level would be F4 6.2's
+          // defect in a new place.
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          {/* F4's official one-line description. It is in the DOM exactly
+              ONCE — the <details> clamp idiom it replaces existed to stop a
+              double announcement, and rendering it once here keeps that
+              property by construction. */}
+          <p className="badge-card__desc-text">{badge.description}</p>
+          <p className="badge-card__meta">
+            <span className="sr-only">Height </span>
+            {formatHeightInches(badge.requirements.heightMinInches)}–
+            {formatHeightInches(badge.requirements.heightMaxInches)}
+          </p>
+          {/* THE LADDER — the engine's strings, one rung per failing level,
+              never truncated (I14). A height block is a whole-card condition
+              and reads as one line instead. */}
+          {heightBlocked ? (
+            <div className="badge-card__eligibility">
+              Blocked — {eligibility.reasons.join("; ")}
+            </div>
+          ) : (
+            ladder.map((rung) => (
+              <div className="badge-card__eligibility" key={rung.level}>
+                {rung.reasons.join("; ")}
+              </div>
+            ))
+          )}
+          {/* F8-R2 THE ACTION LINE. EXACTLY ONE control: Pin when the badge is
+              purchased, Exclude when it is not. Never both, never neither.
+
+              NO NEW CARD STATE, no recede treatment and NO opacity for an
+              excluded card (invariant I2) — the pressed chip IS the marker,
+              and the roll panel carries the roll-up. R12 moves the line behind
+              the expand control: it is roll SESSION chrome, and it was
+              permanent furniture on all 53 cards. */}
+          <div className="badge-card__action">
+            {purchased !== null ? (
+              <PinControl
+                kind="pin"
+                pressed={implicitPinReason !== undefined || roll.pinnedBadgeIds.has(badge.id)}
+                badgeName={badge.name}
+                onToggle={() => {
+                  roll.onTogglePin(badge.id);
+                }}
+                {...(implicitPinReason === undefined ? {} : { disabledReason: implicitPinReason })}
+              />
+            ) : (
+              <PinControl
+                kind="exclude"
+                pressed={roll.excludedBadgeIds.has(badge.id)}
+                badgeName={badge.name}
+                onToggle={() => {
+                  roll.onToggleExclude(badge.id);
+                }}
+              />
+            )}
+          </div>
+        </div>
       ) : null}
     </div>
   );
