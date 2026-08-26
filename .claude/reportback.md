@@ -10504,3 +10504,171 @@ deployment history shows `dev@67b0fef` deployed as *Production* at 16:58 while `
 deployed as *Preview* at 17:02 and `main@a0b3233` as *Production*. That pattern is consistent with
 the Vercel production branch having been set to `main`, which is what the promotion assumed — but
 it is inferred from the deployment record, not read from Vercel settings.
+─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · slice-complete — deploy readiness + the storage-scope disclosure
+
+**Event:** `slice-complete`
+**Branch:** `deploy-readiness`, 4 commits off `18aea30`, worktree `/private/tmp/bb-deploy`
+(`node_modules` symlinked from the main checkout; no `npm install` was run).
+**Not merged.** `dev` is untouched and `main` was never checked out.
+**Suite:** 78 files / **1715 → 1720** tests, green. Typecheck clean. Build clean.
+
+Rebased once, mid-slice: the promotion agent pushed `97016f3` + `18aea30` to `dev` while this
+branch was open. Both are reportback-only, the rebase was conflict-free, and the diff against the
+new `origin/dev` is exactly the six files below. `git add` was given explicit paths throughout;
+`git add -A` was never used.
+
+### 1 — `vercel.json`: checked against reality, not against convention
+
+Every claim was verified rather than assumed, and the file was **mostly right**:
+
+| Claim | Verified how | Verdict |
+|---|---|---|
+| output dir is `dist` | ran `vite build`; `vite.config.ts` sets no `build.outDir` | correct |
+| build command | `package.json` `build` = `tsc --noEmit && vite build` | correct |
+| base path serves at a domain root | built `index.html` references `/assets/*` + `/favicon.svg` | correct |
+| `/assets/*` may be `immutable` | every emitted file is content-hashed; `favicon.svg` is deliberately OUTSIDE `/assets/` | correct |
+| hash anchors work on a static host | fragments never reach the server — proven live | correct |
+
+**The one real gap was `index.html`.** It carried no `Cache-Control` at all and inherited a Vercel
+default. The default happens to be right — production returns `public, max-age=0, must-revalidate`
+on `/`, measured — but a default is not a guarantee, and this is the failure that does not
+self-heal: a visitor pinned to an old `index.html` requests asset hashes that no longer exist, so
+the app is permanently broken rather than merely stale. This project has been bitten twice by
+stale served assets during verification; for real users there is no "rebuild and retry".
+
+Now stated: `/` and `/index.html` → `public, max-age=0, must-revalidate`. **The two `Cache-Control`
+rules cannot collide by construction** — `/assets/(.*)`, `/` and `/index.html` are mutually
+exclusive paths, so it does not matter whether Vercel resolves duplicate header keys first-match or
+last-match, a question this repo cannot test locally and therefore must not depend on. No regex
+lookahead was used: a `vercel.json` that fails to parse fails the entire deploy. `buildCommand` and
+`outputDirectory` are now stated rather than inherited from the framework preset.
+
+**The SPA rewrite was kept and is not load-bearing.** The app has no router — `grep` for
+`pushState` / `replaceState` / any history API over `src/` is clean. Every destination is `/` plus a
+fragment, and fragments are never sent to a server. The rewrite only keeps a stale path off a 404.
+
+### 2 — The deploy is already live, and open. Measured, unauthenticated.
+
+Read-only HTTP against `https://badge-builder-2k27.vercel.app`, no credentials, no CLI, no
+`vercel deploy` or `vercel link`:
+
+| Path | Status | `Cache-Control` |
+|---|---|---|
+| `/` | **200** | `public, max-age=0, must-revalidate` |
+| `/assets/index-*.js` | **200** | `public, max-age=31536000, immutable` |
+| `/favicon.svg` | **200** | `public, max-age=0, must-revalidate` |
+| `/some/deep/path` | **200** `text/html` | `public, max-age=0, must-revalidate` |
+| `/#cat-defense` | **200** | fragment never reaches the server |
+
+**200, not 401 — deployment protection is OFF on the public alias**, so friends without a Vercel
+account can load it today. `nosniff` / `DENY` / `strict-origin-when-cross-origin` are all live.
+Note the fourth row: a rewritten path gets the revalidating header, **not** the immutable one — the
+rewrite cannot leak `immutable` onto HTML.
+
+This independently agrees with the correction entry above, and adds the reason its
+team-scoped-URL SSO wall is expected rather than alarming: it is Vercel's *Standard Protection*,
+which protects **preview** URLs and leaves production public. The consequence for the owner is that
+a link copied from a pull request will 401 even while production is fine.
+
+### 3 — First visit, real browser, empty storage
+
+Served bytes were diffed against the build **before** any measurement was trusted: `/`,
+`/assets/index-CAZe-MzN.js` and `/assets/index-A9kZd_ZK.css` each SHA-256-match `dist/` exactly,
+and the served `index.html` references those two hashes. Preview on **4319** — never 5173, which
+holds the owner's real saved data at that origin.
+
+**Zero external network requests, from the network layer rather than from reading source.** Both
+the network panel and `performance.getEntriesByType('resource')` report the same three same-origin
+requests — the document plus the two hashed assets — and `externalRequests` filtered against
+`location.origin` is **empty**. **Zero console messages of any level.** The static scan agrees: the
+only absolute URLs in the bundle are XML namespaces and React's error-docs string, none of which is
+fetched. Type stack is the system one (`--font-ui` / `--font-num`); no web font, no CDN, no
+analytics.
+
+**1440×900** — fixed shell active (`body { overflow: hidden }`, document `scrollHeight` = 900).
+**1280×800** — shell active, badge grid 3-up at 304px. **1280×700** (what a 1280×800 laptop
+actually has once browser chrome is subtracted) — shell correctly stands down: `body` overflow
+`visible`, document scrolls, and the attributes pane is `position: sticky` and **stays on screen**
+(measured at `top: 12` after scrolling 1,400px) rather than scrolling away. **390** — 1-up cards at
+366px, jump-nav sticky and horizontally scrollable as designed. `scrollWidth − clientWidth` is
+**0 at every width**, before and after this slice's copy.
+
+Deep links resolve **on a first visit with genuinely empty storage**: `#panel-summary` left
+`.col-right` at 8,256 of 8,382 with the target at `top: 182`. That is not luck — `scroll-memory.ts`
+stands down when the document loads with a fragment ("THE HASH WINS"), so the anchor and the
+remembered offset cannot fight.
+
+**What a new user actually sees, honestly:** the zero state is not broken and shows no error, but
+it is a wall of 53 locked cards, six `0/0` ledger rows and a per-category `0 pts left → nothing else
+fits at these prices.` Every line of that is *true* — no capacity has been entered yet — and none
+of it is styled as a failure. The path in is visible (position + height at the top, the attribute
+rail immediately below; on mobile the order is even better: Physique then Attributes, before any
+badge). Entering two attributes was enough to light the grid up. **This was left alone
+deliberately** — the feasibility string is engine-derived and `tests/feasibility-golden.test.ts` is
+a RUN-never-edit gate, so rewriting zero-state copy is a scoped decision for the owner, not a thing
+to smuggle into a deploy slice.
+
+### 4 — The two storage caveats now exist inside the app
+
+Before this slice the running app said **neither** — `grep` over `src/ui/` and `src/App.tsx` for
+any per-browser / per-device / clearing-data copy returned nothing. Both facts lived only in
+`README.md`, which the person who loses a build has by construction not read.
+
+One string, `STORAGE_SCOPE_LINE`, rendered in two places — the `unreadableBuildsLine` doctrine
+applied again, because two surfaces stating one fact in two wordings is how the fact quietly stops
+being true in one of them:
+
+- the **Summary section**, as a SIBLING of `<SummaryPanel>` — that surface's job is reading the plan
+  back out, which is the moment a user thinks "I want to keep this";
+- the **build manager**, ABOVE the list, so the facts that decide what to keep land before the row
+  of Delete buttons.
+
+**Not a banner, and it must not become one.** Both sites cost **zero always-visible height** —
+`.build-manager` is a modal, and the Summary site is inside `.col-right`, the shell's scrollport at
+the L gate. A permanent band would have forced F14's height gate UP. F9's touch-target census is
+unchanged and still exact **on both axes** (assertions 24 / 27 height, 30 / 31 width, plus 33), and
+the layout arithmetic is untouched — this slice adds text, not a control, so §11.5's "no second
+Export/Import pair in the rail" ruling stands.
+
+Sibling rather than child is mechanical, not stylistic: `.summary` is the subtree
+`tests/ui/overlays.test.tsx` compares across all four overlay combinations, and that gate is
+RUN-never-edit. Static copy could not break a bit-identical comparison, but staying outside means
+the gate never has to reason about it. **Asserted**, so an accidental move inside cannot happen
+silently.
+
+Every clause is a property the app actually has: `src/persist/local-storage.ts` is the sole
+`localStorage` owner and `localStorage` is scoped to origin AND browser profile; `exportNow`
+serialises the **working** build — one build, not the whole store, which is why the copy says so
+rather than implying a backup. No 2K mechanic is claimed. No bare "slot"; all four vocabulary lint
+classes green.
+
+### Gates and verification
+
+Full `npm test` **78 files / 1720 tests**, predicted as 1715 + 5 before running. `npm run
+typecheck` clean, `npm run build` clean. The three RUN-never-edit gates run explicitly and green:
+`tests/ui/overlays.test.tsx`, `tests/category-colors.test.ts`,
+`tests/feasibility-golden.test.ts` — **no golden cell moved**; none of the three was edited. No
+persisted key was renamed, added or removed. Runtime dependencies are still exactly
+`react` + `react-dom`.
+
+### Left for the owner — the Vercel dashboard only
+
+1. **Confirm Production Deployment Protection stays off.** Measured off today; it is a setting, and
+   turning it on 401s every friend.
+2. **Send the production alias, never a preview URL.** Preview URLs are behind the SSO wall by
+   design.
+3. **Confirm the Production Branch is `main`.** Inferred from the deployment record, not read from
+   settings — and the repo's default branch is `dev`, so the two disagree.
+4. **Decide the custom domain BEFORE sharing the link, or accept `*.vercel.app` permanently.**
+   `localStorage` is keyed to origin: moving domains later orphans every build every friend has
+   saved, with no migration path. This is the one irreversible decision on the list.
+
+### Housekeeping
+
+Six files changed: `vercel.json`, `README.md`, `src/App.tsx`, `src/styles/app.css`,
+`src/ui/builds/BuildManager.tsx`, `tests/ui/f2-disclosure-surfaces.test.tsx` (+ this entry). The
+preview server on 4319 was stopped; `dist/` is gitignored and never reached the index. Nothing was
+run against Vercel that mutates: no `deploy`, no `link`, no promote, no rollback, no credentials
+entered anywhere — every Vercel observation is an unauthenticated HTTP GET of a public URL.
