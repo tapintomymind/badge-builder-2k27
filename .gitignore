@@ -13,6 +13,9 @@ coverage/
 .env.*
 !.env.example
 
+# vercel — CLI project link, never committed
+.vercel/
+
 # local + editor
 *.local
 .DS_Store

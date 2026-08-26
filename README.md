@@ -4,27 +4,29 @@ A local badge planner for NBA 2K27 MyCareer. You describe a build — height and
 attributes — and the tool tells you which badges you qualify for, at which
 levels, what they cost, and how your badge points and synergy slots add up.
 
-Single user, single machine. The whole point is that the numbers reconcile with
-what the game actually shows you.
+Everything runs in the browser, and each visitor's saved builds stay in their
+own browser. The whole point is that the numbers reconcile with what the game
+actually shows you.
 
-> **Status: M1 — data + cost + eligibility engine.** The 53-badge dataset, the
-> cost and eligibility engines, and the full correctness test suite are in.
-> No UI yet (M3); no synergy behavior yet (M2).
+> **Status: skeleton.** Toolchain only — no dataset, no engine, no UI yet.
+> Implementation begins after the plan is approved.
 
 ---
 
-## Posture: local-only, no deploy
+## Posture: static and client-side, no backend
 
-This is deliberate, not a stage on the way to something hosted.
+The app is hosted (on Vercel) so it can be shared, but nothing about it is
+server-side. What ships is a static bundle; everything happens in the visitor's
+browser.
 
-- **No backend.** No server, no API, no database, no accounts.
-- **No hosting, no deploy target, no CI.** It runs on `localhost` via `npm run dev`.
-- **No network egress at runtime.** No `fetch`, no CDN, no analytics. The app
-  works offline.
+- **No backend.** No server code, no API, no database, no accounts.
+- **No network egress at runtime.** No `fetch`, no CDN calls, no analytics.
+  Once loaded, the app works offline.
 - **No secrets.** Nothing in this repo reads an environment variable or a key.
-  An `.env` file appearing here is a defect, not a configuration step.
-- **Persistence is `localStorage`** — client-side, on your own machine, and
-  nowhere else.
+  An `.env` file appearing here is a defect, not a configuration step — the
+  Vercel project needs no environment variables either.
+- **Persistence is `localStorage`** — client-side, in each visitor's own
+  browser, and nowhere else. Nothing anyone saves ever leaves their machine.
 
 Runtime dependencies are exactly `react` and `react-dom`. Everything else is a
 dev dependency. That constraint is load-bearing: it makes an accidental network
@@ -60,44 +62,32 @@ npm run build    # typecheck + production bundle
 | `npm run build` | `tsc --noEmit` then `vite build` |
 | `npm run preview` | Serve the built bundle locally |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm run generate:badges` | Regenerate `src/data/badges.json` from the source text |
-| `npm test` | Vitest, single run — the entire correctness surface |
+| `npm test` | Vitest, single run |
 | `npm run test:watch` | Vitest in watch mode |
 
-## The dataset and how to refresh it
+## Deploying (Vercel)
 
-`src/data/badges.json` is **generated, never hand-edited**. The pipeline:
+The app deploys to Vercel as a static build. `vercel.json` carries the whole
+configuration: the framework preset, an SPA fallback rewrite, immutable caching
+for hashed assets, and a small set of security headers.
 
-```
-src/data/badges.source.txt   the seed's 53-badge listing, checked in VERBATIM —
-                             the one file where a game number may be typed
-scripts/generate-badges.ts   the parser (pure; unit-tested)
-scripts/generate-badges-cli.ts  the fs shell — the repo's ONLY fs consumer
-src/data/badges.json         the generated output, with provenance fields
-```
+One-time setup:
 
-**When 2K publishes or patches badge data** (launch day, title updates):
+1. In the [Vercel dashboard](https://vercel.com/new), import this GitHub repo.
+   Vite is auto-detected and the defaults are correct (`npm run build`, output
+   `dist`). No environment variables to set.
+2. Deploy. From then on, every push to `main` deploys to production and every
+   pull request gets its own preview URL.
 
-1. Edit `src/data/badges.source.txt` with the new values — nothing else.
-2. Bump `DATA_VERSION` / `AS_OF` (and `GAME_VERSION` / `CONFIDENCE` once known)
-   in `scripts/generate-badges.ts`.
-3. `npm run generate:badges` — then review the `badges.json` diff; it
-   enumerates every changed number.
-4. `npm test` — the data-integrity suite re-validates the dataset. A
-   **TRIPWIRE** failure (assertions 7–14) means 2K published something the
-   tool never assumed; the right response is to re-read the data, not to
-   force the test green.
+Custom domain:
 
-Guard rails you will hit if you stray:
+1. In the Vercel project, go to **Settings → Domains** and add your domain.
+2. At your registrar, add the DNS records Vercel shows you — an `A`/`ALIAS`
+   record for an apex domain, or a `CNAME` for a subdomain. Vercel provisions
+   TLS automatically once DNS resolves.
 
-- A test asserts `generate(badges.source.txt)` reproduces `badges.json`
-  byte-for-byte, so hand edits to the JSON cannot survive.
-- A 13-badge spot-check asserts hand-transcribed literals from the sealed
-  requirements doc, and the parser's alias map is asserted to be a bijection
-  onto the 20 canonical attributes — so a wrong abbreviation cannot ship
-  silently.
-- The parser throws on anything it does not recognize. Unknown values stay
-  `null`; nothing is guessed.
+`npm run build` runs `tsc --noEmit` before `vite build`, so a type error fails
+the deploy. That is intentional — Vercel's build is the only gate there is.
 
 ## Layout
 
@@ -106,9 +96,7 @@ src/engine/   pure TypeScript. Every rule. No DOM, no React, no I/O.
 src/data/     the dataset. Generated, read-only at runtime.
 src/config/   seams for game mechanics that are not yet published.
 src/ui/       React. Renders engine output. Zero rules.
-scripts/      the badge generator (build-time only).
-tests/        the suite. tests/ui/ carries a jsdom docblock; all else runs node.
-docs/         vocabulary.md (the glossary) and proof artifacts.
+tests/        the suite.
 ```
 
 Each directory carries a `README.md` describing its contract. The engine/UI
@@ -117,14 +105,20 @@ without a browser.
 
 ## Known constraints
 
-- **The dev port is pinned to 5173 with `strictPort`.** `localStorage` is keyed
-  to origin *including port*, so a silent roll to 5174 would orphan every saved
-  build and read as data loss. A port collision fails loudly instead.
+- **Saved builds live in one browser on one device.** There are no accounts and
+  no sync: what a visitor saves on their phone is not on their laptop, and
+  nobody sees anyone else's builds. Sharing a build means sharing the app, not
+  the data.
+- **`localStorage` is keyed to origin.** In production that is the custom
+  domain — so changing the domain later orphans everything visitors have saved.
+  Pick the domain once. The same rule is why the dev port is pinned to 5173
+  with `strictPort`: a silent roll to 5174 would orphan local saves and read as
+  data loss, so a port collision fails loudly instead.
 - **Data is pre-release.** Some 2K27 mechanics are unpublished. The dataset
   carries provenance so a value's confidence is always visible, and saved builds
   record which dataset version they were planned against.
 - **Multi-tab is last-write-wins.** Two tabs on the same origin will clobber each
-  other's autosave. Accepted for an audience of one.
+  other's autosave. Accepted for a tool of this size.
 
 ## Branches
 
@@ -133,5 +127,5 @@ merged to `main` — no direct commits on `main`.
 
 ## License
 
-Private, personal, unpublished. Not affiliated with, endorsed by, or sourced from
-any game publisher.
+Personal project. Not affiliated with, endorsed by, or sourced from any game
+publisher.

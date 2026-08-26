@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Local-only NBA 2K27 MyCareer badge planner. No backend, no deploy.",
+  "description": "NBA 2K27 MyCareer badge planner. Static client-side app — no backend, deploys to Vercel.",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
