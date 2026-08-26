@@ -8220,3 +8220,120 @@ Two observations handed back to Tier 1:
       one-off: a `git stash` here would have been the accident, and the only reason it was not is
       that the overlap was noticed before the second one.
 ─────────────────────────────────────────────
+
+## 2026-08-26 · Tier 2 · integration — F8-R2 roll UI, onto `dev`
+
+**Event:** `integration-complete`
+**Landed:** `roll-ui` (2 commits off `bc2002f`, worktree `/tmp/bb-roll`). FAST-FORWARD.
+**`dev`:** `893bdfe` → **`d0a9c5b`**. **Merge commits 2 before, 2 after** — counted with
+`git rev-list --merges --count dev`, never `git log --merges | wc -l`, which counts LINES.
+`main` untouched, never checked out.
+
+Rebased through the three landings that went in after the branch was cut (F15 header compaction,
+the user-facing docs, and Reset placement + Synergy Slot 8). The source branch is checked out on a
+worktree, so a throwaway `land-roll` was rebased in a SEPARATE worktree and `dev` fast-forwarded
+onto it; `roll-ui` was never moved. Rebase commits: `c15837e`→`88e8b84`, `528eb17`→`d0a9c5b`.
+
+### Conflicts — ONE, and the two forecast collisions did not materialise
+
+**`src/App.tsx` did NOT conflict**, though the branch named it the likely collision. Both sides
+edit it, but in DISJOINT regions: the Reset/Slot-8 landing touched the `AttributesSection` mount
+(old line ~1463), while this branch's hunks land at old 43, 572, 1311, 1346, 1692, 1796 and 1807.
+Git merged them without a marker. "No conflict" is not the same as "correct", so BOTH sides were
+verified present rather than trusted: the `[A7]` pane mount still carries `onResetRequest` +
+`canReset` (two mounts, lines 1689 and 1787), and the roll wiring is all there —
+`RollControlsContext` wrapping the root, the pins/seed/lastRoll state block, `runRoll`,
+`<RollPanel>` above `<SummaryPanel>`, and `<RerollConfirmDialog>`.
+
+**`src/styles/app.css` did not conflict either, and its ORDERING held.** The branch's block is
+placed BEFORE the end-of-file marker block, and that position is load-bearing. After the rebase
+the order is `F14 app shell — end` (4608) → `F8-R2 roll surface` (4610) → `A5-U — bonus mode`
+(4854) → `end A5-U — bonus mode` (5078, EOF). The file still ENDS with the A5-U marker, so the
+assertion that reads `app.css` back is unbroken. Dev's own app.css edits (header gap, the
+`.build-panel__reset` rules, the 868→768 gate) all sit ABOVE the insertion point.
+
+**`tests/ui/f8-roster.test.tsx` — an overlap the forecast did not name**, and it did not conflict:
+dev changed two `Export JSON`→`Export` assertions (lines ~253, ~390) and the branch changed the
+disclosure `colspan` 5→6 (line ~224). Disjoint regions, and neither side adds or removes an `it`,
+so there is no double-count in the arithmetic below.
+
+**`.claude/reportback.md`** — the one real conflict, resolved by RECONSTRUCTION, never by editing
+conflicted text. Both sides were confirmed PURE APPENDS first (each side's first 7111 lines
+`cmp`-verified byte-identical to `bc2002f`), and the ours-side blob was confirmed identical to
+`dev`'s 7809-line file.
+
+**ORDER — the authored-time rule bit for the THIRD consecutive integration.** This branch's entry
+was authored `09:12:09`; `dev`'s F15+docs integration entry `09:07:46` and its Reset+Slot-8
+integration entry `09:29:18`. So the new entry belongs BETWEEN them, **not at EOF** — it lands
+third-from-last. Resolved as base-through-F15-integration 7587 + branch 172 + the remaining dev
+suffix 222 = **7981**, computed BEFORE the result was measured, and each of the three segments
+then `cmp`-verified byte-identical against its own source blob. The rebased commit reports
+`172 insertions(+), 0 deletions(-)` — the arithmetic proof that the insertion displaced nothing.
+
+### Counts — predicted before they were read
+
+  dev base                  1433 tests / 69 files
+  branch on its own base    1489 / 72   (base `bc2002f` = 1426)
+  branch net                1489 - 1426 = +63
+  PREDICTED merged          1433 + 63   = 1496 tests / 72 files
+  ACTUAL                    1496 / 72   MATCH
+
+The 3 new files are the branch's three new test files; `bc2002f` and `dev` both carry 69, and dev
+added none in between, so 69 + 3 = 72 with no interaction.
+
+### Gates — all green, on a clean worktree at `d0a9c5b`
+
+`npm test` 1496/1496 across 72/72 (52.55s) · `npm run typecheck` clean · `npm run build` clean
+(83 modules, 334.54 kB js / 57.29 kB css). Zero flakes; nothing was re-run to make it pass, and no
+timeout was lowered or tightened.
+
+RUN-never-edit, run explicitly and additionally PROVEN unedited (`git diff` against both `bc2002f`
+and pre-landing `dev` returns 0 lines for each): `tests/ui/overlays.test.tsx`,
+`tests/category-colors.test.ts`, `tests/feasibility-golden.test.ts` — 29/29. No cell moved in the
+504-cell golden. F9's census + the vocabulary lint (`tests/layout-arithmetic.test.ts`,
+`tests/vocabulary.test.ts`) — 244/244.
+
+**ZERO ENGINE DIFF, verified not assumed:** `git diff dev..land-roll -- src/engine` is EMPTY, and
+`ROLL_ALGORITHM_VERSION` is byte-identical (3 references, unchanged).
+
+### Browser — production build, port 5181, served bytes hash-checked against `dist`
+
+The stale-asset trap was checked rather than assumed: `5173` is held by a stray dev server from a
+previous day and `5183` by a sibling agent, so `5181` was used, and the SERVED asset md5s were
+diffed against `dist` before any measurement was trusted (js `1d63880…`, css `2a14976…`, both
+matching, and the loaded page reports exactly those two filenames).
+
+1. **The owner's use case — PASSES.** Posterizer set to Gold, pinned (`Pin mode` defaults to
+   `this level`), then `Fill remaining`. Posterizer stays **Gold and Pinned**; the roll added 28
+   other badges across all six categories; Finishing went 6/40 · 1/6 → 34/40 · 6/6, so
+   Posterizer's 6 points were preserved and only the remainder was spent. **Posterizer does not
+   appear anywhere in the report** (`/Posterizer/` over the 1859-char report is false) — the roll
+   did not touch it. The report NAMES what it added, per category, and closes with "Chosen at
+   random from what fits. There is no ranking here."
+2. **Shell gate:** ON at 1440x810 (doc does not scroll, shell height == viewport) · ON at
+   1280x768 (doc 768, `.col-right` scrolls) · OFF at 1280x767 (doc scrolls). The gate flips
+   exactly on the 1px boundary.
+3. **Geometry holds:** Reset rides the Attributes `<summary>` (`insideSummary: true`,
+   `margin-left: auto` = 32.98px) and does NOT grow it — the control measures 16px tall inside a
+   summary that is still exactly **52px**, which is the "height released on purpose" claim holding
+   in a real browser. Every section summary is 52px. Header is **62px** (`offsetHeight`; the
+   unrounded box is 61.5 and F15's record derives the same 12+37+12+1).
+4. **Applying a roll is exactly ONE state write** — `Storage.prototype.setItem` was instrumented
+   on the autosave key across the click: **1** write, one loadout signature (29 entries). This is
+   the runtime confirmation of the single `applyEdit` in `runRoll`.
+
+### Notes handed back, none actioned here
+
+  (a) `dev` moved THREE times mid-integration under a sibling agent (`e2a1fbb`+`893bdfe`
+      SynergyBoard key fix, then `2ec043e`+`278dbd6` console guard). The landing was re-based on
+      the tip each time and `d0a9c5b` remains an ancestor. The uncommitted `SynergyBoard.tsx`
+      edit Tier 1 flagged as unowned was committed by its owner mid-session — it was never
+      touched here.
+  (b) `.gitignore`'s `node_modules/` trailing slash reproduced exactly as the branch warned: the
+      symlinked `node_modules` in the landing worktree shows as `?? node_modules`. Nothing was
+      staged with `git add -A`; every commit staged explicit paths only.
+  (c) An untracked `tests/ui/zz-probe.test.tsx` (a sibling agent's perf probe importing a
+      non-existent `./m4-rig`) sits in the main checkout. It cannot collect and would redden both
+      `tsc` and the suite, which is why every gate above was run in a CLEAN worktree at the exact
+      commit. It was not touched, moved, or committed.
+─────────────────────────────────────────────
