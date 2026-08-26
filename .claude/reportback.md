@@ -8097,3 +8097,126 @@ Two things handed back to Tier 1:
       a `beforeAll`-scoped installation plus a vitest environment override — both larger than this
       slice and neither needed to close the defect class that motivated it.
 ─────────────────────────────────────────────
+
+---
+
+## 2026-08-26 · Tier 2 · fix — import-route tests made deterministic (no wall-clock waits)
+
+─────────────────────────────────────────────
+2026-08-26 — The 1000 ms `findByRole` wait on the import route is gone; the four import-route
+test files now settle on a bounded microtask chain instead of a poll against a wall clock
+Type: fyi
+Actor: Claude Opus 5 — direct operator task (not a dispatched subagent slice)
+Slice: n/a — closes observation (a) of the 2026-08-26 SynergyBoard duplicate-key entry
+
+WHAT
+New `tests/ui/import-route.ts` exports one helper, `importBuildFile(contents, fileName?)`, which
+drives a JSON build through `ExportImportControls`' file input and returns the mounted confirm
+dialog. It replaces every `await screen.findByRole("dialog", { name: "Import build" })` in the
+suite, and the two trailing `waitFor(... toBeNull())` dialog-unmount waits with them.
+
+The helper does two things. (1) It pins the `File`'s `text()` to a promise created BEFORE the
+change event and already fulfilled, so resolution order is a fact about the Promise job queue
+rather than about jsdom's Blob internals. (2) It awaits that same promise inside `act()`. App.tsx
+registers its `.then` inside the change handler — before the helper's `await` registers its own
+reaction on the same promise — and reaction jobs run FIFO, so when the helper's await resumes,
+`setImportState` has already run; it ran inside the act scope, so React's work is in the act queue,
+and `act` drains that queue before resolving. There is no timeout and no polling anywhere in the
+path: it takes LONGER under load, it does not FAIL under load.
+
+The two `waitFor` removals are the same argument at the other end. `confirmImport` / `onCancel`
+clear `importState` synchronously inside the click handler, and RTL flushes `fireEvent` through
+`act()`, so the dialog is already unmounted when `fireEvent.click` returns. Nothing was being
+waited for.
+
+WHY A BIGGER TIMEOUT WAS THE WRONG FIX, MEASURED
+The read was never the slow part. On an idle box: `file.text()` itself 0.2 ms; the dialog reaches
+the DOM after exactly ONE macrotask hop (78.1 ms end-to-end from the change event); one
+`queryByRole("dialog", { name })` scan 9.2 ms. Yet `await findByRole(...)` cost 308.7 ms — RTL's
+`waitFor` re-checks on a 50 ms `setInterval` and each check is a full role + accessible-name scan
+over this app's ~2,800-element tree. Roughly 97% of the 1000 ms budget was poll cadence and scan
+cost, not the file read. A contended box does not stop that clock, so the budget expires between
+the polls that would have passed. Raising the budget only moves the load at which the same failure
+returns; the helper deletes the clock instead.
+
+SCOPE NOTE — A FOURTH FILE
+The brief named three files. The first loaded full-suite run after fixing them surfaced
+`tests/ui/summary-import-export.test.tsx` failing with the IDENTICAL error
+(`Unable to find role="dialog" and name "Import build"`) from the same `findByRole` pattern in
+three of its tests. It was fixed with the same helper rather than reported and left red: same
+defect, same one-line application, and leaving it would have left the suite with exactly the CI
+flake this slice exists to remove. Flagged here rather than done quietly.
+
+EVIDENCE
+Branch `dev`. The suite baseline moved during this work: it is 72 files / 1496 tests, not the
+69 / 1433 the brief quotes — commit `88e8b84` (F8-R2 roll UI) landed on `dev` mid-session and
+added 3 files / 63 tests.
+
+1. PRE-FIX, LOADED — the failure reproduced on demand. 32 busy-loop spinners on a 10-core box
+   (`ncpu=10`), three named files only:
+       Test Files  3 failed (3)
+            Tests  3 failed | 29 passed (32)
+   All three failures are the import-route test in each file. Same three files, same spinners,
+   POST-FIX: 32/32 green.
+
+2. POST-FIX, UNLOADED — `npx vitest run`, full suite:
+       Test Files  72 passed (72)
+            Tests  1496 passed (1496)
+   Measured twice: once in an isolated worktree pinned at `d0a9c5b` carrying ONLY this change, and
+   again in the working tree at `278dbd6`. The second run includes the concurrent session's
+   `tests/setup-console-guard.ts`, which fails any test that emits a React console warning — so it
+   also proves the helper's `act()` usage emits no "not wrapped in act(...)" warning.
+
+3. POST-FIX, LOADED — `npx vitest run` under 32 spinners, THREE consecutive full-suite runs
+   (two isolated at `d0a9c5b`, one at `278dbd6`; ~97-99s wall, ~560-585s test time each):
+       Test Files  1 failed | 71 passed (72)
+            Tests  1 failed | 1495 passed (1496)
+   Import-route failures in all three runs: 0, 0, 0. The single failure is the same test every
+   time and is NOT an import-route test — see NEXT (a). Spinners were killed by an EXIT trap and
+   `pgrep` confirmed clean after every run.
+
+4. `npx tsc --noEmit` → exit 0, clean, in both trees. No `lint` script exists in this project
+   (scripts: dev, build, preview, typecheck, generate:badges, test, test:watch), so the lint proof
+   is N/A rather than skipped.
+
+CONSTRAINED-MODE REPORTBACK
+changed_files: tests/ui/import-route.ts (new, 63 lines); tests/ui/f2-disclosure-surfaces.test.tsx;
+  tests/ui/f22-import-guard.test.tsx; tests/ui/f4-slot7.test.tsx;
+  tests/ui/summary-import-export.test.tsx; .claude/reportback.md (this entry).
+  Net −21 lines across the four test files. NO src/ file was touched — the app's import path is
+  unchanged, and the stub lives entirely in the test's own `File` instance.
+denied_paths_checked: `vite.config.ts` and `tests/setup-console-guard.ts` were modified in this
+  tree by a CONCURRENT session and were deliberately left alone; they are theirs and are now
+  committed as `2ec043e` / `278dbd6`. Nothing was staged but the six files above.
+first_proof_result: PASS — the three named files 32/32 unloaded, then 3/3 files green under the
+  32-spinner load that had just failed them 3/3.
+verification_evidence: see EVIDENCE 1-4; full logs in the session scratchpad.
+heartbeats_emitted: n/a (single-slice fix)
+stop_conditions_triggered: none. The one scope decision (the fourth file) is disclosed above rather
+  than folded in silently.
+
+SCOPE / PLAN IMPACT
+None. No scope.md, tech-strategy.md, design-spec.md or H-ruling is touched. No behavioural
+assertion changed: every expectation in the four files is the one that was there before, reached
+by a deterministic route instead of a timed one. The pre-existing `{ timeout: 20000 }` overrides in
+`f22-import-guard.test.tsx` were left in place — they bound vitest's own per-test wall clock, which
+no amount of determinism inside the test can remove, and a test that settles fast never spends it.
+
+NEXT
+Nothing blocking. Committed to `dev` and deliberately NOT pushed, NOT merged, no branch created.
+Two observations handed back to Tier 1:
+  (a) `tests/randomize.test.ts > INV-1a — determinism > 100 seeds x 10 repeats` is the suite's
+      remaining load-sensitive test, and it is a DIFFERENT class: no async wait, no DOM — it is
+      3,449 ms of pure computation against a 20,000 ms per-test budget, which 32 spinners on 10
+      cores (4x oversubscribed) exhausts. It cannot be de-fragilised by removing a wait, because
+      there is no wait; the only levers are less work per test or a larger budget. Untouched here
+      because it is outside the brief and the choice between those levers is a judgement about the
+      test's own design, not a mechanical fix.
+  (b) CONCURRENT SESSION. Another session held this tree throughout: HEAD moved `893bdfe` →
+      `d0a9c5b` → `278dbd6` mid-work, and `vite.config.ts` / `tests/setup-console-guard.ts` were
+      edited under this session's feet. Verification was therefore moved into a detached
+      `git worktree` pinned at `d0a9c5b` with only this change applied, so the numbers in EVIDENCE
+      2-3 are attributable. Two agents mutating one Tier 2 tree is a coordination hazard, not a
+      one-off: a `git stash` here would have been the accident, and the only reason it was not is
+      that the overlap was noticed before the second one.
+─────────────────────────────────────────────
