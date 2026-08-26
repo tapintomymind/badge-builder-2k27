@@ -386,7 +386,7 @@ describe("F16 5 — the tile: level, cost, role and staleness, each with two car
     // pricing function over the SHIPPED table, so a change to either moves
     // the assertion with it rather than leaving a stale literal behind.
     const expected = costForLevel("A", "gold", shippedDataset);
-    expect(tile.querySelector(".board-tile__cost")?.textContent).toBe(String(expected));
+    expect(tile.querySelector(".board-tile__cost")?.textContent).toBe(`${String(expected)} pts`);
     expect(tile.getAttribute("aria-label")).toContain(`${String(expected)} Badge Points`);
   });
 
@@ -455,6 +455,29 @@ describe("F16 6 — ADDITIVE: the existing view is untouched", () => {
     // The <Section>'s own <summary> is the keyboard bypass for every board
     // tab stop — one Tab, one Enter, and they all leave the tab order.
     expect(mount.querySelector("details.section > summary")).toBeTruthy();
+  });
+
+  it("holds NO element whose entire text is a bare numeral", () => {
+    // THE CLASS, CLOSED — not the one instance. `getByText` matches an
+    // element's whole textContent and THROWS on a second match, and the
+    // shipped suite carries global bare-numeral queries against ledger
+    // values, one of them inside a declared RUN-never-edit gate. A new
+    // surface that renders `<span>15</span>` reddens a test it has no other
+    // relationship with, from across the document. Asserted here so the next
+    // addition to the board finds out from this file rather than from that
+    // gate.
+    seed(MIXED);
+    render(<App />);
+    for (const node of board().querySelectorAll("*")) {
+      expect(
+        /^\d+$/.test((node.textContent ?? "").trim()),
+        `bare numeral "${node.textContent ?? ""}" in ${node.className}`,
+      ).toBe(false);
+    }
+    // POSITIVE CANARY: the pattern really does catch what it claims to.
+    expect(/^\d+$/.test("15")).toBe(true);
+    expect(/^\d+$/.test("7/4")).toBe(false);
+    expect(/^\d+$/.test("6 pts")).toBe(false);
   });
 
   it("adds NO live region and NO dialog", () => {

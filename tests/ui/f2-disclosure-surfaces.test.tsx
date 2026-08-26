@@ -356,13 +356,23 @@ describe("F — '0 = unset' Badge Slots capacity, uniform across all four surfac
 });
 
 describe("E — JumpNav panel chips render at the FRONT of the row", () => {
-  it("Synergy and Summary are the first two links", () => {
+  it("the panel chips are the FIRST links, in page order", () => {
     render(<App />);
     const nav = screen.getByRole("navigation", { name: "Categories" });
     const links = [...nav.querySelectorAll("a")].map((anchor) => anchor.textContent);
     // PRE-FIX: they rendered LAST — at 768 that put them at x=946+ inside a
     // 768px viewport, off-screen in an unafforded h-scroll, while being the
     // only route to Synergy/Summary below L.
-    expect(links.slice(0, 2)).toEqual(["Synergy", "Summary"]);
+    //
+    // F16 added a THIRD panel — the Loadout board — between the grid and the
+    // Synergy Slots panel, so the group is three chips long. What this case
+    // has always been about is that the group is front-loaded and that its
+    // order matches the page's, and both are still asserted; the count is
+    // read off the group rather than pinned, so a fourth panel amends one
+    // list here instead of failing for the wrong reason.
+    const panels = ["Board", "Synergy", "Summary"];
+    expect(links.slice(0, panels.length)).toEqual(panels);
+    // …and the six category chips follow, none of them displaced.
+    expect(links).toHaveLength(panels.length + 6);
   });
 });

@@ -4408,32 +4408,38 @@ main#badge-grid {
  * F11 measured that in headless Chrome at 70.156px ("Unpluckable") and pinned
  * it at the ceiling, 71.
  *
- *   TILE_FLOOR  = NAME_MIN_CONTENT 71 + 2 x --space-2 + 2 x 1px border = 89
+ *   TILE_META_MAX = disc 20 + --space-1 + glyph 13 + --space-1 + "7 pts" 33
+ *                                                                       = 74
+ *   TILE_FLOOR    = max(NAME_MIN_CONTENT 71, TILE_META_MAX 74)
+ *                     + 2 x --space-2 + 2 x 1px border                  = 92
  *
- * The tile's meta line (level disc + role glyph + a one-digit cost — the
- * dataset's dearest badge is 7 Badge Points) is narrower than the name, so
- * the name is the binding driver and the assertion says so.
+ * THE META ROW WINS, and the design never costed it. §3.6 derived its cell
+ * floor from the longest badge name alone; a board tile also carries a level
+ * disc, a synergy glyph and a cost, and that row is 3px wider than the word.
+ * F11's cell has no meta row, which is exactly why its floor is 89 and this
+ * one is 92 — one composition, one more term inside the max.
  *
  * PANEL_TRACK is the two-cell floor plus a full --space-6 of comfort PER
  * CELL. The floor alone is the knife edge the rail derivation already refused
  * once; the slack is what makes a two-line name look right rather than merely
  * fit.
  *
- *   PANEL_FLOOR = 2 x TILE_FLOOR + --space-2 + 2 x --space-3 + 2 x 1px = 212
+ *   PANEL_FLOOR = 2 x TILE_FLOOR + --space-2 + 2 x --space-3 + 2 x 1px = 218
  *   PANEL_TRACK = 2 x (TILE_FLOOR + --space-6) + --space-2
- *                   + 2 x --space-3 + 2 x 1px                          = 260
+ *                   + 2 x --space-3 + 2 x 1px                          = 266
  *
- * 260 AND NOT THE DESIGN'S 258. The design derived 258 from a CELL_FLOOR of
- * 86, which F11 re-pinned to 89 when it measured the word. Two cells and the
- * same --space-6 of comfort against the corrected floor is 260. The number
- * moved because the measurement did.
+ * 266 AND NOT THE DESIGN'S 258, for two corrections that both ran the same
+ * way: F11 MEASURED the word (68 -> 71), and the meta row was never costed
+ * (71 -> 74). The number moved because the arithmetic did.
  */
 
 .loadout-board {
   display: grid;
   /* CONTINUOUS, NOT STEPPED. Panels re-flow from 3-up to 1-up on the box
-     alone: 3 at 1045 and at 885, 2 at 687, 1 at 332. */
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+     alone: 3 at 1045 and at 885, 2 at 687, 1 at 332. No breakpoint, because
+     auto-fill's own arithmetic guarantees every resulting track clears the
+     floor — a sub-floor cell is not merely unlikely here, it is unreachable. */
+  grid-template-columns: repeat(auto-fill, minmax(266px, 1fr));
   gap: var(--space-3);
   align-items: start;
 }
@@ -4497,6 +4503,15 @@ main#badge-grid {
   color: var(--fg-secondary);
 }
 
+/* The numeric read rides font-variant-numeric on the WHOLE metric, because
+   that property only affects digits — which is what lets `left 12` be one
+   text run instead of a <span> wrapping a bare numeral. See the panel's own
+   note: a bare-numeral element is globally findable by getByText and reddens
+   a gate it has no other relationship with. */
+.board-panel__metric {
+  font-variant-numeric: tabular-nums;
+}
+
 .board-panel__metric .num {
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
@@ -4530,7 +4545,7 @@ main#badge-grid {
 
 .board-panel__tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(89px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
   gap: var(--space-2);
   margin: var(--space-3) 0 0;
   padding: 0;

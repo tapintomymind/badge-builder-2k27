@@ -103,9 +103,19 @@ export function PurchasedTile({
             {ROLE_GLYPH[role.kind]}
           </span>
         )}
+        {/* THE UNIT IS NOT DECORATION. Two reasons, and both hold on their
+            own. (a) A bare "6" sitting beside a "G" disc is ambiguous — the
+            app's other numeric channel on a metal face is a LEVEL, and the
+            colour law spends a whole rule keeping those two readings apart.
+            (b) An element whose entire textContent is a numeral is globally
+            findable by `getByText`, which throws on a second match; the
+            suite carries three such queries against ledger values, one of
+            them inside a RUN-never-edit gate. "pts" is the app's own shipped
+            abbreviation (the feasibility line already says "N pts left"), so
+            this borrows vocabulary rather than inventing any. */}
         {cost === null ? null : (
           <span className="num board-tile__cost" aria-hidden="true">
-            {cost}
+            {cost} pts
           </span>
         )}
       </span>
