@@ -330,11 +330,22 @@ export interface ExportImportControlsProps {
   onImportFile: (file: File) => void;
 }
 
+/* THE LABELS ARE `Export` / `Import`, and the missing word is load-bearing.
+ * design-spec §3.2 item 5 names them exactly that; the shipped tree carried
+ * `Export JSON` / `Import JSON`, which nothing specified. Measured at 1280 in
+ * headless Chrome, the suffix costs 72.24px (`Export JSON` 74.05 -> 37.92,
+ * `Import JSON` 74.38 -> 38.27) against a header that overflowed its content
+ * box by 71.44px — i.e. the two words WERE the second header row, and the
+ * second row was 40 of the 102px that set the app shell's height gate.
+ * Restoring the spec's names takes the gate 868 -> 768 and is why an ordinary
+ * 1440x900 laptop can reach the shell at all. `.json` is still the extension
+ * the download carries, so nothing about the format is now unsaid.
+ * layout-arithmetic's F15 block re-derives the fit and fails if it returns. */
 export function ExportImportControls({ onExport, onImportFile }: ExportImportControlsProps) {
   return (
     <span className="export-import">
       <Button variant="secondary" size="sm" onClick={onExport}>
-        Export JSON
+        Export
       </Button>
       {/* Wrapping label (no htmlFor): native association, styled as a
        * button; the sr-only file input stays keyboard-reachable. */}
@@ -349,7 +360,7 @@ export function ExportImportControls({ onExport, onImportFile }: ExportImportCon
             event.currentTarget.value = "";
           }}
         />
-        Import JSON
+        Import
       </label>
     </span>
   );

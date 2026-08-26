@@ -273,11 +273,18 @@ ul {
 
 /* ------------------------------------------------------------- header -- */
 
+/* THE COLUMN GAP IS THE MARGIN, NOT THE FIX (F15). At 1280 the five children
+ * demand 1231.20px of a 1232px content box once `Export`/`Import` carry the
+ * names design-spec §3.2 gives them — a 0.80px clearance, which is not a
+ * clearance. Dropping the column gap --space-4 -> --space-3 gives back 4 x 4px
+ * and takes the margin to 16.80px, and it makes the header's two gaps the same
+ * token rather than two. The ROW gap stays --space-3: below 768 the header
+ * still wraps to three rows and that spacing is F9's, not this slice's. */
 .app-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3) var(--space-4);
+  gap: var(--space-3);
   padding: var(--space-3) var(--space-6);
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-subtle);
@@ -4341,22 +4348,38 @@ main#badge-grid {
  * clear design-spec §5.3's >= 60%:
  *
  *   MIN_SHELL_H = ceil((HEADER_H + STRIP_H + PAGE_PAD_Y + STICKY_STACK_H) / 0.40)
- *               = ceil((102 + 93 + 32 + 120) / 0.40)
- *               = ceil(867.5) = 868
+ *               = ceil((62 + 93 + 32 + 120) / 0.40)
+ *               = ceil(767.5) = 768
  *
  * EVERY TERM IS MEASURED AT 1280, headless Chrome 151.0.7922.174
- * (docs/proof/f14-verification.txt) — none is relayed, and three of the four
- * moved when they were measured:
- *   HEADER_H         102  (the header WRAPS to two rows at 1280; 62 at 1440)
- *   STRIP_H          93   (F13's strip measures 92.19; ceiling, per §13.0.1)
- *   PAGE_PAD_Y       32   (.layout padding-block, unchanged by this block)
+ * (docs/proof/f14-verification.txt, re-measured in f15-verification.txt) —
+ * none is relayed:
+ *   HEADER_H          62  (F15: ONE row at 1280. Was 102 — see below)
+ *   STRIP_H           93  (F13's strip measures 92.19; ceiling, per §13.0.1)
+ *   PAGE_PAD_Y        32  (.layout padding-block, unchanged by this block)
  *   STICKY_STACK_H   120  (44 + 76 at L — 107 is the S pair, see :root above)
+ *
+ * WHY THE GATE MOVED 868 -> 768, AND WHY IT HAD TO. F14 shipped 868 honestly:
+ * the header FLEX-WRAPPED to two rows at 1280 (102; 62 at 1440), and 40 of
+ * those 102px were the second row plus its row gap. But a 1440x900 display
+ * leaves roughly 810 CSS px after browser chrome, so an 868 gate meant the
+ * shell never activated on an ordinary laptop — it was dead code for its
+ * whole audience. F15 measured the wrap instead of accepting it: at 1280 the
+ * five children demanded 1303.44px of a 1232px content box, an overflow of
+ * 71.44px, and 72.24px of that was the ` JSON` suffix on two action buttons
+ * that design-spec §3.2 item 5 names `Export` and `Import`. The suffix WAS
+ * the second row. Restoring the spec's names plus the header's column-gap
+ * token (--space-4 -> --space-3, worth 16px) leaves 16.80px of clearance,
+ * the header is one row, and the gate falls out of the same formula at 768.
  *
  * tests/layout-arithmetic.test.ts asserts the FORMULA and that the literal
  * below is >= its output, so any future chrome reddens the suite instead of
  * shrinking the cards in silence. It also asserts the >= 60% outcome and
- * reports the margin: 60.02% at 868, which is 0.02pp — this gate is AT THE
- * LIMIT by construction, and that is the honest place for it to sit.
+ * reports the margin: 60.03% at 768, which is 0.03pp — this gate is AT THE
+ * LIMIT by construction, and that is the honest place for it to sit. The F15
+ * block additionally re-derives the HORIZONTAL fit, so the day someone
+ * re-lengthens a header label the suite fails instead of the gate going
+ * quietly optimistic by 40px.
  *
  * WIDTH >= 1280 IS SCOPING, NOT NARROWING. Below 1280 the pane is not
  * rendered, `.col-right` is `.layout`'s only item, and "the specific
@@ -4364,10 +4387,10 @@ main#badge-grid {
  * and forfeit the address bar's retraction on a phone permanently.
  *
  * THE PRINT PATH NEEDS NOTHING. Both gate terms are evaluated against the page
- * box when printing, and no paper size reaches 1280 x 868 in either
+ * box when printing, and no paper size reaches 1280 x 768 in either
  * orientation, so the shell is structurally off and @media print keeps grading
  * the layout it was written for. */
-@media (min-width: 1280px) and (min-height: 868px) {
+@media (min-width: 1280px) and (min-height: 768px) {
   html,
   body {
     height: 100%;
@@ -4506,7 +4529,7 @@ main#badge-grid {
  * just today's behaviour. The gate literal is repeated VERBATIM — a drifted
  * pair would shell a viewport the gate above excluded. */
 @supports not (height: 100dvh) {
-  @media (min-width: 1280px) and (min-height: 868px) {
+  @media (min-width: 1280px) and (min-height: 768px) {
     html,
     body {
       height: auto;
